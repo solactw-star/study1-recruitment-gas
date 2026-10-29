@@ -297,3 +297,23 @@ test('live hold expiry after its slot start fails closed, including spare capaci
     .map((v,i)=>i===4?'2026-10-31T09:01:00Z':v);
   assert.equal(availability(fake({slots:[slot(3)],rows:[cancelled]}))[0].remaining,3);
 });
+
+test('active reservations on a cancelled slot fail closed; historical and closed cases remain valid',()=>{
+  const cancelled=slot(3).map((v,i)=>i===5?'CANCELLED':v);
+  for(const status of ['HELD','CONFIRMED']) {
+    const x=fake({slots:[cancelled],rows:[reservation('R1',status)]});
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/已取消時段仍有有效預約/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+  for(const status of ['CANCELLED','EXPIRED']) {
+    assert.deepEqual(availability(fake({slots:[cancelled],
+      rows:[reservation('R1',status)]})),[]);
+  }
+  const expiredHold=reservation().map((v,i)=>i===4?'2026-10-29T11:59:00Z':v);
+  assert.deepEqual(availability(fake({slots:[cancelled],rows:[expiredHold]})),[]);
+  const closed=slot(3).map((v,i)=>i===5?'CLOSED':v);
+  assert.deepEqual(availability(fake({slots:[closed],rows:[reservation()]})),[]);
+});
