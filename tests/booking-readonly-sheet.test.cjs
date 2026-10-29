@@ -312,7 +312,9 @@ test('active reservations on a cancelled slot fail closed; historical and closed
     assert.deepEqual(availability(fake({slots:[cancelled],
       rows:[reservation('R1',status)]})),[]);
   }
-  const expiredHold=reservation().map((v,i)=>i===4?'2026-10-29T11:59:00Z':v);
+  const expiredHold=reservation().map((v,i)=>
+    i===4?'2026-10-29T11:59:00Z':
+    i===6?'2026-10-29T11:40:00Z':v);
   assert.deepEqual(availability(fake({slots:[cancelled],rows:[expiredHold]})),[]);
   const closed=slot(3).map((v,i)=>i===5?'CLOSED':v);
   assert.deepEqual(availability(fake({slots:[closed],rows:[reservation()]})),[]);
