@@ -106,10 +106,16 @@ function bookingHoldOnceLocked_(request,adapters) {
       before.slots.rows,before.reservations.rows,request.nowUtc);
     var existing=bookingHoldExistingKey_(before.reservations.rows,request.idempotencyKey);
     if (existing) {
+      var replaySlot=before.slots.rows.filter(function(r) {
+        return !bookingBlankRow_(r) && r[0]===request.slotId;
+      })[0];
       if (existing[1]===request.applicantId &&
           existing[2]===request.slotId &&
           bookingStatus_(existing[3])===BOOKING_STATUS_.hold &&
-          bookingHoldActive_(existing,now)) {
+          bookingHoldActive_(existing,now) &&
+          replaySlot && bookingStatus_(replaySlot[5])===BOOKING_STATUS_.slotOpen &&
+          bookingInstant_(replaySlot[1])>now &&
+          bookingInstant_(existing[4])<=bookingInstant_(replaySlot[1])) {
         return {held:true,reason:'REPLAY'};
       }
       return {held:false,reason:'REJECTED'};

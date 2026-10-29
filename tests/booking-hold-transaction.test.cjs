@@ -74,6 +74,13 @@ test('Expired, cancelled, confirmed or other-slot replay never claims success',(
     assert.equal(x.stats().appends,0);
   }
 });
+test('Replay of an existing hold is rejected if its slot closed or already started',()=>{
+  const x=make({rows:[hold()],slots:[slot('SLOT_A',1,'CLOSED')]});
+  assert.deepEqual(call(x),{held:false,reason:'REJECTED'});
+  const y=make({rows:[hold()],slots:[['SLOT_A','2026-10-29T11:00:00Z',
+    '2026-10-29T11:30:00Z',1,'ROOM','OPEN','researcher',now]]});
+  assert.deepEqual(call(y),{held:false,reason:'REJECTED'});
+});
 test('Only one seat: other applicant confirmed/held blocks booking',()=>{
   for(const row of [hold('H2','OTHER_APP','other-idempotency-0002',until),
     hold('H2','OTHER_APP','other-idempotency-0002','','CONFIRMED')]){
