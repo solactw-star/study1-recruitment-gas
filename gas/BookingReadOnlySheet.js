@@ -68,7 +68,8 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
     snapshot.slots.rows, snapshot.reservations.rows, nowUtc);
-  var capacity = new Map(), occupied = new Map(), ids = new Set(), keys = new Set();
+  var capacity = new Map(), occupied = new Map(), ids = new Set(), keys = new Set(),
+      activeApplicants = new Set();
   snapshot.slots.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
     capacity.set(bookingId_(row[0]), bookingCapacity_(row[3]));
@@ -84,7 +85,15 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
     var status = bookingStatus_(row[3]);
     var active = status === BOOKING_STATUS_.confirmed ||
       (status === BOOKING_STATUS_.hold && bookingInstant_(row[4]) > now);
-    if (active) occupied.set(slot, (occupied.get(slot) || 0) + 1);
+    if (active) {
+      // A single applicant cannot own two live holds/confirmed bookings.
+      // Detect historical corruption before any availability is offered.
+      if (activeApplicants.has(applicant)) {
+        throw new Error('同一申請者存在多筆有效預約，已拒絕提供名額。');
+      }
+      activeApplicants.add(applicant);
+      occupied.set(slot, (occupied.get(slot) || 0) + 1);
+    }
   });
   occupied.forEach(function(n, slot) {
     if (n > capacity.get(slot)) {
