@@ -1,0 +1,11 @@
+.clasprc.json
+**/.clasprc.json
+.env
+.env.*
+!.env.example
+node_modules/
+*.pem
+*.key
+*.p12
+credentials.json
+secrets.json
