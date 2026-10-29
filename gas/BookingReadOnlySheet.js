@@ -7,6 +7,36 @@
  */
 var BOOKING_READ_MAX_ROWS_ = 10000; // operational resource guard, not REC policy
 
+/** Defensive copy of sheet cell values. Never retain mutable Date references. */
+function bookingReadOnlyCopyCell_(value) {
+  if (Object.prototype.toString.call(value) === '[object Date]') {
+    var time = value.getTime();
+    if (!Number.isFinite(time)) throw new Error('預約快照含無效日期，已拒絕讀取。');
+    return new Date(time);
+  }
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  throw new Error('預約快照含非預期資料型別，已拒絕讀取。');
+}
+
+/** Compare complete tab values, including private fields, without logging them. */
+function bookingReadOnlySameTab_(a, b) {
+  var left = [a.headers].concat(a.rows), right = [b.headers].concat(b.rows);
+  if (left.length !== right.length) return false;
+  for (var i = 0; i < left.length; i++) {
+    if (left[i].length !== right[i].length) return false;
+    for (var j = 0; j < left[i].length; j++) {
+      var x = left[i][j], y = right[i][j];
+      var dx = Object.prototype.toString.call(x) === '[object Date]';
+      var dy = Object.prototype.toString.call(y) === '[object Date]';
+      if (dx !== dy) return false;
+      if (dx ? x.getTime() !== y.getTime() : x !== y) return false;
+    }
+  }
+  return true;
+}
+
+
 function bookingReadOnlyTab_(book, name, expected) {
   if (!book || typeof book.getSheetByName !== 'function') {
     throw new Error('預約工作簿讀取介面不合法。');
@@ -37,7 +67,8 @@ function bookingReadOnlyTab_(book, name, expected) {
       })) {
     throw new Error('預約工作表資料列格式不合法。');
   }
-  return {headers: head[0].slice(), rows: rows.map(function(row) {return row.slice();})};
+  return {headers: head[0].map(bookingReadOnlyCopyCell_),
+    rows: rows.map(function(row) {return row.map(bookingReadOnlyCopyCell_);})};
 }
 
 /** Only the pre-approved 828 operations workbook may be opened. */
@@ -52,10 +83,22 @@ function bookingReadOnlySnapshot_(openSpreadsheet) {
       book.getId() !== SITE_RESOURCES_.operations) {
     throw new Error('預約工作簿識別碼不一致。');
   }
-  return {
+  // Two passes detect changes while separately reading Slots and Reservations.
+  // This is only a best-effort drift guard, NOT a transactional snapshot:
+  // an A->B->A change or a writer after pass two can still escape detection.
+  var first = {
     slots: bookingReadOnlyTab_(book, 'Slots', BOOKING_SLOT_HEADERS_),
     reservations: bookingReadOnlyTab_(book, 'Reservations', BOOKING_RESERVATION_HEADERS_)
   };
+  var second = {
+    slots: bookingReadOnlyTab_(book, 'Slots', BOOKING_SLOT_HEADERS_),
+    reservations: bookingReadOnlyTab_(book, 'Reservations', BOOKING_RESERVATION_HEADERS_)
+  };
+  if (!bookingReadOnlySameTab_(first.slots, second.slots) ||
+      !bookingReadOnlySameTab_(first.reservations, second.reservations)) {
+    throw new Error('預約快照讀取期間資料發生變動，已拒絕提供名額。');
+  }
+  return first;
 }
 
 /**

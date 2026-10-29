@@ -26,12 +26,30 @@ function fake(opts={}) {
   vm.createContext(ctx);vm.runInContext(code,ctx);
   const calls=[];
   function sheet(name,headers,rows) {
+    let dataReads=0, headerReads=0, dimensionReads=0;
     return {
-      getLastRow(){return opts.huge && name==='Reservations'?10002:rows.length+1;},
+      getLastRow(){
+        dimensionReads++;
+        if (opts.huge && name==='Reservations') return 10002;
+        if (opts.growSecondPass===name && dimensionReads===2) return rows.length+2;
+        return rows.length+1;
+      },
       getLastColumn(){return opts.extraColumn && name==='Slots'?headers.length+1:headers.length;},
       getRange(r,c,h,w) {
         calls.push([name,r,c,h,w]);
-        return {getValues(){return r===1?[headers.slice()]:rows.map(x=>x.slice());}};
+        return {getValues(){
+          if(r===1){
+            headerReads++;
+            const h=headers.slice();
+            if(opts.changeHeaderSecondPass===name && headerReads===2) h[0]='ALTERED';
+            return [h];
+          }
+          dataReads++;
+          const result=rows.map(x=>x.slice());
+          if(opts.mutateOnSecondRead && dataReads===2)
+            return opts.mutateOnSecondRead(name,result);
+          return result;
+        }};
       }
     };
   }
@@ -57,7 +75,8 @@ test('reads only 828 workbook and returns sanitized availability',()=>{
     endAtUtc:'2026-10-31T10:00:00.000Z',remaining:1}]);
   assert.equal(x.calls[0][1],'1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ');
   assert.deepEqual(x.calls.slice(1).map(c=>c.slice(0,2)),
-    [['Slots',1],['Slots',2],['Reservations',1],['Reservations',2]]);
+    [['Slots',1],['Slots',2],['Reservations',1],['Reservations',2],
+     ['Slots',1],['Slots',2],['Reservations',1],['Reservations',2]]);
   assert.doesNotMatch(JSON.stringify(availability(x)),/APP_A|idempotency-key|R1/);
 });
 test('header-only tabs return no availability and never read a zero-row range',()=>{
@@ -123,4 +142,38 @@ test('no public endpoint is opened and module has no write or email calls',()=>{
   assert.match(site,/function listSlots\(\)\{return \[\];\}/);
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
   assert.doesNotMatch(mod,/\.appendRow\s*\(|\.setValues\s*\(|\.setValue\s*\(|MailApp|GmailApp|SpreadsheetApp\.openById/);
+});
+
+test('rejects a reservation change between separate cross-tab reads',()=>{
+  const x=fake({rows:[reservation()],
+    mutateOnSecondRead:(name,rows)=>{
+      if(name==='Reservations') rows[0][3]='CANCELLED';
+      return rows;
+    }});
+  assert.throws(()=>availability(x),/讀取期間資料發生變動/);
+});
+test('rejects changed slot capacity, header, or row count between passes',()=>{
+  for(const opts of [
+    {mutateOnSecondRead:(name,rows)=>{
+      if(name==='Slots') rows[0][3]=99;
+      return rows;
+    }},
+    {changeHeaderSecondPass:'Slots'},
+    {growSecondPass:'Reservations'}
+  ])assert.throws(()=>availability(fake(opts)));
+});
+test('Date objects are copied before second read so in-place mutations are detected',()=>{
+  const start=new Date('2026-10-31T09:00:00Z');
+  const row=slot().map((value,i)=>i===1?start:value);
+  const x=fake({slots:[row],mutateOnSecondRead:(name,rows)=>{
+    if(name==='Slots') start.setTime(start.getTime()+60000);
+    return rows;
+  }});
+  assert.throws(()=>availability(x),/讀取期間資料發生變動/);
+});
+test('unexpected object or invalid Date cell fails closed without returning PII',()=>{
+  for(const bad of [new Date('invalid'),{untrusted:'object'},Infinity]){
+    const row=reservation().map((value,i)=>i===8?bad:value);
+    assert.throws(()=>availability(fake({rows:[row]})));
+  }
 });
