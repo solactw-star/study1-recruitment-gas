@@ -85,7 +85,8 @@ test('duplicate reservation IDs or idempotency keys reject entire availability',
 });
 test('overbooked slot is rejected even when no seats are offered',()=>{
   const x=fake({slots:[slot(1)],rows:[
-    reservation(),reservation('R2','CONFIRMED','idempotency-key-0002')]});
+    reservation(),reservation('R2','CONFIRMED','idempotency-key-0002')
+      .map((value,i)=>i===1?'APP_B':value)]});
   assert.throws(()=>availability(x),/超出/);
 });
 test('malformed reservation, unknown status, orphan reference reject',()=>{
