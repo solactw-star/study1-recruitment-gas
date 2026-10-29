@@ -1,0 +1,72 @@
+name: Manual GAS source sync (NOT public website deployment)
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type I_AUTHORIZE_SOURCE_REPLACEMENT_ONLY (overwrites GAS source; no web app deployment)'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: study1-gas-source-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require explicit user confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$CONFIRMATION" != 'I_AUTHORIZE_SOURCE_REPLACEMENT_ONLY' ]; then
+            echo "::error::Explicit source-replacement authorization required."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run closed-site safety tests
+        run: |
+          npm test
+          node --check gas/Website.js
+      - name: Refuse missing OAuth credentials
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "::error::Missing CLASPRC_JSON secret; no GAS changes made."
+            exit 1
+          fi
+      - name: Authenticate on isolated runner without printing token
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          python3 -m json.tool "$HOME/.clasprc.json" >/dev/null
+      - name: Fetch fresh GAS source
+        env:
+          SCRIPT_ID: 1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z
+        run: |
+          mkdir -p "$RUNNER_TEMP/remote-gas"
+          cd "$RUNNER_TEMP/remote-gas"
+          npx --yes @google/clasp@3 clone "$SCRIPT_ID"
+      - name: Fail if GAS source changed since the reviewed backup
+        run: node scripts/check-remote-baseline.cjs "$RUNNER_TEMP/remote-gas" docs/remote-baseline-20261029.json
+      - name: Save pre-sync remote code
+        uses: actions/upload-artifact@v4
+        with:
+          name: study1-gas-pre-sync-backup
+          path: ${{ runner.temp }}/remote-gas/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 3
+      - name: Sync GAS project source ONLY (no new deployment)
+        working-directory: gas
+        run: npx --yes @google/clasp@3 push --force
+      - name: Delete temporary credentials
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"

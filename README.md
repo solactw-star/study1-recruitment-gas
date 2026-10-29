@@ -1,35 +1,39 @@
-# Study 1 招募、預約與電子同意網站
+# Study 1 招募、預約與電子同意網站（828 研究室）
 
-中原大學 828 研究室 Study 1 網站的**私人**程式碼與部署工作區。
+私人 GitHub 原始碼儲存庫；正式 GAS 專案仍為 **1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z**，擁有帳號為 **solac.tw@gmail.com**。
 
-## 目前狀態（2026-10-29）
+## 最新完成狀態（2026-10-29）
 
-- 連接 GitHub 的帳號：`solactw-star`
-- Google Workspace／GAS 擁有帳號：`solac.tw@gmail.com`
-- 既有 **唯一 GAS 專案 ID**：`1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`
-- 正式研究聯絡信箱：`lily4318@cycu.edu.tw`
-- 本儲存庫尚未匯入並核對 GAS 遠端原始碼。
-- **目前僅允許讀取與備份，禁止自動 push、版本發布、正式部署或開放受試者收件。**
+- 已以 GitHub Actions **唯讀**讀取 GAS 原始碼；來源備份執行編號 `40848488750`。
+- 已比對四個 GAS 程式/設定檔的檔名與 SHA-256，將五個原始檔（包含 `.clasp.json`）保留至 `gas/`；原始備份長期存放於 828 Drive。
+- `npm test`：不需要任何 OAuth 權限即可對目前「關閉招募」網站進行安全測試。
+- `test.yml`：GitHub 提交或 PR 時執行安全測試，不進行部署。
+- `manual-source-sync.yml`：**僅支援人工觸發**、需輸入指定確認字串，先讀取最新遠端 GAS 並核對原始碼雜湊，備份後才允許同步程式。**尚未執行，不會產生網站部署網址**。
+- 不允許直接從 GitHub 自動更新公開 Web App 部署；正式報名／電子簽署仍關閉。
 
-## 首次備份程序
+## 開發與測試
 
-1. 使用 828 研究室 Google 帳號完成 `clasp login`，將所得的 `~/.clasprc.json` 以 GitHub **Actions repository secret** 名稱 `CLASPRC_JSON` 安全存放。不可提交原始 JSON 或貼到聊天。
-2. 前往 **Actions → Backup GAS (read-only) → Run workflow**，手動執行一次。
-3. 確認執行成功，下載短期保存的 `study1-gas-remote-backup` artifact，核對是否含完整 `.gs`、`.html` 和 `appsscript.json`。該 artifact 僅供授權的儲存庫人員檢查，**禁止轉為公開**。
-4. 未經完整核對和安全審查，不將 artifact 的內容推送回 GAS；正式程式版本管理需在原始碼備份檢查通過後才能啟動。
+```bash
+npm test
+```
 
-## 研究資料邊界
+所有 Apps Script 程式放在 `gas/`，`gas/.clasp.json` 指定原有 GAS 專案。切勿上傳 `.clasprc.json`、OAuth token、參與者資料、真實簽署 PDF 到 GitHub。
 
-- 828 研究室網站工作區：`1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU`
-- 個資及電子同意 Google Sheets：`1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI`
-- 預約及營運 Google Sheets：`1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ`
-- 系統安全設定必須維持 `OPEN=false`、`CONSENT_READY=false`，除非全部正式文件與端到端驗證完成且使用者明確核准上線。
-- 不得改寫正式 Study 1 HTML MASTER、REC、FAST 或唯一整合 QC 來源資料。
+初始來源雜湊參照 `docs/remote-baseline-20261029.json`。因為 GAS API 的更新會**取代整個專案的原始碼**，第一次同步必須在遠端仍與備份完全相同時才可以執行；若任何遠端檔案有變動，工作流程會自動停止，不擅自覆寫。
 
-## 官方文件
+> **注意**：原始基準文件需永久保留以利追溯，若之後確實修改並同步 GAS，必須重新取得並審核新的遠端基準，再設計後續部署流程；不可略過檢查或自行更新基準讓失敗通過。
 
-- [Google Apps Script clasp 指南](https://developers.google.com/apps-script/guides/clasp)
-- [Apps Script API 專案內容管理](https://developers.google.com/apps-script/api/how-tos/manage-projects)
-- [GitHub Actions Secrets](https://docs.github.com/en/actions/concepts/security/secrets)
+## 研究邊界
 
-> **安全原則**：Google 的 `projects.updateContent` 會取代遠端專案所有原始檔；本儲存庫尚無遠端基準，不得執行任何修改遠端 GAS 的工作流程。
+- 828 Google Drive 工作區：`1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU`
+- 個資與同意 Google Sheet：`1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI`
+- 時段與營運 Google Sheet：`1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ`
+- 研究聯絡信箱：`lily4318@cycu.edu.tw`
+- 必須保留關閉狀態 `OPEN=false`、`CONSENT_READY=false`。
+- 不修改 Study 1 正式 HTML MASTER、REC、FAST、QC 等正式研究資料。
+
+## 官方參考文件
+
+- https://developers.google.com/apps-script/guides/clasp
+- https://developers.google.com/apps-script/api/how-tos/manage-projects
+- https://docs.github.com/en/actions/security-for-github-actions/security-guides/using-secrets-in-github-actions

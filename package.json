@@ -1,0 +1,1 @@
+{"name":"study1-recruitment-gas","private":true,"version":"0.0.0","description":"828 research lab GAS source and safety tests","scripts":{"test":"node --test tests/*.test.cjs"},"engines":{"node":">=20"}}
