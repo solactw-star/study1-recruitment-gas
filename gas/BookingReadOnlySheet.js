@@ -142,6 +142,31 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
 }
 
 /**
+ * Fail closed on noncanonical stored status values. The general booking
+ * kernel normalizes case/whitespace for callers, but a read-only integrity
+ * check must not silently repair inconsistent Sheet records. This adds no
+ * new lifecycle policy; it checks only the existing provisional vocabulary.
+ */
+function bookingReadOnlyValidateCanonicalStatuses_(snapshot) {
+  snapshot.slots.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    if (row[5] !== BOOKING_STATUS_.slotOpen &&
+        row[5] !== 'CLOSED' && row[5] !== BOOKING_STATUS_.cancelled) {
+      throw new Error('時段狀態非標準值，已拒絕提供名額。');
+    }
+  });
+  snapshot.reservations.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    if (row[3] !== BOOKING_STATUS_.hold &&
+        row[3] !== BOOKING_STATUS_.confirmed &&
+        row[3] !== BOOKING_STATUS_.cancelled &&
+        row[3] !== BOOKING_STATUS_.expired) {
+      throw new Error('預約狀態非標準值，已拒絕提供名額。');
+    }
+  });
+}
+
+/**
  * Sanitized internal-only availability preflight.
  * Duplicate IDs/keys and overcapacity block the entire result, rather than
  * silently offering seats in an inconsistent workbook.
@@ -149,6 +174,7 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
 function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var snapshot = bookingReadOnlySnapshot_(openSpreadsheet);
   bookingReadOnlyValidateTemporalCells_(snapshot);
+  bookingReadOnlyValidateCanonicalStatuses_(snapshot);
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
     snapshot.slots.rows, snapshot.reservations.rows, nowUtc);

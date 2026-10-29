@@ -232,3 +232,24 @@ test('equal chronology, native Date values and empty optional timestamps stay va
     [4,7,8,9].includes(i)?'':v);
   assert.equal(availability(fake({rows:[optional]}))[0].remaining,2);
 });
+
+test('noncanonical slot and reservation statuses fail closed, even on history',()=>{
+  for(const status of ['open',' OPEN','OPEN ','closed','cancelled']) {
+    const changed=slot().map((v,i)=>i===5?status:v);
+    assert.throws(()=>availability(fake({slots:[changed]})),/狀態非標準值/);
+  }
+  for(const status of ['held','HELD ',' Confirmed','cancelled','expired']) {
+    const changed=reservation('R1','CANCELLED').map((v,i)=>i===3?status:v);
+    assert.throws(()=>availability(fake({rows:[changed]})),/狀態非標準值/);
+  }
+});
+
+test('canonical CLOSED/CANCELLED slots and cancelled/expired history remain valid',()=>{
+  const closed=slot().map((v,i)=>i===5?'CLOSED':v);
+  const cancelled=slot().map((v,i)=>i===0?'SLOT_B':i===5?'CANCELLED':v);
+  const cancelledRow=reservation('R1','CANCELLED','idempotency-key-0001');
+  const expiredRow=reservation('R2','EXPIRED','idempotency-key-0002')
+    .map((v,i)=>i===2?'SLOT_B':v);
+  assert.deepEqual(availability(fake({slots:[closed,cancelled],
+    rows:[cancelledRow,expiredRow]})),[]);
+});
