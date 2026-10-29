@@ -118,6 +118,27 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
   }
   check(snapshot.slots.rows, [7]); // updated_at_utc
   check(snapshot.reservations.rows, [4, 6, 7, 8, 9]);
+  // Semantic chronology guard: valid UTC cells may still contradict each other.
+  // Optional fields stay optional; no status/retention/REC policy is inferred.
+  snapshot.reservations.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    function optionalInstant(index) {
+      return row[index] === '' || row[index] == null ? null : bookingInstant_(row[index]);
+    }
+    var created = optionalInstant(6), confirmed = optionalInstant(7),
+        cancelled = optionalInstant(8), updated = optionalInstant(9),
+        holdUntil = optionalInstant(4);
+    if (created !== null && [holdUntil, confirmed, cancelled, updated].some(function(ms) {
+      return ms !== null && ms < created;
+    })) {
+      throw new Error('預約時間先後順序不合法，已拒絕提供名額。');
+    }
+    if (updated !== null && [confirmed, cancelled].some(function(ms) {
+      return ms !== null && ms > updated;
+    })) {
+      throw new Error('預約時間先後順序不合法，已拒絕提供名額。');
+    }
+  });
 }
 
 /**
