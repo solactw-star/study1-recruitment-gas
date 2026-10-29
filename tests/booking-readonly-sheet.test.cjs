@@ -319,3 +319,20 @@ test('active reservations on a cancelled slot fail closed; historical and closed
   const closed=slot(3).map((v,i)=>i===5?'CLOSED':v);
   assert.deepEqual(availability(fake({slots:[closed],rows:[reservation()]})),[]);
 });
+
+test('nontext location and creator metadata fail closed without exposing values',()=>{
+  for(const column of [4,6]) {
+    for(const invalid of [true, 42, new Date('2026-10-29T12:00:00Z'), null]) {
+      const changed=slot().map((v,i)=>i===column?invalid:v);
+      assert.throws(()=>availability(fake({slots:[changed]})),err=>{
+        assert.match(String(err),/時段文字欄位資料型別不合法/);
+        assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+        return true;
+      });
+    }
+  }
+  // Optional metadata remains optional: no new REC field requirement.
+  const blank=slot().map((v,i)=>i===4||i===6?'':v);
+  assert.equal(availability(fake({slots:[blank]}))[0].remaining,2);
+  assert.equal(availability(fake({slots:[slot()]}))[0].remaining,2);
+});
