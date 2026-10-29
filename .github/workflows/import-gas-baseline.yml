@@ -1,0 +1,86 @@
+name: Import first verified GAS baseline to private GitHub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-gas-baseline.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: study1-gas-import-first-baseline
+  cancel-in-progress: false
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Stop if baseline source was already imported
+        run: |
+          if [ -n "$(git ls-files gas)" ]; then
+            echo '::error::Existing gas/ files detected. No change made.'
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check OAuth secret presence
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo '::error::Missing CLASPRC_JSON secret.'
+            exit 1
+          fi
+      - name: Authenticate locally on isolated runner
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          python3 -m json.tool "$HOME/.clasprc.json" >/dev/null
+      - name: Clone existing GAS project read-only
+        env:
+          SCRIPT_ID: 1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z
+        run: |
+          mkdir -p gas
+          cd gas
+          npx --yes @google/clasp@3 clone "$SCRIPT_ID"
+      - name: Verify file list, hashes, and no credentials
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib,json
+          p=Path('gas')
+          expected={
+              'Index.html':'d23daeb70509c02473df388883041af8eeadb42fa77861f6bab31be5fa23e9a4',
+              'Website.js':'37c4fe42de169ccc31e748883f9f68014f896f251b219665e0fbd3f0b6cd3d74',
+              'appsscript.json':'ab23076aa0fbdadce5387bf6fb4f267cd4208f7eeaae773f60c934195e93bb9a',
+              '程式碼.js':'8e340fe672eb2757b5709d836d04181c12ee67b6b6e912caa29338a366386b1a'}
+          names={f.name for f in p.iterdir() if f.is_file()}
+          if names != set(expected)|{'.clasp.json'}:
+              raise SystemExit(f'GAS source set differs from verified backup: {sorted(names)}')
+          assert json.loads((p/'.clasp.json').read_text())['scriptId']=='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z'
+          for name,digest in expected.items():
+              actual=hashlib.sha256((p/name).read_bytes()).hexdigest()
+              if actual != digest:
+                  raise SystemExit(f'Remote source changed since approved baseline: {name}. No GitHub commit made.')
+          print('Verified four GAS source files. No credentials imported.')
+          PY
+      - name: Create private GitHub source baseline commit (no GAS write)
+        run: |
+          git add -- gas/
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'backup: import verified original 828 GAS project source'
+          git push origin HEAD:main
+      - name: Clean OAuth token file
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"
