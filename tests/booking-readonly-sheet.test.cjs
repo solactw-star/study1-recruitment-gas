@@ -95,6 +95,27 @@ test('malformed reservation, unknown status, orphan reference reject',()=>{
     [[...reservation()].map((x,i)=>i===2?'MISSING':x)]
   ])assert.throws(()=>availability(fake({rows})));
 });
+test('two active reservations for one applicant fail closed even with spare capacity',()=>{
+  const sameSlot=fake({slots:[slot(3)],rows:[
+    reservation(),reservation('R2','CONFIRMED','idempotency-key-0002')]});
+  assert.throws(()=>availability(sameSlot),/同一申請者存在多筆有效預約/);
+  const otherSlot=slot(3).map((value,i)=>i===0?'SLOT_B':value);
+  const second=reservation('R2','CONFIRMED','idempotency-key-0002')
+    .map((value,i)=>i===2?'SLOT_B':value);
+  const acrossSlots=fake({slots:[slot(3),otherSlot],rows:[reservation(),second]});
+  assert.throws(()=>availability(acrossSlots),/同一申請者存在多筆有效預約/);
+});
+test('expired or cancelled reservation does not falsely duplicate an active applicant',()=>{
+  const expired=reservation().map((value,i)=>i===4?'2026-10-29T11:59:00Z':value);
+  const confirmed=reservation('R2','CONFIRMED','idempotency-key-0002');
+  const x=fake({slots:[slot(3)],rows:[expired,confirmed]});
+  assert.deepEqual(availability(x),[{slotId:'SLOT_A',
+    startAtUtc:'2026-10-31T09:00:00.000Z',
+    endAtUtc:'2026-10-31T10:00:00.000Z',remaining:2}]);
+  const y=fake({slots:[slot(3)],rows:[
+    reservation('R1','CANCELLED','idempotency-key-0001'),confirmed]});
+  assert.equal(availability(y)[0].remaining,2);
+});
 test('no public endpoint is opened and module has no write or email calls',()=>{
   const site=fs.readFileSync(path.join(root,'gas/Website.js'),'utf8');
   const mod=fs.readFileSync(path.join(root,'gas/BookingReadOnlySheet.js'),'utf8');
