@@ -177,3 +177,29 @@ test('unexpected object or invalid Date cell fails closed without returning PII'
     assert.throws(()=>availability(fake({rows:[row]})));
   }
 });
+
+test('all populated reservation timestamp fields fail closed even on cancelled history',()=>{
+  for(const [column,bad] of [
+    [4,'not-utc'],[6,'2026-02-30T12:00:00Z'],[7,true],
+    [8,'2026-10-29T12:00:00+00:00'],[9,123]
+  ]) {
+    const row=reservation('R1','CANCELLED').map((v,i)=>i===column?bad:v);
+    assert.throws(()=>availability(fake({rows:[row]})),err=>{
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001/);
+      return /時間/.test(String(err));
+    });
+  }
+});
+test('confirmed history cannot hide a malformed unused hold expiry',()=>{
+  const row=reservation('R1','CONFIRMED').map((v,i)=>
+    i===4?'2026-10-29T12:00:00+08:00':v);
+  assert.throws(()=>availability(fake({rows:[row]})),/時間/);
+});
+test('slot update metadata is validated, but valid Date metadata remains supported',()=>{
+  const badSlot=slot().map((v,i)=>i===7?'yesterday':v);
+  assert.throws(()=>availability(fake({slots:[badSlot]})),/時間/);
+  const goodSlot=slot().map((v,i)=>i===7?new Date(now):v);
+  const goodReservation=reservation().map((v,i)=>
+    i===6||i===9?new Date(now):v);
+  assert.equal(availability(fake({slots:[goodSlot],rows:[goodReservation]}))[0].remaining,1);
+});
