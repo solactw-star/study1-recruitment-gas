@@ -37,6 +37,27 @@ function bookingReadOnlySameTab_(a, b) {
 }
 
 
+/**
+ * getValues() returns calculated results, not the underlying formulas.
+ * Reject formula-bearing cells in both headers and data (including history),
+ * since dynamic/external formulas undermine a stable booking snapshot.
+ * Fail closed if the read-only formula inspection API is unavailable.
+ */
+function bookingReadOnlyRejectFormulas_(range, rowCount, colCount) {
+  if (!range || typeof range.getFormulas !== 'function') {
+    throw new Error('預約公式檢查不可用，已拒絕讀取。');
+  }
+  var formulas = range.getFormulas();
+  if (!Array.isArray(formulas) || formulas.length !== rowCount ||
+      formulas.some(function(row) {
+        return !Array.isArray(row) || row.length !== colCount ||
+          row.some(function(cell) {return cell !== '';});
+      })) {
+    throw new Error('預約工作表包含公式或公式檢查格式異常，已拒絕讀取。');
+  }
+}
+
+
 function bookingReadOnlyTab_(book, name, expected) {
   if (!book || typeof book.getSheetByName !== 'function') {
     throw new Error('預約工作簿讀取介面不合法。');
@@ -53,14 +74,21 @@ function bookingReadOnlyTab_(book, name, expected) {
       lastRow - 1 > BOOKING_READ_MAX_ROWS_) {
     throw new Error('預約工作表維度或欄位異常，已拒絕讀取。');
   }
-  var head = tab.getRange(1, 1, 1, expected.length).getValues();
+  var headRange = tab.getRange(1, 1, 1, expected.length);
+  bookingReadOnlyRejectFormulas_(headRange, 1, expected.length);
+  var head = headRange.getValues();
   if (!Array.isArray(head) || head.length !== 1 ||
       !Array.isArray(head[0]) || head[0].length !== expected.length) {
     throw new Error('預約工作表標題列格式不合法。');
   }
   bookingAssertSchema_(head[0], expected);
   var count = lastRow - 1;
-  var rows = count ? tab.getRange(2, 1, count, expected.length).getValues() : [];
+  var rows = [];
+  if (count) {
+    var dataRange = tab.getRange(2, 1, count, expected.length);
+    bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
+    rows = dataRange.getValues();
+  }
   if (!Array.isArray(rows) || rows.length !== count ||
       rows.some(function(row) {
         return !Array.isArray(row) || row.length !== expected.length;
