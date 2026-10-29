@@ -49,6 +49,12 @@ function fake(opts={}) {
           if(opts.mutateOnSecondRead && dataReads===2)
             return opts.mutateOnSecondRead(name,result);
           return result;
+        },getFormulas(){
+          if(opts.badFormulaShape===name) return [];
+          const matrix=Array.from({length:h},()=>Array(w).fill(''));
+          if(opts.formulaTab===name && opts.formulaRow===r)
+            matrix[0][opts.formulaColumn||0]='=NOW()';
+          return matrix;
         }};
       }
     };
@@ -252,4 +258,26 @@ test('canonical CLOSED/CANCELLED slots and cancelled/expired history remain vali
     .map((v,i)=>i===2?'SLOT_B':v);
   assert.deepEqual(availability(fake({slots:[closed,cancelled],
     rows:[cancelledRow,expiredRow]})),[]);
+});
+
+
+test('rejects formulas in slot headers, live reservations and cancelled history',()=>{
+  for(const opts of [
+    {formulaTab:'Slots',formulaRow:1},
+    {formulaTab:'Slots',formulaRow:2,formulaColumn:3},
+    {formulaTab:'Reservations',formulaRow:2,formulaColumn:3}
+  ]) {
+    const x=fake({...opts,rows:[reservation('R1','CANCELLED')]});
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/公式/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001/);
+      return true;
+    });
+  }
+});
+test('rejects malformed formula matrices instead of trusting getValues alone',()=>{
+  for(const name of ['Slots','Reservations']) {
+    assert.throws(()=>availability(fake({badFormulaShape:name,
+      rows:[reservation('R1','CANCELLED')]})),/公式/);
+  }
 });
