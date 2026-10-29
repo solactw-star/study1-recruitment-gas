@@ -206,13 +206,15 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
     snapshot.slots.rows, snapshot.reservations.rows, nowUtc);
-  var capacity = new Map(), slotStarts = new Map(), occupied = new Map(),
-      ids = new Set(), keys = new Set(), activeApplicants = new Set();
+  var capacity = new Map(), slotStarts = new Map(), slotStatuses = new Map(),
+      occupied = new Map(), ids = new Set(), keys = new Set(),
+      activeApplicants = new Set();
   snapshot.slots.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
     var slotId = bookingId_(row[0]);
     capacity.set(slotId, bookingCapacity_(row[3]));
     slotStarts.set(slotId, bookingInstant_(row[1]));
+    slotStatuses.set(slotId, row[5]);
   });
   snapshot.reservations.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
@@ -226,6 +228,11 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
     var active = status === BOOKING_STATUS_.confirmed ||
       (status === BOOKING_STATUS_.hold && bookingInstant_(row[4]) > now);
     if (active) {
+      // A cancelled slot must not retain a live reservation. A CLOSED slot
+      // may retain existing bookings, so only CANCELLED is rejected here.
+      if (slotStatuses.get(slot) === BOOKING_STATUS_.cancelled) {
+        throw new Error('已取消時段仍有有效預約，已拒絕提供名額。');
+      }
       // A live hold must expire by its slot start, as the hold transaction
       // already requires. An inconsistent imported row must fail closed.
       if (status === BOOKING_STATUS_.hold &&
