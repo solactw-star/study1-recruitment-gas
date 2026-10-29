@@ -8,6 +8,7 @@ const path=require('node:path');
 const root=path.join(__dirname,'../gas');
 const otp=fs.readFileSync(path.join(root,'OtpCore.js'),'utf8');
 const transaction=fs.readFileSync(path.join(root,'OtpTransaction.js'),'utf8');
+const throttle=fs.readFileSync(path.join(root,'OtpThrottle.js'),'utf8');
 const secret='offline-fixture-only-key-01234567890123456789';
 const headers=['challenge_id','applicant_id','purpose','otp_hmac','expires_at_utc',
  'attempts','used_at_utc','email','created_at_utc'];
@@ -22,7 +23,7 @@ function context(){
     .map(b=>b>127?b-256:b);
  }}};
  vm.createContext(ctx);
- vm.runInContext(otp+'\n'+transaction,ctx);
+ vm.runInContext(otp+'\n'+throttle+'\n'+transaction,ctx);
  return ctx;
 }
 function fixture(options={}){

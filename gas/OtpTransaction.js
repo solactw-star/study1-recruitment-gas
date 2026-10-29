@@ -71,8 +71,13 @@ function otpVerifyOnceLocked_(request, adapters) {
     throw new Error('無法取得 OTP 全域交易鎖，已拒絕驗證。');
   }
   try {
-    var match=otpFindUniqueChallenge_(adapters.readSnapshot(),request.challengeId);
+    var snapshot=adapters.readSnapshot();
+    var match=otpFindUniqueChallenge_(snapshot,request.challengeId);
     if (!match || !otpBindingMatches_(match.row,request)) {
+      return {verified:false,reason:'REJECTED'};
+    }
+    // Cross-challenge limit is mandatory, using the SAME locked snapshot.
+    if (!otpThrottleVerifyGate_(snapshot,request,request.nowUtc).allowed) {
       return {verified:false,reason:'REJECTED'};
     }
     var decision=otpEvaluateVerification_(
