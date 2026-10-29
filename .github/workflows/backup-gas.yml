@@ -1,0 +1,62 @@
+name: Backup GAS (read-only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: study1-gas-readonly-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Read and preserve existing 828 GAS source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify 828 OAuth secret is configured
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          if [ -z "$CLASPRC_JSON" ]; then
+            echo "::error::Missing CLASPRC_JSON repository secret. Sign in locally as solac.tw@gmail.com and add the resulting .clasprc.json to GitHub Actions secrets."
+            exit 1
+          fi
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Authenticate clasp (do not print credentials)
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          python3 -m json.tool "$HOME/.clasprc.json" > /dev/null
+
+      - name: Read GAS project without modifying remote files
+        env:
+          SCRIPT_ID: 1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z
+        run: |
+          mkdir -p "$RUNNER_TEMP/gas-remote"
+          cd "$RUNNER_TEMP/gas-remote"
+          npx --yes @google/clasp@3 clone "$SCRIPT_ID"
+          test -f appsscript.json
+          echo "Remote GAS source fetched; not pushed or deployed."
+
+      - name: Backup retrieved code for private review
+        uses: actions/upload-artifact@v4
+        with:
+          name: study1-gas-remote-backup
+          path: ${{ runner.temp }}/gas-remote/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 3
+
+      - name: Remove transient credentials
+        if: always()
+        run: rm -f "$HOME/.clasprc.json"
