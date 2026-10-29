@@ -33,6 +33,11 @@ function harness(options={}) {
         return {getValues(){
           if (r===1) return [headers.slice()];
           return rows.map(row=>row.slice());
+        },getFormulas(){
+          const grid=Array.from({length:h},()=>Array(w).fill(''));
+          if(options.formulaInSlots && headers[0]==='slot_id' && r===2)
+            grid[0][3]='=1+1';
+          return grid;
         }};
       }
     };
@@ -105,4 +110,11 @@ test('read-only lock wrapper cannot open public intake or write to Sheets',()=>{
   assert.match(site,/function listSlots\(\)\{return \[\];\}/);
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
   assert.doesNotMatch(wrapper,/SpreadsheetApp\.|\.setValues\s*\(|\.setValue\s*\(|\.appendRow\s*\(|MailApp|GmailApp/);
+});
+
+
+test('formula corruption fails closed and still releases the acquired lock',()=>{
+  const h=harness({formulaInSlots:true});
+  assert.throws(h.run,/公式/);
+  assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
 });
