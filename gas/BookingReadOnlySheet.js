@@ -102,12 +102,32 @@ function bookingReadOnlySnapshot_(openSpreadsheet) {
 }
 
 /**
+ * Validate every populated timestamp column, including metadata that does not
+ * affect capacity. A malformed historical row must not be silently ignored.
+ * Empty optional lifecycle fields are allowed; REC policy is not inferred here.
+ */
+function bookingReadOnlyValidateTemporalCells_(snapshot) {
+  function check(rows, columns) {
+    rows.forEach(function(row) {
+      if (bookingBlankRow_(row)) return;
+      columns.forEach(function(index) {
+        var value = row[index];
+        if (value !== '' && value != null) bookingInstant_(value);
+      });
+    });
+  }
+  check(snapshot.slots.rows, [7]); // updated_at_utc
+  check(snapshot.reservations.rows, [4, 6, 7, 8, 9]);
+}
+
+/**
  * Sanitized internal-only availability preflight.
  * Duplicate IDs/keys and overcapacity block the entire result, rather than
  * silently offering seats in an inconsistent workbook.
  */
 function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var snapshot = bookingReadOnlySnapshot_(openSpreadsheet);
+  bookingReadOnlyValidateTemporalCells_(snapshot);
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
     snapshot.slots.rows, snapshot.reservations.rows, nowUtc);
