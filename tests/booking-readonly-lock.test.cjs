@@ -1,0 +1,108 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+
+const root = path.join(__dirname, '..');
+const source = [
+  'gas/Website.js',
+  'gas/BookingCore.js',
+  'gas/BookingHoldTransaction.js',
+  'gas/BookingReadOnlySheet.js',
+  'gas/BookingReadOnlyLock.js'
+].map(p => fs.readFileSync(path.join(root, p), 'utf8')).join('\n');
+const now = '2026-10-29T12:00:00Z';
+const slotHeaders = ['slot_id','start_at_utc','end_at_utc','capacity',
+  'location_code','status','created_by','updated_at_utc'];
+const reservationHeaders = ['reservation_id','applicant_id','slot_id',
+  'status','hold_until_utc','idempotency_key','created_at_utc',
+  'confirmed_at_utc','cancelled_at_utc','updated_at_utc'];
+
+function harness(options={}) {
+  const ctx = {HtmlService:{createHtmlOutputFromFile(){throw Error('unused');}}};
+  vm.createContext(ctx);
+  vm.runInContext(source, ctx);
+  const calls = [];
+  function sheet(headers, rows) {
+    return {
+      getLastRow(){return rows.length+1;},
+      getLastColumn(){return headers.length;},
+      getRange(r,c,h,w) {
+        return {getValues(){
+          if (r===1) return [headers.slice()];
+          return rows.map(row=>row.slice());
+        }};
+      }
+    };
+  }
+  const slots = sheet(options.badHeader?['INVALID',...slotHeaders.slice(1)]:slotHeaders, [
+    ['SLOT_A','2026-10-31T09:00:00Z','2026-10-31T10:00:00Z',
+      1,'ROOM','OPEN','researcher',now]
+  ]);
+  const reservations = sheet(reservationHeaders, []);
+  const opener = id => {
+    calls.push('open');
+    return {getId(){return id;},getSheetByName(name){
+      return name==='Slots'?slots:name==='Reservations'?reservations:null;
+    }};
+  };
+  const lock = {
+    tryLock(timeout) {
+      calls.push('tryLock:'+timeout);
+      if (options.lockThrows) throw Error('lock failed');
+      return options.granted!==false;
+    },
+    releaseLock(){calls.push('releaseLock');}
+  };
+  const getLock=()=>{calls.push('getLock');return lock;};
+  const run=()=>JSON.parse(JSON.stringify(
+    ctx.bookingReadOnlyAvailabilityWithLock_(opener,now,getLock)));
+  return {ctx,calls,opener,getLock,run};
+}
+
+test('lock is acquired before either tab is opened and released after sanitized result',()=>{
+  const h=harness();
+  assert.deepEqual(h.run(),[{
+    slotId:'SLOT_A',startAtUtc:'2026-10-31T09:00:00.000Z',
+    endAtUtc:'2026-10-31T10:00:00.000Z',remaining:1
+  }]);
+  assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
+  assert.doesNotMatch(JSON.stringify(h.run()),/applicant_id|idempotency_key/);
+});
+
+test('contention fails closed before opening workbook and never releases unowned lock',()=>{
+  const h=harness({granted:false});
+  assert.throws(h.run,/無法取得預約讀取鎖/);
+  assert.deepEqual(h.calls,['getLock','tryLock:5000']);
+});
+
+test('missing or malformed lock dependency fails before workbook access',()=>{
+  const h=harness();
+  assert.throws(()=>h.ctx.bookingReadOnlyAvailabilityWithLock_(
+    h.opener,now,undefined),/鎖介面/);
+  assert.throws(()=>h.ctx.bookingReadOnlyAvailabilityWithLock_(
+    h.opener,now,()=>({tryLock(){return true;}})),/鎖介面/);
+  assert.deepEqual(h.calls,[]);
+});
+
+test('lock acquisition exception never opens workbook or releases unowned lock',()=>{
+  const h=harness({lockThrows:true});
+  assert.throws(h.run,/lock failed/);
+  assert.deepEqual(h.calls,['getLock','tryLock:5000']);
+});
+
+test('sheet schema failure releases acquired lock in finally',()=>{
+  const h=harness({badHeader:true});
+  assert.throws(h.run,/欄位/);
+  assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
+});
+
+test('read-only lock wrapper cannot open public intake or write to Sheets',()=>{
+  const site=fs.readFileSync(path.join(root,'gas/Website.js'),'utf8');
+  const wrapper=fs.readFileSync(path.join(root,'gas/BookingReadOnlyLock.js'),'utf8');
+  assert.match(site,/function listSlots\(\)\{return \[\];\}/);
+  assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
+  assert.doesNotMatch(wrapper,/SpreadsheetApp\.|\.setValues\s*\(|\.setValue\s*\(|\.appendRow\s*\(|MailApp|GmailApp/);
+});
