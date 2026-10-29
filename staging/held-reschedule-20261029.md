@@ -4,7 +4,7 @@
 
 本變更的完整程式、HTML、測試、離線展示及回歸測試結果保存在 `Study1_828網站增量_暫保改選取消_20261029_1714.zip`；ZIP SHA-256：
 
-`2f3a6fe90cb7a33d94ea5f61ee0cd75a043c65f1025fbf11f32b62494c1f2bed`
+`5f5faa279a32b0719dcbc0c41b2b57518636ddec4d6924a38dea56873a6acdd0`
 
 此 GitHub 分支保留本輪**待核對增量**，不是遠端 GAS 的原始碼基準，不應自動 push。
 
@@ -12,7 +12,7 @@
 
 - `gas/Api.gs` 新增 `rescheduleHold(token,reservationId,newSlotId,requestKey)`：只有同一報名者的未逾期 `HELD` 可改選；`LockService.getScriptLock()` 內檢查目標名額；新時段滿額或無效時保留原時段；不延長保留期限；重送同一改期請求不重複寫入。
 - `gas/Setup.gs` 新增 `patchRow_()`：在既有鎖內一次更新同列的多個欄位，保留未映射的未知欄位。
-- `gas/Index.html`／`gas/Client.html`：加入「改選保留時段」「取消暫時保留」，並重新取得可用名額。
+- `gas/Index.html`／`gas/Client.html`：加入「改選保留時段」「取消暫時保留」「返回原保留時段」，並重新取得可用名額；返回不會更動原保留。
 - `preview.html` 由 `gas/Index.html` + `Styles.html` + `Client.html` 生成，保持純離線展示。
 - `tests/check_reschedule.js`：14 類權限、期限、名額、重送與狀態案例，另驗證單列更新保留未知欄位；`tests/check_api.js` 新增關閉時改期拒絕；`tests/browser_smoke.py` 增加改選／取消 UI 流程。
 
