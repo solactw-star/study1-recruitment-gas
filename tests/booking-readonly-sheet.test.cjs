@@ -281,3 +281,19 @@ test('rejects malformed formula matrices instead of trusting getValues alone',()
       rows:[reservation('R1','CANCELLED')]})),/公式/);
   }
 });
+
+
+test('live hold expiry after its slot start fails closed, including spare capacity',()=>{
+  const late=reservation().map((v,i)=>i===4?'2026-10-31T09:01:00Z':v);
+  assert.throws(()=>availability(fake({slots:[slot(3)],rows:[late]})),err=>{
+    assert.match(String(err),/有效暫留到期時間晚於時段開始/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+    return true;
+  });
+  const exact=reservation().map((v,i)=>i===4?'2026-10-31T09:00:00Z':v);
+  assert.equal(availability(fake({slots:[slot(3)],rows:[exact]}))[0].remaining,2);
+  // Historical cancelled rows do not imply a live hold.
+  const cancelled=reservation('R1','CANCELLED')
+    .map((v,i)=>i===4?'2026-10-31T09:01:00Z':v);
+  assert.equal(availability(fake({slots:[slot(3)],rows:[cancelled]}))[0].remaining,3);
+});

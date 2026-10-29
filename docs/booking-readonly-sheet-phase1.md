@@ -8,6 +8,7 @@ Date: 2026-10-29. This is an **internal test-only adapter**, not a public bookin
 - No real participant data in tests. Tests inject in-memory fake spreadsheet objects and assert no writes.
 - Existing `Website.js` endpoints remain closed; `listSlots()` returns `[]`, `holdSlot()` refuses. No `SpreadsheetApp.openById` call was executed, and no live Sheet rows were read in this phase.
 - **Limitations**: two sequential tab reads are not a consistent multi-tab transaction; not safe for final booking writes. Production booking requires script-wide locking for all writers, fresh locked reread, append+flush+readback, quota/authorization review, privacy/REC approval and a separately authorized GAS sync. Source drift from live GAS was not rehashed in this change.
+- Additional consistency check: an active HELD row whose expiry is later than its slot start is rejected. This matches the already-existing closed hold transaction precondition; it does not approve a hold-duration policy. Cancelled history is not treated as a live hold.
 - The candidate OPEN/HELD/CONFIRMED statuses and hold duration are not researcher-approved policy.
 
 Official sources:

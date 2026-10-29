@@ -206,11 +206,13 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
     snapshot.slots.rows, snapshot.reservations.rows, nowUtc);
-  var capacity = new Map(), occupied = new Map(), ids = new Set(), keys = new Set(),
-      activeApplicants = new Set();
+  var capacity = new Map(), slotStarts = new Map(), occupied = new Map(),
+      ids = new Set(), keys = new Set(), activeApplicants = new Set();
   snapshot.slots.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
-    capacity.set(bookingId_(row[0]), bookingCapacity_(row[3]));
+    var slotId = bookingId_(row[0]);
+    capacity.set(slotId, bookingCapacity_(row[3]));
+    slotStarts.set(slotId, bookingInstant_(row[1]));
   });
   snapshot.reservations.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
@@ -224,6 +226,12 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
     var active = status === BOOKING_STATUS_.confirmed ||
       (status === BOOKING_STATUS_.hold && bookingInstant_(row[4]) > now);
     if (active) {
+      // A live hold must expire by its slot start, as the hold transaction
+      // already requires. An inconsistent imported row must fail closed.
+      if (status === BOOKING_STATUS_.hold &&
+          bookingInstant_(row[4]) > slotStarts.get(slot)) {
+        throw new Error('有效暫留到期時間晚於時段開始，已拒絕提供名額。');
+      }
       // A single applicant cannot own two live holds/confirmed bookings.
       // Detect historical corruption before any availability is offered.
       if (activeApplicants.has(applicant)) {
