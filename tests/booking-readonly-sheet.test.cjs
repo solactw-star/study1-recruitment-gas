@@ -126,7 +126,8 @@ test('two active reservations for one applicant fail closed even with spare capa
   assert.throws(()=>availability(acrossSlots),/同一申請者存在多筆有效預約/);
 });
 test('expired or cancelled reservation does not falsely duplicate an active applicant',()=>{
-  const expired=reservation().map((value,i)=>i===4?'2026-10-29T11:59:00Z':value);
+  const expired=reservation().map((value,i)=>i===4?'2026-10-29T11:59:00Z':
+    i===6?'2026-10-29T11:40:00Z':value);
   const confirmed=reservation('R2','CONFIRMED','idempotency-key-0002');
   const x=fake({slots:[slot(3)],rows:[expired,confirmed]});
   assert.deepEqual(availability(x),[{slotId:'SLOT_A',
