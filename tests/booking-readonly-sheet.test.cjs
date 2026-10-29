@@ -126,7 +126,8 @@ test('two active reservations for one applicant fail closed even with spare capa
   assert.throws(()=>availability(acrossSlots),/同一申請者存在多筆有效預約/);
 });
 test('expired or cancelled reservation does not falsely duplicate an active applicant',()=>{
-  const expired=reservation().map((value,i)=>i===4?'2026-10-29T11:59:00Z':value);
+  const expired=reservation().map((value,i)=>i===4?'2026-10-29T11:59:00Z':
+    i===6?'2026-10-29T11:40:00Z':value);
   const confirmed=reservation('R2','CONFIRMED','idempotency-key-0002');
   const x=fake({slots:[slot(3)],rows:[expired,confirmed]});
   assert.deepEqual(availability(x),[{slotId:'SLOT_A',
@@ -202,4 +203,32 @@ test('slot update metadata is validated, but valid Date metadata remains support
   const goodReservation=reservation().map((v,i)=>
     i===6||i===9?new Date(now):v);
   assert.equal(availability(fake({slots:[goodSlot],rows:[goodReservation]}))[0].remaining,1);
+});
+
+test('valid UTC timestamps with impossible lifecycle chronology fail closed',()=>{
+  for (const column of [4,7,8,9]) {
+    const row=reservation('R1','CANCELLED').map((v,i)=>
+      i===column?'2026-10-29T11:59:00Z':v);
+    assert.throws(()=>availability(fake({rows:[row]})),err=>{
+      assert.match(String(err),/時間先後順序/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+});
+test('last update cannot precede a populated confirmation or cancellation timestamp',()=>{
+  for (const eventColumn of [7,8]) {
+    const row=reservation('R1','CANCELLED').map((v,i)=>
+      i===eventColumn?'2026-10-29T12:02:00Z':
+      i===9?'2026-10-29T12:01:00Z':v);
+    assert.throws(()=>availability(fake({rows:[row]})),/時間先後順序/);
+  }
+});
+test('equal chronology, native Date values and empty optional timestamps stay valid',()=>{
+  const equal=reservation('R1','CANCELLED').map((v,i)=>
+    [4,7,8,9].includes(i)?new Date(now):v);
+  assert.equal(availability(fake({rows:[equal]}))[0].remaining,2);
+  const optional=reservation('R1','CANCELLED').map((v,i)=>
+    [4,7,8,9].includes(i)?'':v);
+  assert.equal(availability(fake({rows:[optional]}))[0].remaining,2);
 });
