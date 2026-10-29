@@ -195,6 +195,23 @@ function bookingReadOnlyValidateCanonicalStatuses_(snapshot) {
 }
 
 /**
+ * Validate text-typed slot metadata without inventing required-field rules.
+ * Google getValues() returns empty strings for blank cells. A checkbox,
+ * numeric cell, or Date in location_code/created_by indicates schema drift.
+ * This check does not expose or log stored values.
+ */
+function bookingReadOnlyValidateTextMetadata_(snapshot) {
+  snapshot.slots.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    [4, 6].forEach(function(index) {
+      if (typeof row[index] !== 'string') {
+        throw new Error('時段文字欄位資料型別不合法，已拒絕提供名額。');
+      }
+    });
+  });
+}
+
+/**
  * Sanitized internal-only availability preflight.
  * Duplicate IDs/keys and overcapacity block the entire result, rather than
  * silently offering seats in an inconsistent workbook.
@@ -203,6 +220,7 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var snapshot = bookingReadOnlySnapshot_(openSpreadsheet);
   bookingReadOnlyValidateTemporalCells_(snapshot);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
+  bookingReadOnlyValidateTextMetadata_(snapshot);
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
     snapshot.slots.rows, snapshot.reservations.rows, nowUtc);
