@@ -509,3 +509,39 @@ test('Consistent cancelled history may contain both valid event timestamps',()=>
   assert.equal(x.stats().appends,1);
   assert.equal(x.stats().releases,1);
 });
+
+
+test('Locked hold rejects malformed historical non-event timestamps before any append',()=>{
+  for(const [col,bad] of [
+    [4,'2026-10-29T12:10:00+08:00'],
+    [6,'not-a-timestamp'],
+    [9,true],
+    [9,new Date('invalid')]
+  ]) {
+    const row=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+    row[col]=bad;
+    const x=make({rows:[row]});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/時間/);
+      assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key-0002/);
+      return true;
+    });
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('Locked hold permits native Date historical timestamps and blank optional metadata',()=>{
+  const row=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  row[4]=new Date(until);
+  row[6]=new Date(now);
+  row[9]=new Date(now);
+  const x=make({rows:[row]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+  const blank=hold('H2','OTHER_APP','historical-request-key-0003','','EXPIRED');
+  blank[6]='';blank[9]='';
+  const y=make({rows:[blank]});
+  assert.deepEqual(call(y),{held:true,reason:'CREATED'});
+  assert.equal(y.stats().appends,1);
+});
