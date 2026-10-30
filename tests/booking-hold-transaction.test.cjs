@@ -301,3 +301,41 @@ test('Unchanged slot Date and metadata still permit a valid hold',()=>{
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().releases,1);
 });
+
+test('Unrelated overcapacity blocks an otherwise valid hold before any append',()=>{
+  const x=make({slots:[slot('SLOT_A',1),slot('SLOT_B',1)],rows:[
+    hold('H1','OTHER_APP_A','historical-request-key-0002',until,'HELD','SLOT_B'),
+    hold('H2','OTHER_APP_B','historical-request-key-0003',until,'CONFIRMED','SLOT_B')
+  ]});
+  assert.throws(()=>call(x),err=>{
+    assert.match(String(err),/超出容量/);
+    assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key/);
+    return true;
+  });
+  assert.equal(x.stats().appends,0);
+  assert.equal(x.stats().releases,1);
+  assert.equal(x.stats().heldLock,false);
+});
+test('Live booking on unrelated CANCELLED slot blocks new hold',()=>{
+  const x=make({slots:[slot('SLOT_A',1),slot('SLOT_B',1,'CANCELLED')],rows:[
+    hold('H1','OTHER_APP','historical-request-key-0002',until,'CONFIRMED','SLOT_B')
+  ]});
+  assert.throws(()=>call(x),/已取消時段仍有有效預約/);
+  assert.equal(x.stats().appends,0);
+  assert.equal(x.stats().releases,1);
+});
+test('CLOSED slot may retain a booking and does not block another open slot',()=>{
+  const x=make({slots:[slot('SLOT_A',1),slot('SLOT_B',1,'CLOSED')],rows:[
+    hold('H1','OTHER_APP','historical-request-key-0002',until,'CONFIRMED','SLOT_B')
+  ]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+});
+test('Expired HELD on CANCELLED slot does not count as live occupancy',()=>{
+  const x=make({slots:[slot('SLOT_A',1),slot('SLOT_B',1,'CANCELLED')],rows:[
+    hold('H1','OTHER_APP','historical-request-key-0002',
+      '2026-10-29T11:59:00Z','HELD','SLOT_B')
+  ]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+});

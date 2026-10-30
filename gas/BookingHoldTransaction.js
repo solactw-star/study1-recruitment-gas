@@ -146,6 +146,30 @@ function bookingHoldCount_(rows,slotId,nowMs) {
   return count;
 }
 /**
+ * A locally available seat does not justify writing into a globally
+ * inconsistent workbook. Check every slot, including CLOSED/CANCELLED slots,
+ * while the shared script lock is held. Never expose applicant IDs.
+ * This is a fail-closed integrity check, not an approval of slot policy.
+ */
+function bookingHoldAssertGlobalOccupancy_(slotRows,reservationRows,nowMs) {
+  var counts=new Map();
+  reservationRows.forEach(function(row) {
+    if (bookingBlankRow_(row) || !bookingHoldActive_(row,nowMs)) return;
+    var id=bookingId_(row[2]);
+    counts.set(id,(counts.get(id)||0)+1);
+  });
+  slotRows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    var id=bookingId_(row[0]), count=counts.get(id)||0;
+    if (count>bookingCapacity_(row[3])) {
+      throw new Error('既有時段預約超出容量，拒絕預約交易。');
+    }
+    if (bookingStatus_(row[5])===BOOKING_STATUS_.cancelled && count>0) {
+      throw new Error('已取消時段仍有有效預約，拒絕預約交易。');
+    }
+  });
+}
+/**
  * request: server-trusted {applicantId,slotId,idempotencyKey,nowUtc,holdUntilUtc}
  * adapters:
  *   getLock() -> script-wide lock with tryLock/releaseLock
@@ -189,6 +213,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     var available=bookingComputeAvailability_(
       before.slots.rows,before.reservations.rows,request.nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(before.reservations.rows,now);
+    bookingHoldAssertGlobalOccupancy_(before.slots.rows,before.reservations.rows,now);
     var existing=bookingHoldExistingKey_(before.reservations.rows,request.idempotencyKey);
     if (existing) {
       var replaySlot=before.slots.rows.filter(function(r) {
@@ -232,6 +257,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     var after=bookingHoldSnapshot_(adapters);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
+    bookingHoldAssertGlobalOccupancy_(after.slots.rows,after.reservations.rows,now);
     bookingHoldAssertSlotsStable_(oldSlots,after.slots.rows);
     bookingHoldAssertHistoryStable_(oldHistory,after.reservations.rows);
     var newRows=after.reservations.rows.filter(function(r){
