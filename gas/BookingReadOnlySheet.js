@@ -166,6 +166,12 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
     })) {
       throw new Error('預約時間先後順序不合法，已拒絕提供名額。');
     }
+    // For a CANCELLED record, a recorded cancellation cannot precede its
+    // recorded confirmation. Do not require either optional timestamp.
+    if (row[3] === BOOKING_STATUS_.cancelled &&
+        confirmed !== null && cancelled !== null && cancelled < confirmed) {
+      throw new Error('預約取消時間早於確認時間，已拒絕提供名額。');
+    }
   });
 }
 
