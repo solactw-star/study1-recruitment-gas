@@ -368,3 +368,52 @@ test('New HELD row accepts an equivalent native Date creation timestamp',()=>{
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().releases,1);
 });
+
+
+test('Locked hold rejects surplus and truncated Sheet columns before append',()=>{
+  for(const [table,part] of [
+    ['slots','headers'],['reservations','headers'],
+    ['slots','rows'],['reservations','rows']
+  ]) {
+    for(const change of ['extra','missing']) {
+      const x=make({rows:[hold('OLD','OTHER_APP','other-idempotency-0002',
+        '2026-10-29T11:00:00Z','EXPIRED')]});
+      const read=x.adapters.readSnapshot;
+      x.adapters.readSnapshot=()=>{
+        const s=read();
+        if(part==='headers') {
+          if(change==='extra')s[table].headers.push('unexpected_column');
+          else s[table].headers.pop();
+        } else {
+          if(change==='extra')s[table].rows[0].push('unexpected_value');
+          else s[table].rows[0].pop();
+        }
+        return s;
+      };
+      assert.throws(()=>call(x),/欄位/);
+      assert.equal(x.stats().appends,0);
+      assert.equal(x.stats().releases,1);
+      assert.equal(x.stats().heldLock,false);
+    }
+  }
+});
+test('Locked hold rejects an added column appearing only after append',()=>{
+  for(const table of ['slots','reservations']) {
+    const x=make();
+    const read=x.adapters.readSnapshot;
+    let reads=0;
+    x.adapters.readSnapshot=()=>{
+      const s=read();reads++;
+      if(reads===2)s[table].rows[0].push('late_column');
+      return s;
+    };
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/欄位/);
+      assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency-0001/);
+      return true;
+    });
+    assert.equal(x.stats().appends,1);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});

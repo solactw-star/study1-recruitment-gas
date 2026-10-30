@@ -19,6 +19,19 @@ function bookingHoldSnapshot_(adapter) {
   }
   bookingAssertSchema_(s.slots.headers,BOOKING_SLOT_HEADERS_);
   bookingAssertSchema_(s.reservations.headers,BOOKING_RESERVATION_HEADERS_);
+  // The generic kernel accepts a minimum-width schema, but a locked Sheet
+  // transaction must reject extra columns as well as missing columns. A
+  // writer using a different layout could otherwise corrupt reservations.
+  if (s.slots.headers.length !== BOOKING_SLOT_HEADERS_.length ||
+      s.reservations.headers.length !== BOOKING_RESERVATION_HEADERS_.length ||
+      s.slots.rows.some(function(row) {
+        return !Array.isArray(row) || row.length !== BOOKING_SLOT_HEADERS_.length;
+      }) ||
+      s.reservations.rows.some(function(row) {
+        return !Array.isArray(row) || row.length !== BOOKING_RESERVATION_HEADERS_.length;
+      })) {
+    throw new Error('預約快照欄位寬度不一致，拒絕預約交易。');
+  }
   // Check all historical keys, not just the key of this request. A duplicate
   // unrelated key makes replay identity ambiguous and must block new writes.
   var ids=new Set(), keys=new Set();
