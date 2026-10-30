@@ -69,6 +69,12 @@ function bookingHoldAssertLifecycleEvents_(rows) {
   rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
     var status=bookingStatus_(row[3]);
+    // Validate populated hold expiry, creation and update cells even for
+    // CANCELLED/EXPIRED history. A corrupt ignored field must not permit a
+    // new write; blank optional cells remain allowed by provisional policy.
+    [4,6,9].forEach(function(index) {
+      if (row[index]!=='' && row[index]!=null) bookingInstant_(row[index]);
+    });
     var confirmed=row[7]!=='' && row[7]!=null;
     var cancelled=row[8]!=='' && row[8]!=null;
     if (confirmed) bookingInstant_(row[7]);
