@@ -37,9 +37,13 @@ function make(extra={}){
       appends++;
       if(extra.appendThrows)throw new Error('append failed');
       if(extra.appendReject)return false;
-      rows.push(hold('NEW_'+appends,req.applicantId,req.idempotencyKey,
+      const appended=hold('NEW_'+appends,req.applicantId,req.idempotencyKey,
         extra.badExpiry?'2026-10-29T12:30:00Z':req.holdUntilUtc,
-        'HELD',req.slotId));
+        'HELD',req.slotId);
+      if(Object.hasOwn(extra,'createdAtAfterAppend')) appended[6]=extra.createdAtAfterAppend;
+      if(Object.hasOwn(extra,'confirmedAtAfterAppend')) appended[7]=extra.confirmedAtAfterAppend;
+      if(Object.hasOwn(extra,'cancelledAtAfterAppend')) appended[8]=extra.cancelledAtAfterAppend;
+      rows.push(appended);
       if(extra.duplicateAppend)rows.push(hold('DUP_'+appends,req.applicantId,req.idempotencyKey,req.holdUntilUtc));
       if(extra.secondActiveAfterAppend) rows.push(hold('EXTRA_'+appends,
         req.applicantId,'other-idempotency-0002',req.holdUntilUtc));
@@ -338,4 +342,29 @@ test('Expired HELD on CANCELLED slot does not count as live occupancy',()=>{
   ]});
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().appends,1);
+});
+
+
+test('New HELD row must preserve server creation time and have no confirmation or cancellation event',()=>{
+  for(const extra of [
+    {createdAtAfterAppend:''},
+    {createdAtAfterAppend:'2026-10-29T12:00:01Z'},
+    {createdAtAfterAppend:'not-a-timestamp'},
+    {confirmedAtAfterAppend:now},
+    {cancelledAtAfterAppend:now}
+  ]){
+    const x=make(extra);
+    assert.throws(()=>call(x),err=>{
+      assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency-0001|NEW_1/);
+      return true;
+    });
+    assert.equal(x.stats().appends,1);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('New HELD row accepts an equivalent native Date creation timestamp',()=>{
+  const x=make({createdAtAfterAppend:new Date(now)});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().releases,1);
 });

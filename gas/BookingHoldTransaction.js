@@ -268,6 +268,11 @@ function bookingHoldOnceLocked_(request,adapters) {
         match[1]!==request.applicantId || match[2]!==request.slotId ||
         bookingStatus_(match[3])!==BOOKING_STATUS_.hold ||
         bookingInstant_(match[4])!==until ||
+        // A newly created HELD row must record the transaction's server time
+        // and must not already carry confirmation/cancellation events.
+        bookingInstant_(match[6])!==now ||
+        (match[7] !== '' && match[7] != null) ||
+        (match[8] !== '' && match[8] != null) ||
         bookingHoldCount_(after.reservations.rows,request.slotId,now)>
           bookingCapacity_(before.slots.rows.filter(function(r){
             return !bookingBlankRow_(r) && r[0]===request.slotId;
