@@ -176,6 +176,17 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
         confirmed !== null && cancelled !== null && cancelled < confirmed) {
       throw new Error('預約取消時間早於確認時間，已拒絕提供名額。');
     }
+    // The recorded lifecycle must agree with its event timestamps. A
+    // confirmed reservation with cancellation evidence cannot be counted
+    // as an active seat; a held/expired row cannot have terminal events.
+    // This only rejects contradictory evidence, without requiring optional
+    // timestamps or choosing an unapproved transition policy.
+    if (((row[3] === BOOKING_STATUS_.hold ||
+           row[3] === BOOKING_STATUS_.expired) &&
+          (confirmed !== null || cancelled !== null)) ||
+        (row[3] === BOOKING_STATUS_.confirmed && cancelled !== null)) {
+      throw new Error('預約狀態與事件時間不一致，已拒絕提供名額。');
+    }
   });
 }
 
