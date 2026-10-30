@@ -68,6 +68,21 @@ function bookingHoldAssertUniqueActiveApplicants_(rows,nowMs) {
  * private values. IDs are checked for uniqueness by bookingHoldSnapshot_.
  * This is a best-effort readback check, not a Sheets transaction.
  */
+function bookingHoldFreezeHistory_(rows) {
+  return rows.map(function(row) {
+    if (!Array.isArray(row)) return row;
+    return row.map(function(value) {
+      if (Object.prototype.toString.call(value) === '[object Date]') {
+        var ms = value.getTime();
+        if (!Number.isFinite(ms)) {
+          throw new Error('預約歷史時間資料不合法，拒絕操作。');
+        }
+        return new Date(ms);
+      }
+      return value;
+    });
+  });
+}
 function bookingHoldAssertHistoryStable_(beforeRows, afterRows) {
   var original = new Map();
   beforeRows.forEach(function(row) {
@@ -188,6 +203,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     if (!chosen || until>bookingInstant_(chosen.startAtUtc)) {
       return {held:false,reason:'REJECTED'};
     }
+    var oldHistory=bookingHoldFreezeHistory_(before.reservations.rows);
     var oldIds=new Set(before.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r);
     }).map(function(r){return r[0];}));
@@ -201,7 +217,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     var after=bookingHoldSnapshot_(adapters);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
-    bookingHoldAssertHistoryStable_(before.reservations.rows,after.reservations.rows);
+    bookingHoldAssertHistoryStable_(oldHistory,after.reservations.rows);
     var newRows=after.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r) && !oldIds.has(r[0]);
     });
