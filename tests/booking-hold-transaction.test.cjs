@@ -135,6 +135,31 @@ test('Invalid headers, duplicate IDs, unknown statuses and orphan references fai
     assert.equal(x.stats().releases,1);
   }
 });
+test('Duplicate unrelated historical idempotency keys fail closed before any append',()=>{
+  // The requested key is unique; two historical rows still corrupt replay identity.
+  // CANCELLED/EXPIRED rows do not occupy seats, so capacity is not the cause.
+  const oldKey='historical-request-key-0002';
+  const x=make({rows:[
+    hold('H1','OTHER_APP_A',oldKey,until,'CANCELLED'),
+    hold('H2','OTHER_APP_B',oldKey,until,'EXPIRED')
+  ]});
+  assert.throws(()=>call(x),err=>{
+    assert.match(String(err),/重複預約請求識別碼/);
+    assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key/);
+    return true;
+  });
+  assert.equal(x.stats().appends,0);
+  assert.equal(x.stats().releases,1);
+  assert.equal(x.stats().heldLock,false);
+});
+test('Distinct historical keys remain valid and allow an authorized new hold',()=>{
+  const x=make({rows:[
+    hold('H1','OTHER_APP_A','historical-request-key-0002',until,'CANCELLED'),
+    hold('H2','OTHER_APP_B','historical-request-key-0003',until,'EXPIRED')
+  ]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+});
 test('Server time, TTL, and idempotency key are validated before locking',()=>{
   const x=make();
   for(const req of [

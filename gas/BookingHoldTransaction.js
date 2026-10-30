@@ -19,7 +19,9 @@ function bookingHoldSnapshot_(adapter) {
   }
   bookingAssertSchema_(s.slots.headers,BOOKING_SLOT_HEADERS_);
   bookingAssertSchema_(s.reservations.headers,BOOKING_RESERVATION_HEADERS_);
-  var ids=new Set();
+  // Check all historical keys, not just the key of this request. A duplicate
+  // unrelated key makes replay identity ambiguous and must block new writes.
+  var ids=new Set(), keys=new Set();
   s.reservations.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
     if (!Array.isArray(row) || row.length<BOOKING_RESERVATION_HEADERS_.length) {
@@ -29,7 +31,9 @@ function bookingHoldSnapshot_(adapter) {
     if (ids.has(id)) throw new Error('重複預約識別碼，拒絕操作。');
     ids.add(id);
     bookingId_(row[1]);
-    bookingHoldKey_(row[5]);
+    var key=bookingHoldKey_(row[5]);
+    if (keys.has(key)) throw new Error('重複預約請求識別碼，拒絕操作。');
+    keys.add(key);
   });
   return s;
 }
