@@ -41,6 +41,8 @@ function make(extra={}){
         extra.badExpiry?'2026-10-29T12:30:00Z':req.holdUntilUtc,
         'HELD',req.slotId));
       if(extra.duplicateAppend)rows.push(hold('DUP_'+appends,req.applicantId,req.idempotencyKey,req.holdUntilUtc));
+      if(extra.secondActiveAfterAppend) rows.push(hold('EXTRA_'+appends,
+        req.applicantId,'other-idempotency-0002',req.holdUntilUtc));
       return true;
     }
   };
@@ -176,4 +178,42 @@ test('No public booking endpoint or direct production Sheets write is introduced
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
   assert.match(site,/function listSlots\(\)\{return \[\];\}/);
   assert.doesNotMatch(tx,/\.appendRow\s*\(|\.setValues\s*\(|SpreadsheetApp|GmailApp|MailApp/);
+});
+
+test('Corrupted duplicate active applicant blocks exact-key replay before any write',()=>{
+  const x=make({slots:[slot('SLOT_A',3),slot('SLOT_B',3)],rows:[
+    hold('H1','APPLICANT_A',key,until,'HELD','SLOT_A'),
+    hold('H2','APPLICANT_A','other-idempotency-0002',until,'CONFIRMED','SLOT_B')
+  ]});
+  assert.throws(()=>call(x),err=>{
+    assert.match(String(err),/同一申請者存在多筆有效預約/);
+    assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency/);
+    return true;
+  });
+  assert.equal(x.stats().appends,0);
+  assert.equal(x.stats().releases,1);
+});
+test('Unrelated duplicate active applicant blocks new hold even with spare seats',()=>{
+  const x=make({slots:[slot('SLOT_A',3),slot('SLOT_B',3)],rows:[
+    hold('H1','OTHER_APP','other-idempotency-0002',until,'HELD','SLOT_A'),
+    hold('H2','OTHER_APP','other-idempotency-0003',until,'CONFIRMED','SLOT_B')
+  ]});
+  assert.throws(()=>call(x),/同一申請者存在多筆有效預約/);
+  assert.equal(x.stats().appends,0);
+  assert.equal(x.stats().releases,1);
+});
+test('Cancelled and expired holds do not falsely count as active duplicates',()=>{
+  const x=make({rows:[
+    hold('H1','APPLICANT_A','other-idempotency-0002',until,'CANCELLED'),
+    hold('H2','APPLICANT_A','other-idempotency-0003','2026-10-29T11:59:00Z','HELD')
+  ]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+});
+test('Post-append readback rejects a second live booking with a distinct key',()=>{
+  const x=make({slots:[slot('SLOT_A',3)],secondActiveAfterAppend:true});
+  assert.throws(()=>call(x),/同一申請者存在多筆有效預約/);
+  assert.equal(x.stats().appends,1);
+  assert.equal(x.stats().releases,1);
+  assert.equal(x.stats().heldLock,false);
 });
