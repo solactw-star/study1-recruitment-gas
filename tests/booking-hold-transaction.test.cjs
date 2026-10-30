@@ -41,6 +41,12 @@ function make(extra={}){
         extra.badExpiry?'2026-10-29T12:30:00Z':req.holdUntilUtc,
         'HELD',req.slotId));
       if(extra.duplicateAppend)rows.push(hold('DUP_'+appends,req.applicantId,req.idempotencyKey,req.holdUntilUtc));
+      if(extra.slotDriftAfterAppend) {
+        const drift=extra.slotDriftAfterAppend;
+        for(const [index,name] of [[1,'start'],[2,'end'],[3,'capacity'],[5,'status']]) {
+          if(Object.prototype.hasOwnProperty.call(drift,name)) slots[0][index]=drift[name];
+        }
+      }
       return true;
     }
   };
@@ -176,4 +182,39 @@ test('No public booking endpoint or direct production Sheets write is introduced
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
   assert.match(site,/function listSlots\(\)\{return \[\];\}/);
   assert.doesNotMatch(tx,/\.appendRow\s*\(|\.setValues\s*\(|SpreadsheetApp|GmailApp|MailApp/);
+});
+
+test('selected slot drift after append never reports a successful hold',()=>{
+  // With capacity=2 and one existing hold, a post-append reduction to 1
+  // previously passed the pre-write capacity check despite two live holds.
+  const existing=hold('H2','OTHER_APP','other-idempotency-0002');
+  const cases=[
+    {capacity:1},{capacity:3},{status:'CLOSED'},{status:'CANCELLED'},
+    {start:'2026-10-31T09:05:00Z'},
+    {end:'2026-10-31T10:05:00Z'}
+  ];
+  for(const drift of cases) {
+    const x=make({slots:[slot('SLOT_A',2)],rows:[existing],
+      slotDriftAfterAppend:drift});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/時段資料變動/);
+      assert.doesNotMatch(String(err),/OTHER_APP|APPLICANT_A|other-idempotency/);
+      return true;
+    });
+    assert.equal(x.stats().appends,1);
+    assert.equal(x.stats().reads,2);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('stable selected slot and equivalent Date-formatted times pass readback',()=>{
+  const existing=hold('H2','OTHER_APP','other-idempotency-0002');
+  const x=make({slots:[slot('SLOT_A',2)],rows:[existing]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  const y=make({slots:[slot('SLOT_A',2)],rows:[existing],
+    slotDriftAfterAppend:{
+      start:new Date('2026-10-31T09:00:00Z'),
+      end:new Date('2026-10-31T10:00:00Z')
+    }});
+  assert.deepEqual(call(y),{held:true,reason:'CREATED'});
 });
