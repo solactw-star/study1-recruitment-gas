@@ -148,6 +148,23 @@ function bookingHoldOnceLocked_(request,adapters) {
     }
     var after=bookingHoldSnapshot_(adapters);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
+    // A readback is not sufficient if the selected slot changed while the
+    // hold was appended. Reject drift even if the old capacity was adequate.
+    // A Date object and an equivalent UTC string represent the same instant.
+    var beforeSlot=before.slots.rows.filter(function(r) {
+      return !bookingBlankRow_(r) && r[0]===request.slotId;
+    })[0];
+    var afterSlot=after.slots.rows.filter(function(r) {
+      return !bookingBlankRow_(r) && r[0]===request.slotId;
+    })[0];
+    if (!beforeSlot || !afterSlot ||
+        bookingStatus_(afterSlot[5])!==BOOKING_STATUS_.slotOpen ||
+        bookingInstant_(afterSlot[1])<=now ||
+        bookingInstant_(beforeSlot[1])!==bookingInstant_(afterSlot[1]) ||
+        bookingInstant_(beforeSlot[2])!==bookingInstant_(afterSlot[2]) ||
+        bookingCapacity_(beforeSlot[3])!==bookingCapacity_(afterSlot[3])) {
+      throw new Error('預約寫入期間時段資料變動，拒絕宣稱成功。');
+    }
     var newRows=after.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r) && !oldIds.has(r[0]);
     });
@@ -157,9 +174,7 @@ function bookingHoldOnceLocked_(request,adapters) {
         bookingStatus_(match[3])!==BOOKING_STATUS_.hold ||
         bookingInstant_(match[4])!==until ||
         bookingHoldCount_(after.reservations.rows,request.slotId,now)>
-          bookingCapacity_(before.slots.rows.filter(function(r){
-            return !bookingBlankRow_(r) && r[0]===request.slotId;
-          })[0][3])) {
+          bookingCapacity_(afterSlot[3])) {
       throw new Error('預約寫入後核對失敗，拒絕宣稱成功。');
     }
     return {held:true,reason:'CREATED'};
