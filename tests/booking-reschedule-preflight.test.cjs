@@ -104,3 +104,27 @@ test('no staging mutation or public endpoint is introduced',()=>{
   assert.doesNotMatch(site,/function rescheduleHold\s*\(/);
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
 });
+
+test('live hold after original slot start fails closed on reschedule preflight',()=>{
+  // Original starts at 09:00; expiry 09:05 is invalid even though
+  // the requested destination starts later at 09:30 and has spare seats.
+  const late=reservation().map((v,i)=>i===4?'2026-11-01T09:05:00Z':v);
+  const x=run({slots:[slot('SLOT_A'),slot('SLOT_B',2,'2026-11-01T09:30:00Z')],
+    rows:[late]});
+  assert.throws(()=>x.result(),err=>{
+    assert.match(String(err),/有效暫留期限超過原時段開始/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+    return true;
+  });
+});
+
+test('unrelated invalid live hold blocks reschedule, expired history is ignored',()=>{
+  const slots=[slot('SLOT_A'),slot('SLOT_B'),slot('SLOT_C')];
+  const invalid=reservation('R2','APP_B','SLOT_C','HELD','idempotency-key-0002')
+    .map((v,i)=>i===4?'2026-11-01T09:05:00Z':v);
+  assert.throws(()=>run({slots,rows:[reservation(),invalid]}).result(),
+    /有效暫留期限超過原時段開始/);
+  const expired=invalid.map((v,i)=>i===4?'2026-10-30T13:59:00Z':v);
+  assert.deepEqual(run({slots,rows:[reservation(),expired]}).result(),
+    {allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
+});
