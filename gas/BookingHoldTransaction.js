@@ -55,7 +55,30 @@ function bookingHoldSnapshot_(adapter) {
     if (keys.has(key)) throw new Error('重複預約請求識別碼，拒絕操作。');
     keys.add(key);
   });
+  // Validate lifecycle evidence before replay or append, including history.
+  bookingHoldAssertLifecycleEvents_(s.reservations.rows);
   return s;
+}
+/**
+ * Closed hold transaction integrity guard. Do not accept an active booking
+ * contradicted by confirmation/cancellation evidence, or malformed historical
+ * event timestamps. Optional event timestamps remain optional; no new REC
+ * lifecycle transition policy is inferred.
+ */
+function bookingHoldAssertLifecycleEvents_(rows) {
+  rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    var status=bookingStatus_(row[3]);
+    var confirmed=row[7]!=='' && row[7]!=null;
+    var cancelled=row[8]!=='' && row[8]!=null;
+    if (confirmed) bookingInstant_(row[7]);
+    if (cancelled) bookingInstant_(row[8]);
+    if (((status===BOOKING_STATUS_.hold || status===BOOKING_STATUS_.expired) &&
+         (confirmed || cancelled)) ||
+        (status===BOOKING_STATUS_.confirmed && cancelled)) {
+      throw new Error('預約狀態與事件時間不一致，拒絕預約交易。');
+    }
+  });
 }
 function bookingHoldActive_(row,nowMs) {
   var status=bookingStatus_(row[3]);

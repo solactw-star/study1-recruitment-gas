@@ -466,3 +466,46 @@ test('Locked hold fails closed on blank interior slot or reservation rows',()=>{
     assert.equal(x.stats().heldLock,false);
   }
 });
+
+
+test('Locked hold refuses contradictory lifecycle events on unrelated history',()=>{
+  const scenarios=[
+    [7,'HELD'],[8,'HELD'],[7,'EXPIRED'],[8,'EXPIRED'],[8,'CONFIRMED']
+  ];
+  for(const [eventColumn,status] of scenarios) {
+    const row=hold('H1','OTHER_APP','historical-request-key-0002',
+      status==='EXPIRED'?'2026-10-29T11:59:00Z':until,status);
+    row[eventColumn]=now;
+    const x=make({rows:[row],slots:[slot('SLOT_A',3)]});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/預約狀態與事件時間不一致/);
+      assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key-0002/);
+      return true;
+    });
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('Malformed optional event timestamp in cancelled history blocks new hold',()=>{
+  for(const [col,bad] of [[7,'not-utc'],[8,true]]) {
+    const row=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+    row[col]=bad;
+    const x=make({rows:[row]});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/時間/);
+      assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key-0002/);
+      return true;
+    });
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+  }
+});
+test('Consistent cancelled history may contain both valid event timestamps',()=>{
+  const row=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  row[7]=now;row[8]=now;
+  const x=make({rows:[row]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+  assert.equal(x.stats().releases,1);
+});
