@@ -37,6 +37,21 @@ function bookingReschedulePreflight_(request, adapters) {
   bookingHoldAssertUniqueActiveApplicants_(snapshot.reservations.rows, now);
   bookingHoldAssertGlobalOccupancy_(
     snapshot.slots.rows, snapshot.reservations.rows, now);
+  // A live HELD record must not expire after its ORIGINAL slot starts.
+  // Otherwise an inconsistent hold could be moved into a later slot and
+  // incorrectly appear valid. Check unrelated holds too (whole-workbook
+  // fail-closed preflight), but do not treat expired historical holds as live.
+  var originalStarts = new Map();
+  snapshot.slots.rows.forEach(function(row) {
+    if (!bookingBlankRow_(row)) originalStarts.set(row[0], bookingInstant_(row[1]));
+  });
+  snapshot.reservations.rows.forEach(function(row) {
+    if (!bookingBlankRow_(row) && row[3] === BOOKING_STATUS_.hold &&
+        bookingHoldActive_(row, now) &&
+        bookingInstant_(row[4]) > originalStarts.get(row[2])) {
+      throw new Error('有效暫留期限超過原時段開始，拒絕改期預檢。');
+    }
+  });
 
   var original = null;
   snapshot.reservations.rows.forEach(function(row) {
