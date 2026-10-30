@@ -46,6 +46,22 @@ function bookingHoldActive_(row,nowMs) {
   if (status===BOOKING_STATUS_.cancelled || status===BOOKING_STATUS_.expired) return false;
   throw new Error('未知預約狀態，拒絕操作。');
 }
+/**
+ * Reject a corrupted snapshot with multiple live reservations for one applicant,
+ * including unrelated applicants and exact-key replays. Do not reveal IDs.
+ * This is an integrity check, not a new eligibility or hold-duration policy.
+ */
+function bookingHoldAssertUniqueActiveApplicants_(rows,nowMs) {
+  var active = new Set();
+  rows.forEach(function(row) {
+    if (bookingBlankRow_(row) || !bookingHoldActive_(row,nowMs)) return;
+    var applicant = bookingId_(row[1]);
+    if (active.has(applicant)) {
+      throw new Error('同一申請者存在多筆有效預約，拒絕預約交易。');
+    }
+    active.add(applicant);
+  });
+}
 function bookingHoldExistingKey_(rows,key) {
   var found=null;
   rows.forEach(function(row) {
@@ -108,6 +124,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     // Full validation of all slot and reservation records fails closed.
     var available=bookingComputeAvailability_(
       before.slots.rows,before.reservations.rows,request.nowUtc);
+    bookingHoldAssertUniqueActiveApplicants_(before.reservations.rows,now);
     var existing=bookingHoldExistingKey_(before.reservations.rows,request.idempotencyKey);
     if (existing) {
       var replaySlot=before.slots.rows.filter(function(r) {
@@ -148,6 +165,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     }
     var after=bookingHoldSnapshot_(adapters);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
+    bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
     var newRows=after.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r) && !oldIds.has(r[0]);
     });
