@@ -244,6 +244,15 @@ function bookingReadOnlyValidateTextMetadata_(snapshot) {
  */
 function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var snapshot = bookingReadOnlySnapshot_(openSpreadsheet);
+  // getLastRow() omits trailing blank rows. A fully blank row *within*
+  // the returned data extent is a structural gap; silently skipping it
+  // could conceal a missing reservation when computing available seats.
+  // This is an integrity guard, not a REC policy or a recovery mechanism.
+  [snapshot.slots.rows, snapshot.reservations.rows].forEach(function(rows) {
+    if (rows.some(bookingBlankRow_)) {
+      throw new Error('預約工作表存在內部空白資料列，已拒絕提供名額。');
+    }
+  });
   bookingReadOnlyValidateTemporalCells_(snapshot);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
   bookingReadOnlyValidateTextMetadata_(snapshot);
