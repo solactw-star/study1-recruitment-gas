@@ -62,6 +62,56 @@ function bookingHoldAssertUniqueActiveApplicants_(rows,nowMs) {
     active.add(applicant);
   });
 }
+/**
+ * A successful append must not hide a concurrent edit/deletion of a
+ * pre-existing reservation. Compare every historical field without logging
+ * private values. IDs are checked for uniqueness by bookingHoldSnapshot_.
+ * This is a best-effort readback check, not a Sheets transaction.
+ */
+function bookingHoldFreezeHistory_(rows) {
+  return rows.map(function(row) {
+    if (!Array.isArray(row)) return row;
+    return row.map(function(value) {
+      if (Object.prototype.toString.call(value) === '[object Date]') {
+        var ms = value.getTime();
+        if (!Number.isFinite(ms)) {
+          throw new Error('預約歷史時間資料不合法，拒絕操作。');
+        }
+        return new Date(ms);
+      }
+      return value;
+    });
+  });
+}
+function bookingHoldAssertHistoryStable_(beforeRows, afterRows) {
+  var original = new Map();
+  beforeRows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    original.set(row[0], row);
+  });
+  afterRows.forEach(function(row) {
+    if (bookingBlankRow_(row) || !original.has(row[0])) return;
+    var old = original.get(row[0]);
+    if (row.length !== old.length) {
+      throw new Error('預約寫入期間既有資料變動，拒絕宣稱成功。');
+    }
+    for (var i = 0; i < old.length; i++) {
+      var a = old[i], b = row[i];
+      var aDate = Object.prototype.toString.call(a) === '[object Date]';
+      var bDate = Object.prototype.toString.call(b) === '[object Date]';
+      if (aDate !== bDate ||
+          (aDate ? !Number.isFinite(a.getTime()) ||
+            !Number.isFinite(b.getTime()) || a.getTime() !== b.getTime()
+            : a !== b)) {
+        throw new Error('預約寫入期間既有資料變動，拒絕宣稱成功。');
+      }
+    }
+    original.delete(row[0]);
+  });
+  if (original.size) {
+    throw new Error('預約寫入期間既有資料變動，拒絕宣稱成功。');
+  }
+}
 function bookingHoldExistingKey_(rows,key) {
   var found=null;
   rows.forEach(function(row) {
@@ -153,6 +203,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     if (!chosen || until>bookingInstant_(chosen.startAtUtc)) {
       return {held:false,reason:'REJECTED'};
     }
+    var oldHistory=bookingHoldFreezeHistory_(before.reservations.rows);
     var oldIds=new Set(before.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r);
     }).map(function(r){return r[0];}));
@@ -166,6 +217,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     var after=bookingHoldSnapshot_(adapters);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
+    bookingHoldAssertHistoryStable_(oldHistory,after.reservations.rows);
     var newRows=after.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r) && !oldIds.has(r[0]);
     });
