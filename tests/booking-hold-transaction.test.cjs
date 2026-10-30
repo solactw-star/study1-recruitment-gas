@@ -48,6 +48,7 @@ function make(extra={}){
         rows[0][column]=value;
       }
       if(extra.dropHistoricalAfterAppend) rows.shift();
+      if(extra.mutateHistoricalDateAfterAppend) rows[0][6].setTime(Date.parse('2026-10-29T12:01:00Z'));
       return true;
     }
   };
@@ -248,4 +249,13 @@ test('Unchanged historical reservations still allow a valid hold',()=>{
   ]});
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().appends,1);
+});
+
+test('Shared Date objects cannot conceal in-place historical timestamp drift',()=>{
+  const history=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  history[6]=new Date(now);
+  const x=make({rows:[history],mutateHistoricalDateAfterAppend:true});
+  assert.throws(()=>call(x),/既有資料變動/);
+  assert.equal(x.stats().appends,1);
+  assert.equal(x.stats().releases,1);
 });
