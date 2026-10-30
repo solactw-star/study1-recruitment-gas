@@ -37,6 +37,21 @@ function bookingReschedulePreflight_(request, adapters) {
   bookingHoldAssertUniqueActiveApplicants_(snapshot.reservations.rows, now);
   bookingHoldAssertGlobalOccupancy_(
     snapshot.slots.rows, snapshot.reservations.rows, now);
+  // The read-only availability adapter and cancellation preflight already
+  // reject live holds extending past their slot start. Do not let a move
+  // preflight overlook the same corruption, even for an unrelated applicant.
+  // Historical expired holds are not active and remain unaffected.
+  var slotStarts = new Map();
+  snapshot.slots.rows.forEach(function(row) {
+    if (!bookingBlankRow_(row)) slotStarts.set(row[0], bookingInstant_(row[1]));
+  });
+  snapshot.reservations.rows.forEach(function(row) {
+    if (bookingBlankRow_(row) || row[3] !== BOOKING_STATUS_.hold ||
+        !bookingHoldActive_(row, now)) return;
+    if (bookingInstant_(row[4]) > slotStarts.get(row[2])) {
+      throw new Error('有效暫留期限超過時段開始，拒絕改期預檢。');
+    }
+  });
 
   var original = null;
   snapshot.reservations.rows.forEach(function(row) {
