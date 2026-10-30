@@ -43,6 +43,7 @@ function make(extra={}){
       if(Object.hasOwn(extra,'createdAtAfterAppend')) appended[6]=extra.createdAtAfterAppend;
       if(Object.hasOwn(extra,'confirmedAtAfterAppend')) appended[7]=extra.confirmedAtAfterAppend;
       if(Object.hasOwn(extra,'cancelledAtAfterAppend')) appended[8]=extra.cancelledAtAfterAppend;
+      if(Object.hasOwn(extra,'updatedAtAfterAppend')) appended[9]=extra.updatedAtAfterAppend;
       rows.push(appended);
       if(extra.duplicateAppend)rows.push(hold('DUP_'+appends,req.applicantId,req.idempotencyKey,req.holdUntilUtc));
       if(extra.secondActiveAfterAppend) rows.push(hold('EXTRA_'+appends,
@@ -412,6 +413,29 @@ test('Locked hold rejects an added column appearing only after append',()=>{
       assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency-0001/);
       return true;
     });
+    assert.equal(x.stats().appends,1);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+
+test('Locked readback rejects malformed or pre-creation update timestamp on new hold',()=>{
+  for(const updated of ['not-utc','2026-10-29T11:59:59Z',false,
+    new Date('2026-10-29T11:59:59Z')]) {
+    const x=make({updatedAtAfterAppend:updated});
+    assert.throws(()=>call(x),err=>{
+      assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency-0001|NEW_1/);
+      return true;
+    });
+    assert.equal(x.stats().appends,1);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('Locked readback permits blank, equal or later valid new hold update timestamp',()=>{
+  for(const updated of ['',now,new Date(now),'2026-10-29T12:00:01Z']) {
+    const x=make({updatedAtAfterAppend:updated});
+    assert.deepEqual(call(x),{held:true,reason:'CREATED'});
     assert.equal(x.stats().appends,1);
     assert.equal(x.stats().releases,1);
     assert.equal(x.stats().heldLock,false);
