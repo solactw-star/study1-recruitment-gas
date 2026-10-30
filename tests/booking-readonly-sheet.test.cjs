@@ -320,6 +320,18 @@ test('active reservations on a cancelled slot fail closed; historical and closed
   assert.deepEqual(availability(fake({slots:[closed],rows:[reservation()]})),[]);
 });
 
+test('capacity must be a native positive integer cell, never coerced from text',()=>{
+  for(const bad of ['2','02',true,null,new Date('2026-10-29T12:00:00Z'),2.5,-1,0]) {
+    const changed=slot().map((v,i)=>i===3?bad:v);
+    assert.throws(()=>availability(fake({slots:[changed],rows:[reservation()]})),err=>{
+      assert.match(String(err),/時段容量儲存格/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+  assert.equal(availability(fake({slots:[slot(2)]}))[0].remaining,2);
+});
+
 test('nontext location and creator metadata fail closed without exposing values',()=>{
   for(const column of [4,6]) {
     for(const invalid of [true, 42, new Date('2026-10-29T12:00:00Z'), null]) {

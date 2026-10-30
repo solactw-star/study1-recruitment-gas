@@ -195,7 +195,7 @@ function bookingReadOnlyValidateCanonicalStatuses_(snapshot) {
 }
 
 /**
- * Validate text-typed slot metadata without inventing required-field rules.
+ * Validate native numeric capacity and text-typed slot metadata without inventing required-field rules.
  * Google getValues() returns empty strings for blank cells. A checkbox,
  * numeric cell, or Date in location_code/created_by indicates schema drift.
  * This check does not expose or log stored values.
@@ -203,6 +203,11 @@ function bookingReadOnlyValidateCanonicalStatuses_(snapshot) {
 function bookingReadOnlyValidateTextMetadata_(snapshot) {
   snapshot.slots.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
+    // Sheets getValues() distinguishes numeric cells from text. Do not
+    // silently coerce a text capacity such as '2' into a valid seat count.
+    if (typeof row[3] !== 'number' || !Number.isSafeInteger(row[3]) || row[3] < 1) {
+      throw new Error('時段容量儲存格必須是正整數數值，已拒絕提供名額。');
+    }
     [4, 6].forEach(function(index) {
       if (typeof row[index] !== 'string') {
         throw new Error('時段文字欄位資料型別不合法，已拒絕提供名額。');
