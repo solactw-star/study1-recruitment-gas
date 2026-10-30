@@ -284,6 +284,11 @@ function bookingHoldOnceLocked_(request,adapters) {
         // A newly created HELD row must record the transaction's server time
         // and must not already carry confirmation/cancellation events.
         bookingInstant_(match[6])!==now ||
+        // An optional update timestamp must be a valid UTC instant and
+        // cannot precede the newly recorded creation time. A malformed
+        // readback must never be acknowledged as a successful hold.
+        (match[9] !== '' && match[9] != null &&
+          bookingInstant_(match[9]) < now) ||
         (match[7] !== '' && match[7] != null) ||
         (match[8] !== '' && match[8] != null) ||
         bookingHoldCount_(after.reservations.rows,request.slotId,now)>
