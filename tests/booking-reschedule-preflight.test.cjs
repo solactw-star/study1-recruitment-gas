@@ -104,3 +104,38 @@ test('no staging mutation or public endpoint is introduced',()=>{
   assert.doesNotMatch(site,/function rescheduleHold\s*\(/);
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
 });
+
+test('reschedule rejects original live hold whose expiry exceeds its slot start',()=>{
+  const x=run({slots:[
+    slot('SLOT_A',2,'2026-10-30T14:05:00Z'),slot('SLOT_B')
+  ]});
+  assert.throws(()=>x.result(),err=>{
+    assert.match(String(err),/有效暫留期限超過時段開始/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+    return true;
+  });
+});
+test('reschedule fails closed on an unrelated applicant live hold past slot start',()=>{
+  const x=run({slots:[
+    slot('SLOT_A'),slot('SLOT_B'),
+    slot('SLOT_C',2,'2026-10-30T14:05:00Z')
+  ],rows:[
+    reservation(),
+    reservation('R2','APP_B','SLOT_C','HELD','idempotency-key-0002')
+  ]});
+  assert.throws(()=>x.result(),/有效暫留期限超過時段開始/);
+});
+test('expiry equal to slot start is valid, while expired historical hold is ignored',()=>{
+  const equal=run({slots:[
+    slot('SLOT_A',2,'2026-10-30T14:10:00Z'),slot('SLOT_B')
+  ],rows:[reservation().map((v,i)=>i===4?
+    new Date('2026-10-30T14:10:00Z'):v)]});
+  assert.deepEqual(equal.result(),{allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
+  const expired=reservation('R2','APP_B','SLOT_C','HELD','idempotency-key-0002')
+    .map((v,i)=>i===4?'2026-10-30T13:59:00Z':v);
+  const historical=run({slots:[
+    slot('SLOT_A'),slot('SLOT_B'),
+    slot('SLOT_C',2,'2026-10-30T13:00:00Z')
+  ],rows:[reservation(),expired]});
+  assert.deepEqual(historical.result(),{allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
+});
