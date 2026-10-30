@@ -194,6 +194,26 @@ function bookingReadOnlyValidateCanonicalStatuses_(snapshot) {
   });
 }
 
+
+/**
+ * Status must not contradict an already-recorded terminal transition.
+ * Only reject positive contradictions: legacy records may omit optional
+ * timestamps, and CANCELLED after CONFIRMED is a valid history.
+ * This does not define or approve a new booking lifecycle policy.
+ */
+function bookingReadOnlyValidateLifecycleMarkers_(snapshot) {
+  snapshot.reservations.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    var status = row[3];
+    var hasConfirmed = row[7] !== '' && row[7] != null;
+    var hasCancelled = row[8] !== '' && row[8] != null;
+    if ((status === BOOKING_STATUS_.hold && (hasConfirmed || hasCancelled)) ||
+        (status === BOOKING_STATUS_.confirmed && hasCancelled)) {
+      throw new Error('預約狀態與已記錄的確認或取消時間矛盾，已拒絕提供名額。');
+    }
+  });
+}
+
 /**
  * Validate native numeric capacity and text-typed slot metadata without inventing required-field rules.
  * Google getValues() returns empty strings for blank cells. A checkbox,
@@ -225,6 +245,7 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   var snapshot = bookingReadOnlySnapshot_(openSpreadsheet);
   bookingReadOnlyValidateTemporalCells_(snapshot);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
+  bookingReadOnlyValidateLifecycleMarkers_(snapshot);
   bookingReadOnlyValidateTextMetadata_(snapshot);
   var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
