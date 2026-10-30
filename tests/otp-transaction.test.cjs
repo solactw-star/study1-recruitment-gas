@@ -129,3 +129,65 @@ test('No live Sheet write, email, or public OTP endpoint is introduced',()=>{
  assert.match(site,/function verifyOtp\(\)\{return rejectIntake_\(\);\}/);
  assert.doesNotMatch(transaction,/SpreadsheetApp|MailApp|GmailApp|google\.script\.run|\.appendRow\s*\(/);
 });
+
+
+test('OTP immutable binding drift after F:G write fails closed without leaking identifiers',()=>{
+ const mutations=[
+  [3,'0'.repeat(64)],                  // HMAC swapped after verification
+  [4,'2026-10-29T08:09:00Z'],          // expiry silently shortened
+  [8,'2026-10-29T08:01:00Z'],          // creation time shifted
+  [7,'FAKE@example.invalid']          // same normalized mailbox, changed stored binding
+ ];
+ for(const [column,value] of mutations){
+  const f=fixture(),read=f.adapters.readSnapshot;
+  let reads=0;
+  f.adapters.readSnapshot=()=>{
+   const snap=read();
+   if(++reads===2) snap.rows[0][column]=value;
+   return snap;
+  };
+  assert.throws(()=>invoke(f),err=>{
+   assert.match(String(err),/寫入後核對失敗/);
+   assert.doesNotMatch(String(err),/fake@example|app-1|ch-1|00001234|offline-fixture/);
+   return true;
+  });
+  assert.equal(f.counts.writes,1);
+  assert.equal(f.counts.releases,1);
+  assert.equal(f.counts.acquired,false);
+ }
+});
+
+test('OTP shared mutable Date drift after write is detected by primitive prewrite binding',()=>{
+ const f=fixture(),write=f.adapters.writeAttemptAndUse;
+ f.rows[0][4]=new Date('2026-10-29T08:10:00Z');
+ f.adapters.writeAttemptAndUse=(...args)=>{
+  const ok=write(...args);
+  f.rows[0][4].setTime(Date.parse('2026-10-29T08:09:00Z'));
+  return ok;
+ };
+ assert.throws(()=>invoke(f),/寫入後核對失敗/);
+ assert.equal(f.counts.releases,1);
+ assert.equal(f.counts.acquired,false);
+});
+
+test('equivalent native Date readback is accepted, but text-typed attempt counts are not',()=>{
+ const f=fixture(),read=f.adapters.readSnapshot;
+ let reads=0;
+ f.adapters.readSnapshot=()=>{
+  const snap=read();
+  if(++reads===2){
+   for(const i of [4,6,8]) snap.rows[0][i]=new Date(snap.rows[0][i]);
+  }
+  return snap;
+ };
+ assert.deepEqual(invoke(f),{verified:true,reason:'VERIFIED'});
+ const bad=fixture(),original=bad.adapters.readSnapshot;
+ let n=0;
+ bad.adapters.readSnapshot=()=>{
+  const snap=original();
+  if(++n===2) snap.rows[0][5]=String(snap.rows[0][5]);
+  return snap;
+ };
+ assert.throws(()=>invoke(bad),/寫入後核對失敗/);
+ assert.equal(bad.counts.releases,1);
+});
