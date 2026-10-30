@@ -43,6 +43,11 @@ function make(extra={}){
       if(extra.duplicateAppend)rows.push(hold('DUP_'+appends,req.applicantId,req.idempotencyKey,req.holdUntilUtc));
       if(extra.secondActiveAfterAppend) rows.push(hold('EXTRA_'+appends,
         req.applicantId,'other-idempotency-0002',req.holdUntilUtc));
+      if(extra.mutateHistoricalAfterAppend) {
+        const [column,value]=extra.mutateHistoricalAfterAppend;
+        rows[0][column]=value;
+      }
+      if(extra.dropHistoricalAfterAppend) rows.shift();
       return true;
     }
   };
@@ -216,4 +221,31 @@ test('Post-append readback rejects a second live booking with a distinct key',()
   assert.equal(x.stats().appends,1);
   assert.equal(x.stats().releases,1);
   assert.equal(x.stats().heldLock,false);
+});
+
+test('Post-append historical reservation changes fail closed even if capacity remains safe',()=>{
+  const history=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  for(const extra of [
+    {mutateHistoricalAfterAppend:[4,'2026-10-29T12:09:00Z']},
+    {mutateHistoricalAfterAppend:[3,'EXPIRED']},
+    {mutateHistoricalAfterAppend:[5,'historical-request-key-0003']},
+    {dropHistoricalAfterAppend:true}
+  ]) {
+    const x=make({rows:[history],...extra});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/既有資料變動/);
+      assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key|APPLICANT_A/);
+      return true;
+    });
+    assert.equal(x.stats().appends,1);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('Unchanged historical reservations still allow a valid hold',()=>{
+  const x=make({rows:[
+    hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED')
+  ]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
 });
