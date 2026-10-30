@@ -348,3 +348,31 @@ test('nontext location and creator metadata fail closed without exposing values'
   assert.equal(availability(fake({slots:[blank]}))[0].remaining,2);
   assert.equal(availability(fake({slots:[slot()]}))[0].remaining,2);
 });
+
+
+test('status markers reject contradictory HELD and CONFIRMED history without exposing IDs',()=>{
+  const scenarios=[
+    reservation('R1','HELD').map((v,i)=>i===7?now:v),
+    reservation('R1','HELD').map((v,i)=>i===8?now:v),
+    reservation('R1','CONFIRMED').map((v,i)=>i===8?now:v),
+    reservation('R1','HELD').map((v,i)=>
+      i===4?'2026-10-29T11:59:00Z':i===6?'2026-10-29T11:40:00Z':
+      i===7?'2026-10-29T11:50:00Z':v)
+  ];
+  for(const row of scenarios){
+    assert.throws(()=>availability(fake({rows:[row]})),err=>{
+      assert.match(String(err),/預約狀態與已記錄的確認或取消時間矛盾/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+});
+test('valid confirmed and cancelled histories with optional markers remain accepted',()=>{
+  const confirmed=reservation('R1','CONFIRMED').map((v,i)=>i===7?now:v);
+  assert.equal(availability(fake({rows:[confirmed]}))[0].remaining,1);
+  const cancelled=reservation('R1','CANCELLED').map((v,i)=>
+    i===7||i===8||i===9?new Date(now):v);
+  assert.equal(availability(fake({rows:[cancelled]}))[0].remaining,2);
+  const legacy=reservation('R1','CONFIRMED');
+  assert.equal(availability(fake({rows:[legacy]}))[0].remaining,1);
+});
