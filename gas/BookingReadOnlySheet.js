@@ -99,6 +99,12 @@ function bookingReadOnlyTab_(book, name, expected) {
       })) {
     throw new Error('預約工作表資料列格式不合法。');
   }
+  // Detect a transient append/delete or column edit during this tab read.
+  // A later identical second pass alone cannot detect an A -> B -> A drift.
+  // This remains best-effort, not an atomic Google Sheets snapshot.
+  if (tab.getLastRow() !== lastRow || tab.getLastColumn() !== lastCol) {
+    throw new Error('預約工作表讀取期間維度發生變動，已拒絕提供名額。');
+  }
   return {headers: head[0].map(bookingReadOnlyCopyCell_),
     rows: rows.map(function(row) {return row.map(bookingReadOnlyCopyCell_);})};
 }

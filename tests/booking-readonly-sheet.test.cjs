@@ -26,15 +26,20 @@ function fake(opts={}) {
   vm.createContext(ctx);vm.runInContext(code,ctx);
   const calls=[];
   function sheet(name,headers,rows) {
-    let dataReads=0, headerReads=0, dimensionReads=0;
+    let dataReads=0, headerReads=0, dimensionReads=0, columnReads=0;
     return {
       getLastRow(){
         dimensionReads++;
         if (opts.huge && name==='Reservations') return 10002;
         if (opts.growSecondPass===name && dimensionReads===2) return rows.length+2;
+        if (opts.transientDimension===name && dimensionReads===2) return rows.length+2;
         return rows.length+1;
       },
-      getLastColumn(){return opts.extraColumn && name==='Slots'?headers.length+1:headers.length;},
+      getLastColumn(){
+        columnReads++;
+        if(opts.transientColumn===name && columnReads===2) return headers.length+1;
+        return opts.extraColumn && name==='Slots'?headers.length+1:headers.length;
+      },
       getRange(r,c,h,w) {
         calls.push([name,r,c,h,w]);
         let valuesRead=false;
@@ -173,6 +178,23 @@ test('rejects changed slot capacity, header, or row count between passes',()=>{
     {growSecondPass:'Reservations'}
   ])assert.throws(()=>availability(fake(opts)));
 });
+test('transient in-tab row or column drift fails closed before a second pass',()=>{
+  for(const opts of [
+    {transientDimension:'Reservations'},
+    {transientColumn:'Slots'}
+  ]) {
+    const x=fake({...opts,rows:[reservation()]});
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/讀取期間維度發生變動/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+    // The inconsistent first pass is rejected, even if later reads would
+    // revert to the original dimensions and look identical to pass one.
+    assert.equal(x.calls.filter(c=>c[0]==='Slots'&&c[1]===1).length,1);
+  }
+});
+
 test('Date objects are copied before second read so in-place mutations are detected',()=>{
   const start=new Date('2026-10-31T09:00:00Z');
   const row=slot().map((value,i)=>i===1?start:value);
