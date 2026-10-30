@@ -388,3 +388,32 @@ test('formula introduced between getValues and getFormulas checks fails closed',
     });
   }
 });
+
+
+test('contradictory lifecycle event timestamps fail closed without leaking IDs',()=>{
+  const cases=[
+    [ 'HELD', 7 ],
+    [ 'HELD', 8 ],
+    [ 'EXPIRED', 7 ],
+    [ 'EXPIRED', 8 ],
+    [ 'CONFIRMED', 8 ]
+  ];
+  for(const [status,eventColumn] of cases){
+    const row=reservation('R1',status).map((v,i)=>
+      i===eventColumn?'2026-10-29T12:00:00Z':v);
+    assert.throws(()=>availability(fake({slots:[slot(3)],rows:[row]})),err=>{
+      assert.match(String(err),/預約狀態與事件時間不一致/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+});
+test('consistent lifecycle event timestamps remain accepted',()=>{
+  const confirmed=reservation('R1','CONFIRMED').map((v,i)=>
+    i===7?'2026-10-29T12:00:00Z':v);
+  assert.equal(availability(fake({rows:[confirmed]}))[0].remaining,1);
+  const cancelled=reservation('R1','CANCELLED').map((v,i)=>
+    i===7||i===8?'2026-10-29T12:00:00Z':v);
+  assert.equal(availability(fake({rows:[cancelled]}))[0].remaining,2);
+  assert.equal(availability(fake({rows:[reservation('R1','EXPIRED')]}))[0].remaining,2);
+});
