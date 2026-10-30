@@ -441,3 +441,28 @@ test('Locked readback permits blank, equal or later valid new hold update timest
     assert.equal(x.stats().heldLock,false);
   }
 });
+
+
+test('Locked hold fails closed on blank interior slot or reservation rows',()=>{
+  const emptySlot=Array(sh.length).fill('');
+  const emptyReservation=Array(rh.length).fill('');
+  const cases=[
+    {slots:[slot('SLOT_A',2),emptySlot,slot('SLOT_B',2)]},
+    {rows:[
+      hold('H1','OTHER_APP_A','historical-request-key-0002',until,'CANCELLED'),
+      emptyReservation,
+      hold('H2','OTHER_APP_B','historical-request-key-0003',until,'EXPIRED')
+    ]}
+  ];
+  for(const extra of cases){
+    const x=make(extra);
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/內部空白資料列/);
+      assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key|APPLICANT_A/);
+      return true;
+    });
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});

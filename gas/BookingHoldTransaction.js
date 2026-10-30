@@ -32,6 +32,13 @@ function bookingHoldSnapshot_(adapter) {
       })) {
     throw new Error('預約快照欄位寬度不一致，拒絕預約交易。');
   }
+  // Reject fully blank rows inside a supplied data extent. Silently skipping
+  // a missing slot/reservation can undercount occupied seats. This mirrors the
+  // read-only adapter's structural guard; an empty tab is still allowed.
+  if (s.slots.rows.some(bookingBlankRow_) ||
+      s.reservations.rows.some(bookingBlankRow_)) {
+    throw new Error('預約快照存在內部空白資料列，拒絕預約交易。');
+  }
   // Check all historical keys, not just the key of this request. A duplicate
   // unrelated key makes replay identity ambiguous and must block new writes.
   var ids=new Set(), keys=new Set();
