@@ -112,6 +112,20 @@ function bookingHoldAssertHistoryStable_(beforeRows, afterRows) {
     throw new Error('預約寫入期間既有資料變動，拒絕宣稱成功。');
   }
 }
+/**
+ * The append is only allowed to add a reservation, not silently change Slots.
+ * Compare every pre-existing slot cell, including optional metadata and Date
+ * values, before claiming success. This is a best-effort lock readback guard,
+ * not a transactional guarantee against external Sheet editors.
+ */
+function bookingHoldAssertSlotsStable_(beforeRows, afterRows) {
+  if (beforeRows.length !== afterRows.length ||
+      beforeRows.filter(function(r){return !bookingBlankRow_(r);}).length !==
+      afterRows.filter(function(r){return !bookingBlankRow_(r);}).length) {
+    throw new Error('預約寫入期間時段資料變動，拒絕宣稱成功。');
+  }
+  bookingHoldAssertHistoryStable_(beforeRows, afterRows);
+}
 function bookingHoldExistingKey_(rows,key) {
   var found=null;
   rows.forEach(function(row) {
@@ -203,6 +217,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     if (!chosen || until>bookingInstant_(chosen.startAtUtc)) {
       return {held:false,reason:'REJECTED'};
     }
+    var oldSlots=bookingHoldFreezeHistory_(before.slots.rows);
     var oldHistory=bookingHoldFreezeHistory_(before.reservations.rows);
     var oldIds=new Set(before.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r);
@@ -217,6 +232,7 @@ function bookingHoldOnceLocked_(request,adapters) {
     var after=bookingHoldSnapshot_(adapters);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
+    bookingHoldAssertSlotsStable_(oldSlots,after.slots.rows);
     bookingHoldAssertHistoryStable_(oldHistory,after.reservations.rows);
     var newRows=after.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r) && !oldIds.has(r[0]);
