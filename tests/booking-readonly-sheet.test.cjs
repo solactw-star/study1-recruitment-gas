@@ -37,7 +37,9 @@ function fake(opts={}) {
       getLastColumn(){return opts.extraColumn && name==='Slots'?headers.length+1:headers.length;},
       getRange(r,c,h,w) {
         calls.push([name,r,c,h,w]);
+        let valuesRead=false;
         return {getValues(){
+          valuesRead=true;
           if(r===1){
             headerReads++;
             const h=headers.slice();
@@ -52,6 +54,8 @@ function fake(opts={}) {
         },getFormulas(){
           if(opts.badFormulaShape===name) return [];
           const matrix=Array.from({length:h},()=>Array(w).fill(''));
+          if(opts.formulaAfterValueRead===name && valuesRead && opts.formulaAfterRow===r)
+            matrix[0][0]='=NOW()';
           if(opts.formulaTab===name && opts.formulaRow===r)
             matrix[0][opts.formulaColumn||0]='=NOW()';
           return matrix;
@@ -370,4 +374,17 @@ test('cancelled record allows chronological Date cells, equal timestamps and mis
   assert.equal(availability(fake({rows:[equal]}))[0].remaining,2);
   const missing=row.map((v,i)=>i===7||i===8?'':v);
   assert.equal(availability(fake({rows:[missing]}))[0].remaining,2);
+});
+
+
+test('formula introduced between getValues and getFormulas checks fails closed',()=>{
+  for(const [name,row] of [['Slots',1],['Slots',2],['Reservations',2]]) {
+    const x=fake({rows:[reservation('R1','CANCELLED')],
+      formulaAfterValueRead:name,formulaAfterRow:row});
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/公式/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001/);
+      return true;
+    });
+  }
 });

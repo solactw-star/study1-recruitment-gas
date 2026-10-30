@@ -77,6 +77,8 @@ function bookingReadOnlyTab_(book, name, expected) {
   var headRange = tab.getRange(1, 1, 1, expected.length);
   bookingReadOnlyRejectFormulas_(headRange, 1, expected.length);
   var head = headRange.getValues();
+  // Recheck after values: formulas may change between separate API reads.
+  bookingReadOnlyRejectFormulas_(headRange, 1, expected.length);
   if (!Array.isArray(head) || head.length !== 1 ||
       !Array.isArray(head[0]) || head[0].length !== expected.length) {
     throw new Error('預約工作表標題列格式不合法。');
@@ -88,6 +90,8 @@ function bookingReadOnlyTab_(book, name, expected) {
     var dataRange = tab.getRange(2, 1, count, expected.length);
     bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
     rows = dataRange.getValues();
+    // Best-effort guard against formula insertion during the value read.
+    bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
   }
   if (!Array.isArray(rows) || rows.length !== count ||
       rows.some(function(row) {
