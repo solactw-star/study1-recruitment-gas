@@ -417,3 +417,23 @@ test('consistent lifecycle event timestamps remain accepted',()=>{
   assert.equal(availability(fake({rows:[cancelled]}))[0].remaining,2);
   assert.equal(availability(fake({rows:[reservation('R1','EXPIRED')]}))[0].remaining,2);
 });
+
+test('rejects fully blank interior rows instead of silently ignoring missing records',()=>{
+  const emptySlot=Array(sh.length).fill('');
+  const emptyReservation=Array(rh.length).fill('');
+  const otherSlot=slot().map((value,i)=>i===0?'SLOT_B':value);
+  const otherReservation=reservation('R2','CANCELLED','idempotency-key-0002')
+    .map((value,i)=>i===1?'APP_B':value);
+  for(const opts of [
+    {slots:[slot(),emptySlot,otherSlot],rows:[reservation()]},
+    {slots:[slot()],rows:[reservation(),emptyReservation,otherReservation]}
+  ]) {
+    assert.throws(()=>availability(fake(opts)),err=>{
+      assert.match(String(err),/內部空白資料列/);
+      assert.doesNotMatch(String(err),/APP_A|APP_B|idempotency-key|R1|R2/);
+      return true;
+    });
+  }
+  // Truly empty tabs (headers only) are not interior gaps.
+  assert.deepEqual(availability(fake({slots:[],rows:[]})),[]);
+});
