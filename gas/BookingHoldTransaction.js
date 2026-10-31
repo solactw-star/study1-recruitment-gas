@@ -126,6 +126,13 @@ function bookingHoldAssertLifecycleEvents_(rows) {
     var confirmedAt=confirmed?bookingInstant_(row[7]):null;
     var cancelledAt=cancelled?bookingInstant_(row[8]):null;
     var updatedAt=row[9]===''||row[9]==null?null:bookingInstant_(row[9]);
+    // Mirror the read-only integrity guard: a recorded hold expiry cannot
+    // predate creation, including on CANCELLED/EXPIRED history. This is a
+    // chronology check, not a new required-field or hold-duration policy.
+    var holdUntilAt=row[4]===''||row[4]==null?null:bookingInstant_(row[4]);
+    if (createdAt!==null && holdUntilAt!==null && holdUntilAt<createdAt) {
+      throw new Error('預約暫留期限早於建立時間，拒絕預約交易。');
+    }
     if ((createdAt!==null && [confirmedAt,cancelledAt,updatedAt].some(function(t){
           return t!==null && t<createdAt;
         })) ||
