@@ -305,6 +305,14 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
     }
     ids.add(id); keys.add(key);
     var status = bookingStatus_(row[3]);
+    // EXPIRED must not release a seat before a recorded hold deadline.
+    // A premature EXPIRED state could otherwise make a live hold appear free.
+    // Only check a populated deadline; do not invent a mandatory history field.
+    if (status === BOOKING_STATUS_.expired &&
+        row[4] !== '' && row[4] != null &&
+        bookingInstant_(row[4]) > now) {
+      throw new Error('預約標記過期但暫留期限尚未到達，已拒絕提供名額。');
+    }
     var active = status === BOOKING_STATUS_.confirmed ||
       (status === BOOKING_STATUS_.hold && bookingInstant_(row[4]) > now);
     // The hold transaction requires expiry <= slot start. Check historical
