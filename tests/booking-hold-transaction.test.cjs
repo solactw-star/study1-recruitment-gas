@@ -85,7 +85,8 @@ test('Exact active idempotent replay returns success without second append',()=>
 });
 test('Expired, cancelled, confirmed or other-slot replay never claims success',()=>{
   for(const row of [
-    hold('H1','APPLICANT_A',key,'2026-10-29T11:59:59Z'),
+    hold('H1','APPLICANT_A',key,'2026-10-29T11:59:59Z')
+      .map((v,i)=>i===6?'2026-10-29T11:50:00Z':v),
     hold('H1','APPLICANT_A',key,until,'CANCELLED'),
     hold('H1','APPLICANT_A',key,until,'CONFIRMED'),
     hold('H1','APPLICANT_A',key,until,'HELD','SLOT_B')
@@ -229,6 +230,7 @@ test('Cancelled and expired holds do not falsely count as active duplicates',()=
   const x=make({rows:[
     hold('H1','APPLICANT_A','other-idempotency-0002',until,'CANCELLED'),
     hold('H2','APPLICANT_A','other-idempotency-0003','2026-10-29T11:59:00Z','HELD')
+      .map((v,i)=>i===6?'2026-10-29T11:50:00Z':v)
   ]});
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().appends,1);
@@ -344,6 +346,7 @@ test('Expired HELD on CANCELLED slot does not count as live occupancy',()=>{
   const x=make({slots:[slot('SLOT_A',1),slot('SLOT_B',1,'CANCELLED')],rows:[
     hold('H1','OTHER_APP','historical-request-key-0002',
       '2026-10-29T11:59:00Z','HELD','SLOT_B')
+       .map((v,i)=>i===6?'2026-10-29T11:50:00Z':v)
   ]});
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().appends,1);
