@@ -269,6 +269,14 @@ function bookingHoldAssertGlobalOccupancy_(slotRows,reservationRows,nowMs) {
   reservationRows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
     var id=bookingId_(row[2]);
+    // A prematurely EXPIRED hold is inconsistent history: the read-only
+    // adapter rejects it, so the locked writer must not release its seat
+    // and append elsewhere. Blank historical deadlines remain optional.
+    if (row[3]===BOOKING_STATUS_.expired &&
+        row[4]!=='' && row[4]!=null &&
+        bookingInstant_(row[4])>nowMs) {
+      throw new Error('預約標記過期但暫留期限尚未到達，拒絕預約交易。');
+    }
     // Check ALL HELD records, including historical expired holds. Otherwise
     // the locked writer could accept corruption already rejected by the
     // read-only availability adapter. Do not treat expired holds as occupied.

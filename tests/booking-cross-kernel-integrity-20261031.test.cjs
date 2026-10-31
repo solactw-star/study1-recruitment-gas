@@ -120,6 +120,11 @@ const badCases=[
   }],
   ['hold expiry earlier than creation',s=>{
     s.rows[0][4]='2026-10-29T10:59:59Z';
+  }],
+  ['premature EXPIRED before deadline',s=>{
+    s.rows[0][3]='EXPIRED';
+    s.rows[0][4]='2026-10-30T12:10:00Z';
+    s.rows[0][7]='';
   }]
 ];
 for(const [name,mutate] of badCases){
@@ -134,6 +139,20 @@ for(const [name,mutate] of badCases){
     assert.throws(h.availability,noPrivateDetails);
     assert.throws(h.hold,noPrivateDetails);
     assert.equal(h.appended,0);
+    assert.equal(h.released,1);
+  });
+}
+
+// A deadline exactly at the server time is elapsed, not a live hold.
+// Preserve the read-only and locked-writer behavior for genuine history.
+for (const deadline of ['2026-10-30T12:00:00Z','2026-10-29T11:30:00Z','']) {
+  test('elapsed EXPIRED history remains harmless in both kernels: '+(deadline||'blank'),()=>{
+    const old=reservation();
+    old[3]='EXPIRED';old[4]=deadline;old[7]='';
+    const h=run({slots:slots(),rows:[old]});
+    assert.equal(h.availability()[0].remaining,2);
+    assert.equal(h.hold().reason,'CREATED');
+    assert.equal(h.appended,1);
     assert.equal(h.released,1);
   });
 }
