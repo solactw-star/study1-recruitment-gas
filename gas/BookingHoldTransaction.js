@@ -118,6 +118,20 @@ function bookingHoldAssertLifecycleEvents_(rows) {
         (status===BOOKING_STATUS_.confirmed && cancelled)) {
       throw new Error('預約狀態與事件時間不一致，拒絕預約交易。');
     }
+    var createdAt=row[6]===''||row[6]==null?null:bookingInstant_(row[6]);
+    var confirmedAt=confirmed?bookingInstant_(row[7]):null;
+    var cancelledAt=cancelled?bookingInstant_(row[8]):null;
+    var updatedAt=row[9]===''||row[9]==null?null:bookingInstant_(row[9]);
+    if ((createdAt!==null && [confirmedAt,cancelledAt,updatedAt].some(function(t){
+          return t!==null && t<createdAt;
+        })) ||
+        (updatedAt!==null && [confirmedAt,cancelledAt].some(function(t){
+          return t!==null && t>updatedAt;
+        })) ||
+        (status===BOOKING_STATUS_.cancelled && confirmedAt!==null &&
+         cancelledAt!==null && cancelledAt<confirmedAt)) {
+      throw new Error('預約歷程時間先後順序不一致，拒絕預約交易。');
+    }
   });
 }
 function bookingHoldActive_(row,nowMs) {
