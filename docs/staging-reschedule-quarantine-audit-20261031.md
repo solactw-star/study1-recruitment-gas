@@ -13,7 +13,7 @@
 
 ## Increment completed in this audit
 
-`tests/staging-reschedule-quarantine.test.cjs` adds CI-enforced regression checks that (a) the legacy public `rescheduleHold` function is not copied into any `gas/*.js` or `gas/*.gs` source file, (b) the legacy field/status mismatch remains explicitly detectable, and (c) only the internal, write-free preflight exists while the website's booking endpoints remain closed. The checks use repository source files only, not live Sheets or personal data.
+`tests/staging-reschedule-quarantine.test.cjs` adds CI-enforced regression checks that (a) no unreviewed public `rescheduleHold` function appears in any `gas/*.js` or `gas/*.gs` source file, (b) the canonical `*_utc` field names and current provisional status vocabulary stay explicit, and (c) only the internal, write-free preflight exists while the website's booking endpoints remain closed. The legacy source was reviewed through its separate staging branch; CI deliberately does not depend on files that are absent from `main`. The checks use repository source files only, not live Sheets or personal data.
 
 **Resolution:** keep `staging/held-reschedule-20261029` unmerged. Future implementation should use the verified canonical `*_utc` schema, the latest closed preflight, a single script-wide lock for all cooperating writers, fresh locked validation, explicit approved screening and consent, write/flush/readback checks, failure recovery, and researcher approval before any GAS sync or deployment. Remove or revise this quarantine test only in a separately reviewed change with explicit authorization; it is deliberately a temporary release guard.
 
