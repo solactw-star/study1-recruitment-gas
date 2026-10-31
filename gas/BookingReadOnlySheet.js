@@ -103,11 +103,22 @@ function bookingReadOnlyTab_(book, name, expected) {
     // Best-effort guard against formula insertion during the value read.
     bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
   }
-  if (!Array.isArray(rows) || rows.length !== count ||
-      rows.some(function(row) {
-        return !Array.isArray(row) || row.length !== expected.length;
-      })) {
+  // getValues() normally returns dense rectangular arrays. An injected or
+  // malformed sparse grid must not silently turn a missing optional cell
+  // into undefined and pass the availability integrity checks.
+  if (!Array.isArray(rows) || rows.length !== count) {
     throw new Error('預約工作表資料列格式不合法。');
+  }
+  for (var i = 0; i < count; i++) {
+    if (!Object.prototype.hasOwnProperty.call(rows, i) ||
+        !Array.isArray(rows[i]) || rows[i].length !== expected.length) {
+      throw new Error('預約工作表資料列格式不合法。');
+    }
+    for (var j = 0; j < expected.length; j++) {
+      if (!Object.prototype.hasOwnProperty.call(rows[i], j)) {
+        throw new Error('預約工作表資料列格式不合法。');
+      }
+    }
   }
   // Detect a transient append/delete or column edit during this tab read.
   // A later identical second pass alone cannot detect an A -> B -> A drift.
