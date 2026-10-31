@@ -552,3 +552,26 @@ test('elapsed or exact EXPIRED deadlines remain history; cancellation is not mis
   const noDeadline=reservation('R1','EXPIRED').map((v,i)=>i===4?'':v);
   assert.equal(availability(fake({rows:[noDeadline]}))[0].remaining,2);
 });
+
+test('freezes mutable Date clock before injected spreadsheet opener runs',()=>{
+  const x=fake({rows:[reservation()]});
+  const trustedClock=new Date(now);
+  const opener=id=>{
+    // A callback can mutate a Date passed by reference, but cannot
+    // retroactively alter the validated hold-expiry boundary.
+    trustedClock.setTime(Date.parse('2026-10-29T12:20:00Z'));
+    return x.opener(id);
+  };
+  const result=JSON.parse(JSON.stringify(
+    x.ctx.bookingReadOnlyAvailability_(opener,trustedClock)));
+  assert.equal(result.length,1);
+  assert.equal(result[0].remaining,1); // original 12:00 UTC: hold still live
+  assert.equal(trustedClock.toISOString(),'2026-10-29T12:20:00.000Z');
+  assert.doesNotMatch(JSON.stringify(result),/APP_A|idempotency-key-0001/);
+});
+test('invalid caller clock is rejected before opening any spreadsheet',()=>{
+  const x=fake({rows:[reservation()]});
+  assert.throws(()=>x.ctx.bookingReadOnlyAvailability_(x.opener,
+    new Date('invalid')),/時間日期不合法/);
+  assert.equal(x.calls.length,0);
+});
