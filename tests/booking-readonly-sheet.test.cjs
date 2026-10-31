@@ -57,6 +57,13 @@ function fake(opts={}) {
             return opts.mutateOnSecondRead(name,result);
           return result;
         },getFormulas(){
+          if (opts.sparseFormulaTab===name && opts.sparseFormulaRow===r) {
+            if (opts.sparseFormulaShape==='outer') return Array(h);
+            if (opts.sparseFormulaShape==='inner') {
+              return Array.from({length:h},(_,i)=>
+                i===0?Array(w):Array(w).fill(''));
+            }
+          }
           if(opts.badFormulaShape===name) return [];
           const matrix=Array.from({length:h},()=>Array(w).fill(''));
           if(opts.formulaAfterValueRead===name && valuesRead && opts.formulaAfterRow===r)
@@ -478,4 +485,21 @@ test('expired historical HELD still rejects expiry after slot start',()=>{
   const available=y.ctx.bookingReadOnlyAvailability_(
     y.opener,'2026-10-30T12:00:00Z');
   assert.equal(available[0].remaining,3);
+});
+
+test('sparse formula matrices fail closed rather than bypassing inspection',()=>{
+  for (const [name,row,shape] of [
+    ['Slots',1,'outer'],
+    ['Slots',2,'inner'],
+    ['Reservations',2,'outer'],
+    ['Reservations',2,'inner']
+  ]) {
+    const x=fake({rows:[reservation('R1','CANCELLED')],
+      sparseFormulaTab:name,sparseFormulaRow:row,sparseFormulaShape:shape});
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/公式檢查格式異常/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
 });

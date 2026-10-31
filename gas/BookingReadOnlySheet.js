@@ -48,12 +48,22 @@ function bookingReadOnlyRejectFormulas_(range, rowCount, colCount) {
     throw new Error('預約公式檢查不可用，已拒絕讀取。');
   }
   var formulas = range.getFormulas();
-  if (!Array.isArray(formulas) || formulas.length !== rowCount ||
-      formulas.some(function(row) {
-        return !Array.isArray(row) || row.length !== colCount ||
-          row.some(function(cell) {return cell !== '';});
-      })) {
+  // Array.prototype.some() skips sparse array holes. A malformed injected
+  // formula grid must not bypass the fail-closed formula inspection.
+  if (!Array.isArray(formulas) || formulas.length !== rowCount) {
     throw new Error('預約工作表包含公式或公式檢查格式異常，已拒絕讀取。');
+  }
+  for (var i = 0; i < rowCount; i++) {
+    if (!Object.prototype.hasOwnProperty.call(formulas, i) ||
+        !Array.isArray(formulas[i]) || formulas[i].length !== colCount) {
+      throw new Error('預約工作表包含公式或公式檢查格式異常，已拒絕讀取。');
+    }
+    for (var j = 0; j < colCount; j++) {
+      if (!Object.prototype.hasOwnProperty.call(formulas[i], j) ||
+          formulas[i][j] !== '') {
+        throw new Error('預約工作表包含公式或公式檢查格式異常，已拒絕讀取。');
+      }
+    }
   }
 }
 
