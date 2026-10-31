@@ -342,11 +342,11 @@ function bookingHoldOnceLocked_(request,adapters) {
   // Capture and normalize trusted request fields before invoking any adapter.
   // Injected callbacks must not be able to change the checked identity, slot,
   // idempotency key or clock instants between validation and append/readback.
-  var applicantId=bookingId_(applicantId);
-  var slotId=bookingId_(slotId);
-  var key=bookingHoldKey_(key);
-  var now=bookingInstant_(nowUtc);
-  var until=bookingInstant_(holdUntilUtc);
+  var applicantId=bookingId_(request.applicantId);
+  var slotId=bookingId_(request.slotId);
+  var key=bookingHoldKey_(request.idempotencyKey);
+  var now=bookingInstant_(request.nowUtc);
+  var until=bookingInstant_(request.holdUntilUtc);
   var nowUtc=new Date(now).toISOString();
   var holdUntilUtc=new Date(until).toISOString();
   if (until<=now || until-now>BOOKING_HOLD_MAX_MS_) {
