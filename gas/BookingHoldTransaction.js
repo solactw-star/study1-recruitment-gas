@@ -339,11 +339,16 @@ function bookingHoldOnceLocked_(request,adapters) {
       typeof adapters.appendHold!=='function') {
     throw new Error('預約交易介面尚未就緒。');
   }
-  bookingId_(request.applicantId);
-  bookingId_(request.slotId);
-  bookingHoldKey_(request.idempotencyKey);
-  var now=bookingInstant_(request.nowUtc);
-  var until=bookingInstant_(request.holdUntilUtc);
+  // Capture and normalize trusted request fields before invoking any adapter.
+  // Injected callbacks must not be able to change the checked identity, slot,
+  // idempotency key or clock instants between validation and append/readback.
+  var applicantId=bookingId_(applicantId);
+  var slotId=bookingId_(slotId);
+  var key=bookingHoldKey_(key);
+  var now=bookingInstant_(nowUtc);
+  var until=bookingInstant_(holdUntilUtc);
+  var nowUtc=new Date(now).toISOString();
+  var holdUntilUtc=new Date(until).toISOString();
   if (until<=now || until-now>BOOKING_HOLD_MAX_MS_) {
     throw new Error('暫留有效期限不合法。');
   }
@@ -353,22 +358,22 @@ function bookingHoldOnceLocked_(request,adapters) {
     throw new Error('無法取得預約全域交易鎖，已拒絕操作。');
   }
   try {
-    if (adapters.isVerifiedAndEligible(request.applicantId)!==true) {
+    if (adapters.isVerifiedAndEligible(applicantId)!==true) {
       return {held:false,reason:'REJECTED'};
     }
     var before=bookingHoldSnapshot_(adapters);
     // Full validation of all slot and reservation records fails closed.
     var available=bookingComputeAvailability_(
-      before.slots.rows,before.reservations.rows,request.nowUtc);
+      before.slots.rows,before.reservations.rows,nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(before.reservations.rows,now);
     bookingHoldAssertGlobalOccupancy_(before.slots.rows,before.reservations.rows,now);
-    var existing=bookingHoldExistingKey_(before.reservations.rows,request.idempotencyKey);
+    var existing=bookingHoldExistingKey_(before.reservations.rows,key);
     if (existing) {
       var replaySlot=before.slots.rows.filter(function(r) {
-        return !bookingBlankRow_(r) && r[0]===request.slotId;
+        return !bookingBlankRow_(r) && r[0]===slotId;
       })[0];
-      if (existing[1]===request.applicantId &&
-          existing[2]===request.slotId &&
+      if (existing[1]===applicantId &&
+          existing[2]===slotId &&
           bookingStatus_(existing[3])===BOOKING_STATUS_.hold &&
           bookingHoldActive_(existing,now) &&
           // The same idempotency key cannot acknowledge a different expiry.
@@ -384,12 +389,12 @@ function bookingHoldOnceLocked_(request,adapters) {
     // One active hold or confirmed booking per applicant; avoid duplicates.
     for (var i=0;i<before.reservations.rows.length;i++) {
       var row=before.reservations.rows[i];
-      if (!bookingBlankRow_(row) && row[1]===request.applicantId &&
+      if (!bookingBlankRow_(row) && row[1]===applicantId &&
           bookingHoldActive_(row,now)) {
         return {held:false,reason:'REJECTED'};
       }
     }
-    var chosen=available.filter(function(x){return x.slotId===request.slotId;})[0];
+    var chosen=available.filter(function(x){return x.slotId===slotId;})[0];
     if (!chosen || until>bookingInstant_(chosen.startAtUtc)) {
       return {held:false,reason:'REJECTED'};
     }
@@ -399,14 +404,14 @@ function bookingHoldOnceLocked_(request,adapters) {
       return !bookingBlankRow_(r);
     }).map(function(r){return r[0];}));
     if (adapters.appendHold({
-      applicantId:request.applicantId,slotId:request.slotId,
-      idempotencyKey:request.idempotencyKey,nowUtc:request.nowUtc,
-      holdUntilUtc:request.holdUntilUtc
+      applicantId:applicantId,slotId:slotId,
+      idempotencyKey:key,nowUtc:nowUtc,
+      holdUntilUtc:holdUntilUtc
     })!==true) {
       throw new Error('預約暫留寫入未確認，拒絕宣稱成功。');
     }
     var after=bookingHoldSnapshot_(adapters);
-    bookingComputeAvailability_(after.slots.rows,after.reservations.rows,request.nowUtc);
+    bookingComputeAvailability_(after.slots.rows,after.reservations.rows,nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
     bookingHoldAssertGlobalOccupancy_(after.slots.rows,after.reservations.rows,now);
     bookingHoldAssertSlotsStable_(oldSlots,after.slots.rows);
@@ -414,9 +419,9 @@ function bookingHoldOnceLocked_(request,adapters) {
     var newRows=after.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r) && !oldIds.has(r[0]);
     });
-    var match=bookingHoldExistingKey_(after.reservations.rows,request.idempotencyKey);
+    var match=bookingHoldExistingKey_(after.reservations.rows,key);
     if (newRows.length!==1 || !match || match!==newRows[0] ||
-        match[1]!==request.applicantId || match[2]!==request.slotId ||
+        match[1]!==applicantId || match[2]!==slotId ||
         bookingStatus_(match[3])!==BOOKING_STATUS_.hold ||
         bookingInstant_(match[4])!==until ||
         // A newly created HELD row must record the transaction's server time
@@ -429,9 +434,9 @@ function bookingHoldOnceLocked_(request,adapters) {
           bookingInstant_(match[9]) < now) ||
         (match[7] !== '' && match[7] != null) ||
         (match[8] !== '' && match[8] != null) ||
-        bookingHoldCount_(after.reservations.rows,request.slotId,now)>
+        bookingHoldCount_(after.reservations.rows,slotId,now)>
           bookingCapacity_(before.slots.rows.filter(function(r){
-            return !bookingBlankRow_(r) && r[0]===request.slotId;
+            return !bookingBlankRow_(r) && r[0]===slotId;
           })[0][3])) {
       throw new Error('預約寫入後核對失敗，拒絕宣稱成功。');
     }
