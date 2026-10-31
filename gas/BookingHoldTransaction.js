@@ -48,6 +48,21 @@ function bookingHoldAssertCanonicalStorage_(snapshot) {
     }
   });
 }
+/** Reject sparse injected snapshot arrays before any capacity decision or write.
+ * Array.some/forEach skip missing outer indices, and row.length does not
+ * detect missing inner cells. Google getValues() is normally dense, but a
+ * malformed adapter must never silently omit a reservation.
+ */
+function bookingHoldDenseRows_(rows, width) {
+  for (var i=0; i<rows.length; i++) {
+    if (!Object.prototype.hasOwnProperty.call(rows,i) ||
+        !Array.isArray(rows[i]) || rows[i].length!==width) return false;
+    for (var j=0; j<width; j++) {
+      if (!Object.prototype.hasOwnProperty.call(rows[i],j)) return false;
+    }
+  }
+  return true;
+}
 function bookingHoldSnapshot_(adapter) {
   var s=adapter.readSnapshot();
   if (!s || !s.slots || !s.reservations ||
@@ -61,12 +76,8 @@ function bookingHoldSnapshot_(adapter) {
   // writer using a different layout could otherwise corrupt reservations.
   if (s.slots.headers.length !== BOOKING_SLOT_HEADERS_.length ||
       s.reservations.headers.length !== BOOKING_RESERVATION_HEADERS_.length ||
-      s.slots.rows.some(function(row) {
-        return !Array.isArray(row) || row.length !== BOOKING_SLOT_HEADERS_.length;
-      }) ||
-      s.reservations.rows.some(function(row) {
-        return !Array.isArray(row) || row.length !== BOOKING_RESERVATION_HEADERS_.length;
-      })) {
+      !bookingHoldDenseRows_(s.slots.rows, BOOKING_SLOT_HEADERS_.length) ||
+      !bookingHoldDenseRows_(s.reservations.rows, BOOKING_RESERVATION_HEADERS_.length)) {
     throw new Error('預約快照欄位寬度不一致，拒絕預約交易。');
   }
   // Reject fully blank rows inside a supplied data extent. Silently skipping
