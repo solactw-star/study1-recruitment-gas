@@ -398,6 +398,13 @@ function bookingHoldOnceLocked_(request,adapters) {
     if (!chosen || until>bookingInstant_(chosen.startAtUtc)) {
       return {held:false,reason:'REJECTED'};
     }
+    // A successful append would add exactly one row. Refuse a full table
+    // BEFORE calling the write adapter: rejecting only on post-write readback
+    // leaves a persisted hold despite reporting failure to the caller.
+    // Exact-key replay above remains read-only and may still succeed.
+    if (before.reservations.rows.length >= BOOKING_HOLD_MAX_ROWS_) {
+      throw new Error('預約快照已達安全列數上限，拒絕新增暫留。');
+    }
     var oldSlots=bookingHoldFreezeHistory_(before.slots.rows);
     var oldHistory=bookingHoldFreezeHistory_(before.reservations.rows);
     var oldIds=new Set(before.reservations.rows.filter(function(r){
