@@ -181,7 +181,7 @@ test('Duplicate unrelated historical idempotency keys fail closed before any app
 test('Distinct historical keys remain valid and allow an authorized new hold',()=>{
   const x=make({rows:[
     hold('H1','OTHER_APP_A','historical-request-key-0002',until,'CANCELLED'),
-    hold('H2','OTHER_APP_B','historical-request-key-0003',until,'EXPIRED')
+    hold('H2','OTHER_APP_B','historical-request-key-0003',now,'EXPIRED')
   ]});
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
   assert.equal(x.stats().appends,1);
@@ -244,7 +244,9 @@ test('Post-append readback rejects a second live booking with a distinct key',()
 });
 
 test('Post-append historical reservation changes fail closed even if capacity remains safe',()=>{
-  const history=hold('H1','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  const history=hold('H1','OTHER_APP','historical-request-key-0002',
+    '2026-10-29T11:59:59Z','CANCELLED');
+  history[6]='2026-10-29T11:50:00Z';
   for(const extra of [
     {mutateHistoricalAfterAppend:[4,'2026-10-29T12:09:00Z']},
     {mutateHistoricalAfterAppend:[3,'EXPIRED']},
