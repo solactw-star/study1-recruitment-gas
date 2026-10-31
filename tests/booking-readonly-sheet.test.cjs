@@ -459,3 +459,23 @@ test('rejects fully blank interior rows instead of silently ignoring missing rec
   // Truly empty tabs (headers only) are not interior gaps.
   assert.deepEqual(availability(fake({slots:[],rows:[]})),[]);
 });
+
+test('expired historical HELD still rejects expiry after slot start',()=>{
+  const late=reservation('R1','HELD').map((v,i)=>
+    i===4?'2026-10-31T09:01:00Z':v);
+  const x=fake({slots:[slot(3)],rows:[late]});
+  assert.throws(
+    ()=>x.ctx.bookingReadOnlyAvailability_(x.opener,'2026-11-01T12:00:00Z'),
+    err=>{
+      assert.match(String(err),/暫留到期時間晚於時段開始/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  // A genuinely expired historical hold before slot start remains harmless.
+  const valid=reservation('R1','HELD').map((v,i)=>
+    i===4?'2026-10-29T12:10:00Z':v);
+  const y=fake({slots:[slot(3)],rows:[valid]});
+  const available=y.ctx.bookingReadOnlyAvailability_(
+    y.opener,'2026-10-30T12:00:00Z');
+  assert.equal(available[0].remaining,3);
+});
