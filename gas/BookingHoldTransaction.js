@@ -33,6 +33,10 @@ function bookingHoldAssertCanonicalStorage_(snapshot) {
         throw new Error('時段文字欄位型別不合法，拒絕預約交易。');
       }
     });
+    // Mirror the read-only adapter: even an unrelated CLOSED/CANCELLED
+    // slot's populated update metadata must be a valid UTC instant.
+    // Do not invent a required timestamp for currently blank cells.
+    if (row[7] !== '' && row[7] != null) bookingInstant_(row[7]);
   });
   snapshot.reservations.rows.forEach(function(row) {
     if (bookingBlankRow_(row)) return;
