@@ -524,3 +524,28 @@ test('sparse value matrices fail closed, including optional timestamp holes',()=
     });
   }
 });
+
+
+test('premature EXPIRED state cannot free a hold whose deadline is still in the future',()=>{
+  const premature=reservation('R1','EXPIRED');
+  const x=fake({slots:[slot(3)],rows:[premature]});
+  assert.throws(()=>availability(x),err=>{
+    assert.match(String(err),/標記過期但暫留期限尚未到達/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+    return true;
+  });
+});
+
+test('elapsed or exact EXPIRED deadlines remain history; cancellation is not misclassified',()=>{
+  const past=reservation('R1','EXPIRED').map((v,i)=>
+    i===4?'2026-10-29T11:50:00Z':
+    i===6?'2026-10-29T11:40:00Z':v);
+  assert.equal(availability(fake({rows:[past]}))[0].remaining,2);
+  const exact=reservation('R1','EXPIRED').map((v,i)=>i===4?now:v);
+  assert.equal(availability(fake({rows:[exact]}))[0].remaining,2);
+  const cancelled=reservation('R1','CANCELLED');
+  assert.equal(availability(fake({rows:[cancelled]}))[0].remaining,2);
+  // An unrecorded historical expiry remains optional until approved.
+  const noDeadline=reservation('R1','EXPIRED').map((v,i)=>i===4?'':v);
+  assert.equal(availability(fake({rows:[noDeadline]}))[0].remaining,2);
+});
