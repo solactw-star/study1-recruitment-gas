@@ -286,17 +286,17 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
     var status = bookingStatus_(row[3]);
     var active = status === BOOKING_STATUS_.confirmed ||
       (status === BOOKING_STATUS_.hold && bookingInstant_(row[4]) > now);
+    // The hold transaction requires expiry <= slot start. Check historical
+    // expired HELD rows too, even though they do not consume a seat.
+    if (status === BOOKING_STATUS_.hold &&
+        bookingInstant_(row[4]) > slotStarts.get(slot)) {
+      throw new Error('暫留到期時間晚於時段開始，已拒絕提供名額。');
+    }
     if (active) {
       // A cancelled slot must not retain a live reservation. A CLOSED slot
       // may retain existing bookings, so only CANCELLED is rejected here.
       if (slotStatuses.get(slot) === BOOKING_STATUS_.cancelled) {
         throw new Error('已取消時段仍有有效預約，已拒絕提供名額。');
-      }
-      // A live hold must expire by its slot start, as the hold transaction
-      // already requires. An inconsistent imported row must fail closed.
-      if (status === BOOKING_STATUS_.hold &&
-          bookingInstant_(row[4]) > slotStarts.get(slot)) {
-        throw new Error('有效暫留到期時間晚於時段開始，已拒絕提供名額。');
       }
       // A single applicant cannot own two live holds/confirmed bookings.
       // Detect historical corruption before any availability is offered.
