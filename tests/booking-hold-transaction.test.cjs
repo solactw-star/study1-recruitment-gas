@@ -593,3 +593,40 @@ test('Locked hold refuses text/checkbox capacity and nontext slot metadata',()=>
   const x=make({slots:[slot('SLOT_A',2),valid]});
   assert.deepEqual(call(x),{held:true,reason:'CREATED'});
 });
+
+test('Locked hold rejects impossible historical event chronology before append',()=>{
+  const cases=[
+    {column:7,value:'2026-10-29T11:59:59Z'},
+    {column:9,value:'2026-10-29T11:59:59Z'},
+    {column:8,value:'2026-10-29T12:02:00Z',confirmed:'2026-10-29T12:04:00Z'},
+    {column:9,value:'2026-10-29T12:01:00Z',confirmed:'2026-10-29T12:02:00Z'},
+    {column:9,value:'2026-10-29T12:01:00Z',cancelled:'2026-10-29T12:02:00Z'}
+  ];
+  for(const item of cases){
+    const row=hold('OLD','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+    row[item.column]=item.value;
+    if(item.confirmed)row[7]=item.confirmed;
+    if(item.cancelled)row[8]=item.cancelled;
+    const x=make({rows:[row]});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/預約歷程時間先後順序不一致/);
+      assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key-0002|OLD/);
+      return true;
+    });
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+    assert.equal(x.stats().heldLock,false);
+  }
+});
+test('Locked hold allows ordered native Date events and optional blank history',()=>{
+  const row=hold('OLD','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  row[7]=new Date(now);
+  row[8]=new Date('2026-10-29T12:02:00Z');
+  row[9]=new Date('2026-10-29T12:02:00Z');
+  const x=make({rows:[row]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  const blank=hold('OLD','OTHER_APP','historical-request-key-0002',until,'CANCELLED');
+  blank[6]='';blank[7]='';blank[8]='';blank[9]='';
+  const y=make({rows:[blank]});
+  assert.deepEqual(call(y),{held:true,reason:'CREATED'});
+});
