@@ -100,7 +100,11 @@ test('Replay of an existing hold is rejected if its slot closed or already start
   assert.deepEqual(call(x),{held:false,reason:'REJECTED'});
   const y=make({rows:[hold()],slots:[['SLOT_A','2026-10-29T11:00:00Z',
     '2026-10-29T11:30:00Z',1,'ROOM','OPEN','researcher',now]]});
-  assert.deepEqual(call(y),{held:false,reason:'REJECTED'});
+  // The old fixture was itself inconsistent: an active hold outlasted
+  // a slot that had already started. Reject the corrupt snapshot outright.
+  assert.throws(()=>call(y),/有效暫留期限晚於原時段開始/);
+  assert.equal(y.stats().appends,0);
+  assert.equal(y.stats().releases,1);
 });
 test('Only one seat: other applicant confirmed/held blocks booking',()=>{
   for(const row of [hold('H2','OTHER_APP','other-idempotency-0002',until),
@@ -629,4 +633,34 @@ test('Locked hold allows ordered native Date events and optional blank history',
   blank[6]='';blank[7]='';blank[8]='';blank[9]='';
   const y=make({rows:[blank]});
   assert.deepEqual(call(y),{held:true,reason:'CREATED'});
+});
+
+test('Unrelated active hold beyond original slot start blocks locked append',()=>{
+  const stale=hold('OLD','OTHER_APP','historical-request-key-0002',
+    '2026-10-31T09:01:00Z','HELD','SLOT_B');
+  const x=make({slots:[slot('SLOT_A',2),slot('SLOT_B',2,'CLOSED')],
+    rows:[stale]});
+  assert.throws(()=>call(x),err=>{
+    assert.match(String(err),/有效暫留期限晚於原時段開始/);
+    assert.doesNotMatch(String(err),/OTHER_APP|historical-request-key-0002|OLD/);
+    return true;
+  });
+  assert.equal(x.stats().appends,0);
+  assert.equal(x.stats().reads,1);
+  assert.equal(x.stats().releases,1);
+  assert.equal(x.stats().heldLock,false);
+});
+test('Hold expiring exactly at original slot start remains valid; cancelled history does not block',()=>{
+  const atStart=hold('OLD','OTHER_APP','historical-request-key-0002',
+    '2026-10-31T09:00:00Z','HELD','SLOT_B');
+  const x=make({slots:[slot('SLOT_A',2),slot('SLOT_B',2,'CLOSED')],
+    rows:[atStart]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+  assert.equal(x.stats().appends,1);
+  const historical=hold('OLD','OTHER_APP','historical-request-key-0002',
+    '2026-10-31T09:01:00Z','CANCELLED','SLOT_B');
+  const y=make({slots:[slot('SLOT_A',2),slot('SLOT_B',2,'CLOSED')],
+    rows:[historical]});
+  assert.deepEqual(call(y),{held:true,reason:'CREATED'});
+  assert.equal(y.stats().appends,1);
 });
