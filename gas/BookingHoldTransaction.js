@@ -344,6 +344,9 @@ function bookingHoldOnceLocked_(request,adapters) {
           existing[2]===request.slotId &&
           bookingStatus_(existing[3])===BOOKING_STATUS_.hold &&
           bookingHoldActive_(existing,now) &&
+          // The same idempotency key cannot acknowledge a different expiry.
+          // A retry may use a newer nowUtc, but the original expiry is fixed.
+          bookingInstant_(existing[4])===until &&
           replaySlot && bookingStatus_(replaySlot[5])===BOOKING_STATUS_.slotOpen &&
           bookingInstant_(replaySlot[1])>now &&
           bookingInstant_(existing[4])<=bookingInstant_(replaySlot[1])) {
