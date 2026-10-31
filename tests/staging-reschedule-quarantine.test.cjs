@@ -24,7 +24,7 @@ test('legacy staging schema is incompatible with the canonical UTC booking schem
   const legacy = read('staging/held-reschedule-20261029.gs');
   const canonical = read('gas/BookingCore.js');
   assert.match(legacy, /held\.hold_until\b/);
-  assert.match(legacy, /target\.start_at\b/);
+  assert.match(legacy, /s\.start_at\b/);
   assert.match(legacy, /r\.status\s*===\s*'FINALIZING'/);
   for (const field of ['hold_until_utc', 'start_at_utc', 'updated_at_utc']) {
     assert.ok(canonical.includes("'" + field + "'"), 'canonical field missing: ' + field);
