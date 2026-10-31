@@ -290,7 +290,7 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
     // expired HELD rows too, even though they do not consume a seat.
     if (status === BOOKING_STATUS_.hold &&
         bookingInstant_(row[4]) > slotStarts.get(slot)) {
-      throw new Error('暫留到期時間晚於時段開始，已拒絕提供名額。');
+      throw new Error('有效暫留到期時間晚於時段開始，已拒絕提供名額。');
     }
     if (active) {
       // A cancelled slot must not retain a live reservation. A CLOSED slot
