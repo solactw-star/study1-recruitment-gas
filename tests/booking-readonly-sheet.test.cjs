@@ -503,3 +503,24 @@ test('sparse formula matrices fail closed rather than bypassing inspection',()=>
     });
   }
 });
+
+test('sparse value matrices fail closed, including optional timestamp holes',()=>{
+  const missingSlotMetadata=slot();
+  delete missingSlotMetadata[7]; // optional updated_at_utc
+  const missingCancelledAt=reservation('R1','CANCELLED');
+  delete missingCancelledAt[8]; // optional cancelled_at_utc
+  const sparseOuter=[reservation('R1','CANCELLED'),,
+    reservation('R2','CANCELLED','idempotency-key-0002')];
+  for (const opts of [
+    {slots:[missingSlotMetadata]},
+    {rows:[missingCancelledAt]},
+    {rows:sparseOuter}
+  ]) {
+    const x=fake(opts);
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/預約工作表資料列格式不合法/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+});
