@@ -288,7 +288,7 @@ test('canonical CLOSED/CANCELLED slots and cancelled/expired history remain vali
   const cancelled=slot().map((v,i)=>i===0?'SLOT_B':i===5?'CANCELLED':v);
   const cancelledRow=reservation('R1','CANCELLED','idempotency-key-0001');
   const expiredRow=reservation('R2','EXPIRED','idempotency-key-0002')
-    .map((v,i)=>i===2?'SLOT_B':v);
+    .map((v,i)=>i===2?'SLOT_B':i===4?now:v);
   assert.deepEqual(availability(fake({slots:[closed,cancelled],
     rows:[cancelledRow,expiredRow]})),[]);
 });
@@ -342,8 +342,10 @@ test('active reservations on a cancelled slot fail closed; historical and closed
     });
   }
   for(const status of ['CANCELLED','EXPIRED']) {
+    const historical=reservation('R1',status).map((v,i)=>
+      status==='EXPIRED' && i===4?now:v);
     assert.deepEqual(availability(fake({slots:[cancelled],
-      rows:[reservation('R1',status)]})),[]);
+      rows:[historical]})),[]);
   }
   const expiredHold=reservation().map((v,i)=>
     i===4?'2026-10-29T11:59:00Z':
@@ -444,7 +446,8 @@ test('consistent lifecycle event timestamps remain accepted',()=>{
   const cancelled=reservation('R1','CANCELLED').map((v,i)=>
     i===7||i===8?'2026-10-29T12:00:00Z':v);
   assert.equal(availability(fake({rows:[cancelled]}))[0].remaining,2);
-  assert.equal(availability(fake({rows:[reservation('R1','EXPIRED')]}))[0].remaining,2);
+  const elapsed=reservation('R1','EXPIRED').map((v,i)=>i===4?now:v);
+  assert.equal(availability(fake({rows:[elapsed]}))[0].remaining,2);
 });
 
 test('rejects fully blank interior rows instead of silently ignoring missing records',()=>{
