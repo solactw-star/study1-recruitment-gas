@@ -270,6 +270,11 @@ function bookingReadOnlyValidateTextMetadata_(snapshot) {
  * silently offering seats in an inconsistent workbook.
  */
 function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
+  // Freeze the caller-supplied clock before invoking an injected opener.
+  // A Date is mutable: a callback must not shift the hold-expiry boundary
+  // between the caller's preflight and the availability calculation.
+  var now = bookingInstant_(nowUtc);
+  var stableNowUtc = new Date(now).toISOString();
   var snapshot = bookingReadOnlySnapshot_(openSpreadsheet);
   // getLastRow() omits trailing blank rows. A fully blank row *within*
   // the returned data extent is a structural gap; silently skipping it
@@ -283,9 +288,8 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
   bookingReadOnlyValidateTemporalCells_(snapshot);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
   bookingReadOnlyValidateTextMetadata_(snapshot);
-  var now = bookingInstant_(nowUtc);
   var result = bookingComputeAvailability_(
-    snapshot.slots.rows, snapshot.reservations.rows, nowUtc);
+    snapshot.slots.rows, snapshot.reservations.rows, stableNowUtc);
   var capacity = new Map(), slotStarts = new Map(), slotStatuses = new Map(),
       occupied = new Map(), ids = new Set(), keys = new Set(),
       activeApplicants = new Set();
