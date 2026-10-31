@@ -11,6 +11,39 @@ function bookingHoldKey_(value) {
   }
   return value;
 }
+/**
+ * Refuse noncanonical stored statuses and non-native slot capacities BEFORE
+ * any locked write. The pure availability kernel intentionally accepts some
+ * caller normalization, but a Sheet writer must not repair corrupt storage
+ * silently. These are existing provisional enums, not new REC policy.
+ */
+function bookingHoldAssertCanonicalStorage_(snapshot) {
+  snapshot.slots.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    if (typeof row[3] !== 'number' ||
+        !Number.isSafeInteger(row[3]) || row[3] < 1) {
+      throw new Error('時段容量儲存格型別不合法，拒絕預約交易。');
+    }
+    if (row[5] !== BOOKING_STATUS_.slotOpen &&
+        row[5] !== 'CLOSED' && row[5] !== BOOKING_STATUS_.cancelled) {
+      throw new Error('時段狀態非標準值，拒絕預約交易。');
+    }
+    [4,6].forEach(function(index) {
+      if (typeof row[index] !== 'string') {
+        throw new Error('時段文字欄位型別不合法，拒絕預約交易。');
+      }
+    });
+  });
+  snapshot.reservations.rows.forEach(function(row) {
+    if (bookingBlankRow_(row)) return;
+    if (row[3] !== BOOKING_STATUS_.hold &&
+        row[3] !== BOOKING_STATUS_.confirmed &&
+        row[3] !== BOOKING_STATUS_.cancelled &&
+        row[3] !== BOOKING_STATUS_.expired) {
+      throw new Error('預約狀態非標準值，拒絕預約交易。');
+    }
+  });
+}
 function bookingHoldSnapshot_(adapter) {
   var s=adapter.readSnapshot();
   if (!s || !s.slots || !s.reservations ||
@@ -39,6 +72,7 @@ function bookingHoldSnapshot_(adapter) {
       s.reservations.rows.some(bookingBlankRow_)) {
     throw new Error('預約快照存在內部空白資料列，拒絕預約交易。');
   }
+  bookingHoldAssertCanonicalStorage_(s);
   // Check all historical keys, not just the key of this request. A duplicate
   // unrelated key makes replay identity ambiguous and must block new writes.
   var ids=new Set(), keys=new Set();
