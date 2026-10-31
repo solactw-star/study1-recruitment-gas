@@ -545,3 +545,51 @@ test('Locked hold permits native Date historical timestamps and blank optional m
   assert.deepEqual(call(y),{held:true,reason:'CREATED'});
   assert.equal(y.stats().appends,1);
 });
+
+
+test('Locked hold rejects noncanonical Sheet statuses before any append',()=>{
+  const badSlots=['open',' OPEN','OPEN ','closed','cancelled'];
+  for(const status of badSlots) {
+    const changed=slot('SLOT_B',2,status);
+    const x=make({slots:[slot('SLOT_A',2),changed]});
+    assert.throws(()=>call(x),err=>{
+      assert.match(String(err),/時段狀態非標準值/);
+      assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency/);
+      return true;
+    });
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+  }
+  for(const status of ['held','HELD ',' confirmed','cancelled','expired']) {
+    const changed=hold('OLD','OTHER_APP','other-idempotency-0002',
+      until,status,'SLOT_B');
+    const x=make({slots:[slot('SLOT_A',2),slot('SLOT_B',2)],rows:[changed]});
+    assert.throws(()=>call(x),/預約狀態非標準值/);
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+  }
+});
+test('Locked hold refuses text/checkbox capacity and nontext slot metadata',()=>{
+  for(const value of ['2','02',true,null,0,1.5]) {
+    const changed=slot('SLOT_B',2);
+    changed[3]=value;
+    const x=make({slots:[slot('SLOT_A',2),changed]});
+    assert.throws(()=>call(x),/時段容量儲存格型別不合法/);
+    assert.equal(x.stats().appends,0);
+    assert.equal(x.stats().releases,1);
+  }
+  for(const column of [4,6]) {
+    for(const value of [true,42,null,new Date(now)]) {
+      const changed=slot('SLOT_B',2);
+      changed[column]=value;
+      const x=make({slots:[slot('SLOT_A',2),changed]});
+      assert.throws(()=>call(x),/時段文字欄位型別不合法/);
+      assert.equal(x.stats().appends,0);
+      assert.equal(x.stats().releases,1);
+    }
+  }
+  const valid=slot('SLOT_B',2);
+  valid[4]='';valid[6]='';
+  const x=make({slots:[slot('SLOT_A',2),valid]});
+  assert.deepEqual(call(x),{held:true,reason:'CREATED'});
+});
