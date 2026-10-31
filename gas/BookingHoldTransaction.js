@@ -267,15 +267,16 @@ function bookingHoldAssertGlobalOccupancy_(slotRows,reservationRows,nowMs) {
     }
   });
   reservationRows.forEach(function(row) {
-    if (bookingBlankRow_(row) || !bookingHoldActive_(row,nowMs)) return;
+    if (bookingBlankRow_(row)) return;
     var id=bookingId_(row[2]);
-    // A live hold that outlasts its original slot start is inconsistent,
-    // even when the affected slot is unrelated to the new request.
-    // Mirror the closed read-only availability and reschedule preflight.
+    // Check ALL HELD records, including historical expired holds. Otherwise
+    // the locked writer could accept corruption already rejected by the
+    // read-only availability adapter. Do not treat expired holds as occupied.
     if (row[3]===BOOKING_STATUS_.hold &&
         bookingInstant_(row[4])>slotStarts.get(id)) {
       throw new Error('有效暫留期限晚於原時段開始，拒絕預約交易。');
     }
+    if (!bookingHoldActive_(row,nowMs)) return;
     counts.set(id,(counts.get(id)||0)+1);
   });
   slotRows.forEach(function(row) {
