@@ -25,3 +25,9 @@
 
 ## 後續
 下一輪先重新確認 main 與 staging 分支差異，再考慮安全合併改期功能或建置**唯讀**正式 Sheet adapter；不可自動部署或修改正式資料。
+
+## 2026-11-01 增量：鎖內快照資源上限
+- `bookingHoldSnapshot_` 對注入式 Slots 或 Reservations 快照各自限制最多 10,000 筆資料列，超過即在任何完整資料掃描與預約 append 前拒絕。與現有只讀 adapter 的操作上限一致；此為效能與執行時間防護，不是研究招募人數或 REC 規則。
+- 新增 `tests/booking-hold-row-limit.test.cjs`，以虛構資料驗證兩表超額、10,000 筆邊界可通過結構預檢，以及鎖內拒絕時不寫入且 finally 釋放鎖。
+- 依據：Google Apps Script 執行時間與配額 https://developers.google.com/apps-script/guides/services/quotas ，Google Apps Script 效能最佳實務 https://developers.google.com/apps-script/guides/support/best-practices 。
+- 僅封閉測試內核；未連線真實 Sheets、未部署 GAS。此限制不提供真正的交易原子性。

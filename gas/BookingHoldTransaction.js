@@ -5,6 +5,7 @@
  * transactional database. This is NOT production-ready booking code.
  */
 var BOOKING_HOLD_MAX_MS_ = 15 * 60 * 1000; // provisional researcher policy
+var BOOKING_HOLD_MAX_ROWS_ = 10000; // operational safety bound, not REC policy
 function bookingHoldKey_(value) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{16,128}$/.test(value)) {
     throw new Error('預約重送識別碼格式不合法。');
@@ -68,6 +69,13 @@ function bookingHoldSnapshot_(adapter) {
   if (!s || !s.slots || !s.reservations ||
       !Array.isArray(s.slots.rows) || !Array.isArray(s.reservations.rows)) {
     throw new Error('預約快照格式不合法。');
+  }
+  // Mirror the read-only adapter's 10,000-row resource ceiling before
+  // scanning potentially attacker-controlled injected snapshot arrays.
+  // This is an operational fail-closed limit, not an enrollment policy.
+  if (s.slots.rows.length > BOOKING_HOLD_MAX_ROWS_ ||
+      s.reservations.rows.length > BOOKING_HOLD_MAX_ROWS_) {
+    throw new Error('預約快照資料列超過安全上限，拒絕預約交易。');
   }
   bookingAssertSchema_(s.slots.headers,BOOKING_SLOT_HEADERS_);
   bookingAssertSchema_(s.reservations.headers,BOOKING_RESERVATION_HEADERS_);
