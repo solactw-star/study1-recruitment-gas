@@ -253,10 +253,22 @@ function bookingHoldCount_(rows,slotId,nowMs) {
  * This is a fail-closed integrity check, not an approval of slot policy.
  */
 function bookingHoldAssertGlobalOccupancy_(slotRows,reservationRows,nowMs) {
-  var counts=new Map();
+  var counts=new Map(), slotStarts=new Map();
+  slotRows.forEach(function(row) {
+    if (!bookingBlankRow_(row)) {
+      slotStarts.set(bookingId_(row[0]),bookingInstant_(row[1]));
+    }
+  });
   reservationRows.forEach(function(row) {
     if (bookingBlankRow_(row) || !bookingHoldActive_(row,nowMs)) return;
     var id=bookingId_(row[2]);
+    // A live hold that outlasts its original slot start is inconsistent,
+    // even when the affected slot is unrelated to the new request.
+    // Mirror the closed read-only availability and reschedule preflight.
+    if (row[3]===BOOKING_STATUS_.hold &&
+        bookingInstant_(row[4])>slotStarts.get(id)) {
+      throw new Error('有效暫留期限晚於原時段開始，拒絕預約交易。');
+    }
     counts.set(id,(counts.get(id)||0)+1);
   });
   slotRows.forEach(function(row) {
