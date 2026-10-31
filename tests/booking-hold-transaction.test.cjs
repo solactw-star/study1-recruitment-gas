@@ -669,3 +669,38 @@ test('Hold expiring exactly at original slot start remains valid; cancelled hist
   assert.deepEqual(call(y),{held:true,reason:'CREATED'});
   assert.equal(y.stats().appends,1);
 });
+
+
+test('At the reservation row ceiling, refuse before append; one row below may fill it',()=>{
+  const historical=Array.from({length:10000},(_,i)=>
+    hold('OLD_'+i,'HIST_'+i,'history-key-'+String(i).padStart(6,'0'),
+      until,'CANCELLED'));
+  const full=make({rows:historical});
+  assert.throws(()=>call(full),err=>{
+    assert.match(String(err),/安全列數上限/);
+    assert.doesNotMatch(String(err),/APPLICANT_A|request-idempotency|HIST_/);
+    return true;
+  });
+  assert.equal(full.stats().appends,0,'must never persist an unacknowledged 10001st row');
+  assert.equal(full.stats().reads,1);
+  assert.equal(full.stats().rows.length,10000);
+  assert.equal(full.stats().releases,1);
+  assert.equal(full.stats().heldLock,false);
+
+  const below=make({rows:historical.slice(0,9999)});
+  assert.deepEqual(call(below),{held:true,reason:'CREATED'});
+  assert.equal(below.stats().appends,1);
+  assert.equal(below.stats().rows.length,10000);
+  assert.equal(below.stats().releases,1);
+});
+
+test('A full table still permits a read-only exact-key replay without append',()=>{
+  const historical=Array.from({length:9999},(_,i)=>
+    hold('OLD_'+i,'HIST_'+i,'history-key-'+String(i).padStart(6,'0'),
+      until,'CANCELLED'));
+  const replay=make({rows:historical.concat([hold()])});
+  assert.deepEqual(call(replay),{held:true,reason:'REPLAY'});
+  assert.equal(replay.stats().appends,0);
+  assert.equal(replay.stats().rows.length,10000);
+  assert.equal(replay.stats().releases,1);
+});
