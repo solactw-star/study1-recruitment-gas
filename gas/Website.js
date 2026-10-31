@@ -22,7 +22,7 @@ function initializeClosedSystem_(){
  if(result.open!=='false'||result.consentReady!=='false')throw new Error('關閉設定驗證失敗');
  console.log(JSON.stringify(result));return result;
 }
-function runClosedChecks(){
+function runClosedChecks_(){
  initializeClosedSystem_();
  const checks=[];
  const assert=(condition,label)=>{if(!condition)throw new Error('FAIL: '+label);checks.push(label);};

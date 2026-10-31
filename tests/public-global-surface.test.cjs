@@ -13,7 +13,7 @@ const gasDir = path.join(__dirname, '..', 'gas');
 const approvedPublicFunctions = [
   'cancelHold', 'doGet', 'getPublicConfig', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
-  'requestOtp', 'runClosedChecks', 'submitConsent', 'verifyOtp'
+  'requestOtp', 'submitConsent', 'verifyOtp'
 ].sort();
 
 test('all GAS source files expose only the reviewed closed-site global functions', () => {
@@ -32,6 +32,10 @@ test('all GAS source files expose only the reviewed closed-site global functions
         'unreviewed top-level callable declaration in ' + name + ': ' + match[1]);
     }
   }
+  assert.equal(typeof context.runClosedChecks, 'undefined',
+    'property-writing closed checks must not be a client-callable function');
+  assert.equal(typeof context.runClosedChecks_, 'function',
+    'researcher-only closed checks remain available to internal tests');
   const exposed = Object.keys(context)
     .filter(name => typeof context[name] === 'function' && !name.endsWith('_'))
     .sort();

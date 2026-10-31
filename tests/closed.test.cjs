@@ -39,7 +39,7 @@ test('All current participant collection entrypoints fail closed',()=>{
   assert.equal(ctx.listSlots().length,0);
 });
 test('Closed initialization retains unrelated GAS properties',()=>{
-  const {ctx,props}=harness(),result=ctx.runClosedChecks();
+  const {ctx,props}=harness(),result=ctx.runClosedChecks_();
   assert.equal(result.ok,true);
   assert.equal(props.get('OPEN'),'false');
   assert.equal(props.get('CONSENT_READY'),'false');
