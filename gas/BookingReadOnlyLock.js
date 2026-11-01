@@ -14,6 +14,10 @@ function bookingReadOnlyAvailabilityWithLock_(openSpreadsheet, nowUtc, getScript
   if (typeof getScriptLock !== 'function') {
     throw new Error('預約讀取鎖介面尚未就緒。');
   }
+  // Pin the caller's clock before any injected lock callback can mutate a Date.
+  // The read-only adapter freezes before opening Sheets; the wrapper must
+  // also freeze before getScriptLock()/tryLock() side effects.
+  var stableNowUtc = new Date(bookingInstant_(nowUtc)).toISOString();
   var lock = getScriptLock();
   if (!lock || typeof lock.tryLock !== 'function' ||
       typeof lock.releaseLock !== 'function') {
@@ -24,7 +28,7 @@ function bookingReadOnlyAvailabilityWithLock_(openSpreadsheet, nowUtc, getScript
     throw new Error('無法取得預約讀取鎖，已拒絕提供名額。');
   }
   try {
-    return bookingReadOnlyAvailability_(openSpreadsheet, nowUtc);
+    return bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
   } finally {
     lock.releaseLock();
   }
