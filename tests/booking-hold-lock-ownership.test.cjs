@@ -43,7 +43,7 @@ test('verified lock retains eligibility rejection and releases',()=>{
     releaseLock(){events.push('release');}});
   assert.equal(x.run().held,false);
   assert.deepEqual(x.calls,['getLock','eligible']);
-  assert.deepEqual(events,['try','has','release']);
+  assert.deepEqual(events,['try','has','has','release']);
 });
 test('contended lock is never released when not acquired',()=>{
   const events=[],x=fixture({tryLock(){events.push('try');return false;},

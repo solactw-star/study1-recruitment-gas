@@ -353,6 +353,12 @@ function bookingHoldAssertGlobalOccupancy_(slotRows,reservationRows,nowMs) {
  * All calls and readbacks happen while locked. Result deliberately excludes
  * participant identifiers, request key, reservation ID and private details.
  */
+/** A cooperating adapter must not drop the script lock during a callback. */
+function bookingHoldAssertLockStillHeld_(lock) {
+  if (lock.hasLock() !== true) {
+    throw new Error('預約全域交易鎖在執行期間失效，拒絕宣稱成功。');
+  }
+}
 function bookingHoldOnceLocked_(request,adapters) {
   if (!request || typeof request!=='object' || Array.isArray(request) ||
       !adapters || typeof adapters.getLock!=='function' ||
@@ -388,10 +394,13 @@ function bookingHoldOnceLocked_(request,adapters) {
     if (lock.hasLock()!==true) {
       throw new Error('預約全域交易鎖狀態不一致，已拒絕操作。');
     }
-    if (adapters.isVerifiedAndEligible(applicantId)!==true) {
+    var eligible=adapters.isVerifiedAndEligible(applicantId);
+    bookingHoldAssertLockStillHeld_(lock);
+    if (eligible!==true) {
       return {held:false,reason:'REJECTED'};
     }
     var before=bookingHoldSnapshot_(adapters);
+    bookingHoldAssertLockStillHeld_(lock);
     // Full validation of all slot and reservation records fails closed.
     var available=bookingComputeAvailability_(
       before.slots.rows,before.reservations.rows,nowUtc);
@@ -433,6 +442,9 @@ function bookingHoldOnceLocked_(request,adapters) {
     var oldIds=new Set(before.reservations.rows.filter(function(r){
       return !bookingBlankRow_(r);
     }).map(function(r){return r[0];}));
+    // No append may begin if an injected reader or authorization adapter
+    // has released the shared script lock after its initial acquisition.
+    bookingHoldAssertLockStillHeld_(lock);
     if (adapters.appendHold({
       applicantId:applicantId,slotId:slotId,
       idempotencyKey:key,nowUtc:nowUtc,
@@ -440,7 +452,11 @@ function bookingHoldOnceLocked_(request,adapters) {
     })!==true) {
       throw new Error('預約暫留寫入未確認，拒絕宣稱成功。');
     }
+    // An append that released the lock is not safe to acknowledge; the
+    // operation may already have written, so report failure for reconciliation.
+    bookingHoldAssertLockStillHeld_(lock);
     var after=bookingHoldSnapshot_(adapters);
+    bookingHoldAssertLockStillHeld_(lock);
     bookingComputeAvailability_(after.slots.rows,after.reservations.rows,nowUtc);
     bookingHoldAssertUniqueActiveApplicants_(after.reservations.rows,now);
     bookingHoldAssertGlobalOccupancy_(after.slots.rows,after.reservations.rows,now);
