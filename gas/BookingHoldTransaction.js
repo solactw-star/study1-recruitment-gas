@@ -64,6 +64,23 @@ function bookingHoldDenseRows_(rows, width) {
   }
   return true;
 }
+/**
+ * Range.getValues() never returns null/undefined or arbitrary objects.
+ * A malformed injected writer snapshot must not accept cells that the
+ * independent read-only adapter rejects. Do not stringify or log values.
+ */
+function bookingHoldAssertNativeCells_(rows) {
+  rows.forEach(function(row) {
+    row.forEach(function(value) {
+      var type = typeof value;
+      if (type === 'string' || type === 'boolean' ||
+          (type === 'number' && Number.isFinite(value))) return;
+      if (Object.prototype.toString.call(value) === '[object Date]' &&
+          Number.isFinite(value.getTime())) return;
+      throw new Error('預約快照含非預期儲存格型別，拒絕預約交易。');
+    });
+  });
+}
 function bookingHoldSnapshot_(adapter) {
   var s=adapter.readSnapshot();
   if (!s || !s.slots || !s.reservations ||
@@ -88,6 +105,10 @@ function bookingHoldSnapshot_(adapter) {
       !bookingHoldDenseRows_(s.reservations.rows, BOOKING_RESERVATION_HEADERS_.length)) {
     throw new Error('預約快照欄位寬度不一致，拒絕預約交易。');
   }
+  // A real Range.getValues() uses '' for blanks, never null/undefined.
+  // Reject malformed injected cells before status/lifecycle/capacity checks.
+  bookingHoldAssertNativeCells_(s.slots.rows);
+  bookingHoldAssertNativeCells_(s.reservations.rows);
   // Reject fully blank rows inside a supplied data extent. Silently skipping
   // a missing slot/reservation can undercount occupied seats. This mirrors the
   // read-only adapter's structural guard; an empty tab is still allowed.
