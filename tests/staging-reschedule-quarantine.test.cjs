@@ -34,3 +34,16 @@ test('only closed internal reschedule preflight is present; intake remains disab
   assert.match(website, /function\s+listSlots\(\)\s*\{\s*return\s+\[\];\s*\}/);
   assert.match(website, /function\s+holdSlot\(\)\s*\{\s*return\s+rejectIntake_\(\);\s*\}/);
 });
+
+// The unreviewed staging helper rewrites an entire row via setValues(),
+// including cells it did not intend to change. Do not import it into the
+// deployable GAS tree before schema-aware, locked, post-write verification.
+test('legacy staging patchRow helper stays quarantined from deployable GAS', () => {
+  const gasDir = path.join(root, 'gas');
+  const sourceFiles = fs.readdirSync(gasDir).filter(name => /\.(?:js|gs)$/.test(name));
+  for (const name of sourceFiles) {
+    const source = fs.readFileSync(path.join(gasDir, name), 'utf8');
+    assert.doesNotMatch(source, /\bfunction\s+patchRow_\s*\(/,
+      'unreviewed legacy staging patchRow helper imported into gas/' + name);
+  }
+});
