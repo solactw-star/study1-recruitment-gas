@@ -134,7 +134,8 @@ test('release failure cannot be mistaken for a successful availability result',(
 test('module is closed, does not directly access Sheets, write, send email or deploy',()=>{
   const code=fs.readFileSync(path.join(root,'gas/BookingReadOnlyLocked.js'),'utf8');
   const site=fs.readFileSync(path.join(root,'gas/Website.js'),'utf8');
-  assert.doesNotMatch(code,/SpreadsheetApp\.|LockService\.|\.setValues\s*\(|\.appendRow\s*\(|MailApp|GmailApp|doPost\s*\(/);
+  const executable = code.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g,'');
+  assert.doesNotMatch(executable,/SpreadsheetApp\.|LockService\.|\.setValues\s*\(|\.appendRow\s*\(|MailApp|GmailApp|doPost\s*\(/);
   assert.match(site,/function listSlots\(\)\{return \[\];\}/);
   assert.match(site,/function holdSlot\(\)\{return rejectIntake_\(\);\}/);
 });
