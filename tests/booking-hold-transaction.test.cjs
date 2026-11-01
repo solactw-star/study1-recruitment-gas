@@ -22,7 +22,7 @@ function make(extra={}){
   let slots=(extra.slots||[slot()]).map(r=>r.slice());
   let heldLock=false,lockAttempts=0,releases=0,appends=0,reads=0;
   const lock={tryLock(){lockAttempts++;if(extra.denyLock||heldLock)return false;heldLock=true;return true;},
-    releaseLock(){releases++;heldLock=false;}};
+    hasLock(){return heldLock;},releaseLock(){releases++;heldLock=false;}};
   const adapters={
     getLock(){return lock;},
     isVerifiedAndEligible(){return extra.verified!==false;},

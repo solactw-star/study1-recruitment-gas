@@ -26,7 +26,7 @@ function make(metadata) {
   const adapters={
     getLock(){return {
       tryLock(){if(locked)return false;locked=true;return true;},
-      releaseLock(){locked=false;releases++;}
+      hasLock(){return locked;},releaseLock(){locked=false;releases++;}
     };},
     isVerifiedAndEligible(){return true;},
     readSnapshot(){

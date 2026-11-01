@@ -28,7 +28,7 @@ function fixture() {
   let appended = 0, released = 0;
   const adapters = {
     getLock() { return {tryLock() { return true; },
-      releaseLock() { released++; }}; },
+      hasLock() { return true; },releaseLock() { released++; }}; },
     isVerifiedAndEligible() { return true; },
     readSnapshot() { return {
       slots:{headers:sh.slice(),rows:slots.map(row=>row.slice())},
