@@ -89,38 +89,48 @@ function bookingReadOnlyTab_(book, name, expected) {
   var headRange = tab.getRange(1, 1, 1, expected.length);
   bookingReadOnlyRejectFormulas_(headRange, 1, expected.length);
   var head = headRange.getValues();
+  if (!Array.isArray(head) || head.length !== 1 ||
+      !Array.isArray(head[0]) || head[0].length !== expected.length) {
+    throw new Error('預約工作表標題列格式不合法。');
+  }
+  // Copy immediately: subsequent injected API callbacks must not mutate
+  // the values that this pass actually observed.
+  var stableHead = head[0].map(bookingReadOnlyCopyCell_);
   // Recheck after values: formulas may change between separate API reads.
   bookingReadOnlyRejectFormulas_(headRange, 1, expected.length);
   if (!Array.isArray(head) || head.length !== 1 ||
       !Array.isArray(head[0]) || head[0].length !== expected.length) {
     throw new Error('預約工作表標題列格式不合法。');
   }
-  bookingAssertSchema_(head[0], expected);
+  bookingAssertSchema_(stableHead, expected);
   var count = lastRow - 1;
   var rows = [];
   if (count) {
     var dataRange = tab.getRange(2, 1, count, expected.length);
     bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
     rows = dataRange.getValues();
-    // Best-effort guard against formula insertion during the value read.
-    bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
-  }
-  // getValues() normally returns dense rectangular arrays. An injected or
-  // malformed sparse grid must not silently turn a missing optional cell
-  // into undefined and pass the availability integrity checks.
-  if (!Array.isArray(rows) || rows.length !== count) {
-    throw new Error('預約工作表資料列格式不合法。');
-  }
-  for (var i = 0; i < count; i++) {
-    if (!Object.prototype.hasOwnProperty.call(rows, i) ||
-        !Array.isArray(rows[i]) || rows[i].length !== expected.length) {
+    // getValues() normally returns dense rectangular arrays. An injected or
+    // malformed sparse grid must not silently turn a missing optional cell
+    // into undefined and pass the availability integrity checks.
+    if (!Array.isArray(rows) || rows.length !== count) {
       throw new Error('預約工作表資料列格式不合法。');
     }
-    for (var j = 0; j < expected.length; j++) {
-      if (!Object.prototype.hasOwnProperty.call(rows[i], j)) {
+    for (var i = 0; i < count; i++) {
+      if (!Object.prototype.hasOwnProperty.call(rows, i) ||
+          !Array.isArray(rows[i]) || rows[i].length !== expected.length) {
         throw new Error('預約工作表資料列格式不合法。');
       }
+      for (var j = 0; j < expected.length; j++) {
+        if (!Object.prototype.hasOwnProperty.call(rows[i], j)) {
+          throw new Error('預約工作表資料列格式不合法。');
+        }
+      }
     }
+    // Preserve the first observed values before getFormulas/getLastRow can
+    // mutate shared Date references or cell arrays in injected adapters.
+    rows = rows.map(function(row) {return row.map(bookingReadOnlyCopyCell_);});
+    // Best-effort guard against formula insertion during the value read.
+    bookingReadOnlyRejectFormulas_(dataRange, count, expected.length);
   }
   // Detect a transient append/delete or column edit during this tab read.
   // A later identical second pass alone cannot detect an A -> B -> A drift.
@@ -128,8 +138,7 @@ function bookingReadOnlyTab_(book, name, expected) {
   if (tab.getLastRow() !== lastRow || tab.getLastColumn() !== lastCol) {
     throw new Error('預約工作表讀取期間維度發生變動，已拒絕提供名額。');
   }
-  return {headers: head[0].map(bookingReadOnlyCopyCell_),
-    rows: rows.map(function(row) {return row.map(bookingReadOnlyCopyCell_);})};
+  return {headers: stableHead, rows: rows};
 }
 
 /** Only the pre-approved 828 operations workbook may be opened. */
