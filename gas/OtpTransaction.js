@@ -52,6 +52,12 @@ function otpBindingMatches_(row, request) {
  * Failure to lock, malformed state, failed write or failed readback THROWS.
  * Normal rejection always returns the same non-enumerating result.
  */
+/** Refuse any OTP state transition unless the injected script lock is held. */
+function otpAssertLockStillHeld_(lock) {
+  if (lock.hasLock() !== true) {
+    throw new Error('OTP 全域交易鎖在執行期間失效，已拒絕驗證。');
+  }
+}
 function otpVerifyOnceLocked_(request, adapters) {
   if (!request || typeof request!=='object' || Array.isArray(request) ||
       !adapters || typeof adapters.getLock!=='function' ||
@@ -67,11 +73,17 @@ function otpVerifyOnceLocked_(request, adapters) {
   otpUtc_(request.nowUtc);
   var lock=adapters.getLock();
   if (!lock || typeof lock.tryLock!=='function' ||
-      typeof lock.releaseLock!=='function' || lock.tryLock(5000)!==true) {
+      typeof lock.releaseLock!=='function' ||
+      typeof lock.hasLock!=='function') {
+    throw new Error('OTP 全域交易鎖介面不合法，已拒絕驗證。');
+  }
+  if (lock.tryLock(5000)!==true) {
     throw new Error('無法取得 OTP 全域交易鎖，已拒絕驗證。');
   }
   try {
+    otpAssertLockStillHeld_(lock);
     var snapshot=adapters.readSnapshot();
+    otpAssertLockStillHeld_(lock);
     var match=otpFindUniqueChallenge_(snapshot,request.challengeId);
     if (!match || !otpBindingMatches_(match.row,request)) {
       return {verified:false,reason:'REJECTED'};
@@ -82,6 +94,8 @@ function otpVerifyOnceLocked_(request, adapters) {
     }
     var decision=otpEvaluateVerification_(
       match.row,request.code,request.nowUtc,adapters.getSecret());
+    // A secret-provider callback may have released the shared lock.
+    otpAssertLockStillHeld_(lock);
     if (decision.reason!=='MATCH' && decision.reason!=='INVALID') {
       return {verified:false,reason:'REJECTED'};
     }
@@ -89,8 +103,12 @@ function otpVerifyOnceLocked_(request, adapters) {
     var newUsed=decision.verified ? decision.usedAtUtc : match.row[6];
     var wrote=adapters.writeAttemptAndUse(
       match.rowNumber,decision.attemptsAfter,newUsed);
+    // A write may have happened before ownership was lost: never report
+    // verified success without the lock. Reconciliation remains necessary.
+    otpAssertLockStillHeld_(lock);
     if (wrote!==true) throw new Error('OTP 狀態寫入未確認，已拒絕驗證。');
     var check=otpFindUniqueChallenge_(adapters.readSnapshot(),request.challengeId);
+    otpAssertLockStillHeld_(lock);
     if (!check || check.rowNumber!==match.rowNumber ||
         !otpBindingMatches_(check.row,request) ||
         Number(check.row[5])!==decision.attemptsAfter ||

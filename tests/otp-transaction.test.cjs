@@ -35,6 +35,7 @@ function fixture(options={}){
  const lock={
   tryLock(ms){assert.equal(ms,5000);if(options.denyLock)return false;
     assert.equal(acquired,false);acquired=true;return true;},
+  hasLock(){return acquired;},
   releaseLock(){assert.equal(acquired,true);acquired=false;releases++;}
  };
  const adapters={
