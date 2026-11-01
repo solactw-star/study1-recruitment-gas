@@ -25,13 +25,18 @@ function harness(options={}) {
   vm.createContext(ctx);
   vm.runInContext(source, ctx);
   const calls = [];
+  let reservationHeaderReads=0;
   function sheet(headers, rows) {
     return {
       getLastRow(){return rows.length+1;},
       getLastColumn(){return headers.length;},
       getRange(r,c,h,w) {
         return {getValues(){
-          if (r===1) return [headers.slice()];
+          if (r===1) {
+            if (options.loseLockDuringRead && headers[0]==='reservation_id' &&
+                ++reservationHeaderReads===2) held=false;
+            return [headers.slice()];
+          }
           return rows.map(row=>row.slice());
         },getFormulas(){
           const grid=Array.from({length:h},()=>Array(w).fill(''));
@@ -159,4 +164,16 @@ test('inconsistent lock ownership fails closed before opening workbook',()=>{
   const h=harness({inconsistentLock:true});
   assert.throws(h.run,/鎖狀態不一致/);
   assert.deepEqual(h.calls,['getLock','tryLock:5000','releaseLock']);
+});
+
+// Regression: a cooperating reader must not acknowledge a snapshot after
+// its script lock is lost during the second Slots/Reservations pass.
+test('read-only wrapper rejects lock loss during snapshot and releases in finally',()=>{
+  const h=harness({loseLockDuringRead:true});
+  assert.throws(h.run,err=>{
+    assert.match(String(err),/讀取鎖於讀取期間失效/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001/);
+    return true;
+  });
+  assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
 });
