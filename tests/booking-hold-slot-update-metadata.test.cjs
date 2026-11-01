@@ -62,7 +62,7 @@ test('locked hold rejects malformed unrelated slot update timestamps before appe
   }
 });
 test('locked hold preserves optional blank and valid Date/string slot update metadata',()=>{
-  for(const valid of ['',null,now,new Date(now)]){
+  for(const valid of ['',now,new Date(now)]){
     const x=make(valid);
     assert.deepEqual(JSON.parse(JSON.stringify(x.run())),
       {held:true,reason:'CREATED'});

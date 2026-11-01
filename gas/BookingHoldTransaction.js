@@ -64,6 +64,23 @@ function bookingHoldDenseRows_(rows, width) {
   }
   return true;
 }
+/**
+ * Range.getValues() never returns null/undefined or arbitrary objects.
+ * A malformed injected writer snapshot must not accept cells that the
+ * independent read-only adapter rejects. Do not stringify or log values.
+ */
+function bookingHoldAssertNativeCells_(rows) {
+  rows.forEach(function(row) {
+    row.forEach(function(value) {
+      var type = typeof value;
+      if (type === 'string' || type === 'boolean' ||
+          (type === 'number' && Number.isFinite(value))) return;
+      if (Object.prototype.toString.call(value) === '[object Date]' &&
+          Number.isFinite(value.getTime())) return;
+      throw new Error('預約快照含非預期儲存格型別，拒絕預約交易。');
+    });
+  });
+}
 function bookingHoldSnapshot_(adapter) {
   var s=adapter.readSnapshot();
   if (!s || !s.slots || !s.reservations ||
@@ -114,6 +131,11 @@ function bookingHoldSnapshot_(adapter) {
   });
   // Validate lifecycle evidence before replay or append, including history.
   bookingHoldAssertLifecycleEvents_(s.reservations.rows);
+  // Run after semantic checks so established field-specific error messages
+  // remain stable; reject null/undefined and non-native injected cells that
+  // the read-only Sheet adapter also refuses, before any append.
+  bookingHoldAssertNativeCells_(s.slots.rows);
+  bookingHoldAssertNativeCells_(s.reservations.rows);
   return s;
 }
 /**
