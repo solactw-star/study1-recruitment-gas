@@ -45,6 +45,7 @@ function scenario(moduleName, mutate) {
     return compute(slots,reservations,nowUtc);
   };
   const adapters = {
+    getServerNowUtc() { return clock; },
     isVerifiedAndEligible(id) {
       assert.equal(id,'APP_A');
       if(mutate==='verify') clock.setTime(Date.parse('2026-10-30T14:20:00Z'));
