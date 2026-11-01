@@ -31,7 +31,12 @@ function run(opts={}) {
       slots:{headers:opts.sh||sh,rows:opts.slots||[slot()]},
       reservations:{headers:opts.rh||rh,rows:opts.rows||[reservation()]}
     };},
-    isVerifiedAndEligible(id){verifies++;return opts.verified!==false&&id==='APP_A';}
+    isVerifiedAndEligible(id){
+      verifies++;
+      if(opts.mutateClockOnVerify) opts.mutateClockOnVerify();
+      return opts.verified!==false&&id==='APP_A';
+    },
+    ...(opts.noServerClock?{}:{getServerNowUtc(){return opts.serverNowUtc===undefined?now:opts.serverNowUtc;}})
   };
   const request={applicantId:'APP_A',reservationId:'R1',nowUtc:now,...opts.request};
   return {call:()=>JSON.parse(JSON.stringify(ctx.bookingCancelHoldPreflight_(request,adapters))),
@@ -81,4 +86,28 @@ test('closed cancellation code never writes or exposes a public cancellation end
   const site=fs.readFileSync(path.join(root,'gas/Website.js'),'utf8');
   assert.doesNotMatch(file,/\.setValues\s*\(|\.appendRow\s*\(|\.setValue\s*\(|SpreadsheetApp|MailApp|GmailApp|LockService/);
   assert.match(site,/function cancelHold\(\)\{return rejectIntake_\(\);\}/);
+});
+
+// A client-controlled timestamp must never revive an expired hold or hide a live one.
+test('cancellation preflight uses only server time, ignoring forged request clocks',()=>{
+  assert.deepEqual(run({request:{nowUtc:'2099-01-01T00:00:00Z'}}).call(),
+    {allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
+  assert.deepEqual(run({request:{nowUtc:'1900-01-01T00:00:00Z'},
+    serverNowUtc:'2026-10-30T14:20:00Z'}).call(),
+    {allowed:false,reason:'REJECTED'});
+});
+test('missing or invalid server clock fails before identity and Sheet callbacks',()=>{
+  for(const opts of [{noServerClock:true},{serverNowUtc:'invalid'},
+    {serverNowUtc:new Date('invalid')}]){
+    const x=run(opts);
+    assert.throws(x.call,/介面尚未就緒|時間/);
+    assert.deepEqual(x.stats(),{reads:0,verifies:0});
+  }
+});
+test('server Date clock is pinned before eligibility mutates its reference',()=>{
+  const clock=new Date(now);
+  const x=run({serverNowUtc:clock,
+    mutateClockOnVerify:()=>clock.setTime(Date.parse('2026-10-30T14:20:00Z'))});
+  assert.deepEqual(x.call(),{allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
+  assert.equal(clock.toISOString(),'2026-10-30T14:20:00.000Z');
 });
