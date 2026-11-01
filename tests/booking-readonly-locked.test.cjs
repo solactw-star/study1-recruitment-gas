@@ -60,7 +60,9 @@ function fixture(options = {}) {
       if(options.deny) return false;
       held=true;return true;},
     hasLock(){events.push('hasLock');
-      return options.inconsistentLock?false:held;},
+      return options.inconsistentLock ||
+        (options.loseAfterRead && events.filter(e=>e==='Reservations:read').length===4)
+        ? false : held;},
     releaseLock(){events.push('releaseLock');held=false;
       if(options.releaseError) throw Error('release failed');}
   };
@@ -102,6 +104,18 @@ test('inconsistent acquired lock status rejects and releases without opening wor
   const x=fixture({inconsistentLock:true});
   assert.throws(()=>read(x),/鎖狀態不一致/);
   assert.deepEqual(x.events,['getScriptLock','tryLock','hasLock','releaseLock']);
+  assert.equal(x.isHeld(),false);
+});
+test('lock lost after the final read rejects sanitized availability and releases',()=>{
+  const x=fixture({loseAfterRead:true});
+  assert.throws(()=>read(x),err=>{
+    assert.match(String(err),/只讀鎖於讀取期間失效/);
+    assert.doesNotMatch(String(err),/APP_PRIVATE|idempotency-key-0001|R1/);
+    return true;
+  });
+  assert.equal(x.events.filter(e=>e==='Reservations:read').length,4);
+  assert.equal(x.events.filter(e=>e==='hasLock').length,2);
+  assert.equal(x.events.at(-1),'releaseLock');
   assert.equal(x.isHeld(),false);
 });
 test('schema failure releases lock and does not leak private applicant fields',()=>{

@@ -34,7 +34,14 @@ function bookingReadOnlyAvailabilityWithScriptLock_(getScriptLock, openSpreadshe
     if (lock.hasLock() !== true) {
       throw new Error('預約全域只讀鎖狀態不一致，已拒絕提供名額。');
     }
-    return bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
+    var availability = bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
+    // A callback may release the shared lock while the two-pass read is
+    // running. Never acknowledge the result without checking ownership again.
+    // This detects loss at the boundary, not uncooperative external edits.
+    if (lock.hasLock() !== true) {
+      throw new Error('預約全域只讀鎖於讀取期間失效，已拒絕提供名額。');
+    }
+    return availability;
   } finally {
     // No SpreadsheetApp.flush(): this path never writes. Release on every
     // success or failure, including schema/data-integrity exceptions.
