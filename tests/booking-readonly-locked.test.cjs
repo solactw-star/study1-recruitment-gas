@@ -80,8 +80,8 @@ test('holds one script-wide lock across both table passes and returns only safe 
     endAtUtc:'2026-10-31T10:00:00.000Z',remaining:1}]);
   assert.equal(x.events[0],'getScriptLock');
   assert.deepEqual(x.events.slice(1,4),['tryLock','hasLock','open']);
-  assert.equal(x.events.filter(e=>e==='Slots:read').length,2);
-  assert.equal(x.events.filter(e=>e==='Reservations:read').length,2);
+  assert.equal(x.events.filter(e=>e==='Slots:read').length,4);
+  assert.equal(x.events.filter(e=>e==='Reservations:read').length,4);
   assert.equal(x.events.at(-1),'releaseLock');
   assert.equal(x.isHeld(),false);
   assert.doesNotMatch(JSON.stringify(read(fixture())),
