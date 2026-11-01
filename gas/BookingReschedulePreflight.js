@@ -14,13 +14,17 @@
 function bookingReschedulePreflight_(request, adapters) {
   if (!request || typeof request !== 'object' || Array.isArray(request) ||
       !adapters || typeof adapters.readSnapshot !== 'function' ||
-      typeof adapters.isVerifiedAndEligible !== 'function') {
+      typeof adapters.isVerifiedAndEligible !== 'function' ||
+      typeof adapters.getServerNowUtc !== 'function') {
     throw new Error('改期檢查介面尚未就緒。');
   }
   var applicantId = bookingId_(request.applicantId);
   var reservationId = bookingId_(request.reservationId);
   var newSlotId = bookingId_(request.newSlotId);
-  var now = bookingInstant_(request.nowUtc);
+  // The clock must come from a trusted server-side adapter, never from
+  // request.nowUtc (which could be supplied or altered by a client).
+  // Freeze it before calling eligibility/snapshot adapters.
+  var now = bookingInstant_(adapters.getServerNowUtc());
   // Freeze mutable Date/request clock before injected callbacks can alter it.
   var stableNowUtc = new Date(now).toISOString();
   var rejected = {allowed:false, reason:'REJECTED'};
