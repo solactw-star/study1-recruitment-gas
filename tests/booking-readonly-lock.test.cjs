@@ -172,7 +172,10 @@ test('inconsistent lock ownership fails closed before opening workbook',()=>{
 // The legacy wrapper must not return availability when a callback loses the
 // shared script lock after the initial ownership check. Fake data only.
 test('legacy read lock rejects lost ownership after both Sheet passes',()=>{
-  const h=harness({loseLockDuringSecondReservationRead:true});
+  const h=harness({loseLockDuringSecondReservationRead:true,rows:[
+    ['R1','APP_PRIVATE','SLOT_A','CANCELLED','2026-10-29T12:10:00Z',
+      'idempotency-key-0001',now,'','','']
+  ]});
   assert.throws(h.run,err=>{
     assert.match(String(err),/讀取期間失效/);
     assert.doesNotMatch(String(err),/APP_PRIVATE|idempotency-key/);
