@@ -107,6 +107,13 @@ const badCases=[
   ['orphan reservation reference',s=>{s.rows[0][2]='MISSING';}],
   ['noncanonical stored reservation status',s=>{s.rows[0][3]='confirmed ';}],
   ['invalid slot update metadata',s=>{s.slots[1][7]='yesterday';}],
+  ['null optional slot update cell',s=>{s.slots[1][7]=null;}],
+  ['null optional reservation history cell',s=>{s.rows[0][8]=null;}],
+  ['nonfinite historical timestamp cell',s=>{s.rows[0][9]=Infinity;}],
+  ['invalid Date slot metadata',s=>{s.slots[1][7]=new Date('invalid');}],
+  ['arbitrary object in cancelled history',s=>{
+    s.rows[0][3]='CANCELLED';s.rows[0][8]={unexpected:'object'};
+  }],
   ['malformed cancelled history timestamp',s=>{
     s.rows[0][3]='CANCELLED';s.rows[0][7]='not-utc';
   }],
