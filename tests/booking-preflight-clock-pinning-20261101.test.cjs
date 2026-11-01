@@ -39,6 +39,12 @@ function scenario(moduleName, mutate) {
       hold('R1','APP_A','SLOT_A','idempotency-key-0001'),
       hold('R2','APP_B','SLOT_B','idempotency-key-0002')]}};
   const observed=[];
+  const temporalObserved=[];
+  const temporal=ctx.bookingReadOnlyValidateTemporalCells_;
+  ctx.bookingReadOnlyValidateTemporalCells_ = function(snapshot, nowMs) {
+    temporalObserved.push(nowMs);
+    return temporal(snapshot, nowMs);
+  };
   const compute=ctx.bookingComputeAvailability_;
   ctx.bookingComputeAvailability_ = function(slots, reservations, nowUtc) {
     observed.push(nowUtc);
@@ -58,7 +64,7 @@ function scenario(moduleName, mutate) {
   const call = moduleName==='BookingReschedulePreflight'
     ? ctx.bookingReschedulePreflight_ : ctx.bookingCancelHoldPreflight_;
   return {result:JSON.parse(JSON.stringify(call(request,adapters))),
-    observed,clock,request};
+    observed,temporalObserved,clock,request};
 }
 test('reschedule: mutable Date clock cannot free another applicant hold',()=>{
   const x=scenario('BookingReschedulePreflight','verify');
@@ -86,5 +92,15 @@ test('both preflight modules remain internal and contain no real Sheet writes',(
   for(const name of ['BookingReschedulePreflight','BookingCancelHoldPreflight']){
     const code=fs.readFileSync(path.join(root,'gas',name+'.js'),'utf8');
     assert.doesNotMatch(code,/SpreadsheetApp|\.setValues\s*\(|\.appendRow\s*\(|MailApp|GmailApp/);
+  }
+});
+
+test('both closed preflights forward a frozen numeric clock to temporal integrity guard',()=>{
+  for(const name of ['BookingReschedulePreflight','BookingCancelHoldPreflight']) {
+    for(const mutation of ['verify','snapshot']) {
+      const x=scenario(name,mutation);
+      assert.deepEqual(x.temporalObserved,[Date.parse(initial)]);
+      assert.deepEqual(x.observed,[initial]);
+    }
   }
 });
