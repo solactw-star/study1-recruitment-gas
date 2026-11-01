@@ -106,7 +106,7 @@ test('Verification transaction rejects an otherwise valid OTP after other challe
  const past1=record('ch-old1','app-1','fake@example.invalid','2026-10-29T07:50:00Z',5);
  const past2=record('ch-old2','app-1','fake@example.invalid','2026-10-29T08:10:00Z',5);
  let locked=false,writes=0;
- const lock={tryLock(){locked=true;return true;},releaseLock(){locked=false;}};
+ const lock={tryLock(){locked=true;return true;},hasLock(){return locked;},releaseLock(){locked=false;}};
  const adapters={getLock(){return lock;},getSecret(){return secret;},
  readSnapshot(){assert.equal(locked,true);return snap([past1,past2,current]);},
  writeAttemptAndUse(){writes++;return true;}};
