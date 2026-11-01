@@ -62,7 +62,8 @@ function harness(options={}) {
       held = options.granted!==false;
       return held;
     },
-    hasLock(){return held && !options.inconsistentLock;},
+    hasLock(){return held && !options.inconsistentLock &&
+      !(options.loseAfterRead && calls.includes('open'));},
     releaseLock(){held=false;calls.push('releaseLock');}
   };
   const getLock=()=>{
@@ -159,4 +160,18 @@ test('inconsistent lock ownership fails closed before opening workbook',()=>{
   const h=harness({inconsistentLock:true});
   assert.throws(h.run,/鎖狀態不一致/);
   assert.deepEqual(h.calls,['getLock','tryLock:5000','releaseLock']);
+});
+
+// Regression for the older read-only wrapper: ownership may be lost during
+// an injected Sheet callback even when the initial lock check succeeded.
+test('legacy read-only wrapper rejects lock loss after both Sheet passes',()=>{
+  const h=harness({loseAfterRead:true,rows:[['R1','APP_PRIVATE',
+    'SLOT_A','HELD','2026-10-29T12:10:00Z',
+    'idempotency-key-0001',now,'','','']]});
+  assert.throws(h.run,err=>{
+    assert.match(String(err),/讀取期間失效/);
+    assert.doesNotMatch(String(err),/APP_PRIVATE|idempotency-key-0001|R1/);
+    return true;
+  });
+  assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
 });
