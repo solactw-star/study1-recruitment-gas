@@ -54,12 +54,12 @@ test('legacy staging patchRow helper stays quarantined from deployable GAS', () 
 // name alone is insufficient: copying its logic under a renamed function
 // could bypass that guard and misread production rows.
 const LEGACY_BOOKING_FIELD_ACCESS =
-  /(?:\\.\\s*(?:hold_until|start_at|updated_at)\\b|\\[\\s*['"`](?:hold_until|start_at|updated_at)['"`]\\s*\\])/;
+  /(?:\.\s*(?:hold_until|start_at|updated_at)\b|\[\s*['"`](?:hold_until|start_at|updated_at)['"`]\s*\])/;
 const UNAPPROVED_FINALIZING_STATE = /['"`]FINALIZING['"`]/;
 
 test('legacy staging field aliases and FINALIZING state stay outside deployable GAS', () => {
   const gasDir = path.join(root, 'gas');
-  const files = fs.readdirSync(gasDir).filter(name => /\\.(?:js|gs)$/.test(name));
+  const files = fs.readdirSync(gasDir).filter(name => /\.(?:js|gs)$/.test(name));
   assert.ok(files.length > 0);
   for (const name of files) {
     const source = fs.readFileSync(path.join(gasDir, name), 'utf8');
