@@ -105,10 +105,6 @@ function bookingHoldSnapshot_(adapter) {
       !bookingHoldDenseRows_(s.reservations.rows, BOOKING_RESERVATION_HEADERS_.length)) {
     throw new Error('預約快照欄位寬度不一致，拒絕預約交易。');
   }
-  // A real Range.getValues() uses '' for blanks, never null/undefined.
-  // Reject malformed injected cells before status/lifecycle/capacity checks.
-  bookingHoldAssertNativeCells_(s.slots.rows);
-  bookingHoldAssertNativeCells_(s.reservations.rows);
   // Reject fully blank rows inside a supplied data extent. Silently skipping
   // a missing slot/reservation can undercount occupied seats. This mirrors the
   // read-only adapter's structural guard; an empty tab is still allowed.
@@ -135,6 +131,11 @@ function bookingHoldSnapshot_(adapter) {
   });
   // Validate lifecycle evidence before replay or append, including history.
   bookingHoldAssertLifecycleEvents_(s.reservations.rows);
+  // Run after semantic checks so established field-specific error messages
+  // remain stable; reject null/undefined and non-native injected cells that
+  // the read-only Sheet adapter also refuses, before any append.
+  bookingHoldAssertNativeCells_(s.slots.rows);
+  bookingHoldAssertNativeCells_(s.reservations.rows);
   return s;
 }
 /**
