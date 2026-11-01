@@ -57,6 +57,13 @@ function fake(opts={}) {
             return opts.mutateOnSecondRead(name,result);
           return result;
         },getFormulas(){
+          // Simulate a callback changing a Date object shared with a
+          // previously returned getValues() matrix, only on the first read.
+          if(opts.mutateDateOnPostReadFormula===name && valuesRead &&
+             r===2 && !opts.dateMutated){
+            opts.dateMutated=true;
+            opts.dateRef.setTime(opts.dateRef.getTime()+60000);
+          }
           if (opts.sparseFormulaTab===name && opts.sparseFormulaRow===r) {
             if (opts.sparseFormulaShape==='outer') return Array(h);
             if (opts.sparseFormulaShape==='inner') {
@@ -210,6 +217,27 @@ test('Date objects are copied before second read so in-place mutations are detec
     return rows;
   }});
   assert.throws(()=>availability(x),/讀取期間資料發生變動/);
+});
+test('copies Date cells before post-getValues formula callbacks can mutate them',()=>{
+  const slotStart=new Date('2026-10-31T09:00:00Z');
+  const slotRow=slot().map((v,i)=>i===1?slotStart:v);
+  const slotCase=fake({slots:[slotRow],mutateDateOnPostReadFormula:'Slots',
+    dateRef:slotStart});
+  assert.throws(()=>availability(slotCase),err=>{
+    assert.match(String(err),/讀取期間資料發生變動/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+    return true;
+  });
+
+  const holdExpiry=new Date('2026-10-29T12:10:00Z');
+  const reservationRow=reservation().map((v,i)=>i===4?holdExpiry:v);
+  const reservationCase=fake({rows:[reservationRow],
+    mutateDateOnPostReadFormula:'Reservations',dateRef:holdExpiry});
+  assert.throws(()=>availability(reservationCase),err=>{
+    assert.match(String(err),/讀取期間資料發生變動/);
+    assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+    return true;
+  });
 });
 test('unexpected object or invalid Date cell fails closed without returning PII',()=>{
   for(const bad of [new Date('invalid'),{untrusted:'object'},Infinity]){
