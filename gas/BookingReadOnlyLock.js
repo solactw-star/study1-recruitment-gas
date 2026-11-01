@@ -34,7 +34,14 @@ function bookingReadOnlyAvailabilityWithLock_(openSpreadsheet, nowUtc, getScript
     if (lock.hasLock() !== true) {
       throw new Error('預約讀取鎖狀態不一致，已拒絕提供名額。');
     }
-    return bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
+    var availability = bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
+    // A cooperating callback can release the script lock during either Sheet
+    // pass. Do not return availability after losing lock ownership. This
+    // legacy wrapper must match BookingReadOnlyLocked.js fail-closed behavior.
+    if (lock.hasLock() !== true) {
+      throw new Error('預約讀取鎖於讀取期間失效，已拒絕提供名額。');
+    }
+    return availability;
   } finally {
     lock.releaseLock();
   }
