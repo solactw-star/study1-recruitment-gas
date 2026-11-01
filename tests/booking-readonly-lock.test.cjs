@@ -46,7 +46,7 @@ function harness(options={}) {
     ['SLOT_A','2026-10-31T09:00:00Z','2026-10-31T10:00:00Z',
       1,'ROOM','OPEN','researcher',now]
   ]);
-  const reservations = sheet(reservationHeaders, []);
+  const reservations = sheet(reservationHeaders, options.rows || []);
   const opener = id => {
     calls.push('open');
     return {getId(){return id;},getSheetByName(name){
@@ -56,14 +56,19 @@ function harness(options={}) {
   const lock = {
     tryLock(timeout) {
       calls.push('tryLock:'+timeout);
+      if (options.mutateTryLock) options.mutateTryLock();
       if (options.lockThrows) throw Error('lock failed');
       return options.granted!==false;
     },
     releaseLock(){calls.push('releaseLock');}
   };
-  const getLock=()=>{calls.push('getLock');return lock;};
+  const getLock=()=>{
+    calls.push('getLock');
+    if (options.mutateGetLock) options.mutateGetLock();
+    return lock;
+  };
   const run=()=>JSON.parse(JSON.stringify(
-    ctx.bookingReadOnlyAvailabilityWithLock_(opener,now,getLock)));
+    ctx.bookingReadOnlyAvailabilityWithLock_(opener,options.clock || now,getLock)));
   return {ctx,calls,opener,getLock,run};
 }
 
@@ -117,4 +122,28 @@ test('formula corruption fails closed and still releases the acquired lock',()=>
   const h=harness({formulaInSlots:true});
   assert.throws(h.run,/公式/);
   assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
+});
+
+// Regression: the wrapper itself must pin a mutable Date before acquiring the
+// lock, not merely rely on the downstream read-only Sheet adapter.
+test('read-only lock freezes Date clock before getLock and tryLock callbacks',()=>{
+  for (const hook of ['mutateGetLock','mutateTryLock']) {
+    const clock=new Date(now);
+    const rows=[['R1','APP_A','SLOT_A','HELD',
+      '2026-10-29T12:05:00Z','idempotency-key-0001',
+      now,'','','']];
+    const options={clock,rows};
+    options[hook]=()=>clock.setTime(Date.parse('2026-10-29T12:10:00Z'));
+    const h=harness(options);
+    // Capacity is one. At the original time the hold is active, so no
+    // availability can be offered. A callback-mutated clock would free it.
+    assert.deepEqual(h.run(),[],hook);
+    assert.deepEqual(h.calls,['getLock','tryLock:5000','open','releaseLock']);
+  }
+});
+
+test('invalid clock fails before lock acquisition or workbook reads',()=>{
+  const h=harness({clock:new Date('invalid')});
+  assert.throws(h.run,/時間日期不合法/);
+  assert.deepEqual(h.calls,[]);
 });
