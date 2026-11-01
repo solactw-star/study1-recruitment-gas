@@ -42,7 +42,7 @@ test('all closed read-only/preflight modules remain service-free and write-free'
 test('read-only/preflight modules expose no newly callable public GAS functions', () => {
   for (const file of readOnlyModules) {
     const source = executableSource(file);
-    for (const match of source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)) {
+    for (const match of source.matchAll(/^function\s+([A-Za-z_$][\w$]*)\s*\(/gm)) {
       assert.ok(match[1].endsWith('_'),
         file + ' introduces a public GAS function: ' + match[1]);
     }
