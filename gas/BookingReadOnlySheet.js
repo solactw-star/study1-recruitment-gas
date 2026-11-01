@@ -14,7 +14,9 @@ function bookingReadOnlyCopyCell_(value) {
     if (!Number.isFinite(time)) throw new Error('預約快照含無效日期，已拒絕讀取。');
     return new Date(time);
   }
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  // Google Range.getValues() represents blank cells as empty strings, not null.
+  // Reject null instead of silently treating it as a missing optional event.
+  if (typeof value === 'string' || typeof value === 'boolean') return value;
   if (typeof value === 'number' && Number.isFinite(value)) return value;
   throw new Error('預約快照含非預期資料型別，已拒絕讀取。');
 }
