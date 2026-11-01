@@ -46,6 +46,7 @@ function fixture(options={}){
    const snap={headers:options.badHeaders?['broken']:headers,
      rows:rows.map(r=>r.slice())};
    if(options.badReadback && reads>1) snap.rows[0][5]=0;
+   if(options.textReadback && reads>1) snap.rows[0][5]=String(snap.rows[0][5]);
    return snap;
   },
   writeAttemptAndUse(rowNumber,attempts,usedAt){
@@ -113,6 +114,20 @@ test('Write failures never return verified success and release lock',()=>{
   assert.equal(f.counts.releases,1);
   assert.equal(f.counts.acquired,false);
  }
+});
+test('text-typed stored OTP attempt count is rejected before any write',()=>{
+ const f=fixture();f.rows[0][5]='0';
+ assert.throws(()=>invoke(f),/嘗試次數儲存格型別/);
+ assert.equal(f.counts.writes,0);
+ assert.equal(f.counts.releases,1);
+ assert.equal(f.counts.acquired,false);
+});
+test('text-typed readback cannot acknowledge an OTP verification',()=>{
+ const f=fixture({textReadback:true});
+ assert.throws(()=>invoke(f),/寫入後核對失敗/);
+ assert.equal(f.counts.writes,1);
+ assert.equal(f.counts.releases,1);
+ assert.equal(f.counts.acquired,false);
 });
 test('Missing challenge returns generic rejection; no writes',()=>{
  const f=fixture();
