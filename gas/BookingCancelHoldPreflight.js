@@ -15,6 +15,8 @@ function bookingCancelHoldPreflight_(request, adapters) {
   var applicantId = bookingId_(request.applicantId);
   var reservationId = bookingId_(request.reservationId);
   var now = bookingInstant_(request.nowUtc);
+  // Freeze mutable Date/request clock before injected callbacks can alter it.
+  var stableNowUtc = new Date(now).toISOString();
   var rejected = {allowed:false, reason:'REJECTED'};
   // Eligibility must come from a server-backed adapter, never a client flag.
   if (adapters.isVerifiedAndEligible(applicantId) !== true) return rejected;
@@ -24,7 +26,7 @@ function bookingCancelHoldPreflight_(request, adapters) {
   bookingReadOnlyValidateTextMetadata_(snapshot);
   // Validate the entire workbook, including unrelated historical records.
   bookingComputeAvailability_(
-    snapshot.slots.rows, snapshot.reservations.rows, request.nowUtc);
+    snapshot.slots.rows, snapshot.reservations.rows, stableNowUtc);
   bookingHoldAssertUniqueActiveApplicants_(snapshot.reservations.rows, now);
   bookingHoldAssertGlobalOccupancy_(
     snapshot.slots.rows, snapshot.reservations.rows, now);
