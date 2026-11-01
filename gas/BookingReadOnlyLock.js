@@ -20,7 +20,8 @@ function bookingReadOnlyAvailabilityWithLock_(openSpreadsheet, nowUtc, getScript
   var stableNowUtc = new Date(bookingInstant_(nowUtc)).toISOString();
   var lock = getScriptLock();
   if (!lock || typeof lock.tryLock !== 'function' ||
-      typeof lock.releaseLock !== 'function') {
+      typeof lock.releaseLock !== 'function' ||
+      typeof lock.hasLock !== 'function') {
     throw new Error('預約讀取鎖介面不合法。');
   }
   // No workbook access before acquiring the shared script-wide lock.
@@ -28,6 +29,11 @@ function bookingReadOnlyAvailabilityWithLock_(openSpreadsheet, nowUtc, getScript
     throw new Error('無法取得預約讀取鎖，已拒絕提供名額。');
   }
   try {
+    // tryLock() success is insufficient if an injected lock reports no ownership.
+    // Match the stricter internal script-lock preflight: fail before opening Sheets.
+    if (lock.hasLock() !== true) {
+      throw new Error('預約讀取鎖狀態不一致，已拒絕提供名額。');
+    }
     return bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
   } finally {
     lock.releaseLock();

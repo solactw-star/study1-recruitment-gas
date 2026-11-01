@@ -15,3 +15,5 @@ Official references:
 - OWASP Input Validation Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html
 
 Remaining: production writer coordination, current remote GAS source hash/drift, official consent PDF and IRB validation, researcher-approved policies, and a separately authorized sync/deployment. `OPEN=false` and `CONSENT_READY=false` must remain unchanged.
+
+**2026-11-01 lock-ownership parity hardening:** The older `BookingReadOnlyLock.js` wrapper now requires `hasLock()` and explicitly checks that it returns `true` after `tryLock()` succeeds. A fake or inconsistent lock cannot open the private workbook; a successfully acquired lock is released in `finally` on this error. This aligns with `BookingReadOnlyLocked.js` without wiring either function to public endpoints. Regression tests cover a missing `hasLock` method and a contradictory `tryLock=true` / `hasLock=false` result. This is a closed fixture-only integrity improvement, not a production lock guarantee.

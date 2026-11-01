@@ -53,14 +53,17 @@ function harness(options={}) {
       return name==='Slots'?slots:name==='Reservations'?reservations:null;
     }};
   };
+  let held = false;
   const lock = {
     tryLock(timeout) {
       calls.push('tryLock:'+timeout);
       if (options.mutateTryLock) options.mutateTryLock();
       if (options.lockThrows) throw Error('lock failed');
-      return options.granted!==false;
+      held = options.granted!==false;
+      return held;
     },
-    releaseLock(){calls.push('releaseLock');}
+    hasLock(){return held && !options.inconsistentLock;},
+    releaseLock(){held=false;calls.push('releaseLock');}
   };
   const getLock=()=>{
     calls.push('getLock');
@@ -94,6 +97,8 @@ test('missing or malformed lock dependency fails before workbook access',()=>{
     h.opener,now,undefined),/鎖介面/);
   assert.throws(()=>h.ctx.bookingReadOnlyAvailabilityWithLock_(
     h.opener,now,()=>({tryLock(){return true;}})),/鎖介面/);
+  assert.throws(()=>h.ctx.bookingReadOnlyAvailabilityWithLock_(
+    h.opener,now,()=>({tryLock(){return true;},releaseLock(){}})),/鎖介面/);
   assert.deepEqual(h.calls,[]);
 });
 
@@ -146,4 +151,12 @@ test('invalid clock fails before lock acquisition or workbook reads',()=>{
   const h=harness({clock:new Date('invalid')});
   assert.throws(h.run,/時間日期不合法/);
   assert.deepEqual(h.calls,[]);
+});
+
+// A fake lock may claim tryLock success but deny actual ownership.
+// Never read private reservation data unless hasLock() explicitly confirms it.
+test('inconsistent lock ownership fails closed before opening workbook',()=>{
+  const h=harness({inconsistentLock:true});
+  assert.throws(h.run,/鎖狀態不一致/);
+  assert.deepEqual(h.calls,['getLock','tryLock:5000','releaseLock']);
 });
