@@ -47,7 +47,7 @@ test('oversized locked snapshot cannot append and always releases script lock',(
   const {ctx,snapshot}=harness();
   let appended=0, released=0, locked=0;
   const adapters={
-    getLock:()=>({tryLock:()=>{locked++;return true;},releaseLock:()=>{released++;}}),
+    getLock:()=>({tryLock:()=>{locked++;return true;},hasLock:()=>true,releaseLock:()=>{released++;}}),
     isVerifiedAndEligible:()=>true,
     readSnapshot:()=>snapshot(Array.from({length:10001},(_,i)=>slot(i))),
     appendHold:()=>{appended++;return true;}

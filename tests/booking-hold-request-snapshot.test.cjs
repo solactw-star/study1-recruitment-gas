@@ -40,7 +40,7 @@ function run(mutateAt) {
   const adapters={
     getLock(){
       if(mutateAt==='getLock') mutate();
-      return {tryLock(){return true;},releaseLock(){released++;}};
+      return {tryLock(){return true;},hasLock(){return true;},releaseLock(){released++;}};
     },
     isVerifiedAndEligible(id){
       verifiedId=id;

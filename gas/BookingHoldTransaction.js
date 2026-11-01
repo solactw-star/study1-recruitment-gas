@@ -376,10 +376,18 @@ function bookingHoldOnceLocked_(request,adapters) {
   }
   var lock=adapters.getLock();
   if (!lock || typeof lock.tryLock!=='function' ||
-      typeof lock.releaseLock!=='function' || lock.tryLock(5000)!==true) {
+      typeof lock.releaseLock!=='function' ||
+      typeof lock.hasLock!=='function') {
+    throw new Error('預約全域交易鎖介面不合法，已拒絕操作。');
+  }
+  if (lock.tryLock(5000)!==true) {
     throw new Error('無法取得預約全域交易鎖，已拒絕操作。');
   }
   try {
+    // Verify actual script-lock ownership before reading or writing.
+    if (lock.hasLock()!==true) {
+      throw new Error('預約全域交易鎖狀態不一致，已拒絕操作。');
+    }
     if (adapters.isVerifiedAndEligible(applicantId)!==true) {
       return {held:false,reason:'REJECTED'};
     }

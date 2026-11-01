@@ -63,7 +63,7 @@ function run(input) {
   });
   let appended=0,released=0;
   const adapters={
-    getLock(){return {tryLock(){return true;},releaseLock(){released++;}};},
+    getLock(){return {tryLock(){return true;},hasLock(){return true;},releaseLock(){released++;}};},
     isVerifiedAndEligible(){return true;},
     readSnapshot(){return fresh(input);},
     appendHold(req){

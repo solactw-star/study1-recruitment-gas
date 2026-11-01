@@ -30,7 +30,7 @@ function make(status='CANCELLED', expiry='2026-10-29T11:59:59Z') {
     },
     isVerifiedAndEligible(){return true;},
     getLock(){return {tryLock(){locks++;return true;},
-      releaseLock(){releases++;}};},
+      hasLock(){return true;},releaseLock(){releases++;}};},
     appendHold(){appends++;return true;}
   };
   return {ctx,adapters,reservations,

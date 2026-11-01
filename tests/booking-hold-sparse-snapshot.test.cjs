@@ -31,7 +31,7 @@ function run(input, corruptReadback) {
   let reads=0, appends=0, releases=0;
   const clone = rows => rows.map(row => row.slice()); // preserve holes
   const adapters = {
-    getLock(){return {tryLock(){return true;},releaseLock(){releases++;}};},
+    getLock(){return {tryLock(){return true;},hasLock(){return true;},releaseLock(){releases++;}};},
     isVerifiedAndEligible(){return true;},
     readSnapshot(){
       reads++;
