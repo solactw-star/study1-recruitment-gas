@@ -34,7 +34,13 @@ function bookingReadOnlyAvailabilityWithLock_(openSpreadsheet, nowUtc, getScript
     if (lock.hasLock() !== true) {
       throw new Error('預約讀取鎖狀態不一致，已拒絕提供名額。');
     }
-    return bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
+    var availability = bookingReadOnlyAvailability_(openSpreadsheet, stableNowUtc);
+    // Detect lock loss during the two-pass read before acknowledging seats.
+    // This remains a best-effort check, not a Sheets transaction guarantee.
+    if (lock.hasLock() !== true) {
+      throw new Error('預約讀取鎖於讀取期間失效，已拒絕提供名額。');
+    }
+    return availability;
   } finally {
     lock.releaseLock();
   }
