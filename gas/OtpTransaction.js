@@ -88,6 +88,12 @@ function otpVerifyOnceLocked_(request, adapters) {
     if (!match || !otpBindingMatches_(match.row,request)) {
       return {verified:false,reason:'REJECTED'};
     }
+    // A native Sheets numeric attempts cell must not be silently repaired
+    // from text by the generic evaluator or throttle helpers.
+    if (typeof match.row[5] !== 'number' ||
+        !Number.isSafeInteger(match.row[5]) || match.row[5] < 0) {
+      throw new Error('OTP 嘗試次數儲存格型別不合法，已拒絕驗證。');
+    }
     // Cross-challenge limit is mandatory, using the SAME locked snapshot.
     if (!otpThrottleVerifyGate_(snapshot,request,request.nowUtc).allowed) {
       return {verified:false,reason:'REJECTED'};
@@ -111,7 +117,8 @@ function otpVerifyOnceLocked_(request, adapters) {
     otpAssertLockStillHeld_(lock);
     if (!check || check.rowNumber!==match.rowNumber ||
         !otpBindingMatches_(check.row,request) ||
-        Number(check.row[5])!==decision.attemptsAfter ||
+        typeof check.row[5] !== 'number' ||
+        check.row[5] !== decision.attemptsAfter ||
         check.row[6]!==newUsed) {
       throw new Error('OTP 狀態寫入後核對失敗，已拒絕驗證。');
     }
