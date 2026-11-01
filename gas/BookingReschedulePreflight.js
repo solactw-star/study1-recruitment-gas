@@ -31,7 +31,7 @@ function bookingReschedulePreflight_(request, adapters) {
   // real Sheets. The production adapter must provide its own consistency and
   // lock guarantees before this result can inform a transaction.
   var snapshot = bookingHoldSnapshot_(adapters);
-  bookingReadOnlyValidateTemporalCells_(snapshot);
+  bookingReadOnlyValidateTemporalCells_(snapshot, now);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
   bookingReadOnlyValidateTextMetadata_(snapshot);
   var available = bookingComputeAvailability_(
