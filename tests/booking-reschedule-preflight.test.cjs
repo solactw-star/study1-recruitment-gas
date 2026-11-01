@@ -31,6 +31,8 @@ function run(opts={}) {
   const rows=opts.rows||[reservation()];
   let reads=0, verifies=0;
   const adapters={
+    getServerNowUtc(){return Object.prototype.hasOwnProperty.call(opts,'serverNowUtc')?
+      opts.serverNowUtc:now;},
     readSnapshot(){reads++;return {slots:{headers:opts.slotHeaders||sh,rows:slots},
       reservations:{headers:opts.resHeaders||rh,rows}};},
     isVerifiedAndEligible(id){verifies++;return opts.verified!==false&&id==='APP_A';}
@@ -128,4 +130,22 @@ test('unrelated invalid live hold blocks reschedule, expired history is ignored'
   const expired=invalid.map((v,i)=>i===4?'2026-10-30T13:59:00Z':v);
   assert.deepEqual(run({slots,rows:[reservation(),expired]}).result(),
     {allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
+});
+
+
+test('untrusted request clock cannot revive an expired hold',()=>{
+  const x=run({serverNowUtc:'2026-10-30T14:20:00Z',
+    request:{nowUtc:'2026-10-30T13:50:00Z'}});
+  assert.deepEqual(x.result(),{allowed:false,reason:'REJECTED'});
+  assert.deepEqual(x.stats(),{reads:1,verifies:1});
+});
+test('invalid trusted clock fails before identity or snapshot callbacks',()=>{
+  const x=run({serverNowUtc:'not-a-date',
+    request:{nowUtc:'2026-10-30T14:00:00Z'}});
+  assert.throws(()=>x.result(),/時間/);
+  assert.deepEqual(x.stats(),{reads:0,verifies:0});
+});
+test('request time cannot make a valid hold appear expired',()=>{
+  const x=run({request:{nowUtc:'2026-10-30T14:20:00Z'}});
+  assert.deepEqual(x.result(),{allowed:true,reason:'LOCKED_RECHECK_REQUIRED'});
 });
