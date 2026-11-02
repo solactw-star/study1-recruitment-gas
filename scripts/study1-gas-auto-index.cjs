@@ -40,6 +40,7 @@ async function prepare(api,indexSource){
  const indexChanged=!same(remote.files,updated);
  const deployedIndex=core.file(deployedContent.files,'Index','HTML').source;
  const deploymentChanged=deployedIndex!==indexSource;
+ console.log('CURRENT_DEPLOYED_VERSION:',current.deploymentConfig.versionNumber,'DEPLOYED_INDEX_MATCHES_GITHUB:',!deploymentChanged);
  const snapshot={scriptId:id,triggerSha:process.env.GITHUB_SHA||'',readAt:new Date().toISOString(),
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
   indexSha256:core.sha(indexSource),deployment:dep,deploymentId:dep.deploymentId,
@@ -122,10 +123,12 @@ async function apply(api,indexSource,s){
  const originalAudience=JSON.stringify(s.deployedWebapp);
  ensure(JSON.stringify(JSON.parse(core.file(immutable.files,'appsscript','JSON').source).webapp)===originalAudience,'New immutable version changes original /exec audience');
  const current=await api.getDeployment(s.deploymentId);
+ console.log('DEPLOYMENT_BEFORE_UPDATE:',current.deploymentConfig?.versionNumber,'expected:',s.oldVersion,'newly created:',newVersion.versionNumber);
  core.deploymentCheck(current,s.deploymentId,s.oldVersion);
  ensure(JSON.stringify(current)===JSON.stringify(s.deployment),'Deployment changed before update; DO NOT deploy');
  await api.putDeployment(s.deploymentId,{...current.deploymentConfig,versionNumber:newVersion.versionNumber});
  const finalDeployment=await api.getDeployment(s.deploymentId);
+ console.log('DEPLOYMENT_AFTER_UPDATE:',finalDeployment.deploymentConfig?.versionNumber,'expected:',newVersion.versionNumber);
  const details=core.deploymentCheck(finalDeployment,s.deploymentId,newVersion.versionNumber);
  ensure(details.url===s.oldUrl,'Existing /exec URL changed unexpectedly');
  const deployed=await api.getVersion(newVersion.versionNumber);
