@@ -9,6 +9,7 @@ main{max-width:900px;margin:auto;padding:24px}h1{margin:0;font-size:26px}p{margi
 section{margin:16px 0;padding:20px;background:white;border:1px solid #cfdfdc;border-radius:12px}
 label{display:block;font-weight:650;margin:12px 0 4px}
 input,textarea{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px solid #789d9b;border-radius:6px;background:white}
+input[type=checkbox]{width:auto;min-width:20px;min-height:20px;vertical-align:middle}
 textarea{min-height:75px;resize:vertical}
 button{padding:12px 19px;border:0;border-radius:8px;background:#176d70;color:white;font:inherit;margin:8px 8px 8px 0}
 button:disabled{opacity:.5}button.secondary{background:#355a65}
@@ -22,7 +23,19 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 <label for="intro">研究介紹（測試）</label><textarea id="intro" maxlength="1500"></textarea>
 <label for="eligibility">資格說明（測試）</label><textarea id="eligibility" maxlength="750"></textarea>
 <label for="questions">測試資格題目 JSON（最多六題）</label><textarea id="questions" rows="6" spellcheck="false"></textarea>
-<small>格式：{"id":"test_q1","text":"測試題目","required":true}</small></section>
+<small>格式：{"id":"test_q1","text":"測試題目","required":true}</small>
+<div class="notice" role="group" aria-labelledby="questionEditorTitle">
+<h3 id="questionEditorTitle">測試資格題目表單編輯器</h3>
+<p>僅編輯隔離測試題目，並非正式 REC 核准初篩題。先套用至草稿，再使用下方「檢查設定」及「儲存」。</p>
+<label for="questionNumber">題目序號（1 至 6）</label><input id="questionNumber" type="number" min="1" max="6" step="1" value="1">
+<button class="secondary" id="questionLoad" type="button" disabled>載入此題</button>
+<label for="questionText">測試題目文字</label><textarea id="questionText" maxlength="200"></textarea>
+<label for="questionRequired">此測試題目為必填 <input id="questionRequired" type="checkbox"></label>
+<button class="secondary" id="questionApply" type="button" disabled>套用題目修改（尚未儲存）</button>
+<button class="secondary" id="questionAdd" type="button" disabled>新增測試題目</button>
+<button class="secondary" id="questionRemove" type="button" disabled>刪除此筆測試題目</button>
+<p><small>所有題目只會寫入 ScriptProperties 的隔離設定，不會更新正式問卷或資格規則。</small></p>
+</div></section>
 <section><h2>測試預約設定</h2>
 <label for="slots">測試時段 JSON（最多八筆）</label><textarea id="slots" rows="6" spellcheck="false"></textarea>
 <small>格式：{"id":"test_slot_1","start":"2027-01-01T10:00","location":"〔測試〕研究室 A","capacity":2}</small>
@@ -58,14 +71,14 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 const $=id=>document.getElementById(id);
 let revision=null;
 function status(message){$('status').textContent=String(message);}
-function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest'])$(id).disabled=!!flag;}
+function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest','questionLoad','questionApply','questionAdd','questionRemove'])$(id).disabled=!!flag;}
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
  const c=response.config;revision=c.revision;
  $('title').value=c.studyTitle;$('intro').value=c.researchIntro;$('eligibility').value=c.eligibilityNote;
  $('questions').value=JSON.stringify(c.screeningQuestions,null,2);$('slots').value=JSON.stringify(c.testSlots,null,2);
  $('template').value=c.emailTemplate;$('pdf').value=c.pdfVersionNote;$('revision').textContent=String(revision);
- setDisabled(false);$('slotNumber').value='1';loadSlot(false);status('已載入隔離測試資料；正式報名與簽署仍關閉。');
+ setDisabled(false);$('slotNumber').value='1';loadSlot(false);$('questionNumber').value='1';loadQuestion(false);status('已載入隔離測試資料；正式報名與簽署仍關閉。');
 }
 function failed(error){setDisabled(true);$('reload').disabled=false;status('已拒絕操作或發生錯誤：'+String(error&&error.message||error));}
 function reload(){setDisabled(true);status('驗證研究室帳號並讀取測試設定……');
@@ -119,6 +132,64 @@ function runSelfTest(){
     $('selftestResult').textContent='FAIL：'+String(error&&error.message||error);
     status('隔離自我測試未通過，不得標示驗收完成。');
   }).adminRunSandboxSelfTest();
+}
+function questionRows(){
+ const rows=JSON.parse($('questions').value);
+ if(!Array.isArray(rows))throw Error('測試題目 JSON 必須是陣列');
+ return rows;
+}
+function selectedQuestion(rows){
+ const n=Number($('questionNumber').value);
+ if(!Number.isInteger(n)||n<1||n>rows.length)throw Error('請選擇現有的題目序號（1 至 '+rows.length+'）');
+ return n-1;
+}
+function loadQuestion(announce=true){
+ try{
+  const rows=questionRows(),question=rows[selectedQuestion(rows)];
+  $('questionText').value=question.text;
+  $('questionRequired').checked=question.required===true;
+  if(announce)status('已載入測試題目 '+question.id+'；尚未儲存。');
+ }catch(e){
+  $('questionText').value='';$('questionRequired').checked=false;
+  if(announce)status('無法載入測試題目：'+String(e.message));
+ }
+}
+function questionDraft(id){
+ const value=$('questionText').value;
+ if(!value.trim()||value.length>200||/[<>]/.test(value))throw Error('題目文字須為 1 至 200 字且不可包含 HTML');
+ return {id,text:value.trim(),required:$('questionRequired').checked===true};
+}
+function applyQuestion(){
+ try{
+  const rows=questionRows(),i=selectedQuestion(rows);
+  rows[i]=questionDraft(rows[i].id);
+  $('questions').value=JSON.stringify(rows,null,2);
+  status('已套用第 '+(i+1)+' 題至草稿；尚未儲存。');
+ }catch(e){status('測試題目修改未套用：'+String(e.message));}
+}
+function addQuestion(){
+ try{
+  const rows=questionRows();
+  if(rows.length>=6)throw Error('最多六題');
+  const used=new Set(rows.map(x=>x.id));
+  let id='';
+  for(let n=1;n<=6;n++)if(!used.has('test_q'+n)){id='test_q'+n;break;}
+  if(!id)throw Error('測試題目代碼已用完');
+  rows.push(questionDraft(id));
+  $('questions').value=JSON.stringify(rows,null,2);
+  $('questionNumber').value=String(rows.length);
+  status('已新增 '+id+' 至草稿，尚未儲存。');
+ }catch(e){status('測試題目未新增：'+String(e.message));}
+}
+function removeQuestion(){
+ try{
+  const rows=questionRows(),i=selectedQuestion(rows),id=rows[i].id;
+  rows.splice(i,1);
+  $('questions').value=JSON.stringify(rows,null,2);
+  $('questionNumber').value=String(Math.max(1,Math.min(i+1,rows.length)));
+  loadQuestion(false);
+  status('已從草稿移除 '+id+'；尚未儲存。');
+ }catch(e){status('測試題目未刪除：'+String(e.message));}
 }
 function slotRows(){
  const rows=JSON.parse($('slots').value);
@@ -181,6 +252,7 @@ function removeSlot(){
  }catch(e){status('測試時段未刪除：'+String(e.message));}
 }
 $('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);$('selftest').addEventListener('click',runSelfTest);
+$('questionLoad').addEventListener('click',()=>loadQuestion());$('questionApply').addEventListener('click',applyQuestion);$('questionAdd').addEventListener('click',addQuestion);$('questionRemove').addEventListener('click',removeQuestion);
 $('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
 reload();
 })();

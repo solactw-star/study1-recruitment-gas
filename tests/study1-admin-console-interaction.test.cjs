@@ -7,7 +7,7 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
  const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
@@ -233,4 +233,51 @@ test('Browser self-test with non-owner is blocked; no PASS and no property write
  const s=server('visitor@example.com','solac.tw@gmail.com'),ui=client(s);
  assert.equal(ui.el('selftest').disabled,true);
  assert.equal(s.props.size,0);
+});
+
+test('Structured question editor modifies a synthetic eligibility question and saves through owner-only GAS RPC',()=>{
+ const srv=server(),ui=client(srv);
+ assert.match(ui.el('questionText').value,/測試題/);
+ assert.equal(ui.el('questionRequired').checked,true);
+ ui.el('questionText').value='〔測試〕新的資格說明問題？';
+ ui.el('questionRequired').checked=false;
+ ui.click('questionApply');
+ assert.equal(srv.props.size,0);
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查通過/);
+ ui.click('save');
+ assert.equal(srv.props.size,1);
+ const next=client(srv);
+ assert.equal(next.el('questionText').value,'〔測試〕新的資格說明問題？');
+ assert.equal(next.el('questionRequired').checked,false);
+ assert.equal(next.el('revision').textContent,'1');
+});
+test('Question editor can add and remove a synthetic question without touching live research',()=>{
+ const srv=server(),ui=client(srv);
+ ui.el('questionText').value='〔測試〕第二題';
+ ui.el('questionRequired').checked=true;
+ ui.click('questionAdd');
+ const added=JSON.parse(ui.el('questions').value);
+ assert.equal(added.length,2);
+ assert.equal(added[1].id,'test_q2');
+ assert.equal(added[1].required,true);
+ assert.equal(srv.props.size,0);
+ ui.click('questionRemove');
+ assert.equal(JSON.parse(ui.el('questions').value).length,1);
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查通過/);
+ assert.equal(srv.props.size,0);
+});
+test('Question editor rejects HTML and empty questions before mutation; non-owner controls stay disabled',()=>{
+ const srv=server(),ui=client(srv),original=ui.el('questions').value;
+ ui.el('questionText').value='<script>alert(1)</script>';
+ ui.click('questionApply');
+ assert.equal(ui.el('questions').value,original);
+ assert.match(ui.el('status').textContent,/未套用/);
+ ui.el('questionText').value='  ';
+ ui.click('questionAdd');
+ assert.equal(ui.el('questions').value,original);
+ assert.equal(srv.props.size,0);
+ const blocked=client(server('','solac.tw@gmail.com'));
+ for(const id of ['questionLoad','questionApply','questionAdd','questionRemove'])assert.equal(blocked.el(id).disabled,true,id);
 });
