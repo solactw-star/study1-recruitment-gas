@@ -7,7 +7,7 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
  const store={getProperty:key=>props.get(key)||null,setProperty:(key,v)=>{
@@ -160,4 +160,62 @@ test('Non-owner cannot use the new unsaved validation RPC',()=>{
  const draft={studyTitle:'〔測試〕非法請求'};
  assert.throws(()=>s.ctx.adminValidateSandboxConfig(draft),/拒絕存取/);
  assert.equal(s.props.size,0);
+});
+
+test('Structured slot editor loads existing fixture, edits it and saves through actual owner-gated GAS RPC',()=>{
+ const srv=server(),ui=client(srv);
+ assert.equal(ui.el('slotStart').value,'2027-01-01T10:00');
+ assert.equal(ui.el('slotLocation').value,'〔測試〕研究室 A');
+ assert.equal(ui.el('slotCapacity').value,'2');
+ ui.el('slotStart').value='2027-03-12T14:30';
+ ui.el('slotLocation').value='〔測試〕研究室 B';
+ ui.el('slotCapacity').value='5';
+ ui.click('slotApply');
+ assert.equal(srv.props.size,0,'Applying a draft must not write properties');
+ assert.equal(JSON.parse(ui.el('slots').value)[0].capacity,5);
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查通過/);
+ assert.equal(srv.props.size,0);
+ ui.click('save');
+ assert.equal(srv.props.size,1);
+ const fresh=client(srv);
+ assert.equal(fresh.el('slotStart').value,'2027-03-12T14:30');
+ assert.equal(fresh.el('slotLocation').value,'〔測試〕研究室 B');
+ assert.equal(fresh.el('slotCapacity').value,'5');
+});
+test('Structured slot editor adds and removes only synthetic draft rows without writing to live Sheets',()=>{
+ const srv=server(),ui=client(srv);
+ ui.el('slotStart').value='2027-04-01T09:15';
+ ui.el('slotLocation').value='〔測試〕研究室 C';
+ ui.el('slotCapacity').value='3';
+ ui.click('slotAdd');
+ assert.equal(JSON.parse(ui.el('slots').value).length,2);
+ assert.equal(JSON.parse(ui.el('slots').value)[1].id,'test_slot_2');
+ assert.equal(ui.el('slotNumber').value,'2');
+ assert.equal(srv.props.size,0);
+ ui.click('slotRemove');
+ assert.equal(JSON.parse(ui.el('slots').value).length,1);
+ assert.equal(ui.el('slotNumber').value,'1');
+ assert.equal(srv.props.size,0);
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查通過/);
+});
+test('Slot editor refuses malformed drafts and server rejects impossible dates',()=>{
+ const srv=server(),ui=client(srv),original=ui.el('slots').value;
+ ui.el('slotCapacity').value='0';
+ ui.click('slotApply');
+ assert.equal(ui.el('slots').value,original);
+ assert.match(ui.el('status').textContent,/未套用/);
+ ui.el('slotCapacity').value='2';
+ ui.el('slotStart').value='2027-02-30T10:00';
+ ui.click('slotApply');
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查未通過/);
+ assert.equal(srv.props.size,0);
+});
+test('Redacted active identity disables structured slot controls before any RPC write',()=>{
+ const srv=server('','solac.tw@gmail.com'),ui=client(srv);
+ for(const id of ['save','check','slotLoad','slotApply','slotAdd','slotRemove'])assert.equal(ui.el(id).disabled,true,id);
+ assert.equal(ui.el('reload').disabled,false);
+ assert.equal(srv.props.size,0);
 });
