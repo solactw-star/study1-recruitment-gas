@@ -4,6 +4,8 @@ const APPROVED_BACKEND = Object.freeze([{name:'Website',type:'SERVER_JS',path:'g
 function assertClosedWebsite(source) {
   if(typeof source!=='string') throw Error('Missing Website source');
   const required=[
+    "const SITE_CONTACT_ = 'lily4318@cycu.edu.tw';",
+    "operations:'1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ'",
     'function doGet()',
     'function getPublicConfig(){return {open:false,consentReady:false',
     'function requestOtp(){return rejectIntake_();}',
