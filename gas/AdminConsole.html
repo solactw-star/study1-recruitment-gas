@@ -61,6 +61,21 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 <button class="secondary" id="reload" type="button">重新讀取</button>
 <button class="secondary" id="selftest" type="button" disabled>執行隔離自我測試（結束自動清理）</button>
 <pre id="selftestResult" aria-live="polite" role="status" style="white-space:pre-wrap;font:inherit">尚未執行 GAS 真實自我測試。</pre>
+<div class="notice" role="group" aria-labelledby="bookingTitle">
+<h3 id="bookingTitle">隔離測試預約管理（最多 20 筆）</h3>
+<p>這裡只能使用 TST-001 等虛構測試代碼，不得輸入姓名、電話或電子郵件。時段與容量來自上方已儲存的隔離測試設定。所有操作由 GAS 伺服器在鎖內執行。</p>
+<button class="secondary" id="bookingRefresh" type="button" disabled>讀取測試預約與剩餘名額</button>
+<pre id="bookingList" role="status" aria-live="polite" style="white-space:pre-wrap;font:inherit">尚未讀取測試預約。</pre>
+<label for="bookingCode">虛構預約代碼（TST-001 至 TST-999）</label><input id="bookingCode" maxlength="7" value="TST-001" autocomplete="off">
+<label for="bookingSlotId">目標測試時段代碼（例如 test_slot_1，取消時不使用）</label>
+<input id="bookingSlotId" maxlength="11" value="test_slot_1" autocomplete="off">
+<label for="bookingRequest">本次操作識別碼（重新送出同一操作時保留；不作身分驗證）</label>
+<input id="bookingRequest" maxlength="54" autocomplete="off" placeholder="按操作後自動產生">
+<button class="secondary" id="bookingCreate" type="button" disabled>建立測試預約</button>
+<button class="secondary" id="bookingMove" type="button" disabled>改期至目標測試時段</button>
+<button class="secondary" id="bookingCancel" type="button" disabled>取消測試預約</button>
+<p><small>只有成功回讀才顯示操作完成。變更會保存在 STUDY1_SANDBOX_BOOKINGS_V1，與正式預約工作簿完全分離。新操作請清空操作識別碼。</small></p>
+</div>
 <div class="notice" role="group" aria-labelledby="portableTitle">
 <h3 id="portableTitle">隔離測試設定匯出與匯入草稿</h3>
 <p>只處理測試研究設定。匯出內容是上次由伺服器讀取的已儲存版本，不包含尚未儲存的變更。匯入需先經伺服器檢查，僅放入草稿，必須再按上方「儲存」才會寫入隔離設定。</p>
@@ -78,9 +93,9 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-let revision=null,lastLoadedConfig=null;
+let revision=null,lastLoadedConfig=null,bookingRevision=null;
 function status(message){$('status').textContent=String(message);}
-function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest','questionLoad','questionApply','questionAdd','questionRemove','exportConfig','importConfig'])$(id).disabled=!!flag;}
+function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest','questionLoad','questionApply','questionAdd','questionRemove','exportConfig','importConfig','bookingRefresh','bookingCreate','bookingMove','bookingCancel'])$(id).disabled=!!flag;}
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
  const c=response.config;revision=c.revision;lastLoadedConfig=JSON.parse(JSON.stringify(c));
@@ -189,6 +204,48 @@ function runSelfTest(){
     $('selftestResult').textContent='FAIL：'+String(error&&error.message||error);
     status('隔離自我測試未通過，不得標示驗收完成。');
   }).adminRunSandboxSelfTest();
+}
+function showBookings(response){
+ if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false||
+   !Number.isSafeInteger(response.revision)||!Array.isArray(response.slots)||!Array.isArray(response.bookings))
+   throw Error('隔離測試預約回傳格式錯誤');
+ bookingRevision=response.revision;
+ const summary=['測試預約版本：'+response.revision+(response.deduplicated?'（重複請求，未再執行）':''),
+   '測試時段：',...response.slots.map(x=>x.id+'｜'+x.start+'｜'+x.location+
+     '｜名額 '+x.booked+'/'+x.capacity+'｜剩餘 '+x.remaining+(x.overCapacity?'（容量設定異常）':'')),
+   '預約：',...response.bookings.map(x=>x.code+'｜'+x.slotId+'｜'+(x.status==='ACTIVE'?'有效':'已取消'))];
+ $('bookingList').textContent=summary.join('\n');
+ $('bookingRequest').value='';
+ setDisabled(false);
+ status('已由 GAS 讀回測試預約；正式報名與預約仍關閉。');
+}
+function refreshBookings(){
+ setDisabled(true);status('從隔離屬性讀取測試預約及容量……');
+ google.script.run.withSuccessHandler(showBookings).withFailureHandler(function(error){
+  setDisabled(false);status('測試預約查詢失敗：'+String(error&&error.message||error));
+ }).adminGetTestBookings();
+}
+function changeBooking(action){
+ try{
+  if(!Number.isSafeInteger(bookingRevision))throw Error('請先按「讀取測試預約與剩餘名額」');
+  const bookingCode=$('bookingCode').value.trim();
+  const slotId=action==='CANCEL'?null:$('bookingSlotId').value.trim();
+  if(!/^TST-[0-9]{3}$/.test(bookingCode)||
+    (slotId!==null&&!/^test_slot_[1-8]$/.test(slotId)))
+    throw Error('僅允許測試代碼 TST-001 與 test_slot_1 等格式');
+  let requestId=$('bookingRequest').value.trim();
+  if(!requestId){
+   // Idempotency marker only; not an authentication credential or OTP.
+   requestId='REQ-'+String(Date.now())+'-'+String(Math.floor(Math.random()*100000000));
+   $('bookingRequest').value=requestId;
+  }
+  if(!/^REQ-[A-Za-z0-9-]{8,50}$/.test(requestId))throw Error('操作代碼格式錯誤');
+  setDisabled(true);status('GAS 伺服器正在鎖內核對測試容量與 revision……');
+  google.script.run.withSuccessHandler(showBookings).withFailureHandler(function(error){
+   setDisabled(false);status('測試預約操作失敗：'+String(error&&error.message||error)+
+     '；同一操作重試時可保留識別碼。');
+  }).adminChangeTestBooking({action,bookingCode,slotId,requestId,expectedRevision:bookingRevision});
+ }catch(e){status('測試預約格式錯誤：'+String(e.message));}
 }
 function questionRows(){
  const rows=JSON.parse($('questions').value);
@@ -310,6 +367,10 @@ function removeSlot(){
 }
 $('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);$('selftest').addEventListener('click',runSelfTest);
 $('exportConfig').addEventListener('click',exportConfig);$('importConfig').addEventListener('click',importConfig);
+$('bookingRefresh').addEventListener('click',refreshBookings);
+$('bookingCreate').addEventListener('click',()=>changeBooking('CREATE'));
+$('bookingMove').addEventListener('click',()=>changeBooking('MOVE'));
+$('bookingCancel').addEventListener('click',()=>changeBooking('CANCEL'));
 $('questionLoad').addEventListener('click',()=>loadQuestion());$('questionApply').addEventListener('click',applyQuestion);$('questionAdd').addEventListener('click',addQuestion);$('questionRemove').addEventListener('click',removeQuestion);
 $('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
 reload();

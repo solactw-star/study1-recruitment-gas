@@ -8,6 +8,7 @@ on:
       - 'gas/AdminSandbox.js'
       - 'gas/AdminConsole.html'
       - 'tests/study1-admin-sandbox.test.cjs'
+      - 'tests/study1-admin-bookings.test.cjs'
       - 'tests/study1-admin-console-interaction.test.cjs'
       - 'tests/public-global-surface.test.cjs'
       - 'scripts/study1-gas-backend-allowlist.cjs'

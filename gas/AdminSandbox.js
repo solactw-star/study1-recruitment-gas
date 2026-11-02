@@ -2,6 +2,7 @@
 const STUDY1_ADMIN_OWNER_='solac.tw@gmail.com';
 const STUDY1_ADMIN_PROPERTY_='STUDY1_SANDBOX_ADMIN_CONFIG_V1';
 const STUDY1_ADMIN_SELFTEST_PROPERTY_='STUDY1_SANDBOX_SELFTEST_V1';
+const STUDY1_SANDBOX_BOOKINGS_PROPERTY_='STUDY1_SANDBOX_BOOKINGS_V1';
 function study1AdminOwnerRequired_(){
   // Fail closed if Google redacts the active caller identity. EffectiveUser
   // alone is the deploying account in execute-as-me apps, not the caller.
@@ -166,4 +167,108 @@ function adminRunSandboxSelfTest(){
   result.checks.push('暫存測試資料已清理');
   result.cleanupVerified=true;
   return result;
+}
+
+/** Synthetic bookings only. No human identifiers, emails, OTP or formal Sheets. */
+function study1SandboxBookingState_(){
+  const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_);
+  if(raw===null)return {schemaVersion:1,revision:0,bookings:[],requests:[]};
+  const parsed=JSON.parse(raw);
+  if(!parsed||parsed.schemaVersion!==1||!Number.isSafeInteger(parsed.revision)||
+    parsed.revision<1||!Array.isArray(parsed.bookings)||!Array.isArray(parsed.requests)||
+    parsed.bookings.length>20||parsed.requests.length>35)throw Error('隔離預約資料版本或結構異常');
+  for(const b of parsed.bookings){
+    if(!b||Object.keys(b).sort().join(',')!=='code,slotId,status'||
+      !/^TST-[0-9]{3}$/.test(b.code)||!/^test_slot_[1-8]$/.test(b.slotId)||
+      !['ACTIVE','CANCELLED'].includes(b.status))throw Error('隔離預約內容異常');
+  }
+  for(const x of parsed.requests){
+    if(!x||Object.keys(x).sort().join(',')!=='fingerprint,requestId'||
+      !/^REQ-[A-Za-z0-9-]{8,50}$/.test(x.requestId)||
+      typeof x.fingerprint!=='string'||x.fingerprint.length>120)throw Error('隔離請求歷史異常');
+  }
+  if(new Set(parsed.bookings.map(x=>x.code)).size!==parsed.bookings.length||
+     new Set(parsed.requests.map(x=>x.requestId)).size!==parsed.requests.length)throw Error('隔離代碼重複');
+  return parsed;
+}
+function study1SandboxBookingFlags_(){
+  const p=PropertiesService.getScriptProperties();
+  if(p.getProperty('OPEN')!=='false'||p.getProperty('CONSENT_READY')!=='false')
+    throw Error('正式收件關閉旗標未確認，拒絕隔離預約');
+}
+function study1SandboxBookingView_(state,config){
+  const slots=config.testSlots.map(slot=>{
+    const booked=state.bookings.filter(b=>b.status==='ACTIVE'&&b.slotId===slot.id).length;
+    return {id:slot.id,start:slot.start,location:slot.location,capacity:slot.capacity,
+      booked,remaining:Math.max(0,slot.capacity-booked),overCapacity:booked>slot.capacity};
+  });
+  return {mode:'SANDBOX_ONLY',open:false,consentReady:false,revision:state.revision,
+    slots,bookings:state.bookings.map(x=>({code:x.code,slotId:x.slotId,status:x.status}))};
+}
+function adminGetTestBookings(){
+  study1AdminOwnerRequired_();
+  study1SandboxBookingFlags_();
+  const config=study1AdminPersisted_();
+  const state=study1SandboxBookingState_();
+  return study1SandboxBookingView_(state,config);
+}
+/** A single owner-only server transaction; all capacity checks are locked. */
+function adminChangeTestBooking(input){
+  study1AdminOwnerRequired_();
+  study1SandboxBookingFlags_();
+  if(!input||typeof input!=='object'||Array.isArray(input)||
+    Object.keys(input).sort().join(',')!=='action,bookingCode,expectedRevision,requestId,slotId')
+    throw Error('測試預約請求只允許核准欄位');
+  const {action,bookingCode,slotId,requestId,expectedRevision}=input;
+  if(!['CREATE','MOVE','CANCEL'].includes(action)||
+    typeof bookingCode!=='string'||!/^TST-[0-9]{3}$/.test(bookingCode)||
+    typeof requestId!=='string'||!/^REQ-[A-Za-z0-9-]{8,50}$/.test(requestId)||
+    !(slotId===null||typeof slotId==='string'&&/^test_slot_[1-8]$/.test(slotId))||
+    !Number.isSafeInteger(expectedRevision)||expectedRevision<0)
+    throw Error('隔離預約指令格式不符；不得使用真人資訊');
+  if((action==='CANCEL')!==(slotId===null))throw Error('取消不可指定時段；建立或改期必須指定時段');
+  const fingerprint=JSON.stringify([action,bookingCode,slotId]);
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(8000))throw Error('測試預約正由其他工作更新，請重新讀取');
+  try{
+    study1SandboxBookingFlags_();
+    const config=study1AdminPersisted_(),state=study1SandboxBookingState_();
+    const repeated=state.requests.find(x=>x.requestId===requestId);
+    if(repeated){
+      if(repeated.fingerprint!==fingerprint)throw Error('重複請求代碼對應不同操作，拒絕執行');
+      const view=study1SandboxBookingView_(state,config);
+      view.deduplicated=true;
+      return view;
+    }
+    if(state.revision!==expectedRevision)throw Error('測試預約已被更新，請重新讀取 revision');
+    if(state.requests.length>=35)throw Error('測試請求紀錄已達上限，停止新增操作');
+    const existing=state.bookings.find(x=>x.code===bookingCode);
+    const target=config.testSlots.find(x=>x.id===slotId);
+    if(action!=='CANCEL'&&!target)throw Error('指定的測試時段不存在');
+    if(action==='CREATE'){
+      if(existing)throw Error('測試代碼已存在，不可重複建立');
+      if(state.bookings.length>=20)throw Error('隔離預約已達 20 筆上限');
+    }else{
+      if(!existing||existing.status!=='ACTIVE')throw Error('只有仍有效的測試預約可以改期或取消');
+      if(action==='MOVE'&&existing.slotId===slotId)throw Error('新時段與原時段相同');
+    }
+    if(action!=='CANCEL'){
+      const occupied=state.bookings.filter(x=>x.status==='ACTIVE'&&x.slotId===slotId).length;
+      if(occupied>=target.capacity)throw Error('測試時段容量已滿；拒絕超額預約');
+    }
+    if(action==='CREATE')state.bookings.push({code:bookingCode,slotId,status:'ACTIVE'});
+    if(action==='MOVE')existing.slotId=slotId;
+    if(action==='CANCEL')existing.status='CANCELLED';
+    state.revision++;
+    state.requests.push({requestId,fingerprint});
+    const payload=JSON.stringify(state);
+    if(payload.length>7900)throw Error('隔離預約資料達到容量限制');
+    const p=PropertiesService.getScriptProperties();
+    p.setProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_,payload);
+    if(p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_)!==payload)
+      throw Error('測試預約寫入後回讀不一致');
+    const view=study1SandboxBookingView_(state,config);
+    view.deduplicated=false;
+    return view;
+  }finally{lock.releaseLock();}
 }

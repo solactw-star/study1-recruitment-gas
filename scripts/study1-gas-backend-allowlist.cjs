@@ -36,6 +36,12 @@ function assertAdminSandbox(source){
   "const STUDY1_ADMIN_PROPERTY_='STUDY1_SANDBOX_ADMIN_CONFIG_V1'",
   "const STUDY1_ADMIN_SELFTEST_PROPERTY_='STUDY1_SANDBOX_SELFTEST_V1'",
   'function adminRunSandboxSelfTest(){',
+  "const STUDY1_SANDBOX_BOOKINGS_PROPERTY_='STUDY1_SANDBOX_BOOKINGS_V1'",
+  'function adminGetTestBookings(){',
+  'function adminChangeTestBooking(input){',
+  'study1SandboxBookingFlags_();',
+  'LockService.getScriptLock()',
+  'p.setProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_,payload)',
   'study1AdminRequireRevision_(observed,0)',
   'p.deleteProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)',
   'Session.getActiveUser().getEmail()',
@@ -52,14 +58,14 @@ function assertAdminSandbox(source){
   "mode:'SANDBOX_ONLY',open:false,consentReady:false"
  ];
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
- const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest']);
+ const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
 }
 function assertAdminHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>'))throw Error('Missing admin HTML');
- for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","STUDY1_SANDBOX_EXPORT_V1","importConfig()","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
+ for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","STUDY1_SANDBOX_EXPORT_V1","importConfig()","adminGetTestBookings()","adminChangeTestBooking({action,bookingCode,slotId,requestId,expectedRevision:bookingRevision})","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))throw Error('Unreviewed admin HTML operation');
 }
 function mergeApproved(core,remote,index,website,adminScript,adminHtml){

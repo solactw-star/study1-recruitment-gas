@@ -7,11 +7,11 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson','bookingRefresh','bookingList','bookingCode','bookingSlotId','bookingRequest','bookingCreate','bookingMove','bookingCancel'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
- const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
-  assert.ok(['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(key),'Only isolated properties');
+ const store={getProperty:key=>['OPEN','CONSENT_READY'].includes(key)?'false':props.has(key)?props.get(key):null,setProperty:(key,v)=>{
+  assert.ok(['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_SANDBOX_BOOKINGS_V1'].includes(key),'Only isolated properties');
   props.set(key,v);
  },deleteProperty:key=>{assert.equal(key,'STUDY1_SANDBOX_SELFTEST_V1');props.delete(key);}};
  const ctx=vm.createContext({
@@ -37,7 +37,9 @@ function client(srv){
   adminGetSandboxConfig(){calls.push('get');try{success(srv.ctx.adminGetSandboxConfig());}catch(e){failure(e);}},
   adminSaveSandboxConfig(config,rev){calls.push('save');try{success(srv.ctx.adminSaveSandboxConfig(config,rev));}catch(e){failure(e);}},
   adminValidateSandboxConfig(config){calls.push('check');try{success(srv.ctx.adminValidateSandboxConfig(config));}catch(e){failure(e);}},
-  adminRunSandboxSelfTest(){calls.push('selftest');try{success(srv.ctx.adminRunSandboxSelfTest());}catch(e){failure(e);}}
+  adminRunSandboxSelfTest(){calls.push('selftest');try{success(srv.ctx.adminRunSandboxSelfTest());}catch(e){failure(e);}},
+  adminGetTestBookings(){calls.push('booking-read');try{success(srv.ctx.adminGetTestBookings());}catch(e){failure(e);}},
+  adminChangeTestBooking(data){calls.push('booking-write');try{success(srv.ctx.adminChangeTestBooking(data));}catch(e){failure(e);}}
  };
  const ctx=vm.createContext({document:{getElementById:id=>dom.get(id)},google:{script:{run:api}},JSON,String,Number,Error});
  vm.runInContext(clientSource,ctx,{timeout:1000});
@@ -346,4 +348,32 @@ test('Non-owner cannot export or import sandbox configuration',()=>{
  const ui=client(server('visitor@example.com','solac.tw@gmail.com'));
  assert.equal(ui.el('exportConfig').disabled,true);
  assert.equal(ui.el('importConfig').disabled,true);
+});
+
+test('Admin owner can query isolated test bookings through real page RPC',()=>{
+ const srv=server(),ui=client(srv);
+ ui.click('bookingRefresh');
+ assert.deepEqual(ui.calls,['get','booking-read']);
+ assert.match(ui.el('bookingList').textContent,/test_slot_1/);
+ assert.match(ui.el('bookingList').textContent,/剩餘 2/);
+ assert.equal(srv.props.size,0);
+});
+test('Booking UI creates, reads and cancels TST-only record without formal data',()=>{
+ const srv=server(),ui=client(srv);
+ ui.click('bookingRefresh');
+ ui.el('bookingCode').value='TST-001';
+ ui.el('bookingSlotId').value='test_slot_1';
+ ui.click('bookingCreate');
+ assert.match(ui.el('bookingList').textContent,/TST-001/);
+ assert.equal(srv.props.size,1);
+ ui.click('bookingCancel');
+ assert.match(ui.el('bookingList').textContent,/已取消/);
+ assert.equal(JSON.parse(srv.props.get('STUDY1_SANDBOX_BOOKINGS_V1')).bookings[0].status,'CANCELLED');
+});
+test('Anonymous user sees disabled sandbox booking controls and cannot call server RPC',()=>{
+ const srv=server('visitor@example.com','solac.tw@gmail.com'),ui=client(srv);
+ for(const k of ['bookingRefresh','bookingCreate','bookingMove','bookingCancel'])
+   assert.equal(ui.el(k).disabled,true);
+ assert.throws(()=>srv.ctx.adminGetTestBookings(),/拒絕存取/);
+ assert.equal(srv.props.size,0);
 });
