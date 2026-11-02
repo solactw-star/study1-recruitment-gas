@@ -36,7 +36,7 @@ function assertAdminSandbox(source){
   "const STUDY1_ADMIN_PROPERTY_='STUDY1_SANDBOX_ADMIN_CONFIG_V1'",
   'Session.getActiveUser().getEmail()',
   'Session.getEffectiveUser().getEmail()',
-  'if(effective!==STUDY1_ADMIN_OWNER_||(active&&active!==STUDY1_ADMIN_OWNER_))',
+  'if(effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_)',
   'function adminGetSandboxConfig(){',
   'function adminSaveSandboxConfig(input,expectedRevision){',
   'function adminValidateSandboxConfig(input){',
