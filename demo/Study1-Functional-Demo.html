@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Study 1｜完整流程測試工作台（非正式報名）</title>
+<style>
+:root{font-family:system-ui,"Microsoft JhengHei",sans-serif;color:#193844;background:#f3f8f7}*{box-sizing:border-box}body{margin:0;line-height:1.65}header{background:#125b61;color:white;padding:22px max(18px,calc((100vw - 1100px)/2))}header h1{margin:0;font-size:26px}header p{margin:6px 0}main{max-width:1100px;margin:auto;padding:24px 18px 70px}section{background:white;border:1px solid #d3e1df;border-radius:14px;padding:22px;margin:18px 0}h2{margin-top:0}h3{margin-bottom:8px}.warning{background:#fff3d5;border:2px solid #b36b1c;padding:14px;border-radius:10px;color:#54330a}label{display:block;margin:12px 0 4px;font-weight:650}input,select,textarea,button{font:inherit}input,select,textarea{width:100%;max-width:650px;padding:9px;border:1px solid #829d9b;border-radius:6px;background:white}input[type=checkbox],input[type=radio]{width:auto;margin-right:8px}button,.action{padding:9px 14px;border-radius:7px;border:1px solid #155f63;background:#176b70;color:white;cursor:pointer;margin:6px 6px 6px 0}button.secondary{background:white;color:#155f63}button:disabled{opacity:.5;cursor:not-allowed}.row{display:flex;flex-wrap:wrap;gap:18px}.row>*{flex:1;min-width:220px}.card{border:1px solid #d4e5e0;padding:12px;margin:10px 0;border-radius:9px}fieldset{border:1px solid #b7ccc9;margin:10px 0;padding:12px;border-radius:8px}legend{font-weight:700}.muted{color:#526e74;font-size:14px}.status{padding:12px;background:#e9f5f2;border-radius:8px;white-space:pre-wrap}.hidden{display:none!important}nav a{color:white;margin-right:18px}a{color:#075b65}:focus-visible{outline:3px solid #b56a11;outline-offset:3px}table{border-collapse:collapse;width:100%}td,th{padding:8px;border:1px solid #d3e1df;text-align:left}code{font-family:ui-monospace,monospace}footer{padding:20px;text-align:center;color:#536e72}
+</style></head><body>
+<header><h1>Study 1｜可操作流程測試工作台</h1><p>中原大學心理學系｜研究聯絡信箱 lily4318@cycu.edu.tw</p><nav><a href="#participant">模擬參與者</a><a href="#admin">測試資料後台</a></nav></header>
+<main><div class="warning" role="alert"><strong>僅供研究團隊離線測試，絕非正式招募網站。</strong> 不會寄信、不會寫入 Google Sheets 或 GAS、不會產生具法律效力的電子同意書。後台沒有身分驗證，資料只存在此瀏覽器；請勿輸入真人姓名、電子郵件、健康資料或簽名。正式系統仍關閉。</div>
+<section id="participant"><h2>一、參與者流程（虛構資料）</h2><h3 id="project-title"></h3><p id="project-intro"></p>
+<label for="applicant">測試申請者代號（格式 DEMO-AB12）</label><input id="applicant" value="DEMO-AB12" autocomplete="off" maxlength="17">
+<div id="questions"></div><button id="check-eligibility">檢查模擬資格</button><p id="eligibility-status" class="status" role="status">尚未檢查</p>
+<h3>信箱驗證（離線模擬）</h3><p class="muted">本功能不會寄送電子郵件，僅測試 OTP 操作流程；固定測試碼不是安全發碼。</p>
+<button id="issue-otp">產生測試驗證碼</button><label for="otp">輸入畫面顯示的測試碼</label><input id="otp" inputmode="numeric" maxlength="6"><button id="verify-otp">模擬驗證</button><p id="otp-status" role="status"></p>
+<h3>閱讀同意書與模擬簽署</h3><p id="consent-note">測試同意書佔位內容，非核准文件。實際正式同意書須以 IRB 核准完整 PDF 取代。</p><p id="pdf-status" class="muted"></p><a id="pdf-link" class="hidden" target="_blank" rel="noopener">在本機預覽本次上傳的測試 PDF</a>
+<label><input id="consent-read" type="checkbox">我已閱讀上方測試說明（非正式同意）</label><label for="fake-sign">輸入 DEMO 作為虛構簽署測試</label><input id="fake-sign" maxlength="4" autocomplete="off" placeholder="DEMO">
+<h3>選擇實驗時段</h3><div id="slots" aria-live="polite"></div><label for="slot-choice">選擇可預約時段</label><select id="slot-choice"></select><button id="book">模擬確認預約</button>
+<h3>預約查詢、改期與取消</h3><div id="booking-status" class="status" role="status">尚無有效模擬預約</div><label for="reschedule-choice">改期至其他時段</label><select id="reschedule-choice"></select><button id="reschedule">模擬改期</button><button class="secondary" id="cancel">模擬取消</button>
+<p id="participant-message" class="status" role="status" aria-live="polite"></p></section>
+<section id="admin"><h2>二、測試資料管理後台（無帳號保護，禁止真人資料）</h2><p class="warning">這是單機測試資料編輯器，不是正式研究人員後台。修改僅影響目前瀏覽器，不能代替 GAS 伺服器授權或正式資料庫。</p>
+<div class="row"><div><label for="edit-title">研究標題</label><input id="edit-title" maxlength="100"></div><div><label for="edit-intro">研究介紹</label><textarea id="edit-intro" rows="3" maxlength="1200"></textarea></div></div>
+<label for="edit-consent">測試同意書說明（純文字）</label><textarea id="edit-consent" rows="3" maxlength="2000"></textarea><button id="save-text">儲存研究資訊</button>
+<h3>資格問題設定</h3><div id="admin-questions"></div><label for="new-question">新增測試題目（是／否題）</label><input id="new-question" maxlength="180" placeholder="例如：是否已閱讀測試注意事項？"><label for="new-answer">符合測試條件的答案</label><select id="new-answer"><option value="yes">是</option><option value="no">否</option></select><button id="add-question">新增測試題目</button>
+<h3>時段與容量設定</h3><div id="admin-slots"></div><div class="row"><div><label for="new-start">開始時間（本地）</label><input id="new-start" type="datetime-local"></div><div><label for="new-end">結束時間（本地）</label><input id="new-end" type="datetime-local"></div><div><label for="new-capacity">容量</label><input id="new-capacity" type="number" min="1" max="100" value="2"></div><div><label for="new-location">測試地點代碼</label><input id="new-location" value="DEMO-LAB" maxlength="60"></div></div><button id="add-slot">新增時段</button>
+<h3>同意書 PDF 測試替換</h3><label for="pdf-file">選擇本機 PDF（僅供此分頁預覽，不上傳伺服器）</label><input id="pdf-file" type="file" accept="application/pdf,.pdf"><p class="muted">本機 PDF 不會永久保存；重開頁面需要重新選擇。正式版必須由有權限的研究人員上傳至 828 私有 Drive，驗證核准版本與 SHA-256。</p>
+<h3>資料移轉與清除</h3><button id="export-config">匯出測試設定 JSON（不含預約）</button><label for="import-config">匯入測試設定 JSON</label><input id="import-config" type="file" accept=".json,application/json"><button id="reset" class="secondary">清除本機所有測試資料並還原</button><p id="admin-message" class="status" role="status"></p></section>
+</main><footer>Study 1｜離線測試版｜非正式報名、非真實 OTP、非有效電子簽署</footer>
+<script id="demo-core">
+(function(root){'use strict';
+function fail(message){throw new Error(message);}
+function validId(id){return typeof id==='string'&&/^DEMO-[A-Z0-9]{2,12}$/.test(id);}
+function cleanText(v,max){if(typeof v!=='string'||!v.trim()||v.length>max)fail('文字欄位格式或長度不合法');return v.trim();}
+function validateConfig(input){
+ if(!input||typeof input!=='object'||Array.isArray(input))fail('設定必須是物件');
+ var title=cleanText(input.title,100),intro=cleanText(input.intro,1200),consent=cleanText(input.consent,2000);
+ if(!Array.isArray(input.questions)||input.questions.length>20)fail('問題數量不合法');
+ if(!Array.isArray(input.slots)||input.slots.length>100)fail('時段數量不合法');
+ var seenQ=new Set(),seenS=new Set();
+ var questions=input.questions.map(function(q){
+  if(!q||typeof q!=='object'||!/^Q[0-9]{1,6}$/.test(q.id)||seenQ.has(q.id))fail('問題識別碼不合法');
+  seenQ.add(q.id);if(q.answer!=='yes'&&q.answer!=='no')fail('問題答案不合法');
+  return {id:q.id,label:cleanText(q.label,180),answer:q.answer};
+ });
+ var slots=input.slots.map(function(s){
+  if(!s||typeof s!=='object'||!/^S[0-9]{1,8}$/.test(s.id)||seenS.has(s.id))fail('時段識別碼不合法');
+  seenS.add(s.id);
+  if(typeof s.start!=='string'||typeof s.end!=='string'||!Number.isFinite(Date.parse(s.start))||!Number.isFinite(Date.parse(s.end))||Date.parse(s.end)<=Date.parse(s.start))fail('時段時間不合法');
+  if(!Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>100)fail('容量不合法');
+  return {id:s.id,start:new Date(s.start).toISOString(),end:new Date(s.end).toISOString(),capacity:s.capacity,location:cleanText(s.location,60)};
+ });
+ return {title:title,intro:intro,consent:consent,questions:questions,slots:slots};
+}
+function qualify(config,answers){return config.questions.length>0&&config.questions.every(function(q){return answers[q.id]===q.answer;});}
+function active(bookings){return bookings.filter(function(b){return b.status==='CONFIRMED';});}
+function remaining(config,bookings,slotId,excludeId,now){
+ var slot=config.slots.find(function(s){return s.id===slotId;});
+ if(!slot||Date.parse(slot.start)<=now)fail('時段不存在或已開始');
+ return slot.capacity-active(bookings).filter(function(b){return b.slotId===slotId&&b.applicant!==excludeId;}).length;
+}
+function book(config,bookings,request,now){
+ if(!request||!validId(request.applicant))fail('僅允許虛構 DEMO 申請者代碼');
+ if(!request.eligible||!request.verified||!request.consentRead||!request.signed)fail('必須完成模擬資格、驗證及同意步驟');
+ if(active(bookings).some(function(b){return b.applicant===request.applicant;}))fail('同一申請者已有有效預約');
+ if(remaining(config,bookings,request.slotId,null,now)<1)fail('時段已額滿');
+ return {applicant:request.applicant,slotId:request.slotId,status:'CONFIRMED',createdAt:new Date(now).toISOString(),demo:true};
+}
+function reschedule(config,bookings,applicant,newSlot,now){
+ var current=active(bookings).find(function(b){return b.applicant===applicant;});
+ if(!current)fail('找不到有效預約');
+ if(Date.parse(config.slots.find(function(s){return s.id===current.slotId;}).start)<=now)fail('原時段已開始');
+ if(current.slotId===newSlot)fail('新舊時段相同');
+ if(remaining(config,bookings,newSlot,applicant,now)<1)fail('新時段已額滿');
+ current.slotId=newSlot;return current;
+}
+function cancel(bookings,applicant,now){
+ var current=active(bookings).find(function(b){return b.applicant===applicant;});
+ if(!current)fail('找不到有效預約');
+ current.status='CANCELLED';current.cancelledAt=new Date(now).toISOString();return current;
+}
+root.Study1DemoCore={validateConfig:validateConfig,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
+})(window);
+</script>
+<script>
+(function(){'use strict';
+var core=window.Study1DemoCore,key='study1-local-demo-v1',otpIssued=false,verified=false,eligible=false,pdfUrl=null;
+function el(id){return document.getElementById(id);}
+function message(id,text){el(id).textContent=text;}
+function later(days,hour){var d=new Date();d.setDate(d.getDate()+days);d.setHours(hour,0,0,0);return d.toISOString();}
+function initial(){return {config:{title:'Study 1 模擬招募',intro:'這是虛構流程測試，不代表正式研究招募資訊或資格條件。',consent:'此為測試同意書佔位文字，不是 IRB 核准版 PDF，請勿輸入真實簽名。',questions:[{id:'Q1',label:'我了解這是非正式測試，且不會輸入真人資料',answer:'yes'}],slots:[{id:'S1',start:later(3,10),end:later(3,11),capacity:2,location:'DEMO-LAB'},{id:'S2',start:later(5,14),end:later(5,15),capacity:2,location:'DEMO-LAB'}]},bookings:[]};}
+function load(){try{var raw=localStorage.getItem(key);if(raw){var v=JSON.parse(raw);return {config:core.validateConfig(v.config),bookings:Array.isArray(v.bookings)?v.bookings.filter(function(b){return core.validId(b.applicant)&&['CONFIRMED','CANCELLED'].includes(b.status)&&typeof b.slotId==='string';}):[]};}}catch(e){}return initial();}
+var state=load();
+function save(){try{localStorage.setItem(key,JSON.stringify(state));}catch(e){message('admin-message','瀏覽器儲存不可用，資料只保留到關閉頁面。');}}
+function text(tag,value){var node=document.createElement(tag);node.textContent=value;return node;}
+function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',fn);return b;}
+function option(value,label){var o=document.createElement('option');o.value=value;o.textContent=label;return o;}
+function dateLabel(iso){return new Date(iso).toLocaleString('zh-TW',{dateStyle:'medium',timeStyle:'short'});}
+function currentId(){return el('applicant').value.trim();}
+function currentBooking(){return state.bookings.find(function(b){return b.applicant===currentId()&&b.status==='CONFIRMED';});}
+function render(){
+ el('project-title').textContent=state.config.title;el('project-intro').textContent=state.config.intro;el('consent-note').textContent=state.config.consent;
+ el('edit-title').value=state.config.title;el('edit-intro').value=state.config.intro;el('edit-consent').value=state.config.consent;
+ var q=el('questions');q.replaceChildren();
+ state.config.questions.forEach(function(item){var field=document.createElement('fieldset');field.appendChild(text('legend',item.label));['yes','no'].forEach(function(v){var label=document.createElement('label'),radio=document.createElement('input');radio.type='radio';radio.name=item.id;radio.value=v;label.appendChild(radio);label.appendChild(document.createTextNode(v==='yes'?'是':'否'));field.appendChild(label);});q.appendChild(field);});
+ var qa=el('admin-questions');qa.replaceChildren();
+ state.config.questions.forEach(function(item){var div=document.createElement('div');div.className='card';div.appendChild(text('span',item.id+'｜'+item.label+'｜符合：'+(item.answer==='yes'?'是':'否')));div.appendChild(button('刪除',function(){state.config.questions=state.config.questions.filter(function(q){return q.id!==item.id;});save();render();}));qa.appendChild(div);});
+ var sa=el('admin-slots');sa.replaceChildren();var slots=el('slots');slots.replaceChildren();
+ var select=el('slot-choice'),change=el('reschedule-choice');select.replaceChildren();change.replaceChildren();
+ state.config.slots.forEach(function(s){
+  var count=state.bookings.filter(function(b){return b.status==='CONFIRMED'&&b.slotId===s.id;}).length;
+  var desc=s.id+'｜'+dateLabel(s.start)+' 至 '+dateLabel(s.end)+'｜'+s.location+'｜剩餘 '+Math.max(0,s.capacity-count)+' / '+s.capacity;
+  slots.appendChild(text('p',desc));
+  if(Date.parse(s.start)>Date.now()&&count<s.capacity){select.appendChild(option(s.id,desc));change.appendChild(option(s.id,desc));}
+  var div=document.createElement('div');div.className='card';div.appendChild(text('span',desc));div.appendChild(button('移除時段',function(){if(count){message('admin-message','有有效預約的時段不可直接刪除。');return;}state.config.slots=state.config.slots.filter(function(x){return x.id!==s.id;});save();render();}));sa.appendChild(div);
+ });
+ renderBooking();
+}
+function renderBooking(){var b=currentBooking();message('booking-status',b?'模擬預約已確認：'+b.slotId+'｜'+dateLabel(state.config.slots.find(function(s){return s.id===b.slotId;}).start):'此代號目前沒有有效模擬預約');}
+function act(fn){try{fn();save();render();message('participant-message','操作完成（僅本機模擬，沒有真實預約）。');}catch(e){message('participant-message','無法完成：'+e.message);}}
+el('check-eligibility').onclick=function(){var answers={};state.config.questions.forEach(function(q){var r=document.querySelector('input[name="'+q.id+'"]:checked');answers[q.id]=r?r.value:'';});eligible=core.qualify(state.config,answers);message('eligibility-status',eligible?'模擬資格符合':'模擬資格不符合或尚未填完');};
+el('issue-otp').onclick=function(){otpIssued=true;verified=false;message('otp-status','本機測試碼：246810（不會寄送郵件）');};
+el('verify-otp').onclick=function(){verified=otpIssued&&el('otp').value.trim()==='246810';message('otp-status',verified?'測試驗證成功（不代表信箱所有權）':'測試驗證失敗');};
+el('book').onclick=function(){act(function(){var booking=core.book(state.config,state.bookings,{applicant:currentId(),slotId:el('slot-choice').value,eligible:eligible,verified:verified,consentRead:el('consent-read').checked,signed:el('fake-sign').value==='DEMO'},Date.now());state.bookings.push(booking);});};
+el('reschedule').onclick=function(){act(function(){core.reschedule(state.config,state.bookings,currentId(),el('reschedule-choice').value,Date.now());});};
+el('cancel').onclick=function(){act(function(){core.cancel(state.bookings,currentId(),Date.now());});};
+el('applicant').addEventListener('input',function(){eligible=false;verified=false;otpIssued=false;message('eligibility-status','變更申請者後請重新檢查資格');message('otp-status','請重新模擬驗證');renderBooking();});
+el('save-text').onclick=function(){try{state.config=core.validateConfig(Object.assign({},state.config,{title:el('edit-title').value,intro:el('edit-intro').value,consent:el('edit-consent').value}));save();render();message('admin-message','研究資訊已儲存到此瀏覽器。');}catch(e){message('admin-message',e.message);}};
+el('add-question').onclick=function(){try{var ids=state.config.questions.map(function(q){return Number(q.id.slice(1));});var id='Q'+(Math.max(0,...ids)+1);state.config=core.validateConfig(Object.assign({},state.config,{questions:state.config.questions.concat([{id:id,label:el('new-question').value,answer:el('new-answer').value}])}));save();render();message('admin-message','已新增測試題目。');}catch(e){message('admin-message',e.message);}};
+el('add-slot').onclick=function(){try{var start=new Date(el('new-start').value),end=new Date(el('new-end').value);if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||start.getTime()<=Date.now())throw Error('請設定未來有效的開始與結束時間');var ids=state.config.slots.map(function(s){return Number(s.id.slice(1));});var slot={id:'S'+(Math.max(0,...ids)+1),start:start.toISOString(),end:end.toISOString(),capacity:Number(el('new-capacity').value),location:el('new-location').value};state.config=core.validateConfig(Object.assign({},state.config,{slots:state.config.slots.concat([slot])}));save();render();message('admin-message','已新增測試時段。');}catch(e){message('admin-message',e.message);}};
+el('pdf-file').onchange=function(){if(pdfUrl){URL.revokeObjectURL(pdfUrl);pdfUrl=null;}var f=this.files[0];if(!f)return;if(f.type!=='application/pdf'||f.size>10*1024*1024){message('admin-message','僅接受 10MB 以下 PDF 測試檔。');this.value='';return;}pdfUrl=URL.createObjectURL(f);el('pdf-link').href=pdfUrl;el('pdf-link').classList.remove('hidden');message('pdf-status','目前分頁測試 PDF：'+f.name+'（未上傳、未保存、未驗證簽署）');};
+el('export-config').onclick=function(){var blob=new Blob([JSON.stringify(state.config,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='study1-demo-config.json';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);};
+el('import-config').onchange=function(){var f=this.files[0];if(!f||f.size>100000){message('admin-message','JSON 檔案過大或未選擇。');return;}f.text().then(function(t){try{var c=core.validateConfig(JSON.parse(t));var active=state.bookings.filter(function(b){return b.status==='CONFIRMED';});if(active.some(function(b){return !c.slots.some(function(s){return s.id===b.slotId;}))){throw Error('匯入設定會刪除有效預約時段，已拒絕');}state.config=c;save();render();message('admin-message','設定匯入成功（僅本機）。');}catch(e){message('admin-message','匯入失敗：'+e.message);}});};
+el('reset').onclick=function(){if(!confirm('確定清除這個瀏覽器的所有虛構預約與測試設定？'))return;state=initial();eligible=false;verified=false;otpIssued=false;save();render();message('admin-message','已還原初始測試資料。');};
+render();
+})();
+</script></body></html>
