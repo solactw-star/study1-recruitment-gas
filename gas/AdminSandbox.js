@@ -125,6 +125,7 @@ function adminRunSandboxSelfTest(){
   let created=false,payload='',result=null;
   try{
     const before=p.getProperty(STUDY1_ADMIN_PROPERTY_);
+    const bookingBefore=p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_);
     const openBefore=p.getProperty('OPEN');
     const consentBefore=p.getProperty('CONSENT_READY');
     if(openBefore!=='false'||consentBefore!=='false')
@@ -155,13 +156,70 @@ function adminRunSandboxSelfTest(){
     if(!conflictDenied)throw Error('過期 revision 未被拒絕');
     if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==payload)
       throw Error('過期 revision 檢查意外修改測試資料');
+
+    // Exercise the SAME booking transition used by the owner RPC, but persist
+    // only within the disposable self-test key. Never touch actual booking rows.
+    const bookingConfig={testSlots:[
+      {id:'test_slot_1',start:'2027-01-01T10:00',location:'〔自我測試〕A',capacity:1},
+      {id:'test_slot_2',start:'2027-01-02T10:00',location:'〔自我測試〕B',capacity:1}
+    ]};
+    let bookingState={schemaVersion:1,revision:0,bookings:[],requests:[]};
+    const bookingChecks=[];
+    const transact=input=>{
+      const outcome=study1SandboxBookingMutation_(input,bookingState,bookingConfig);
+      if(outcome.changed){
+        record.bookingState=bookingState;
+        payload=JSON.stringify(record);
+        if(payload.length>7500)throw Error('隔離預約自我測試資料過大');
+        p.setProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_,payload);
+        if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==payload)
+          throw Error('隔離預約交易寫入／回讀不一致');
+        const written=JSON.parse(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_));
+        if(JSON.stringify(written.bookingState)!==JSON.stringify(bookingState))
+          throw Error('隔離預約交易回讀內容不一致');
+        bookingState=written.bookingState;
+      }
+      return outcome.view;
+    };
+    const make={action:'CREATE',bookingCode:'TST-001',slotId:'test_slot_1',
+      requestId:'REQ-self-create001',expectedRevision:0};
+    const createdBooking=transact(make);
+    if(createdBooking.revision!==1||createdBooking.slots[0].remaining!==0)
+      throw Error('隔離建立預約或名額扣減錯誤');
+    bookingChecks.push('建立虛構預約、容量扣減並回讀');
+    const savedPayload=payload;
+    const deduped=transact(make);
+    if(!deduped.deduplicated||deduped.revision!==1||payload!==savedPayload)
+      throw Error('隔離預約冪等重試錯誤');
+    bookingChecks.push('相同請求冪等重試，未產生重複紀錄');
+    let fullRejected=false;
+    try{transact({...make,bookingCode:'TST-002',requestId:'REQ-self-full0001',expectedRevision:1});}
+    catch(e){fullRejected=/容量已滿/.test(String(e.message));}
+    if(!fullRejected||payload!==savedPayload||bookingState.revision!==1)
+      throw Error('隔離預約額滿防護未阻擋');
+    bookingChecks.push('額滿拒絕、暫存版本不變');
+    const movedBooking=transact({action:'MOVE',bookingCode:'TST-001',slotId:'test_slot_2',
+      requestId:'REQ-self-move0001',expectedRevision:1});
+    if(movedBooking.revision!==2||movedBooking.slots[0].remaining!==1||
+      movedBooking.slots[1].remaining!==0)throw Error('隔離改期或名額轉移錯誤');
+    bookingChecks.push('改期後原名額釋放、目標名額扣減並回讀');
+    const cancelledBooking=transact({action:'CANCEL',bookingCode:'TST-001',slotId:null,
+      requestId:'REQ-self-cancel01',expectedRevision:2});
+    if(cancelledBooking.revision!==3||cancelledBooking.slots[1].remaining!==1||
+       cancelledBooking.bookings[0].status!=='CANCELLED')
+      throw Error('隔離取消後容量回復錯誤');
+    bookingChecks.push('取消後容量回復、狀態更新並回讀');
+    if(p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_)!==bookingBefore)
+      throw Error('既有隔離預約資料意外異動');
+    bookingChecks.push('原測試預約資料及其 revision 未被更動');
     if(p.getProperty(STUDY1_ADMIN_PROPERTY_)!==before)
       throw Error('原管理測試設定被修改');
     if(p.getProperty('OPEN')!==openBefore||p.getProperty('CONSENT_READY')!==consentBefore)
       throw Error('正式收件關閉旗標在測試期間發生變更');
     result={ok:true,mode:'SANDBOX_ONLY',open:false,consentReady:false,
       checks:['管理者驗證','正式收件旗標均為 false 且未變更','既有隔離設定讀取','暫存測試寫入','暫存測試回讀',
-        '過期 revision 拒絕覆寫','原管理設定未變'],mainRevision:current.revision};
+        '過期 revision 拒絕覆寫','原管理設定未變'],mainRevision:current.revision,
+      bookingChecks,bookingE2eVerified:true,bookingsUnchanged:true};
   }finally{
     try{
       if(created){
@@ -222,33 +280,16 @@ function adminGetTestBookings(){
   const state=study1SandboxBookingState_();
   return study1SandboxBookingView_(state,config);
 }
-/** A single owner-only server transaction; all capacity checks are locked. */
-function adminChangeTestBooking(input){
-  study1AdminOwnerRequired_();
-  study1SandboxBookingFlags_();
-  if(!input||typeof input!=='object'||Array.isArray(input)||
-    Object.keys(input).sort().join(',')!=='action,bookingCode,expectedRevision,requestId,slotId')
-    throw Error('測試預約請求只允許核准欄位');
+/** Pure shared booking transition: used by locked owner RPC and isolated live self-test. */
+function study1SandboxBookingMutation_(input,state,config){
   const {action,bookingCode,slotId,requestId,expectedRevision}=input;
-  if(!['CREATE','MOVE','CANCEL'].includes(action)||
-    typeof bookingCode!=='string'||!/^TST-[0-9]{3}$/.test(bookingCode)||
-    typeof requestId!=='string'||!/^REQ-[A-Za-z0-9-]{8,50}$/.test(requestId)||
-    !(slotId===null||typeof slotId==='string'&&/^test_slot_[1-8]$/.test(slotId))||
-    !Number.isSafeInteger(expectedRevision)||expectedRevision<0)
-    throw Error('隔離預約指令格式不符；不得使用真人資訊');
-  if((action==='CANCEL')!==(slotId===null))throw Error('取消不可指定時段；建立或改期必須指定時段');
   const fingerprint=JSON.stringify([action,bookingCode,slotId]);
-  const lock=LockService.getScriptLock();
-  if(!lock.tryLock(8000))throw Error('測試預約正由其他工作更新，請重新讀取');
-  try{
-    study1SandboxBookingFlags_();
-    const config=study1AdminPersisted_(),state=study1SandboxBookingState_();
     const repeated=state.requests.find(x=>x.requestId===requestId);
     if(repeated){
       if(repeated.fingerprint!==fingerprint)throw Error('重複請求代碼對應不同操作，拒絕執行');
       const view=study1SandboxBookingView_(state,config);
       view.deduplicated=true;
-      return view;
+      return {changed:false,view};
     }
     if(state.revision!==expectedRevision)throw Error('測試預約已被更新，請重新讀取 revision');
     if(state.requests.length>=35)throw Error('測試請求紀錄已達上限，停止新增操作');
@@ -271,14 +312,39 @@ function adminChangeTestBooking(input){
     if(action==='CANCEL')existing.status='CANCELLED';
     state.revision++;
     state.requests.push({requestId,fingerprint});
+
+    const view=study1SandboxBookingView_(state,config);
+    view.deduplicated=false;
+    return {changed:true,view};
+}
+/** A single owner-only server transaction; all capacity checks are locked. */
+function adminChangeTestBooking(input){
+  study1AdminOwnerRequired_();
+  study1SandboxBookingFlags_();
+  if(!input||typeof input!=='object'||Array.isArray(input)||
+    Object.keys(input).sort().join(',')!=='action,bookingCode,expectedRevision,requestId,slotId')
+    throw Error('測試預約請求只允許核准欄位');
+  const {action,bookingCode,slotId,requestId,expectedRevision}=input;
+  if(!['CREATE','MOVE','CANCEL'].includes(action)||
+    typeof bookingCode!=='string'||!/^TST-[0-9]{3}$/.test(bookingCode)||
+    typeof requestId!=='string'||!/^REQ-[A-Za-z0-9-]{8,50}$/.test(requestId)||
+    !(slotId===null||typeof slotId==='string'&&/^test_slot_[1-8]$/.test(slotId))||
+    !Number.isSafeInteger(expectedRevision)||expectedRevision<0)
+    throw Error('隔離預約指令格式不符；不得使用真人資訊');
+  if((action==='CANCEL')!==(slotId===null))throw Error('取消不可指定時段；建立或改期必須指定時段');
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(8000))throw Error('測試預約正由其他工作更新，請重新讀取');
+  try{
+    study1SandboxBookingFlags_();
+    const config=study1AdminPersisted_(),state=study1SandboxBookingState_();
+    const outcome=study1SandboxBookingMutation_(input,state,config);
+    if(!outcome.changed)return outcome.view;
     const payload=JSON.stringify(state);
     if(payload.length>7900)throw Error('隔離預約資料達到容量限制');
     const p=PropertiesService.getScriptProperties();
     p.setProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_,payload);
     if(p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_)!==payload)
       throw Error('測試預約寫入後回讀不一致');
-    const view=study1SandboxBookingView_(state,config);
-    view.deduplicated=false;
-    return view;
+    return outcome.view;
   }finally{lock.releaseLock();}
 }

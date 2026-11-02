@@ -155,3 +155,24 @@ test('Self-test refuses missing or enabled OPEN/CONSENT_READY without creating d
   assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false);
  }
 });
+
+test('Owner live-shaped self-test runs isolated booking lifecycle, idempotency and cap checks',()=>{
+ const h=harness();h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+ const real={schemaVersion:1,revision:1,bookings:[{code:'TST-009',slotId:'test_slot_1',status:'ACTIVE'}],
+  requests:[{requestId:'REQ-existing01',fingerprint:JSON.stringify(['CREATE','TST-009','test_slot_1'])}]};
+ h.values.set('STUDY1_SANDBOX_BOOKINGS_V1',JSON.stringify(real));
+ const before=JSON.stringify([...h.values]);
+ const r=h.scope.adminRunSandboxSelfTest();
+ assert.equal(r.ok,true);assert.equal(r.bookingE2eVerified,true);
+ assert.equal(r.bookingsUnchanged,true);
+ assert.equal(r.bookingChecks.length,6);
+ assert.match(r.bookingChecks.join(' | '),/建立虛構預約/);
+ assert.match(r.bookingChecks.join(' | '),/冪等/);
+ assert.match(r.bookingChecks.join(' | '),/額滿/);
+ assert.match(r.bookingChecks.join(' | '),/改期/);
+ assert.match(r.bookingChecks.join(' | '),/取消/);
+ assert.equal(r.cleanupVerified,true);
+ assert.equal(JSON.stringify([...h.values]),before,'Real sandbox booking property must be untouched');
+ assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false);
+ assert.equal(h.locks(),0);
+});

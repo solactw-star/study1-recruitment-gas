@@ -234,14 +234,18 @@ function runSelfTest(){
     setDisabled(false);
     if(!result||result.ok!==true||result.mode!=='SANDBOX_ONLY'||result.open!==false||
       result.consentReady!==false||result.cleanupVerified!==true||
-      !Array.isArray(result.checks)||result.checks.length!==8){
+      !Array.isArray(result.checks)||result.checks.length!==8||
+      result.bookingE2eVerified!==true||result.bookingsUnchanged!==true||
+      !Array.isArray(result.bookingChecks)||result.bookingChecks.length!==6){
       $('selftestResult').textContent='FAIL：GAS 未證實測試完成並清理。';
       status('隔離自我測試未通過，正式報名仍關閉。');
       return;
     }
     $('selftestResult').textContent='PASS（GAS 真實執行）\n'+
       result.checks.map((step,i)=>(i+1)+'. '+step).join('\n')+
-      '\n原設定 revision：'+result.mainRevision+'（未修改）';
+      '\n原設定 revision：'+result.mainRevision+'（未修改）'+
+      '\n隔離預約交易驗證（GAS 獨立暫存）：\n'+
+      result.bookingChecks.map((step,i)=>(i+1)+'. '+step).join('\n');
     status('隔離測試通過，暫存資料已清理；正式報名與簽署仍關閉。');
   }).withFailureHandler(function(error){
     setDisabled(false);

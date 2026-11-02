@@ -44,6 +44,8 @@ function assertAdminSandbox(source){
   'p.setProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_,payload)',
   'study1AdminRequireRevision_(observed,0)',
   'p.deleteProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)',
+  'function study1SandboxBookingMutation_(input,state,config){',
+  'bookingE2eVerified:true,bookingsUnchanged:true',
   'Session.getActiveUser().getEmail()',
   'Session.getEffectiveUser().getEmail()',
   'if(effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_)',
@@ -58,7 +60,7 @@ function assertAdminSandbox(source){
   "mode:'SANDBOX_ONLY',open:false,consentReady:false"
  ];
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
- const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking']);
+ const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingMutation_','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
