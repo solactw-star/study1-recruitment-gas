@@ -59,7 +59,7 @@ function assertAdminSandbox(source){
 }
 function assertAdminHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>'))throw Error('Missing admin HTML');
- for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
+ for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","STUDY1_SANDBOX_EXPORT_V1","importConfig()","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))throw Error('Unreviewed admin HTML operation');
 }
 function mergeApproved(core,remote,index,website,adminScript,adminHtml){

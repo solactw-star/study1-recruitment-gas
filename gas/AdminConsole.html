@@ -61,6 +61,15 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 <button class="secondary" id="reload" type="button">重新讀取</button>
 <button class="secondary" id="selftest" type="button" disabled>執行隔離自我測試（結束自動清理）</button>
 <pre id="selftestResult" aria-live="polite" role="status" style="white-space:pre-wrap;font:inherit">尚未執行 GAS 真實自我測試。</pre>
+<div class="notice" role="group" aria-labelledby="portableTitle">
+<h3 id="portableTitle">隔離測試設定匯出與匯入草稿</h3>
+<p>只處理測試研究設定。匯出內容是上次由伺服器讀取的已儲存版本，不包含尚未儲存的變更。匯入需先經伺服器檢查，僅放入草稿，必須再按上方「儲存」才會寫入隔離設定。</p>
+<button class="secondary" id="exportConfig" type="button" disabled>產生已儲存測試設定 JSON</button>
+<label for="portableJson">備份 JSON（可以複製保存，或貼上既有測試備份）</label>
+<textarea id="portableJson" rows="8" spellcheck="false" autocomplete="off" placeholder="僅限 STUDY1_SANDBOX_EXPORT_V1 格式"></textarea>
+<button class="secondary" id="importConfig" type="button" disabled>驗證並匯入至草稿（不儲存）</button>
+<p><small>不連結正式 REC、參與者資料、GAS 其他屬性或研究預約工作簿。若目前版本已變更，正式儲存仍受 revision 衝突檢查保護。</small></p>
+</div>
 <div id="status" role="status" aria-live="polite">確認研究室權限中……</div>
 </section>
 <p><a href="?">返回公開研究資訊</a></p>
@@ -69,12 +78,12 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-let revision=null;
+let revision=null,lastLoadedConfig=null;
 function status(message){$('status').textContent=String(message);}
-function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest','questionLoad','questionApply','questionAdd','questionRemove'])$(id).disabled=!!flag;}
+function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest','questionLoad','questionApply','questionAdd','questionRemove','exportConfig','importConfig'])$(id).disabled=!!flag;}
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
- const c=response.config;revision=c.revision;
+ const c=response.config;revision=c.revision;lastLoadedConfig=JSON.parse(JSON.stringify(c));
  $('title').value=c.studyTitle;$('intro').value=c.researchIntro;$('eligibility').value=c.eligibilityNote;
  $('questions').value=JSON.stringify(c.screeningQuestions,null,2);$('slots').value=JSON.stringify(c.testSlots,null,2);
  $('template').value=c.emailTemplate;$('pdf').value=c.pdfVersionNote;$('revision').textContent=String(revision);
@@ -87,6 +96,54 @@ function editorData(){
  return {studyTitle:$('title').value,researchIntro:$('intro').value,eligibilityNote:$('eligibility').value,
   screeningQuestions:JSON.parse($('questions').value),testSlots:JSON.parse($('slots').value),
   emailTemplate:$('template').value,pdfVersionNote:$('pdf').value};
+}
+function portableFields(c){
+ return {studyTitle:c.studyTitle,researchIntro:c.researchIntro,eligibilityNote:c.eligibilityNote,
+  screeningQuestions:c.screeningQuestions,testSlots:c.testSlots,emailTemplate:c.emailTemplate,
+  pdfVersionNote:c.pdfVersionNote};
+}
+function exportConfig(){
+ if(!Number.isSafeInteger(revision)||!lastLoadedConfig){status('尚未讀取研究室隔離設定，無法匯出。');return;}
+ $('portableJson').value=JSON.stringify({format:'STUDY1_SANDBOX_EXPORT_V1',
+  config:portableFields(lastLoadedConfig)},null,2);
+ status('已產生已儲存版本的測試設定 JSON；只顯示於此欄位，不會寄送或寫入研究資料。');
+}
+function importConfig(){
+ try{
+  if(!Number.isSafeInteger(revision))throw Error('請先讀取目前測試設定及 revision');
+  const text=$('portableJson').value;
+  if(text.length>18000)throw Error('測試備份 JSON 太大');
+  const pack=JSON.parse(text);
+  if(!pack||typeof pack!=='object'||Array.isArray(pack)||
+    Object.keys(pack).sort().join(',')!=='config,format'||
+    pack.format!=='STUDY1_SANDBOX_EXPORT_V1')throw Error('備份格式不符，只接受隔離設定 V1');
+  const c=pack.config;
+  if(!c||typeof c!=='object'||Array.isArray(c)||
+     Object.keys(c).sort().join(',')!==
+       'eligibilityNote,emailTemplate,pdfVersionNote,researchIntro,screeningQuestions,studyTitle,testSlots')
+    throw Error('備份設定欄位不完整或包含未核准欄位');
+  setDisabled(true);
+  status('正在用伺服器驗證測試備份（不寫入）……');
+  google.script.run.withSuccessHandler(function(response){
+   if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||
+     response.consentReady!==false||!response.config){
+      setDisabled(true);$('reload').disabled=false;
+      status('伺服器未確認關閉測試模式，匯入已拒絕。');return;
+   }
+   const safe=response.config;
+   $('title').value=safe.studyTitle;$('intro').value=safe.researchIntro;
+   $('eligibility').value=safe.eligibilityNote;
+   $('questions').value=JSON.stringify(safe.screeningQuestions,null,2);
+   $('slots').value=JSON.stringify(safe.testSlots,null,2);
+   $('template').value=safe.emailTemplate;$('pdf').value=safe.pdfVersionNote;
+   $('questionNumber').value='1';loadQuestion(false);
+   $('slotNumber').value='1';loadSlot(false);
+   setDisabled(false);
+   status('測試備份已通過伺服器驗證並匯入草稿；revision 未改、尚未儲存。');
+  }).withFailureHandler(function(error){
+   setDisabled(false);status('測試備份匯入遭伺服器拒絕：'+String(error&&error.message||error));
+  }).adminValidateSandboxConfig(c);
+ }catch(e){status('測試備份格式錯誤：'+String(e.message));}
 }
 function check(){
  try{
@@ -252,6 +309,7 @@ function removeSlot(){
  }catch(e){status('測試時段未刪除：'+String(e.message));}
 }
 $('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);$('selftest').addEventListener('click',runSelfTest);
+$('exportConfig').addEventListener('click',exportConfig);$('importConfig').addEventListener('click',importConfig);
 $('questionLoad').addEventListener('click',()=>loadQuestion());$('questionApply').addEventListener('click',applyQuestion);$('questionAdd').addEventListener('click',addQuestion);$('questionRemove').addEventListener('click',removeQuestion);
 $('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
 reload();

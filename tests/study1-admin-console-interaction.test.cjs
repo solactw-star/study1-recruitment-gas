@@ -7,7 +7,7 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
  const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
@@ -280,4 +280,59 @@ test('Question editor rejects HTML and empty questions before mutation; non-owne
  assert.equal(srv.props.size,0);
  const blocked=client(server('','solac.tw@gmail.com'));
  for(const id of ['questionLoad','questionApply','questionAdd','questionRemove'])assert.equal(blocked.el(id).disabled,true,id);
+});
+
+test('Owner may export saved sandbox configuration to portable JSON without any write',()=>{
+ const srv=server(),ui=client(srv);
+ ui.el('title').value='〔測試〕未儲存草稿';
+ ui.click('exportConfig');
+ const pack=JSON.parse(ui.el('portableJson').value);
+ assert.equal(pack.format,'STUDY1_SANDBOX_EXPORT_V1');
+ assert.equal(pack.config.studyTitle,'〔測試〕Study 1 招募設定');
+ assert.equal(Object.hasOwn(pack.config,'revision'),false);
+ assert.equal(Object.hasOwn(pack.config,'OPEN'),false);
+ assert.equal(srv.props.size,0);
+});
+test('Valid portable JSON imports only into draft after backend validation and requires explicit save',()=>{
+ const srv=server(),ui=client(srv);
+ ui.click('exportConfig');
+ const pack=JSON.parse(ui.el('portableJson').value);
+ pack.config.studyTitle='〔測試〕從備份匯入';
+ ui.el('portableJson').value=JSON.stringify(pack);
+ ui.click('importConfig');
+ assert.deepEqual(ui.calls,['get','check']);
+ assert.equal(ui.el('title').value,'〔測試〕從備份匯入');
+ assert.equal(ui.el('revision').textContent,'0');
+ assert.equal(srv.props.size,0);
+ ui.click('save');
+ assert.equal(srv.props.size,1);
+ assert.equal(client(srv).el('title').value,'〔測試〕從備份匯入');
+});
+test('Portable import rejects live flags and malformed JSON before RPC or property write',()=>{
+ const srv=server(),ui=client(srv),original=ui.el('title').value;
+ ui.el('portableJson').value='{"format":"STUDY1_SANDBOX_EXPORT_V1","config":{"OPEN":true}}';
+ ui.click('importConfig');
+ assert.deepEqual(ui.calls,['get']);
+ assert.equal(ui.el('title').value,original);
+ ui.el('portableJson').value='not JSON';
+ ui.click('importConfig');
+ assert.deepEqual(ui.calls,['get']);
+ assert.equal(srv.props.size,0);
+});
+test('Portable import server rejects malicious test slot dates without changing the draft',()=>{
+ const srv=server(),ui=client(srv),original=ui.el('slots').value;
+ ui.click('exportConfig');
+ const pack=JSON.parse(ui.el('portableJson').value);
+ pack.config.testSlots[0].start='2027-02-30T10:00';
+ ui.el('portableJson').value=JSON.stringify(pack);
+ ui.click('importConfig');
+ assert.deepEqual(ui.calls,['get','check']);
+ assert.equal(ui.el('slots').value,original);
+ assert.match(ui.el('status').textContent,/遭伺服器拒絕/);
+ assert.equal(srv.props.size,0);
+});
+test('Non-owner cannot export or import sandbox configuration',()=>{
+ const ui=client(server('visitor@example.com','solac.tw@gmail.com'));
+ assert.equal(ui.el('exportConfig').disabled,true);
+ assert.equal(ui.el('importConfig').disabled,true);
 });
