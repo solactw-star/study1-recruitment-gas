@@ -175,7 +175,7 @@ function runSelfTest(){
     setDisabled(false);
     if(!result||result.ok!==true||result.mode!=='SANDBOX_ONLY'||result.open!==false||
       result.consentReady!==false||result.cleanupVerified!==true||
-      !Array.isArray(result.checks)||result.checks.length!==7){
+      !Array.isArray(result.checks)||result.checks.length!==8){
       $('selftestResult').textContent='FAIL：GAS 未證實測試完成並清理。';
       status('隔離自我測試未通過，正式報名仍關閉。');
       return;
