@@ -33,7 +33,9 @@ async function prepare(api,indexSource){
  const deployedContent=await api.getVersion(current.deploymentConfig.versionNumber);
  const depManifest=JSON.parse(core.file(deployedContent.files,'appsscript','JSON').source);
  const headManifest=JSON.parse(core.file(remote.files,'appsscript','JSON').source);
- ensure(JSON.stringify(depManifest.webapp)===JSON.stringify(headManifest.webapp),'Existing deployed access differs from HEAD; refusing to alter audience');
+ const permissionMatch=JSON.stringify(depManifest.webapp)===JSON.stringify(headManifest.webapp);
+ console.log('Existing deployment audience:',depManifest.webapp?.access,'GAS HEAD audience:',headManifest.webapp?.access,'safe to version:',permissionMatch);
+ if(!permissionMatch)console.log('DEPLOYMENT_HOLD: original /exec permission differs; only GAS HEAD Index may be synced');
  const updated=core.merge(remote,indexSource);
  const indexChanged=!same(remote.files,updated);
  const deployedIndex=core.file(deployedContent.files,'Index','HTML').source;
@@ -41,7 +43,7 @@ async function prepare(api,indexSource){
  const snapshot={scriptId:id,triggerSha:process.env.GITHUB_SHA||'',readAt:new Date().toISOString(),
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
   indexSha256:core.sha(indexSource),deployment:dep,deploymentId:dep.deploymentId,
-  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,indexChanged,deploymentChanged};
+  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,indexChanged,deploymentChanged,permissionMatch};
  fs.writeFileSync(snapPath(),JSON.stringify(snapshot,null,2),{mode:0o600});
  console.log('GAS remote HEAD SHA256:',snapshot.remoteSha256);
  console.log('GAS proposed HEAD SHA256:',snapshot.desiredSha256);
@@ -76,6 +78,10 @@ async function apply(api,indexSource,s){
  const reloaded=await api.getContent();core.assertRemote(reloaded);
  ensure(same(reloaded.files,desired),'GAS HEAD readback differs; DO NOT deploy');
  ensure(compareNoIndex(reloaded.files,s.original.files),'Non-Index GAS files unexpectedly modified; DO NOT deploy');
+ if(!s.permissionMatch){
+   console.log('GAS_HEAD_SYNC_VERIFIED=true; EXEC_SYNC_VERIFIED=false; original /exec and its access remain unchanged');
+   return {status:'head-only-permission-hold',id:s.deploymentId,sha:s.desiredSha256};
+ }
  const newVersion=await api.createVersion('Study1 closed preview auto-sync Index only ('+process.env.GITHUB_SHA.slice(0,12)+')');
  ensure(Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation failed or returned an invalid version');
  const immutable=await api.getVersion(newVersion.versionNumber);
