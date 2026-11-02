@@ -43,7 +43,7 @@ async function prepare(api,indexSource){
  const snapshot={scriptId:id,triggerSha:process.env.GITHUB_SHA||'',readAt:new Date().toISOString(),
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
   indexSha256:core.sha(indexSource),deployment:dep,deploymentId:dep.deploymentId,
-  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,indexChanged,deploymentChanged,permissionMatch};
+  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,indexChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
  fs.writeFileSync(snapPath(),JSON.stringify(snapshot,null,2),{mode:0o600});
  console.log('GAS remote HEAD SHA256:',snapshot.remoteSha256);
  console.log('GAS proposed HEAD SHA256:',snapshot.desiredSha256);
@@ -78,14 +78,49 @@ async function apply(api,indexSource,s){
  const reloaded=await api.getContent();core.assertRemote(reloaded);
  ensure(same(reloaded.files,desired),'GAS HEAD readback differs; DO NOT deploy');
  ensure(compareNoIndex(reloaded.files,s.original.files),'Non-Index GAS files unexpectedly modified; DO NOT deploy');
+ let newVersion,expectedVersionFiles=desired;
  if(!s.permissionMatch){
-   console.log('GAS_HEAD_SYNC_VERIFIED=true; EXEC_SYNC_VERIFIED=false; original /exec and its access remain unchanged');
-   return {status:'head-only-permission-hold',id:s.deploymentId,sha:s.desiredSha256};
+   // Existing /exec is MYSELF, while HEAD is ANYONE_ANONYMOUS. Preserve both:
+   // temporarily stage only the previous deployed webapp settings for immutable
+   // version creation, then restore HEAD from the verified backup BEFORE deployment.
+   ensure(s.deployedWebapp?.access==='MYSELF'&&s.deployedWebapp?.executeAs==='USER_DEPLOYING','Unexpected existing deployed audience: do not alter /exec');
+   const manifest=core.file(desired,'appsscript','JSON');
+   const stagedManifest=JSON.parse(manifest.source);
+   const oldWebapp=JSON.parse(core.file(s.original.files,'appsscript','JSON').source).webapp;
+   ensure(oldWebapp?.access==='ANYONE_ANONYMOUS'&&oldWebapp?.executeAs==='USER_DEPLOYING','GAS HEAD audience unexpectedly changed');
+   stagedManifest.webapp=s.deployedWebapp;
+   const staged=structuredClone(desired);
+   core.file(staged,'appsscript','JSON').source=JSON.stringify(stagedManifest,null,2);
+   ensure(compareNoIndex(staged,desired)===false,'Temporary manifest staging not detected');
+   expectedVersionFiles=staged;
+   try{
+     const prior=await api.getContent();
+     ensure(same(prior.files,desired),'HEAD changed before temporary permission-preserving staging');
+     await api.putContent(staged.map(fields));
+     const stagedRead=await api.getContent();
+     ensure(same(stagedRead.files,staged),'Staged version source mismatch; do not deploy');
+     newVersion=await api.createVersion('Study1 existing-access preview auto-sync ('+process.env.GITHUB_SHA.slice(0,12)+')');
+     ensure(Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation returned an invalid version');
+     const stagedVersion=await api.getVersion(newVersion.versionNumber);
+     ensure(same(stagedVersion.files,staged),'Immutable version differs from staged content');
+   }finally{
+     // Always restore original HEAD manifest. Refuse to overwrite any unexpected
+     // concurrent edits; backup artifact contains the complete pre-write HEAD.
+     const live=await api.getContent();
+     if(same(live.files,staged))await api.putContent(desired.map(fields));
+     else ensure(same(live.files,desired),'Concurrent GAS edit during staging; unsafe to restore automatically');
+     const restored=await api.getContent();core.assertRemote(restored);
+     ensure(same(restored.files,desired)&&compareNoIndex(restored.files,s.original.files),'Original GAS HEAD settings were not fully restored');
+     console.log('GAS HEAD restored to original testing audience; other source files preserved.');
+   }
+ }else{
+   newVersion=await api.createVersion('Study1 closed preview auto-sync Index only ('+process.env.GITHUB_SHA.slice(0,12)+')');
  }
- const newVersion=await api.createVersion('Study1 closed preview auto-sync Index only ('+process.env.GITHUB_SHA.slice(0,12)+')');
- ensure(Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation failed or returned an invalid version');
+ ensure(newVersion&&Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation failed');
  const immutable=await api.getVersion(newVersion.versionNumber);
- ensure(same(immutable.files,desired),'New version content is not the expected HEAD');
+ ensure(same(immutable.files,expectedVersionFiles),'New version does not match the intended Index and existing deployment audience');
+ const originalAudience=JSON.stringify(s.deployedWebapp);
+ ensure(JSON.stringify(JSON.parse(core.file(immutable.files,'appsscript','JSON').source).webapp)===originalAudience,'New immutable version changes original /exec audience');
  const current=await api.getDeployment(s.deploymentId);
  core.deploymentCheck(current,s.deploymentId,s.oldVersion);
  ensure(JSON.stringify(current)===JSON.stringify(s.deployment),'Deployment changed before update; DO NOT deploy');
@@ -94,7 +129,7 @@ async function apply(api,indexSource,s){
  const details=core.deploymentCheck(finalDeployment,s.deploymentId,newVersion.versionNumber);
  ensure(details.url===s.oldUrl,'Existing /exec URL changed unexpectedly');
  const deployed=await api.getVersion(newVersion.versionNumber);
- ensure(same(deployed.files,desired),'The deployed version differs from committed Index');
+ ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from committed Index / preserved audience');
  const final=await api.getContent();
  ensure(same(final.files,desired)&&compareNoIndex(final.files,s.original.files),'Final GAS HEAD mismatch');
  console.log('SYNC_VERIFIED=true; original /exec deployment preserved; version',newVersion.versionNumber,'sha256',s.desiredSha256);
