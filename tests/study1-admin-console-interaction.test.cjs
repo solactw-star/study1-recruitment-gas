@@ -129,12 +129,13 @@ test('Non-owner execution context stops admin route before HTML is served; publi
  assert.equal(h.props.size,0);
 });
 
-test('Google-redacted active email does not prevent Google-restricted owner-only admin route',()=>{
+test('Redacted active email cannot open admin HTML or call its RPCs even if deployer is owner',()=>{
  const h=routeHarness('', 'solac.tw@gmail.com');
- assert.equal(h.ctx.doGet({parameter:{view:'admin'}}).name,'AdminConsole');
+ assert.throws(()=>h.ctx.doGet({parameter:{view:'admin'}}),/拒絕存取/);
+ assert.deepEqual(h.htmlCalls,[]);
  const ui=client(h);
- assert.equal(ui.el('save').disabled,false);
- assert.equal(ui.el('revision').textContent,'0');
+ assert.equal(ui.el('save').disabled,true);
+ assert.match(ui.el('status').textContent,/拒絕存取/);
  assert.equal(h.props.size,0);
 });
 

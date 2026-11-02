@@ -79,11 +79,11 @@ test('Workflow watches sandbox backend and HTML and checks both against current 
  assert.match(w,/main-admin-after\.js/);assert.match(w,/main-admin-after\.html/);
 });
 
-test('MYSELF deployed webapp restriction is mandatory for redacted-identity owner-only admin',()=>{
+test('MYSELF deployment plus explicit active and effective owner identities are mandatory',()=>{
  const path=require('node:path');
  const manifest=JSON.parse(fs.readFileSync(path.join(__dirname,'../gas/appsscript.json'),'utf8'));
  assert.equal(manifest.webapp.access,'MYSELF');
  assert.equal(manifest.webapp.executeAs,'USER_DEPLOYING');
  const code=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
- assert.match(code,/if\(effective!==STUDY1_ADMIN_OWNER_\|\|\(active&&active!==STUDY1_ADMIN_OWNER_\)\)/);
+ assert.match(code,/if\(effective!==STUDY1_ADMIN_OWNER_\|\|active!==STUDY1_ADMIN_OWNER_\)/);
 });

@@ -52,11 +52,12 @@ test('Reject live data fields, raw HTML and oversize fixtures',()=>{
  assert.equal(h.values.size,0);
 });
 
-test('Google-redacted active email is accepted ONLY with verified deploying owner identity',()=>{
+test('Redacted active email denies every admin RPC even when effective user is the owner',()=>{
  const h=harness('', 'solac.tw@gmail.com');
- const r=h.scope.adminGetSandboxConfig();
- assert.equal(r.mode,'SANDBOX_ONLY');assert.equal(r.open,false);assert.equal(r.consentReady,false);
- assert.equal(h.reads(),0);
+ assert.throws(()=>h.scope.adminGetSandboxConfig(),/拒絕存取/);
+ assert.throws(()=>h.scope.adminValidateSandboxConfig({}),/拒絕存取/);
+ assert.throws(()=>h.scope.adminSaveSandboxConfig({},0),/拒絕存取/);
+ assert.equal(h.reads(),0);assert.equal(h.values.size,0);
 });
 test('No active email plus a non-owner effective identity always fails closed',()=>{
  for(const user of ['', 'other@example.com']){
