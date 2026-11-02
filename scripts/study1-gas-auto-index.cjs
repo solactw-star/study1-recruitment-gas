@@ -1,5 +1,5 @@
 'use strict';
-// Push-driven *Index-only* Study1 GAS sync. Deployment and other source files are preserved.
+// Push-driven allowlisted Index + CLOSED Website sync. All other GAS files are preserved.
 // Never push GitHub's entire gas directory. No user action is required per Index update.
 const fs=require('node:fs'),path=require('node:path');
 const core=require('./study1-gas-index-preview.cjs');
@@ -37,7 +37,7 @@ async function prepare(api,indexSource,websiteSource){
  const permissionMatch=JSON.stringify(depManifest.webapp)===JSON.stringify(headManifest.webapp);
  console.log('Existing deployment audience:',depManifest.webapp?.access,'GAS HEAD audience:',headManifest.webapp?.access,'safe to version:',permissionMatch);
  const updated=backend.mergeApproved(core,remote,indexSource,websiteSource);
- const indexChanged=!same(remote.files,updated);
+ const approvedSourceChanged=!same(remote.files,updated);
  const deployedIndex=core.file(deployedContent.files,'Index','HTML').source;
  const deployedWebsite=core.file(deployedContent.files,'Website','SERVER_JS').source;
  const deploymentChanged=deployedIndex!==indexSource||deployedWebsite!==websiteSource;
@@ -46,12 +46,12 @@ async function prepare(api,indexSource,websiteSource){
  const snapshot={scriptId:id,triggerSha:process.env.GITHUB_SHA||'',readAt:new Date().toISOString(),
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
   indexSha256:core.sha(indexSource),websiteSha256:core.sha(websiteSource),deployment:dep,deploymentId:dep.deploymentId,
-  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,indexChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
+  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,approvedSourceChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
  fs.writeFileSync(snapPath(),JSON.stringify(snapshot,null,2),{mode:0o600});
  console.log('GAS remote HEAD SHA256:',snapshot.remoteSha256);
  console.log('GAS proposed HEAD SHA256:',snapshot.desiredSha256);
  console.log('Selected existing deployment:',snapshot.deploymentId,'old version:',snapshot.oldVersion);
- console.log('Index update required:',indexChanged,'deployment update required:',deploymentChanged);
+ console.log('Approved source update required:',approvedSourceChanged,'deployment update required:',deploymentChanged);
  return snapshot;
 }
 function compareNoIndex(a,b){
@@ -84,12 +84,12 @@ async function apply(api,indexSource,websiteSource,s){
  ensure(JSON.stringify(dep)===JSON.stringify(s.deployment),'Existing /exec was changed while the job ran');
  const desired=backend.mergeApproved(core,remote,indexSource,websiteSource);
  ensure(core.digest(desired)===s.desiredSha256,'Proposed content changed since backup');
- if(!s.indexChanged&&!s.deploymentChanged){
+ if(!s.approvedSourceChanged&&!s.deploymentChanged){
    console.log('SYNC_VERIFIED=true; already identical GAS HEAD and existing /exec version');
    return {status:'already-current',id:s.deploymentId,version:s.oldVersion,sha:s.desiredSha256};
  }
  // Preserve entire remote file set; send only editable File fields from HEAD.
- if(s.indexChanged){
+ if(s.approvedSourceChanged){
    const result=await api.putContent(desired.map(fields));
    ensure(same(result.files,desired),'GAS updateContent response does not match the proposed content');
  }
@@ -132,7 +132,7 @@ async function apply(api,indexSource,websiteSource,s){
      console.log('GAS HEAD restored to original testing audience; other source files preserved.');
    }
  }else{
-   newVersion=await api.createVersion('Study1 closed preview auto-sync Index only ('+process.env.GITHUB_SHA.slice(0,12)+')');
+   newVersion=await api.createVersion('Study1 closed preview auto-sync approved sources ('+process.env.GITHUB_SHA.slice(0,12)+')');
  }
  ensure(newVersion&&Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation failed');
  const immutable=await api.getVersion(newVersion.versionNumber);
@@ -149,7 +149,7 @@ async function apply(api,indexSource,websiteSource,s){
  const details=core.deploymentCheck(finalDeployment,s.deploymentId,newVersion.versionNumber);
  ensure(details.url===s.oldUrl,'Existing /exec URL changed unexpectedly');
  const deployed=await api.getVersion(newVersion.versionNumber);
- ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from committed Index / preserved audience');
+ ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from approved sources / preserved audience');
  const final=await api.getContent();
  ensure(same(final.files,desired)&&compareUnapproved(final.files,s.original.files),'Final GAS HEAD mismatch');
  console.log('SYNC_VERIFIED=true; original /exec deployment preserved; version',newVersion.versionNumber,'sha256',s.desiredSha256);
