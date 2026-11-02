@@ -35,7 +35,7 @@ async function prepare(api,indexSource){
  const headManifest=JSON.parse(core.file(remote.files,'appsscript','JSON').source);
  const permissionMatch=JSON.stringify(depManifest.webapp)===JSON.stringify(headManifest.webapp);
  console.log('Existing deployment audience:',depManifest.webapp?.access,'GAS HEAD audience:',headManifest.webapp?.access,'safe to version:',permissionMatch);
- if(!permissionMatch)console.log('DEPLOYMENT_HOLD: original /exec permission differs; only GAS HEAD Index may be synced');
+ if(!permissionMatch&&deploymentChanged)console.log('DEPLOYMENT_ACCESS_PRESERVE: original /exec access will be retained when making an immutable version');
  const updated=core.merge(remote,indexSource);
  const indexChanged=!same(remote.files,updated);
  const deployedIndex=core.file(deployedContent.files,'Index','HTML').source;
@@ -55,6 +55,17 @@ async function prepare(api,indexSource){
 function compareNoIndex(a,b){
  const omit=fs=>fs.filter(x=>x.name!=='Index').map(fields);
  return same(omit(a),omit(b));
+}
+async function waitForVersion(api,deploymentId,expected,attempts=5,pause=ms=>new Promise(done=>setTimeout(done,ms))){
+ let latest;
+ for(let i=0;i<attempts;i++){
+   latest=await api.getDeployment(deploymentId);
+   const observed=latest?.deploymentConfig?.versionNumber;
+   if(observed===expected)return latest;
+   ensure(Number.isInteger(observed)&&observed<expected,'Unexpected deployment version change after update');
+   if(i<attempts-1)await pause(300*(i+1));
+ }
+ throw Error('Deployment update not visible after repeated readback');
 }
 async function apply(api,indexSource,s){
  ensure(s.scriptId===id&&s.triggerSha===process.env.GITHUB_SHA&&s.indexSha256===core.sha(indexSource),'Snapshot mismatch');
@@ -127,7 +138,7 @@ async function apply(api,indexSource,s){
  core.deploymentCheck(current,s.deploymentId,s.oldVersion);
  ensure(JSON.stringify(current)===JSON.stringify(s.deployment),'Deployment changed before update; DO NOT deploy');
  await api.putDeployment(s.deploymentId,{...current.deploymentConfig,versionNumber:newVersion.versionNumber});
- const finalDeployment=await api.getDeployment(s.deploymentId);
+ const finalDeployment=await waitForVersion(api,s.deploymentId,newVersion.versionNumber);
  console.log('DEPLOYMENT_AFTER_UPDATE:',finalDeployment.deploymentConfig?.versionNumber,'expected:',newVersion.versionNumber);
  const details=core.deploymentCheck(finalDeployment,s.deploymentId,newVersion.versionNumber);
  ensure(details.url===s.oldUrl,'Existing /exec URL changed unexpectedly');
@@ -148,4 +159,4 @@ async function main(){
  return apply(api,indexSource,s);
 }
 if(require.main===module)main().catch(e=>{console.error('AUTO_GAS_SYNC_BLOCKED: '+e.message);process.exitCode=1});
-module.exports={assertEvent,targetDeployment,compareNoIndex,prepare,apply,fields};
+module.exports={assertEvent,targetDeployment,compareNoIndex,waitForVersion,prepare,apply,fields};

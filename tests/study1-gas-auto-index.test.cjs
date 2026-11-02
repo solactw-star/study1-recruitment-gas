@@ -31,3 +31,14 @@ test('Automatic deployment workflow is push-only, secret-bearing and limited to 
  assert.match(text,/node scripts\/study1-gas-auto-index.cjs prepare/);
  assert.match(text,/node scripts\/study1-gas-auto-index.cjs apply/);
 });
+
+test('Deployment version readback tolerates short-lived previous-version responses',async()=>{
+ const id='AKfycb12345678901234567890';let reads=0;
+ const fake={getDeployment:async()=>({deploymentConfig:{versionNumber:++reads<3?2:3}})};
+ const result=await sync.waitForVersion(fake,id,3,5,async()=>{});
+ assert.equal(reads,3);assert.equal(result.deploymentConfig.versionNumber,3);
+});
+test('Deployment readback rejects unexpected version advancement without overwriting',async()=>{
+ const fake={getDeployment:async()=>({deploymentConfig:{versionNumber:5}})};
+ await assert.rejects(sync.waitForVersion(fake,'a',3,3,async()=>{}),/Unexpected deployment/);
+});
