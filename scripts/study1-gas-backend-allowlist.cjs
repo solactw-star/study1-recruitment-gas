@@ -19,10 +19,10 @@ function assertClosedWebsite(source) {
   const allowed=new Set(['doGet','getPublicConfig','rejectIntake_','requestOtp',
     'verifyOtp','holdSlot','cancelHold','submitConsent','listSlots','setOpen_',
     'initializeClosedSystem_','runClosedChecks_']);
-  const functions=[...source.matchAll(/\\bfunction\\s+([A-Za-z_$][\\w$]*)\\s*\\(/g)].map(m=>m[1]);
+  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
   if(functions.length!==allowed.size||new Set(functions).size!==functions.length||
     functions.some(name=>!allowed.has(name))) throw Error('Unreviewed Website server entry point');
-  if(/\\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval)\\b/.test(source))
+  if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval)\b/.test(source))
     throw Error('Live data or external operation in CLOSED Website');
 }
 function mergeApproved(core,remote,index,website) {
