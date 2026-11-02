@@ -36,15 +36,23 @@ function study1AdminValidate_(input){
      !Array.isArray(input.testSlots)||input.testSlots.length>8)throw Error('測試問題或時段數量超過上限');
   value.screeningQuestions=input.screeningQuestions.map((x,i)=>{
     if(!x||typeof x!=='object'||Object.keys(x).some(k=>!['id','text','required'].includes(k))||
-      typeof x.id!=='string'||!/^test_q[1-6]$/.test(x.id)||typeof x.text!=='string'||x.text.length>200||
+      typeof x.id!=='string'||!/^test_q[1-6]$/.test(x.id)||typeof x.text!=='string'||!x.text.trim()||x.text.length>200||
       /[<>]/.test(x.text)||typeof x.required!=='boolean')throw Error('測試資格問題格式錯誤：'+(i+1));
     return {id:x.id,text:x.text.trim(),required:x.required};
   });
   value.testSlots=input.testSlots.map((x,i)=>{
+    // Calendar validation is server-side: a shape-only regex accepts dates such
+    // as 2027-02-30 and times such as 25:99, which cannot be booked safely.
+    const match=x&&typeof x.start==='string'&&/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(x.start);
+    const year=match?Number(match[1]):NaN,month=match?Number(match[2]):NaN;
+    const day=match?Number(match[3]):NaN,hour=match?Number(match[4]):NaN,minute=match?Number(match[5]):NaN;
+    const utc=match?new Date(Date.UTC(year,month-1,day,hour,minute)):null;
+    const validStart=!!utc&&year>=2000&&year<=2100&&utc.getUTCFullYear()===year&&
+      utc.getUTCMonth()+1===month&&utc.getUTCDate()===day&&
+      utc.getUTCHours()===hour&&utc.getUTCMinutes()===minute;
     if(!x||typeof x!=='object'||Object.keys(x).some(k=>!['id','start','location','capacity'].includes(k))||
-      typeof x.id!=='string'||!/^test_slot_[1-8]$/.test(x.id)||
-      typeof x.start!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d$/.test(x.start)||
-      typeof x.location!=='string'||x.location.length>100||/[<>]/.test(x.location)||
+      typeof x.id!=='string'||!/^test_slot_[1-8]$/.test(x.id)||!validStart||
+      typeof x.location!=='string'||!x.location.trim()||x.location.length>100||/[<>]/.test(x.location)||
       !Number.isInteger(x.capacity)||x.capacity<1||x.capacity>20)throw Error('測試時段格式錯誤：'+(i+1));
     return {id:x.id,start:x.start,location:x.location.trim(),capacity:x.capacity};
   });

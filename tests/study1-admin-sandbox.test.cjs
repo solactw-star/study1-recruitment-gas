@@ -66,3 +66,27 @@ test('No active email plus a non-owner effective identity always fails closed',(
    assert.equal(h.values.size,0);
  }
 });
+
+
+test('Server rejects impossible calendar dates, invalid clock time and empty sandbox labels',()=>{
+ const h=harness();const c=JSON.parse(JSON.stringify(h.scope.adminGetSandboxConfig().config));
+ delete c.schemaVersion;delete c.revision;
+ for(const invalid of ['2027-02-29T10:00','2028-02-30T10:00','2027-13-01T10:00',
+                       '2027-00-01T10:00','2027-01-00T10:00','2027-01-01T24:00',
+                       '2027-01-01T10:60','1999-12-31T23:59','2101-01-01T00:00']){
+   c.testSlots[0].start=invalid;
+   assert.throws(()=>h.scope.adminSaveSandboxConfig(c,0),/時段格式錯誤/,invalid);
+ }
+ c.testSlots[0].start='2028-02-29T23:59';
+ c.testSlots[0].location='   ';
+ assert.throws(()=>h.scope.adminSaveSandboxConfig(c,0),/時段格式錯誤/);
+ c.testSlots[0].location='〔測試〕研究室 A';
+ c.screeningQuestions[0].text='   ';
+ assert.throws(()=>h.scope.adminSaveSandboxConfig(c,0),/資格問題格式錯誤/);
+ assert.equal(h.values.size,0);
+ c.screeningQuestions[0].text='〔測試〕閱讀研究說明';
+ const result=h.scope.adminSaveSandboxConfig(c,0);
+ assert.equal(result.config.testSlots[0].start,'2028-02-29T23:59');
+ assert.equal(result.config.revision,1);
+ assert.equal(h.values.size,1);
+});
