@@ -98,3 +98,32 @@ test('Invalid editor JSON fails before invoking backend and does not mutate sett
  assert.equal(s.props.size,0);
  assert.match(ui.el('status').textContent,/格式/);
 });
+
+function routeHarness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
+ const h=server(active,effective),htmlCalls=[];
+ const html={createHtmlOutputFromFile:name=>{
+  htmlCalls.push(name);
+  return {name,setTitle(){return this},addMetaTag(){return this}};
+ }};
+ h.ctx.HtmlService=html;
+ const source=fs.readFileSync(path.join(__dirname,'../gas/Website.js'),'utf8');
+ vm.runInContext(source,h.ctx,{timeout:1000});
+ return {...h,htmlCalls};
+}
+test('Actual Website doGet admin route checks identity before rendering AdminConsole',()=>{
+ const h=routeHarness();
+ const rendered=h.ctx.doGet({parameter:{view:'admin'}});
+ assert.equal(rendered.name,'AdminConsole');
+ assert.deepEqual(h.htmlCalls,['AdminConsole']);
+ assert.equal(h.props.size,0);
+});
+test('Unauthenticated owner mismatch stops admin route before HTML is served; public route stays CLOSED',()=>{
+ const h=routeHarness('');
+ assert.throws(()=>h.ctx.doGet({parameter:{view:'admin'}}),/拒絕存取/);
+ assert.deepEqual(h.htmlCalls,[]);
+ const publicPage=h.ctx.doGet({parameter:{view:'home'}});
+ assert.equal(publicPage.name,'Index');
+ assert.equal(h.ctx.getPublicConfig().open,false);
+ assert.equal(h.ctx.getPublicConfig().consentReady,false);
+ assert.equal(h.props.size,0);
+});
