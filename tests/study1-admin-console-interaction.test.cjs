@@ -10,7 +10,7 @@ const clientSource=scripts[0][1];
 const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson','bookingRefresh','bookingList','bookingCode','bookingSlotId','bookingRequest','bookingCreate','bookingMove','bookingCancel'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
- const store={getProperty:key=>['OPEN','CONSENT_READY'].includes(key)?'false':props.has(key)?props.get(key):null,setProperty:(key,v)=>{
+ const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
   assert.ok(['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_SANDBOX_BOOKINGS_V1'].includes(key),'Only isolated properties');
   props.set(key,v);
  },deleteProperty:key=>{assert.equal(key,'STUDY1_SANDBOX_SELFTEST_V1');props.delete(key);}};
@@ -351,21 +351,21 @@ test('Non-owner cannot export or import sandbox configuration',()=>{
 });
 
 test('Admin owner can query isolated test bookings through real page RPC',()=>{
- const srv=server(),ui=client(srv);
+ const srv=server();srv.props.set('OPEN','false');srv.props.set('CONSENT_READY','false');const ui=client(srv);
  ui.click('bookingRefresh');
  assert.deepEqual(ui.calls,['get','booking-read']);
  assert.match(ui.el('bookingList').textContent,/test_slot_1/);
  assert.match(ui.el('bookingList').textContent,/剩餘 2/);
- assert.equal(srv.props.size,0);
+ assert.equal(srv.props.size,2);
 });
 test('Booking UI creates, reads and cancels TST-only record without formal data',()=>{
- const srv=server(),ui=client(srv);
+ const srv=server();srv.props.set('OPEN','false');srv.props.set('CONSENT_READY','false');const ui=client(srv);
  ui.click('bookingRefresh');
  ui.el('bookingCode').value='TST-001';
  ui.el('bookingSlotId').value='test_slot_1';
  ui.click('bookingCreate');
  assert.match(ui.el('bookingList').textContent,/TST-001/);
- assert.equal(srv.props.size,1);
+ assert.equal(srv.props.size,3);
  ui.click('bookingCancel');
  assert.match(ui.el('bookingList').textContent,/已取消/);
  assert.equal(JSON.parse(srv.props.get('STUDY1_SANDBOX_BOOKINGS_V1')).bookings[0].status,'CANCELLED');
