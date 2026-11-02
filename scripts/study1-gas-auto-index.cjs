@@ -25,7 +25,7 @@ async function prepare(api,indexSource){
  core.assertIndex(indexSource);
  const remote=await api.getContent();core.assertRemote(remote);
  const candidates=await api.deployments();
- console.log('GAS deployment metadata:',JSON.stringify(candidates.map(z=>({idPrefix:String(z.deploymentId||'').slice(0,9),version:z.deploymentConfig?.versionNumber,scriptIdMatches:z.deploymentConfig?.scriptId===id,manifest:z.deploymentConfig?.manifestFileName,entryPointTypes:(z.entryPoints||[]).map(p=>({type:p.entryPointType,hasWebApp:!!p.webApp,urlShape:p.webApp?.url?{exec:/\/exec(?:\?|$)/.test(p.webApp.url),dev:/\/dev(?:\?|$)/.test(p.webApp.url)}:null}))}))));
+ console.log('GAS deployment metadata:',JSON.stringify(candidates.map(z=>({idPrefix:String(z.deploymentId||'').slice(0,9),version:z.deploymentConfig?.versionNumber,scriptIdMatches:z.deploymentConfig?.scriptId===id,manifest:z.deploymentConfig?.manifestFileName,description:z.deploymentConfig?.description||'',updateTime:z.updateTime||'',entryPointTypes:(z.entryPoints||[]).map(p=>({type:p.entryPointType,hasWebApp:!!p.webApp,urlShape:p.webApp?.url?{exec:/\/exec(?:\?|$)/.test(p.webApp.url),dev:/\/dev(?:\?|$)/.test(p.webApp.url)}:null}))}))));
  const current=targetDeployment(candidates);
  const dep=await api.getDeployment(current.deploymentId);
  const old=core.deploymentCheck(dep,current.deploymentId,current.deploymentConfig.versionNumber);
