@@ -168,6 +168,13 @@ function bookingReadOnlySnapshot_(openSpreadsheet) {
       !bookingReadOnlySameTab_(first.reservations, second.reservations)) {
     throw new Error('預約快照讀取期間資料發生變動，已拒絕提供名額。');
   }
+  // The injected opener must still refer to the approved workbook after both
+  // tab reads. This detects an identity drift during callbacks; it does NOT
+  // make the separate Sheets reads transactional or protect against edits
+  // after the result is returned.
+  if (book.getId() !== SITE_RESOURCES_.operations) {
+    throw new Error('預約工作簿識別碼於讀取期間變動，已拒絕提供名額。');
+  }
   return first;
 }
 
