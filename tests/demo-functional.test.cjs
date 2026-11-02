@@ -69,3 +69,9 @@ test('past slots, bad configuration and invalid capacity fail closed',()=>{
  assert.throws(()=>core.validateConfig({...config,questions:[{id:'Q1',label:'Q',answer:'maybe'}]}),/答案/);
  assert.throws(()=>core.validateConfig({...config,slots:[config.slots[0],config.slots[0]]}),/識別碼/);
 });
+
+test('editing demo configuration invalidates previous mock eligibility and OTP gates',()=>{
+ assert.match(html,/function render\(\)\{\s*\/\/ Configuration and booking changes invalidate/);
+ assert.match(html,/eligible=false;verified=false;otpIssued=false;/);
+ assert.match(html,/message\('eligibility-status','資料已更新，請重新檢查模擬資格'\)/);
+});
