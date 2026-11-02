@@ -80,6 +80,10 @@ async function waitForVersion(api,deploymentId,expected,attempts=5,pause=ms=>new
 async function apply(api,indexSource,websiteSource,s){
  ensure(s.scriptId===id&&s.triggerSha===process.env.GITHUB_SHA&&s.indexSha256===core.sha(indexSource)&&s.websiteSha256===core.sha(websiteSource),'Snapshot mismatch');
  core.assertIndex(indexSource);backend.assertClosedWebsite(websiteSource);
+ if(s.approvedSourceChanged||s.deploymentChanged){
+  ensure(s.backup&&typeof s.backup.id==='string'&&typeof s.backup.sha256==='string','Missing permanent 828 backup');
+  await api.verifyDriveBackup(s.backup.id,s.backup.sha256);
+ }
  // Fetch again immediately before mutation. Never write through a stale snapshot.
  const remote=await api.getContent();core.assertRemote(remote);
  ensure(core.digest(remote.files)===s.remoteSha256,'GAS was edited while the job ran; no write');
