@@ -112,14 +112,17 @@ test('Unsaved validation rejects non-owner sessions before reading data',()=>{
 });
 
 test('Owner self-test verifies disposable property, stale revision and full cleanup',()=>{
- const h=harness(),original=h.values.size;
+ const h=harness();h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+ const original=h.values.size;
  const r=h.scope.adminRunSandboxSelfTest();
  assert.equal(r.ok,true);assert.equal(r.cleanupVerified,true);
  assert.equal(r.open,false);assert.equal(r.consentReady,false);
- assert.equal(r.checks.length,7);assert.equal(h.values.size,original);assert.equal(h.locks(),0);
+ assert.equal(r.checks.length,8);assert.equal(h.values.size,original);assert.equal(h.locks(),0);
+ assert.equal(h.values.get('OPEN'),'false');assert.equal(h.values.get('CONSENT_READY'),'false');
 });
 test('Preexisting test key is never overwritten or deleted',()=>{
- const h=harness();h.values.set('STUDY1_SANDBOX_SELFTEST_V1','KEEP');
+ const h=harness();h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+ h.values.set('STUDY1_SANDBOX_SELFTEST_V1','KEEP');
  assert.throws(()=>h.scope.adminRunSandboxSelfTest(),/已存在/);
  assert.equal(h.values.get('STUDY1_SANDBOX_SELFTEST_V1'),'KEEP');
  assert.equal(h.locks(),0);
@@ -130,12 +133,25 @@ test('Non-owner session cannot run the self-test or write any property',()=>{
  assert.equal(h.values.size,0);
 });
 test('Self-test does not mutate a previously saved real sandbox configuration',()=>{
- const h=harness(),orig=h.scope.adminGetSandboxConfig();
+ const h=harness();h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+ const orig=h.scope.adminGetSandboxConfig();
  const input=JSON.parse(JSON.stringify(orig.config));delete input.schemaVersion;delete input.revision;
  h.scope.adminSaveSandboxConfig(input,0);
  const before=h.values.get('STUDY1_SANDBOX_ADMIN_CONFIG_V1');
  const r=h.scope.adminRunSandboxSelfTest();
  assert.equal(r.mainRevision,1);
  assert.equal(h.values.get('STUDY1_SANDBOX_ADMIN_CONFIG_V1'),before);
- assert.equal(h.values.size,1);
+ assert.equal(h.values.size,3);
+});
+
+test('Self-test refuses missing or enabled OPEN/CONSENT_READY without creating disposable data',()=>{
+ for(const [open,consent] of [[null,null],['true','false'],['false','true'],['false',null]]){
+  const h=harness();if(open!==null)h.values.set('OPEN',open);
+  if(consent!==null)h.values.set('CONSENT_READY',consent);
+  const before=new Map(h.values);
+  assert.throws(()=>h.scope.adminRunSandboxSelfTest(),/關閉旗標未確認/);
+  assert.deepEqual([...h.values],[...before]);
+  assert.equal(h.locks(),0);
+  assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false);
+ }
 });

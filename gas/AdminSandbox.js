@@ -114,6 +114,10 @@ function adminRunSandboxSelfTest(){
   let created=false,payload='',result=null;
   try{
     const before=p.getProperty(STUDY1_ADMIN_PROPERTY_);
+    const openBefore=p.getProperty('OPEN');
+    const consentBefore=p.getProperty('CONSENT_READY');
+    if(openBefore!=='false'||consentBefore!=='false')
+      throw Error('正式收件關閉旗標未確認為 false，停止隔離自我測試');
     const current=study1AdminPersisted_();
     if(!Number.isSafeInteger(current.revision)||current.revision<0)throw Error('原測試設定版本異常');
     if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==null)
@@ -142,8 +146,10 @@ function adminRunSandboxSelfTest(){
       throw Error('過期 revision 檢查意外修改測試資料');
     if(p.getProperty(STUDY1_ADMIN_PROPERTY_)!==before)
       throw Error('原管理測試設定被修改');
+    if(p.getProperty('OPEN')!==openBefore||p.getProperty('CONSENT_READY')!==consentBefore)
+      throw Error('正式收件關閉旗標在測試期間發生變更');
     result={ok:true,mode:'SANDBOX_ONLY',open:false,consentReady:false,
-      checks:['管理者驗證','既有隔離設定讀取','暫存測試寫入','暫存測試回讀',
+      checks:['管理者驗證','正式收件旗標均為 false 且未變更','既有隔離設定讀取','暫存測試寫入','暫存測試回讀',
         '過期 revision 拒絕覆寫','原管理設定未變'],mainRevision:current.revision};
   }finally{
     try{
