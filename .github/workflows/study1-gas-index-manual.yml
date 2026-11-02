@@ -1,0 +1,83 @@
+name: Study1 GAS Index-only manual sync
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "audit (no write) or apply (explicitly authorized)"
+        type: choice
+        options: [audit, apply]
+        default: audit
+        required: true
+      deployment_id:
+        description: "APPLY: exact current /exec deployment ID obtained from audit"
+        type: string
+        required: false
+      expected_version:
+        description: "APPLY: existing /exec deployment version"
+        type: string
+        required: false
+      expected_remote_sha256:
+        description: "APPLY: GAS full HEAD digest from a preceding audit"
+        type: string
+        required: false
+      confirmation:
+        description: "APPLY: I_AUTHORIZE_STUDY1_EXISTING_EXEC_INDEX_ONLY"
+        type: string
+        required: false
+permissions:
+  contents: read
+concurrency:
+  group: study1-gas-source-sync
+  cancel-in-progress: false
+jobs:
+  indexed-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Require private repository and main
+        env:
+          PRIVATE_REPO: ${{ github.event.repository.private }}
+        run: |
+          test "$PRIVATE_REPO" = true
+          test "$GITHUB_REF" = refs/heads/main
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test closed site and sync guards
+        run: npm test
+      - name: Load existing OAuth secret without logging
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || { echo 'Existing OAuth secret missing'; exit 1; }
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$RUNNER_TEMP/.clasprc.json"
+          echo "CLASPRC_PATH=$RUNNER_TEMP/.clasprc.json" >> "$GITHUB_ENV"
+      - name: Audit complete current GAS HEAD and existing deployment (READ ONLY)
+        env:
+          SYNC_MODE: ${{ inputs.mode }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
+          AUTHORIZATION: ${{ inputs.confirmation }}
+        run: node scripts/study1-gas-index-preview.cjs prepare
+      - name: Preserve original entire GAS source and deployment metadata before write
+        uses: actions/upload-artifact@v4
+        with:
+          name: study1-gas-prewrite-${{ github.run_id }}
+          path: ${{ runner.temp }}/study1-preview-gas-snapshot.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Write only approved Index within remote-derived file set and update original /exec
+        if: ${{ inputs.mode == 'apply' }}
+        env:
+          SYNC_MODE: ${{ inputs.mode }}
+          DEPLOYMENT_ID: ${{ inputs.deployment_id }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
+          AUTHORIZATION: ${{ inputs.confirmation }}
+        run: node scripts/study1-gas-index-preview.cjs apply
+      - name: Clean temporary OAuth token
+        if: always()
+        run: rm -f "$RUNNER_TEMP/.clasprc.json"
