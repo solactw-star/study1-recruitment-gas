@@ -1,4 +1,4 @@
-name: Study1 GAS auto-sync approved Index and CLOSED Website
+name: Study1 GAS auto-sync approved closed site and admin sandbox
 on:
   push:
     branches: [main]
@@ -7,6 +7,8 @@ on:
       - 'gas/Website.js'
       - 'gas/AdminSandbox.js'
       - 'gas/AdminConsole.html'
+      - 'tests/study1-admin-sandbox.test.cjs'
+      - 'tests/public-global-surface.test.cjs'
       - 'scripts/study1-gas-backend-allowlist.cjs'
       - 'scripts/study1-gas-auto-index.cjs'
       - '.github/workflows/study1-gas-auto-index.yml'
