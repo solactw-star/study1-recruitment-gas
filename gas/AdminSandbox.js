@@ -2,10 +2,13 @@
 const STUDY1_ADMIN_OWNER_='solac.tw@gmail.com';
 const STUDY1_ADMIN_PROPERTY_='STUDY1_SANDBOX_ADMIN_CONFIG_V1';
 function study1AdminOwnerRequired_(){
-  // EffectiveUser is the deployer for executeAs=USER_DEPLOYING; it is NOT caller proof.
+  // Only valid on the Google-enforced MYSELF /exec deployment.
+  // Google may redact ActiveUser.email for execute-as-deployer web apps.
+  // EffectiveUser MUST be the owner; a non-empty ActiveUser MUST also match.
+  // This code must NOT be deployed through an ANYONE/anonymous executable.
   const active=String(Session.getActiveUser().getEmail()||'').trim().toLowerCase();
   const effective=String(Session.getEffectiveUser().getEmail()||'').trim().toLowerCase();
-  if(active!==STUDY1_ADMIN_OWNER_||effective!==STUDY1_ADMIN_OWNER_){
+  if(effective!==STUDY1_ADMIN_OWNER_||(active&&active!==STUDY1_ADMIN_OWNER_)){
     throw new Error('研究室管理身分無法驗證，已拒絕存取。');
   }
 }

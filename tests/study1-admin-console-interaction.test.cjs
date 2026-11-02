@@ -82,8 +82,8 @@ test('Concurrent stale edit fails before any property change; reload recovers re
  assert.equal(stale.el('revision').textContent,'1');
  assert.equal(stale.el('save').disabled,false);
 });
-test('Anonymous caller cannot render editable admin settings or write data',()=>{
- const s=server(''),ui=client(s);
+test('Non-owner execution context cannot render editable admin settings or write data',()=>{
+ const s=server('','not-the-owner@example.com'),ui=client(s);
  assert.deepEqual(ui.calls,['get']);
  assert.equal(ui.el('save').disabled,true);
  assert.match(ui.el('status').textContent,/拒絕存取/);
@@ -117,13 +117,22 @@ test('Actual Website doGet admin route checks identity before rendering AdminCon
  assert.deepEqual(h.htmlCalls,['AdminConsole']);
  assert.equal(h.props.size,0);
 });
-test('Unauthenticated owner mismatch stops admin route before HTML is served; public route stays CLOSED',()=>{
- const h=routeHarness('');
+test('Non-owner execution context stops admin route before HTML is served; public route stays CLOSED',()=>{
+ const h=routeHarness('','not-the-owner@example.com');
  assert.throws(()=>h.ctx.doGet({parameter:{view:'admin'}}),/拒絕存取/);
  assert.deepEqual(h.htmlCalls,[]);
  const publicPage=h.ctx.doGet({parameter:{view:'home'}});
  assert.equal(publicPage.name,'Index');
  assert.equal(h.ctx.getPublicConfig().open,false);
  assert.equal(h.ctx.getPublicConfig().consentReady,false);
+ assert.equal(h.props.size,0);
+});
+
+test('Google-redacted active email does not prevent Google-restricted owner-only admin route',()=>{
+ const h=routeHarness('', 'solac.tw@gmail.com');
+ assert.equal(h.ctx.doGet({parameter:{view:'admin'}}).name,'AdminConsole');
+ const ui=client(h);
+ assert.equal(ui.el('save').disabled,false);
+ assert.equal(ui.el('revision').textContent,'0');
  assert.equal(h.props.size,0);
 });

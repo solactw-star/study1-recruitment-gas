@@ -13,8 +13,8 @@ function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  vm.createContext(scope);vm.runInContext(src,scope);
  return {scope,values,reads:()=>writes,locks:()=>locks};
 }
-test('Unauthenticated or impersonating callers cannot read or write even if deployer is owner',()=>{
- for(const user of ['', 'visitor@gmail.com','solac.tw@gmail.com.fake']){
+test('Mismatched active identities cannot read or write even if deployer is owner',()=>{
+ for(const user of ['visitor@gmail.com','solac.tw@gmail.com.fake']){
   const h=harness(user);
   assert.throws(()=>h.scope.adminGetSandboxConfig(),/拒絕存取/);
   assert.throws(()=>h.scope.adminSaveSandboxConfig({},0),/拒絕存取/);
@@ -50,4 +50,19 @@ test('Reject live data fields, raw HTML and oversize fixtures',()=>{
  c.researchIntro='合法測試';c.screeningQuestions=[{id:'test_q1',text:'測試',required:true},{id:'test_q1',text:'重複',required:true}];
  assert.throws(()=>h.scope.adminSaveSandboxConfig(c,0),/重複/);
  assert.equal(h.values.size,0);
+});
+
+test('Google-redacted active email is accepted ONLY with verified deploying owner identity',()=>{
+ const h=harness('', 'solac.tw@gmail.com');
+ const r=h.scope.adminGetSandboxConfig();
+ assert.equal(r.mode,'SANDBOX_ONLY');assert.equal(r.open,false);assert.equal(r.consentReady,false);
+ assert.equal(h.reads(),0);
+});
+test('No active email plus a non-owner effective identity always fails closed',()=>{
+ for(const user of ['', 'other@example.com']){
+   const h=harness('',user);
+   assert.throws(()=>h.scope.adminGetSandboxConfig(),/拒絕存取/);
+   assert.throws(()=>h.scope.adminSaveSandboxConfig({},0),/拒絕存取/);
+   assert.equal(h.values.size,0);
+ }
 });
