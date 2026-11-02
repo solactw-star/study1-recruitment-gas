@@ -2,11 +2,13 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const path=require('node:path'),sync=require('../scripts/study1-gas-auto-index.cjs');
 const scriptId='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z';
-const dep={deploymentId:'AKfycb12345678901234567890',deploymentConfig:{scriptId,versionNumber:5,manifestFileName:'appsscript'},entryPoints:[{webApp:{url:'https://script.google.com/macros/s/AKfycb12345678901234567890/exec'}}]};
+const dep={deploymentId:'AKfycb12345678901234567890',deploymentConfig:{scriptId,versionNumber:5,manifestFileName:'appsscript',description:'Study 1 網站私人預覽 V1'},entryPoints:[{webApp:{url:'https://script.google.com/macros/s/AKfycb12345678901234567890/exec'}}]};
 test('Only unique existing versioned /exec deployment may be updated',()=>{
  assert.deepEqual(sync.targetDeployment([dep]),dep);
  assert.throws(()=>sync.targetDeployment([]),/exactly one/);
  assert.throws(()=>sync.targetDeployment([dep,dep]),/exactly one/);
+ const older={...dep,deploymentId:'AKfycbolderdeployment123456',deploymentConfig:{...dep.deploymentConfig,versionNumber:1,description:'Study1 關閉報名網站｜私人測試｜2026-10-29'}};
+ assert.deepEqual(sync.targetDeployment([older,dep]),dep);
 });
 test('Non-Index remote files are always preserved',()=>{
  const f=[{name:'Index',type:'HTML',source:'old'},{name:'appsscript',type:'JSON',source:'{"webapp":{"access":"ANYONE_ANONYMOUS"}}'}];

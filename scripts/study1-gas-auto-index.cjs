@@ -12,8 +12,9 @@ function targetDeployment(deployments){
  const d=deployments.filter(z=>z?.deploymentConfig?.scriptId===id&&
   Number.isInteger(z.deploymentConfig.versionNumber)&&z.deploymentConfig.versionNumber>0&&
   (z.entryPoints||[]).some(p=>typeof p.webApp?.url==='string'&&/\/exec(?:\?|$)/.test(p.webApp.url)));
- ensure(d.length===1,'Expected exactly one versioned /exec deployment; no automatic guessing');
- return d[0];
+ const target=d.filter(z=>/Study\s*1\s*網站私人預覽\s*V1/.test(z.deploymentConfig.description||'')&&z.deploymentConfig.versionNumber>=2);
+ ensure(target.length===1,'Expected exactly one approved Study 1 網站私人預覽 V1 deployment; do not modify older test URLs');
+ return target[0];
 }
 function assertEvent(env){
  ensure(env.GITHUB_REPOSITORY==='solactw-star/study1-recruitment-gas','Wrong repository');
