@@ -76,7 +76,55 @@ function cancel(bookings,applicant,now){
  if(!current)fail('找不到有效預約');
  current.status='CANCELLED';current.cancelledAt=new Date(now).toISOString();return current;
 }
-root.Study1DemoCore={validateConfig:validateConfig,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
+
+/** Validate browser-restored mock bookings as untrusted data before any seat count. */
+function validateState(input){
+ if(!input||typeof input!=='object'||Array.isArray(input)||
+    !Array.isArray(input.bookings)||input.bookings.length>1000)fail('測試預約資料格式不合法');
+ var config=validateConfig(input.config),bySlot=new Map(),activeApplicants=new Set();
+ var bookings=input.bookings.map(function(b,index){
+  if(!Object.prototype.hasOwnProperty.call(input.bookings,index)||
+     !b||typeof b!=='object'||Array.isArray(b)||!validId(b.applicant)||
+     typeof b.slotId!=='string'||!/^S[0-9]{1,8}$/.test(b.slotId)||
+     (b.status!=='CONFIRMED'&&b.status!=='CANCELLED')||b.demo!==true||
+     !validIso_(b.createdAt))fail('測試預約記錄不合法');
+  var slot=config.slots.find(function(s){return s.id===b.slotId;});
+  if(b.status==='CONFIRMED'){
+   if(!slot||b.cancelledAt!==undefined||activeApplicants.has(b.applicant))
+    fail('有效測試預約資料不一致');
+   activeApplicants.add(b.applicant);
+   bySlot.set(b.slotId,(bySlot.get(b.slotId)||0)+1);
+  }else if(!validIso_(b.cancelledAt)||Date.parse(b.cancelledAt)<Date.parse(b.createdAt)){
+   fail('取消測試預約時間不合法');
+  }
+  var safe={applicant:b.applicant,slotId:b.slotId,status:b.status,
+    createdAt:b.createdAt,demo:true};
+  if(b.status==='CANCELLED')safe.cancelledAt=b.cancelledAt;
+  return safe;
+ });
+ bySlot.forEach(function(count,id){
+  var slot=config.slots.find(function(s){return s.id===id;});
+  if(count>slot.capacity)fail('有效測試預約超過時段容量');
+ });
+ return {config:config,bookings:bookings};
+}
+function validIso_(value){
+ return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&
+  Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;
+}
+/** A config import cannot silently relocate an existing confirmed mock booking. */
+function replaceConfig(state,candidate){
+ var before=validateState(state),after=validateState({config:candidate,bookings:before.bookings});
+ before.bookings.forEach(function(b){
+  if(b.status!=='CONFIRMED')return;
+  var oldSlot=before.config.slots.find(function(s){return s.id===b.slotId;});
+  var newSlot=after.config.slots.find(function(s){return s.id===b.slotId;});
+  if(!newSlot||oldSlot.start!==newSlot.start||oldSlot.end!==newSlot.end||
+     oldSlot.location!==newSlot.location)fail('匯入設定不得更改有效預約的時間或地點');
+ });
+ return after;
+}
+root.Study1DemoCore={validateConfig:validateConfig,validateState:validateState,replaceConfig:replaceConfig,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
 })(window);
 </script>
 <script>
@@ -86,7 +134,7 @@ function el(id){return document.getElementById(id);}
 function message(id,text){el(id).textContent=text;}
 function later(days,hour){var d=new Date();d.setDate(d.getDate()+days);d.setHours(hour,0,0,0);return d.toISOString();}
 function initial(){return {config:{title:'Study 1 模擬招募',intro:'這是虛構流程測試，不代表正式研究招募資訊或資格條件。',consent:'此為測試同意書佔位文字，不是 IRB 核准版 PDF，請勿輸入真實簽名。',questions:[{id:'Q1',label:'我了解這是非正式測試，且不會輸入真人資料',answer:'yes'}],slots:[{id:'S1',start:later(3,10),end:later(3,11),capacity:2,location:'DEMO-LAB'},{id:'S2',start:later(5,14),end:later(5,15),capacity:2,location:'DEMO-LAB'}]},bookings:[]};}
-function load(){try{var raw=localStorage.getItem(key);if(raw){var v=JSON.parse(raw);return {config:core.validateConfig(v.config),bookings:Array.isArray(v.bookings)?v.bookings.filter(function(b){return core.validId(b.applicant)&&['CONFIRMED','CANCELLED'].includes(b.status)&&typeof b.slotId==='string';}):[]};}}catch(e){}return initial();}
+function load(){try{var raw=localStorage.getItem(key);if(raw)return core.validateState(JSON.parse(raw));}catch(e){}return initial();}
 var state=load();
 function save(){try{localStorage.setItem(key,JSON.stringify(state));}catch(e){message('admin-message','瀏覽器儲存不可用，資料只保留到關閉頁面。');}}
 function text(tag,value){var node=document.createElement(tag);node.textContent=value;return node;}
@@ -131,7 +179,7 @@ el('add-question').onclick=function(){try{var ids=state.config.questions.map(fun
 el('add-slot').onclick=function(){try{var start=new Date(el('new-start').value),end=new Date(el('new-end').value);if(!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||start.getTime()<=Date.now())throw Error('請設定未來有效的開始與結束時間');var ids=state.config.slots.map(function(s){return Number(s.id.slice(1));});var slot={id:'S'+(Math.max(0,...ids)+1),start:start.toISOString(),end:end.toISOString(),capacity:Number(el('new-capacity').value),location:el('new-location').value};state.config=core.validateConfig(Object.assign({},state.config,{slots:state.config.slots.concat([slot])}));save();render();message('admin-message','已新增測試時段。');}catch(e){message('admin-message',e.message);}};
 el('pdf-file').onchange=function(){if(pdfUrl){URL.revokeObjectURL(pdfUrl);pdfUrl=null;}var f=this.files[0];if(!f)return;if(f.type!=='application/pdf'||f.size>10*1024*1024){message('admin-message','僅接受 10MB 以下 PDF 測試檔。');this.value='';return;}pdfUrl=URL.createObjectURL(f);el('pdf-link').href=pdfUrl;el('pdf-link').classList.remove('hidden');message('pdf-status','目前分頁測試 PDF：'+f.name+'（未上傳、未保存、未驗證簽署）');};
 el('export-config').onclick=function(){var blob=new Blob([JSON.stringify(state.config,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='study1-demo-config.json';a.click();setTimeout(function(){URL.revokeObjectURL(url);},1000);};
-el('import-config').onchange=function(){var f=this.files[0];if(!f||f.size>100000){message('admin-message','JSON 檔案過大或未選擇。');return;}f.text().then(function(t){try{var c=core.validateConfig(JSON.parse(t));var active=state.bookings.filter(function(b){return b.status==='CONFIRMED';});if(active.some(function(b){return !c.slots.some(function(s){return s.id===b.slotId;}))){throw Error('匯入設定會刪除有效預約時段，已拒絕');}state.config=c;save();render();message('admin-message','設定匯入成功（僅本機）。');}catch(e){message('admin-message','匯入失敗：'+e.message);}});};
+el('import-config').onchange=function(){var f=this.files[0];if(!f||f.size>100000){message('admin-message','JSON 檔案過大或未選擇。');return;}f.text().then(function(t){try{state=core.replaceConfig(state,JSON.parse(t));save();render();message('admin-message','設定匯入成功（僅本機）。');}catch(e){message('admin-message','匯入失敗：'+e.message);}});};
 el('reset').onclick=function(){if(!confirm('確定清除這個瀏覽器的所有虛構預約與測試設定？'))return;state=initial();eligible=false;verified=false;otpIssued=false;save();render();message('admin-message','已還原初始測試資料。');};
 render();
 })();
