@@ -46,6 +46,8 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 <button id="save" type="button" disabled>儲存隔離測試設定</button>
 <button class="secondary" id="check" type="button" disabled>檢查設定（不儲存）</button>
 <button class="secondary" id="reload" type="button">重新讀取</button>
+<button class="secondary" id="selftest" type="button" disabled>執行隔離自我測試（結束自動清理）</button>
+<pre id="selftestResult" aria-live="polite" role="status" style="white-space:pre-wrap;font:inherit">尚未執行 GAS 真實自我測試。</pre>
 <div id="status" role="status" aria-live="polite">確認研究室權限中……</div>
 </section>
 <p><a href="?">返回公開研究資訊</a></p>
@@ -56,7 +58,7 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 const $=id=>document.getElementById(id);
 let revision=null;
 function status(message){$('status').textContent=String(message);}
-function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove'])$(id).disabled=!!flag;}
+function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest'])$(id).disabled=!!flag;}
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
  const c=response.config;revision=c.revision;
@@ -95,6 +97,28 @@ function save(){
   setDisabled(true);status('驗證並儲存隔離測試設定……');
   google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminSaveSandboxConfig(data,revision);
  }catch(e){status('請修正測試設定格式：'+String(e.message));}
+}
+function runSelfTest(){
+  setDisabled(true);
+  $('selftestResult').textContent='GAS 伺服器測試執行中（獨立暫存鍵；結束後清理）……';
+  google.script.run.withSuccessHandler(function(result){
+    setDisabled(false);
+    if(!result||result.ok!==true||result.mode!=='SANDBOX_ONLY'||result.open!==false||
+      result.consentReady!==false||result.cleanupVerified!==true||
+      !Array.isArray(result.checks)||result.checks.length!==7){
+      $('selftestResult').textContent='FAIL：GAS 未證實測試完成並清理。';
+      status('隔離自我測試未通過，正式報名仍關閉。');
+      return;
+    }
+    $('selftestResult').textContent='PASS（GAS 真實執行）\n'+
+      result.checks.map((step,i)=>(i+1)+'. '+step).join('\n')+
+      '\n原設定 revision：'+result.mainRevision+'（未修改）';
+    status('隔離測試通過，暫存資料已清理；正式報名與簽署仍關閉。');
+  }).withFailureHandler(function(error){
+    setDisabled(false);
+    $('selftestResult').textContent='FAIL：'+String(error&&error.message||error);
+    status('隔離自我測試未通過，不得標示驗收完成。');
+  }).adminRunSandboxSelfTest();
 }
 function slotRows(){
  const rows=JSON.parse($('slots').value);
@@ -156,7 +180,7 @@ function removeSlot(){
   status('已從草稿移除 '+id+'；尚未儲存。');
  }catch(e){status('測試時段未刪除：'+String(e.message));}
 }
-$('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);
+$('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);$('selftest').addEventListener('click',runSelfTest);
 $('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
 reload();
 })();

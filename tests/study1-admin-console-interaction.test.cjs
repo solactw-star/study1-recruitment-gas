@@ -7,13 +7,13 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
- const store={getProperty:key=>props.get(key)||null,setProperty:(key,v)=>{
-  assert.equal(key,'STUDY1_SANDBOX_ADMIN_CONFIG_V1','Must not change live properties');
+ const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
+  assert.ok(['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(key),'Only isolated properties');
   props.set(key,v);
- }};
+ },deleteProperty:key=>{assert.equal(key,'STUDY1_SANDBOX_SELFTEST_V1');props.delete(key);}};
  const ctx=vm.createContext({
   Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
   PropertiesService:{getScriptProperties:()=>store},
@@ -36,7 +36,8 @@ function client(srv){
   withFailureHandler(cb){failure=cb;return api;},
   adminGetSandboxConfig(){calls.push('get');try{success(srv.ctx.adminGetSandboxConfig());}catch(e){failure(e);}},
   adminSaveSandboxConfig(config,rev){calls.push('save');try{success(srv.ctx.adminSaveSandboxConfig(config,rev));}catch(e){failure(e);}},
-  adminValidateSandboxConfig(config){calls.push('check');try{success(srv.ctx.adminValidateSandboxConfig(config));}catch(e){failure(e);}}
+  adminValidateSandboxConfig(config){calls.push('check');try{success(srv.ctx.adminValidateSandboxConfig(config));}catch(e){failure(e);}},
+  adminRunSandboxSelfTest(){calls.push('selftest');try{success(srv.ctx.adminRunSandboxSelfTest());}catch(e){failure(e);}}
  };
  const ctx=vm.createContext({document:{getElementById:id=>dom.get(id)},google:{script:{run:api}},JSON,String,Number,Error});
  vm.runInContext(clientSource,ctx,{timeout:1000});
@@ -218,4 +219,18 @@ test('Redacted active identity disables structured slot controls before any RPC 
  for(const id of ['save','check','slotLoad','slotApply','slotAdd','slotRemove'])assert.equal(ui.el(id).disabled,true,id);
  assert.equal(ui.el('reload').disabled,false);
  assert.equal(srv.props.size,0);
+});
+
+test('Owner-only browser self-test invokes actual GAS handler and shows PASS only after cleanup',()=>{
+ const s=server(),ui=client(s);
+ ui.click('selftest');
+ assert.deepEqual(ui.calls,['get','selftest']);
+ assert.match(ui.el('selftestResult').textContent,/PASS（GAS 真實執行）/);
+ assert.match(ui.el('selftestResult').textContent,/暫存測試資料已清理/);
+ assert.equal(s.props.size,0);
+});
+test('Browser self-test with non-owner is blocked; no PASS and no property writes',()=>{
+ const s=server('visitor@example.com','solac.tw@gmail.com'),ui=client(s);
+ assert.equal(ui.el('selftest').disabled,true);
+ assert.equal(s.props.size,0);
 });

@@ -34,6 +34,10 @@ function assertAdminSandbox(source){
  const required=[
   "const STUDY1_ADMIN_OWNER_='solac.tw@gmail.com'",
   "const STUDY1_ADMIN_PROPERTY_='STUDY1_SANDBOX_ADMIN_CONFIG_V1'",
+  "const STUDY1_ADMIN_SELFTEST_PROPERTY_='STUDY1_SANDBOX_SELFTEST_V1'",
+  'function adminRunSandboxSelfTest(){',
+  'study1AdminRequireRevision_(observed,0)',
+  'p.deleteProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)',
   'Session.getActiveUser().getEmail()',
   'Session.getEffectiveUser().getEmail()',
   'if(effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_)',
@@ -48,14 +52,14 @@ function assertAdminSandbox(source){
   "mode:'SANDBOX_ONLY',open:false,consentReady:false"
  ];
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
- const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig']);
+ const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
 }
 function assertAdminHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>'))throw Error('Missing admin HTML');
- for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
+ for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))throw Error('Unreviewed admin HTML operation');
 }
 function mergeApproved(core,remote,index,website,adminScript,adminHtml){

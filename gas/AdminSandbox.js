@@ -1,6 +1,7 @@
 /** Study1 isolated research-admin SANDBOX. Never accepts real participants. */
 const STUDY1_ADMIN_OWNER_='solac.tw@gmail.com';
 const STUDY1_ADMIN_PROPERTY_='STUDY1_SANDBOX_ADMIN_CONFIG_V1';
+const STUDY1_ADMIN_SELFTEST_PROPERTY_='STUDY1_SANDBOX_SELFTEST_V1';
 function study1AdminOwnerRequired_(){
   // Fail closed if Google redacts the active caller identity. EffectiveUser
   // alone is the deploying account in execute-as-me apps, not the caller.
@@ -77,6 +78,11 @@ function adminValidateSandboxConfig(input){
   study1AdminOwnerRequired_();
   return {mode:'SANDBOX_ONLY',open:false,consentReady:false,config:study1AdminValidate_(input)};
 }
+/** The same revision comparison is used by sandbox edits and disposable self-tests. */
+function study1AdminRequireRevision_(current,expectedRevision){
+  if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('無效的設定版本');
+  if(current.revision!==expectedRevision)throw Error('設定已由其他工作更新，請重新讀取後編輯');
+}
 function adminSaveSandboxConfig(input,expectedRevision){
   study1AdminOwnerRequired_();
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('無效的設定版本');
@@ -85,7 +91,7 @@ function adminSaveSandboxConfig(input,expectedRevision){
   if(!lock.tryLock(8000))throw Error('另一項測試設定更新正在進行，請重新讀取');
   try{
     const current=study1AdminPersisted_();
-    if(current.revision!==expectedRevision)throw Error('設定已由其他工作更新，請重新讀取後編輯');
+    study1AdminRequireRevision_(current,expectedRevision);
     const newValue={schemaVersion:1,revision:current.revision+1,config};
     const payload=JSON.stringify(newValue);
     if(payload.length>7500)throw Error('測試設定過大');
@@ -94,4 +100,64 @@ function adminSaveSandboxConfig(input,expectedRevision){
     if(properties.getProperty(STUDY1_ADMIN_PROPERTY_)!==payload)throw Error('測試設定回讀不一致');
     return adminGetSandboxConfig();
   }finally{lock.releaseLock();}
+}
+
+/**
+ * Explicit owner-only, disposable backend self-test. It never edits the real
+ * sandbox admin config, OPEN/CONSENT_READY, other properties or research Sheets.
+ */
+function adminRunSandboxSelfTest(){
+  study1AdminOwnerRequired_();
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(8000))throw Error('其他測試設定工作進行中，請稍後重試');
+  const p=PropertiesService.getScriptProperties();
+  let created=false,payload='',result=null;
+  try{
+    const before=p.getProperty(STUDY1_ADMIN_PROPERTY_);
+    const current=study1AdminPersisted_();
+    if(!Number.isSafeInteger(current.revision)||current.revision<0)throw Error('原測試設定版本異常');
+    if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==null)
+      throw Error('自我測試鍵已存在，為保護既有資料不覆寫也不清除');
+    const defaults=study1AdminDefault_();
+    const draft={studyTitle:'〔自我測試〕暫存',researchIntro:defaults.researchIntro,
+      eligibilityNote:defaults.eligibilityNote,screeningQuestions:defaults.screeningQuestions,
+      testSlots:defaults.testSlots,emailTemplate:defaults.emailTemplate,
+      pdfVersionNote:defaults.pdfVersionNote};
+    const validated=study1AdminValidate_(draft);
+    const record={purpose:'STUDY1_SANDBOX_SELFTEST_V1',revision:1,config:validated};
+    payload=JSON.stringify(record);
+    if(payload.length>7500)throw Error('暫存測試資料長度異常');
+    created=true;
+    p.setProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_,payload);
+    const reread=p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_);
+    if(reread!==payload)throw Error('隔離測試寫入／回讀不一致');
+    const observed=JSON.parse(reread);
+    if(observed.purpose!=='STUDY1_SANDBOX_SELFTEST_V1'||observed.revision!==1||
+      observed.config.studyTitle!==draft.studyTitle)throw Error('隔離測試資料內容不符');
+    let conflictDenied=false;
+    try{study1AdminRequireRevision_(observed,0);}
+    catch(e){conflictDenied=/其他工作更新/.test(String(e.message));}
+    if(!conflictDenied)throw Error('過期 revision 未被拒絕');
+    if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==payload)
+      throw Error('過期 revision 檢查意外修改測試資料');
+    if(p.getProperty(STUDY1_ADMIN_PROPERTY_)!==before)
+      throw Error('原管理測試設定被修改');
+    result={ok:true,mode:'SANDBOX_ONLY',open:false,consentReady:false,
+      checks:['管理者驗證','既有隔離設定讀取','暫存測試寫入','暫存測試回讀',
+        '過期 revision 拒絕覆寫','原管理設定未變'],mainRevision:current.revision};
+  }finally{
+    try{
+      if(created){
+        if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==payload)
+          throw Error('測試鍵內容異動，為避免清除非本次資料而停止');
+        p.deleteProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_);
+        if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==null)
+          throw Error('隔離測試鍵刪除後回讀失敗');
+      }
+    }finally{lock.releaseLock();}
+  }
+  if(!result)throw Error('隔離自我測試未完整完成');
+  result.checks.push('暫存測試資料已清理');
+  result.cleanupVerified=true;
+  return result;
 }

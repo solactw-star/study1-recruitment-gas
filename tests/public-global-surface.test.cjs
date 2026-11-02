@@ -11,7 +11,7 @@ const vm = require('node:vm');
 // This is a CLOSED-site allowlist, not an approval to deploy these sources.
 const gasDir = path.join(__dirname, '..', 'gas');
 const approvedPublicFunctions = [
-  'adminGetSandboxConfig', 'adminSaveSandboxConfig', 'adminValidateSandboxConfig', // strictly owner-authorized, sandbox-only
+  'adminGetSandboxConfig', 'adminSaveSandboxConfig', 'adminValidateSandboxConfig', 'adminRunSandboxSelfTest', // strictly owner-authorized, sandbox-only
   'cancelHold', 'doGet', 'getPublicConfig', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
   'requestOtp', 'submitConsent', 'verifyOtp'

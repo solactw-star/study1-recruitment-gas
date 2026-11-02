@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const src=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
 function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const values=new Map();let writes=0,locks=0;
- const p={getProperty:k=>values.get(k)||null,setProperty:(k,v)=>{if(k!=='STUDY1_SANDBOX_ADMIN_CONFIG_V1')throw Error('Bad property namespace');writes++;values.set(k,v);}};
+ const p={getProperty:k=>values.has(k)?values.get(k):null,setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);}};
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
@@ -109,4 +109,33 @@ test('Unsaved validation rejects non-owner sessions before reading data',()=>{
  const h=harness('visitor@example.com','solac.tw@gmail.com');
  assert.throws(()=>h.scope.adminValidateSandboxConfig({}),/拒絕存取/);
  assert.equal(h.values.size,0);
+});
+
+test('Owner self-test verifies disposable property, stale revision and full cleanup',()=>{
+ const h=harness(),original=h.values.size;
+ const r=h.scope.adminRunSandboxSelfTest();
+ assert.equal(r.ok,true);assert.equal(r.cleanupVerified,true);
+ assert.equal(r.open,false);assert.equal(r.consentReady,false);
+ assert.equal(r.checks.length,7);assert.equal(h.values.size,original);assert.equal(h.locks(),0);
+});
+test('Preexisting test key is never overwritten or deleted',()=>{
+ const h=harness();h.values.set('STUDY1_SANDBOX_SELFTEST_V1','KEEP');
+ assert.throws(()=>h.scope.adminRunSandboxSelfTest(),/已存在/);
+ assert.equal(h.values.get('STUDY1_SANDBOX_SELFTEST_V1'),'KEEP');
+ assert.equal(h.locks(),0);
+});
+test('Non-owner session cannot run the self-test or write any property',()=>{
+ const h=harness('','solac.tw@gmail.com');
+ assert.throws(()=>h.scope.adminRunSandboxSelfTest(),/拒絕存取/);
+ assert.equal(h.values.size,0);
+});
+test('Self-test does not mutate a previously saved real sandbox configuration',()=>{
+ const h=harness(),orig=h.scope.adminGetSandboxConfig();
+ const input=JSON.parse(JSON.stringify(orig.config));delete input.schemaVersion;delete input.revision;
+ h.scope.adminSaveSandboxConfig(input,0);
+ const before=h.values.get('STUDY1_SANDBOX_ADMIN_CONFIG_V1');
+ const r=h.scope.adminRunSandboxSelfTest();
+ assert.equal(r.mainRevision,1);
+ assert.equal(h.values.get('STUDY1_SANDBOX_ADMIN_CONFIG_V1'),before);
+ assert.equal(h.values.size,1);
 });
