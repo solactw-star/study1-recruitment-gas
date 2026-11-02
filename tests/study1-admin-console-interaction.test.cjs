@@ -7,7 +7,7 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson','bookingRefresh','bookingList','bookingCapacity','bookingFeedback','bookingExisting','bookingCode','bookingSlotId','bookingRequest','bookingCreate','bookingMove','bookingCancel'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson','bookingRefresh','bookingList','bookingCapacity','bookingCapacityTable','bookingTable','bookingFilterStatus','bookingFilterSlot','bookingFilterCode','bookingFilterSummary','bookingFeedback','bookingExisting','bookingCode','bookingSlotId','bookingRequest','bookingCreate','bookingMove','bookingCancel'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
  const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
@@ -43,9 +43,9 @@ function client(srv){
   adminChangeTestBooking(data){calls.push('booking-write');try{success(srv.ctx.adminChangeTestBooking(data));}catch(e){failure(e);}}
  };
  const confirms=[];
- const ctx=vm.createContext({document:{getElementById:id=>dom.get(id),createElement:tag=>({tagName:tag,value:'',textContent:'',className:'',disabled:false})},window:{confirm:message=>{confirms.push(message);return true}},google:{script:{run:api}},JSON,String,Number,Error,Date,Math});
+ const ctx=vm.createContext({document:{getElementById:id=>dom.get(id),createElement:tag=>({tagName:tag,value:'',textContent:'',className:'',disabled:false,children:[],handlers:{},replaceChildren(...nodes){this.children=nodes;},addEventListener(type,listener){this.handlers[type]=listener;}})},window:{confirm:message=>{confirms.push(message);return true}},google:{script:{run:api}},JSON,String,Number,Error,Date,Math});
  vm.runInContext(clientSource,ctx,{timeout:1000});
- return {el:id=>dom.get(id),calls,confirms,change:id=>{const e=dom.get(id);e.handlers.change();},click:id=>{const e=dom.get(id);assert.equal(e.disabled,false,'Disabled: '+id);e.handlers.click();}};
+ return {el:id=>dom.get(id),calls,confirms,change:id=>{const e=dom.get(id);e.handlers.change();},input:id=>{const e=dom.get(id);e.handlers.input();},click:id=>{const e=dom.get(id);assert.equal(e.disabled,false,'Disabled: '+id);e.handlers.click();}};
 }
 test('AdminConsole browser script loads synthetic settings from the actual server handlers',()=>{
  const s=server(),ui=client(s);
@@ -427,4 +427,69 @@ test('Booking UI does not use user PII, rendered HTML injection or exposed idemp
  assert.match(h,/readonly autocomplete="off"/);
  assert.doesNotMatch(h,/\.innerHTML\s*=/);
  assert.match(h,/window\.confirm/);
+});
+
+function rowsOf(ui,id){
+ const root=ui.el(id),table=root.children[0];
+ if(!table||table.tagName!=='table')return [];
+ return table.children[1].children;
+}
+test('Capacity table shows each slot with booked, remaining, and a grounded status',()=>{
+ const s=server();s.props.set('OPEN','false');s.props.set('CONSENT_READY','false');
+ const ui=client(s);ui.click('bookingRefresh');
+ const rows=rowsOf(ui,'bookingCapacityTable');
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].children[2].textContent,'0 / 2');
+ assert.equal(rows[0].children[3].textContent,'2');
+ assert.equal(rows[0].children[4].textContent,'尚有名額');
+ ui.click('bookingCreate');ui.click('bookingCreate');
+ const full=rowsOf(ui,'bookingCapacityTable');
+ assert.equal(full[0].children[2].textContent,'2 / 2');
+ assert.equal(full[0].children[4].textContent,'額滿');
+});
+test('Booking table filters by status and test code without GAS writes',()=>{
+ const s=server();s.props.set('OPEN','false');s.props.set('CONSENT_READY','false');
+ const ui=client(s);ui.click('bookingRefresh');ui.click('bookingCreate');ui.click('bookingCreate');ui.click('bookingCancel');
+ const before=ui.calls.length,rev=JSON.parse(s.props.get('STUDY1_SANDBOX_BOOKINGS_V1')).revision;
+ assert.equal(rowsOf(ui,'bookingTable').length,2);
+ ui.el('bookingFilterStatus').value='ACTIVE';ui.change('bookingFilterStatus');
+ assert.equal(rowsOf(ui,'bookingTable').length,1);
+ assert.equal(rowsOf(ui,'bookingTable')[0].children[2].textContent,'有效');
+ ui.el('bookingFilterStatus').value='CANCELLED';ui.change('bookingFilterStatus');
+ assert.equal(rowsOf(ui,'bookingTable').length,1);
+ assert.equal(rowsOf(ui,'bookingTable')[0].children[2].textContent,'已取消');
+ ui.el('bookingFilterStatus').value='ALL';ui.change('bookingFilterStatus');
+ ui.el('bookingFilterCode').value='TST-002';ui.input('bookingFilterCode');
+ assert.equal(rowsOf(ui,'bookingTable').length,1);
+ assert.equal(rowsOf(ui,'bookingTable')[0].children[0].textContent,'TST-002');
+ assert.equal(ui.calls.length,before);
+ assert.equal(JSON.parse(s.props.get('STUDY1_SANDBOX_BOOKINGS_V1')).revision,rev);
+});
+test('Row select chooses an existing synthetic booking without requiring manual code',()=>{
+ const s=server();s.props.set('OPEN','false');s.props.set('CONSENT_READY','false');
+ const ui=client(s);ui.click('bookingRefresh');ui.click('bookingCreate');ui.click('bookingCreate');
+ assert.equal(ui.el('bookingExisting').value,'TST-001');
+ const action=rowsOf(ui,'bookingTable')[1].children[3].children[0];
+ assert.equal(action.textContent,'選取操作');
+ action.handlers.click();
+ assert.equal(ui.el('bookingExisting').value,'TST-002');
+ assert.equal(ui.el('bookingCancel').disabled,false);
+ assert.match(ui.el('bookingFeedback').textContent,/已選取 TST-002/);
+});
+test('No matching test bookings gives accessible empty state and preserves CLOSED mode',()=>{
+ const s=server();s.props.set('OPEN','false');s.props.set('CONSENT_READY','false');
+ const ui=client(s);ui.click('bookingRefresh');
+ assert.match(ui.el('bookingTable').children[0].textContent,/目前沒有任何隔離測試預約/);
+ ui.click('bookingCreate');
+ ui.el('bookingFilterCode').value='TST-999';ui.input('bookingFilterCode');
+ assert.match(ui.el('bookingTable').children[0].textContent,/沒有符合篩選條件/);
+ assert.match(ui.el('bookingFilterSummary').textContent,/顯示 0 \/ 1/);
+ assert.equal(s.props.get('OPEN'),'false');
+ assert.equal(s.props.get('CONSENT_READY'),'false');
+});
+test('Unauthenticated session cannot use booking table filters or read data',()=>{
+ const s=server('visitor@example.com','solac.tw@gmail.com'),ui=client(s);
+ for(const id of ['bookingFilterStatus','bookingFilterSlot','bookingFilterCode'])
+   assert.equal(ui.el(id).disabled,true);
+ assert.equal(s.props.size,0);
 });

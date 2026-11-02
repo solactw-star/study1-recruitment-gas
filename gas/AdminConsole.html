@@ -22,6 +22,20 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 .booking-feedback.warn{background:#fff5e8;border-color:#d8b68c}
 .booking-feedback.good{background:#e5f6eb;border-color:#87bea0}
 select{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px solid #789d9b;border-radius:6px;background:#fff}
+.booking-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.booking-table-wrap{max-width:100%;overflow-x:auto;margin:12px 0;border:1px solid #b9d1cd;border-radius:8px;background:white}
+.booking-table{width:100%;border-collapse:collapse;text-align:left;font-size:.95rem}
+.booking-table th,.booking-table td{padding:10px;border-bottom:1px solid #dce7e4;white-space:nowrap}
+.booking-table th{background:#e9f4f1;color:#143d44}
+.booking-table tr:last-child td{border-bottom:0}
+.booking-table tr:focus-within{background:#edf7f5}
+.booking-badge{font-weight:650}
+.booking-badge.full{color:#9c441d}
+.booking-badge.open{color:#176349}
+.booking-badge.cancelled{color:#6b7580}
+.booking-empty{padding:12px;margin:0;color:#54696c}
+.booking-table button{margin:0;padding:6px 10px;font-size:.9rem}
+@media(max-width:560px){.booking-table th,.booking-table td{padding:8px;font-size:.85rem}}
 </style></head><body>
 <header><h1>研究室設定後台（隔離測試）</h1><p>Study 1 — 目前不接受真人報名、預約或電子簽署。</p></header>
 <main><div class="notice" role="note"><strong>僅供研究室測試</strong><p>這些設定不會更新正式研究文件、報名名單、真實時段或通知。若管理帳號無法辨識，系統會拒絕讀寫。</p></div>
@@ -73,7 +87,21 @@ select{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px soli
 <p>這裡只能使用 TST-001 等虛構測試代碼，不得輸入姓名、電話或電子郵件。時段與容量來自上方已儲存的隔離測試設定。所有操作由 GAS 伺服器在鎖內執行。</p>
 <button class="secondary" id="bookingRefresh" type="button" disabled>重新整理測試預約與名額</button>
 <div id="bookingCapacity" class="slot-grid" aria-live="polite"><p>尚未讀取測試時段。</p></div>
+<h4>測試時段容量表</h4>
+<div id="bookingCapacityTable" class="booking-table-wrap" role="region" aria-label="隔離測試時段容量表" tabindex="0"><p class="booking-empty">尚未讀取測試容量。</p></div>
+<h4>測試預約清單</h4>
+<div class="booking-filter-grid" role="group" aria-label="篩選測試預約">
+<div><label for="bookingFilterStatus">預約狀態</label><select id="bookingFilterStatus" disabled>
+<option value="ALL">全部狀態</option><option value="ACTIVE">有效</option><option value="CANCELLED">已取消</option>
+</select></div>
+<div><label for="bookingFilterSlot">測試時段</label><select id="bookingFilterSlot" disabled><option value="">全部時段</option></select></div>
+<div><label for="bookingFilterCode">測試代碼搜尋</label><input id="bookingFilterCode" type="search" maxlength="7" placeholder="例如 TST-001" disabled autocomplete="off"></div>
+</div>
+<p id="bookingFilterSummary" role="status" aria-live="polite">尚未載入測試預約。</p>
+<div id="bookingTable" class="booking-table-wrap" role="region" aria-label="隔離測試預約清單" tabindex="0"><p class="booking-empty">尚未載入測試預約。</p></div>
+<details><summary>查看測試資料文字摘要</summary>
 <pre id="bookingList" role="status" aria-live="polite" style="white-space:pre-wrap;font:inherit">尚未讀取測試預約。</pre>
+</details>
 <label for="bookingCode">系統自動產生的下一個測試代碼（僅供顯示）</label>
 <input id="bookingCode" value="—" readonly autocomplete="off">
 <label for="bookingExisting">選擇要改期或取消的有效測試預約</label>
@@ -108,8 +136,9 @@ let revision=null,lastLoadedConfig=null,bookingRevision=null,bookingView=null,pe
 function status(message){$('status').textContent=String(message);}
 function setDisabled(flag){
  for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove','selftest','questionLoad','questionApply','questionAdd','questionRemove','exportConfig','importConfig','bookingRefresh','bookingCreate','bookingMove','bookingCancel'])$(id).disabled=!!flag;
- if(flag){$('bookingExisting').disabled=true;$('bookingSlotId').disabled=true;}
- else updateBookingControls();
+ if(flag){
+  for(const id of ['bookingExisting','bookingSlotId','bookingFilterStatus','bookingFilterSlot','bookingFilterCode'])$(id).disabled=true;
+ }else updateBookingControls();
 }
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
@@ -251,15 +280,88 @@ function updateBookingControls(){
  $('bookingCode').value=ready?(nextTestCode()||'無可用代碼'):'—';
  $('bookingExisting').disabled=!ready||!bookingView.bookings.some(x=>x.status==='ACTIVE');
  $('bookingSlotId').disabled=!ready||!bookingView.slots.length;
+ for(const id of ['bookingFilterStatus','bookingFilterSlot','bookingFilterCode'])$(id).disabled=!ready;
  $('bookingCreate').disabled=!ready||!nextTestCode()||bookingView.bookings.length>=20||!room;
  $('bookingMove').disabled=!ready||!active||!room||active.slotId===selected.id;
  $('bookingCancel').disabled=!ready||!active;
+}
+/** Only a presentation of owner-authorized, sandbox-only GAS data. */
+function bookingTableCell_(tag,textValue,className){
+ const cell=document.createElement(tag);
+ cell.textContent=String(textValue);
+ if(className)cell.className=className;
+ return cell;
+}
+function bookingTable_(headers,rows){
+ const table=document.createElement('table');table.className='booking-table';
+ const thead=document.createElement('thead'),headerRow=document.createElement('tr');
+ headerRow.replaceChildren(...headers.map(x=>bookingTableCell_('th',x)));
+ thead.replaceChildren(headerRow);
+ const tbody=document.createElement('tbody');
+ tbody.replaceChildren(...rows);
+ table.replaceChildren(thead,tbody);
+ return table;
+}
+function renderBookingTables(){
+ if(!bookingView)return;
+ const capacityRows=bookingView.slots.map(slot=>{
+  const tr=document.createElement('tr');
+  const label=slot.overCapacity?'超出容量':slot.remaining===0?'額滿':'尚有名額';
+  const mark=slot.overCapacity||slot.remaining===0?'booking-badge full':'booking-badge open';
+  tr.replaceChildren(
+   bookingTableCell_('td',slot.start),bookingTableCell_('td',slot.location),
+   bookingTableCell_('td',slot.booked+' / '+slot.capacity),
+   bookingTableCell_('td',slot.remaining),
+   bookingTableCell_('td',label,mark));
+  return tr;
+ });
+ $('bookingCapacityTable').replaceChildren(bookingTable_(
+  ['測試時間','測試地點','已預約／容量','剩餘名額','容量狀態'],capacityRows));
+ const status=$('bookingFilterStatus').value||'ALL';
+ const slot=$('bookingFilterSlot').value||'';
+ const query=$('bookingFilterCode').value.trim().toUpperCase();
+ const matching=bookingView.bookings.filter(x=>
+   (status==='ALL'||x.status===status)&&(!slot||x.slotId===slot)&&
+   (!query||x.code.includes(query)));
+ const rows=matching.map(booking=>{
+  const tr=document.createElement('tr');
+  const position=bookingView.slots.find(x=>x.id===booking.slotId);
+  const label=position?position.start+'｜'+position.location:booking.slotId+'（測試設定已變動）';
+  const statusLabel=booking.status==='ACTIVE'?'有效':'已取消';
+  const statusClass=booking.status==='ACTIVE'?'booking-badge open':'booking-badge cancelled';
+  const selectCell=document.createElement('td');
+  if(booking.status==='ACTIVE'){
+   const choose=document.createElement('button');
+   choose.type='button';choose.className='secondary';choose.textContent='選取操作';
+   choose.addEventListener('click',function(){
+    $('bookingExisting').value=booking.code;
+    updateBookingControls();
+    bookingFeedback('已選取 '+booking.code+'，可在下方確認改期或取消。','good');
+   });
+   selectCell.replaceChildren(choose);
+  }else selectCell.textContent='—';
+  tr.replaceChildren(bookingTableCell_('td',booking.code),
+   bookingTableCell_('td',label),bookingTableCell_('td',statusLabel,statusClass),selectCell);
+  return tr;
+ });
+ $('bookingTable').replaceChildren(bookingTable_(
+   ['虛構測試代碼','測試時段','狀態','操作'],rows));
+ if(!rows.length){
+  const blank=document.createElement('p');blank.className='booking-empty';
+  blank.textContent=bookingView.bookings.length?'沒有符合篩選條件的測試預約。':'目前沒有任何隔離測試預約。';
+  $('bookingTable').replaceChildren(blank);
+ }
+ $('bookingFilterSummary').textContent=
+  '顯示 '+matching.length+' / '+bookingView.bookings.length+' 筆測試預約；有效 '+
+  bookingView.bookings.filter(x=>x.status==='ACTIVE').length+' 筆、已取消 '+
+  bookingView.bookings.filter(x=>x.status==='CANCELLED').length+' 筆。';
 }
 function showBookings(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false||
    !Number.isSafeInteger(response.revision)||!Array.isArray(response.slots)||!Array.isArray(response.bookings))
    throw Error('隔離測試預約回傳格式錯誤');
  const prevSlot=$('bookingSlotId').value,prevBooking=$('bookingExisting').value;
+ const prevFilter=$('bookingFilterSlot').value;
  bookingRevision=response.revision;bookingView=response;
  const summary=['測試預約版本：'+response.revision+(response.deduplicated?'（重複請求，未再執行）':''),
    '測試時段：',...response.slots.map(x=>x.id+'｜'+x.start+'｜'+x.location+
@@ -271,6 +373,9 @@ function showBookings(response){
  fillBookingSelect('bookingSlotId',response.slots.map(x=>({
   value:x.id,label:x.start+'｜'+x.location+'｜剩 '+x.remaining+'/'+x.capacity
  })),prevSlot);
+ fillBookingSelect('bookingFilterSlot',[{value:'',label:'全部時段'},...response.slots.map(x=>({
+  value:x.id,label:x.start+'｜'+x.location
+ }))],prevFilter);
  const cards=response.slots.map(slot=>{
   const el=document.createElement('div');
   el.className='slot-card'+(slot.remaining<=0||slot.overCapacity?' full':'');
@@ -280,6 +385,7 @@ function showBookings(response){
   return el;
  });
  $('bookingCapacity').replaceChildren(...cards);
+ renderBookingTables();
  $('bookingRequest').value='';pendingBookingRequest=null;
  setDisabled(false);
  bookingFeedback(response.deduplicated?'已確認重複請求，伺服器未再次執行。':'已同步測試預約與容量，請選擇操作。','good');
@@ -452,6 +558,9 @@ $('exportConfig').addEventListener('click',exportConfig);$('importConfig').addEv
 $('bookingRefresh').addEventListener('click',refreshBookings);
 $('bookingSlotId').addEventListener('change',updateBookingControls);
 $('bookingExisting').addEventListener('change',updateBookingControls);
+$('bookingFilterStatus').addEventListener('change',renderBookingTables);
+$('bookingFilterSlot').addEventListener('change',renderBookingTables);
+$('bookingFilterCode').addEventListener('input',renderBookingTables);
 $('bookingCreate').addEventListener('click',()=>changeBooking('CREATE'));
 $('bookingMove').addEventListener('click',()=>changeBooking('MOVE'));
 $('bookingCancel').addEventListener('click',()=>changeBooking('CANCEL'));
