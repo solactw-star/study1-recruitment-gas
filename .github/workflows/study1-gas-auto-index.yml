@@ -5,6 +5,8 @@ on:
     paths:
       - 'gas/Index.html'
       - 'gas/Website.js'
+      - 'gas/AdminSandbox.js'
+      - 'gas/AdminConsole.html'
       - 'scripts/study1-gas-backend-allowlist.cjs'
       - 'scripts/study1-gas-auto-index.cjs'
       - '.github/workflows/study1-gas-auto-index.yml'
@@ -31,6 +33,7 @@ jobs:
           node --check scripts/study1-gas-auto-index.cjs
           node --check scripts/study1-gas-backend-allowlist.cjs
           node --check gas/Website.js
+          node --check gas/AdminSandbox.js
       - name: Check that approved checked-out sources match current main
         run: |
           git fetch origin main --depth=1
@@ -38,6 +41,10 @@ jobs:
           cmp gas/Index.html "$RUNNER_TEMP/main-index.html"
           git show origin/main:gas/Website.js > "$RUNNER_TEMP/main-website.js"
           cmp gas/Website.js "$RUNNER_TEMP/main-website.js"
+          git show origin/main:gas/AdminSandbox.js > "$RUNNER_TEMP/main-admin.js"
+          cmp gas/AdminSandbox.js "$RUNNER_TEMP/main-admin.js"
+          git show origin/main:gas/AdminConsole.html > "$RUNNER_TEMP/main-admin.html"
+          cmp gas/AdminConsole.html "$RUNNER_TEMP/main-admin.html"
       - name: Load existing 828 OAuth secret
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
@@ -64,6 +71,10 @@ jobs:
           cmp gas/Index.html "$RUNNER_TEMP/main-index-after.html"
           git show origin/main:gas/Website.js > "$RUNNER_TEMP/main-website-after.js"
           cmp gas/Website.js "$RUNNER_TEMP/main-website-after.js"
+          git show origin/main:gas/AdminSandbox.js > "$RUNNER_TEMP/main-admin-after.js"
+          cmp gas/AdminSandbox.js "$RUNNER_TEMP/main-admin-after.js"
+          git show origin/main:gas/AdminConsole.html > "$RUNNER_TEMP/main-admin-after.html"
+          cmp gas/AdminConsole.html "$RUNNER_TEMP/main-admin-after.html"
       - name: Update approved Index and CLOSED Website in existing GAS and /exec, then read back
         run: node scripts/study1-gas-auto-index.cjs apply
       - name: Delete temporary OAuth credentials

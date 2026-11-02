@@ -37,7 +37,7 @@ function assertRemote(head){
   const server=file(head.files,'Website','SERVER_JS').source;
   const manifest=JSON.parse(file(head.files,'appsscript','JSON').source);
   check(manifest.webapp?.access==='ANYONE_ANONYMOUS'&&manifest.webapp?.executeAs==='USER_DEPLOYING','Testing access or execution setting has changed; refuse to change permissions');
-  for(const token of ['function getPublicConfig(){return {open:false,consentReady:false','function requestOtp(){return rejectIntake_();}','function verifyOtp(){return rejectIntake_();}','function holdSlot(){return rejectIntake_();}','function submitConsent(){return rejectIntake_();}','function listSlots(){return [];}', 'function doGet()']) check(server.includes(token),'Remote CLOSED mode cannot be verified');
+  for(const token of ['function getPublicConfig(){return {open:false,consentReady:false','function requestOtp(){return rejectIntake_();}','function verifyOtp(){return rejectIntake_();}','function holdSlot(){return rejectIntake_();}','function submitConsent(){return rejectIntake_();}','function listSlots(){return [];}', 'function doGet']) check(server.includes(token),'Remote CLOSED mode cannot be verified');
   return {originalIndex,manifest};
 }
 function deploymentCheck(dep,id,version){

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Study 1｜研究室測試後台</title><base target="_top">
+<style>
+:root{color-scheme:light}body{margin:0;font:16px/1.6 system-ui,"Microsoft JhengHei",sans-serif;background:#f4f8f7;color:#143d44}
+header{background:#fff;border-bottom:1px solid #c6d9d6;padding:20px max(20px,calc((100vw - 900px)/2))}
+main{max-width:900px;margin:auto;padding:24px}h1{margin:0;font-size:26px}p{margin:8px 0}
+.notice{background:#fff8e7;border:1px solid #e2c578;padding:14px;margin:16px 0;border-radius:8px}
+section{margin:16px 0;padding:20px;background:white;border:1px solid #cfdfdc;border-radius:12px}
+label{display:block;font-weight:650;margin:12px 0 4px}
+input,textarea{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px solid #789d9b;border-radius:6px;background:white}
+textarea{min-height:75px;resize:vertical}
+button{padding:12px 19px;border:0;border-radius:8px;background:#176d70;color:white;font:inherit;margin:8px 8px 8px 0}
+button:disabled{opacity:.5}button.secondary{background:#355a65}
+small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;white-space:pre-wrap}
+:focus-visible{outline:3px solid #ba7000;outline-offset:3px}
+</style></head><body>
+<header><h1>研究室設定後台（隔離測試）</h1><p>Study 1 — 目前不接受真人報名、預約或電子簽署。</p></header>
+<main><div class="notice" role="note"><strong>僅供研究室測試</strong><p>這些設定不會更新正式研究文件、報名名單、真實時段或通知。若管理帳號無法辨識，系統會拒絕讀寫。</p></div>
+<section><h2>測試研究內容</h2>
+<label for="title">測試標題</label><input id="title" maxlength="100" autocomplete="off">
+<label for="intro">研究介紹（測試）</label><textarea id="intro" maxlength="1500"></textarea>
+<label for="eligibility">資格說明（測試）</label><textarea id="eligibility" maxlength="750"></textarea>
+<label for="questions">測試資格題目 JSON（最多六題）</label><textarea id="questions" rows="6" spellcheck="false"></textarea>
+<small>格式：{"id":"test_q1","text":"測試題目","required":true}</small></section>
+<section><h2>測試預約設定</h2>
+<label for="slots">測試時段 JSON（最多八筆）</label><textarea id="slots" rows="6" spellcheck="false"></textarea>
+<small>格式：{"id":"test_slot_1","start":"2027-01-01T10:00","location":"〔測試〕研究室 A","capacity":2}</small>
+<label for="template">通知範本（不會寄送）</label><textarea id="template" maxlength="750"></textarea>
+<label for="pdf">研究同意書 PDF 核定版本備註（不會簽署）</label><textarea id="pdf" maxlength="400"></textarea>
+<p>目前測試資料版本：<strong id="revision">—</strong></p>
+<button id="save" type="button" disabled>儲存隔離測試設定</button>
+<button class="secondary" id="reload" type="button">重新讀取</button>
+<div id="status" role="status" aria-live="polite">確認研究室權限中……</div>
+</section>
+<p><a href="?">返回公開研究資訊</a></p>
+</main>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+let revision=null;
+function status(message){$('status').textContent=String(message);}
+function setDisabled(flag){$('save').disabled=!!flag;$('reload').disabled=!!flag;}
+function render(response){
+ if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
+ const c=response.config;revision=c.revision;
+ $('title').value=c.studyTitle;$('intro').value=c.researchIntro;$('eligibility').value=c.eligibilityNote;
+ $('questions').value=JSON.stringify(c.screeningQuestions,null,2);$('slots').value=JSON.stringify(c.testSlots,null,2);
+ $('template').value=c.emailTemplate;$('pdf').value=c.pdfVersionNote;$('revision').textContent=String(revision);
+ setDisabled(false);status('已載入隔離測試資料；正式報名與簽署仍關閉。');
+}
+function failed(error){setDisabled(false);$('save').disabled=true;status('已拒絕操作或發生錯誤：'+String(error&&error.message||error));}
+function reload(){setDisabled(true);status('驗證研究室帳號並讀取測試設定……');
+ google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminGetSandboxConfig();}
+function save(){
+ try{
+  if(!Number.isSafeInteger(revision))throw Error('請先取得設定版本');
+  const data={studyTitle:$('title').value,researchIntro:$('intro').value,eligibilityNote:$('eligibility').value,
+    screeningQuestions:JSON.parse($('questions').value),testSlots:JSON.parse($('slots').value),
+    emailTemplate:$('template').value,pdfVersionNote:$('pdf').value};
+  setDisabled(true);status('驗證並儲存隔離測試設定……');
+  google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminSaveSandboxConfig(data,revision);
+ }catch(e){status('請修正測試設定格式：'+String(e.message));}
+}
+$('reload').addEventListener('click',reload);$('save').addEventListener('click',save);
+reload();
+})();
+</script></body></html>
