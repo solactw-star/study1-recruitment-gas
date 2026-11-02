@@ -81,7 +81,9 @@ test('Latest user-authorized website contact details are shown',()=>{
  assert.match(html,/研究計畫主持人：葉理豪/);
  assert.doesNotMatch(html,/葉理豪副教授/);
  assert.match(html,/mailto:lhyeh@cycu\.edu\.tw/);
- assert.match(html,/tel:\+88632643413/);
+ assert.match(html,/tel:\+88632653413/);
+ assert.match(html,/03-265-3413/);
+ assert.doesNotMatch(html,/03-264-3413/);
  assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
 });
 test('Contact and navigation improvement does not activate intake or signing',()=>{
