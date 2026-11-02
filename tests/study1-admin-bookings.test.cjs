@@ -112,3 +112,30 @@ test('Capacity edits are allowed after cancellation releases active test occupan
  assert.equal(view.slots[0].remaining,0);
  assert.equal(view.slots[0].overCapacity,false);
 });
+
+test('Active synthetic booking pins its slot date and location until cancellation',()=>{
+ const {s,store,locks}=setup();
+ const first=s.adminChangeTestBooking(req('CREATE','TST-001','test_slot_1','create001',0));
+ const initial=JSON.parse(JSON.stringify(s.adminGetSandboxConfig().config));
+ delete initial.schemaVersion;delete initial.revision;
+ const originalBookings=store.get('STUDY1_SANDBOX_BOOKINGS_V1');
+ for(const [field,value] of [['start','2027-01-03T11:00'],['location','〔測試〕新實驗室']]){
+  const changed=JSON.parse(JSON.stringify(initial));changed.testSlots[0][field]=value;
+  assert.throws(()=>s.adminSaveSandboxConfig(changed,0),/不能直接變更時段日期或地點/);
+  assert.equal(store.has('STUDY1_SANDBOX_ADMIN_CONFIG_V1'),false);
+  assert.equal(store.get('STUDY1_SANDBOX_BOOKINGS_V1'),originalBookings);
+  assert.equal(locks.held,false);
+ }
+ const grown=JSON.parse(JSON.stringify(initial));grown.testSlots[0].capacity=3;
+ assert.equal(s.adminSaveSandboxConfig(grown,0).config.revision,1);
+ s.adminChangeTestBooking(req('CANCEL','TST-001',null,'cancel001',first.revision));
+ const released=JSON.parse(JSON.stringify(grown));
+ released.testSlots[0].start='2027-01-03T11:00';
+ released.testSlots[0].location='〔測試〕新實驗室';
+ const saved=s.adminSaveSandboxConfig(released,1);
+ assert.equal(saved.config.revision,2);
+ assert.equal(saved.config.testSlots[0].start,'2027-01-03T11:00');
+ assert.equal(saved.config.testSlots[0].location,'〔測試〕新實驗室');
+ assert.equal(s.adminGetTestBookings().bookings[0].status,'CANCELLED');
+ assert.equal(locks.held,false);
+});
