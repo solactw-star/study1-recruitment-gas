@@ -32,3 +32,14 @@ test('existing clasp V3 and legacy local credentials accepted without printing t
  assert.equal(s.storedCredentials(JSON.stringify({token:{refresh_token:'r'},oauth2ClientSettings:{clientId:'i',clientSecret:'s'}})).client_secret,'s');
  assert.throws(()=>s.storedCredentials('{}'),/OAuth/);
 });
+
+test('Manual preview workflow cannot auto-run or force-push whole repo',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const yml=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-index-manual.yml'),'utf8');
+ assert.match(yml,/^on:\n  workflow_dispatch:/m);
+ assert.doesNotMatch(yml,/^\s{2}(?:push|pull_request|schedule):/m);
+ assert.doesNotMatch(yml,/\bclasp(?:@\d+)?\s+push\b/);
+ assert.match(yml,/inputs\.mode == 'apply'/);
+ assert.match(yml,/github\.event\.repository\.private/);
+ assert.match(yml,/git ls-remote origin refs\/heads\/main/);
+});

@@ -69,6 +69,14 @@ jobs:
           path: ${{ runner.temp }}/study1-preview-gas-snapshot.json
           retention-days: 7
           if-no-files-found: error
+      - name: Stop if GitHub main advanced after manual dispatch
+        if: ${{ inputs.mode == 'apply' }}
+        run: |
+          CURRENT=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ -z "$CURRENT" ] || [ "$CURRENT" != "$GITHUB_SHA" ]; then
+            echo 'Main branch changed; audit the new version before update.'
+            exit 1
+          fi
       - name: Write only approved Index within remote-derived file set and update original /exec
         if: ${{ inputs.mode == 'apply' }}
         env:
