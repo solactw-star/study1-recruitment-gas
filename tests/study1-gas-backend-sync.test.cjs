@@ -34,6 +34,13 @@ test('Approved merge preserves manifest and unknown remote-only GAS modules byte
  result.find(f=>f.name==='Untracked').source='unexpected';
  assert.equal(sync.compareUnapproved(result,original.files),false);
 });
+test('A reviewed CLOSED Website-only change is included without modifying other GAS files',()=>{
+ const original=remote(),changed=website+'\n// reviewed comment only';
+ const result=backend.mergeApproved(core,original,index,changed);
+ assert.equal(core.file(result,'Website','SERVER_JS').source,changed);
+ assert.equal(sync.compareUnapproved(result,original.files),true);
+ assert.equal(sync.compareNoIndex(result,original.files),false);
+});
 test('Workflow watches both reviewed source files, never triggers force push',()=>{
  const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
  assert.match(workflow,/'gas\/Website.js'/);
