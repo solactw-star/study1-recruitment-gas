@@ -76,3 +76,39 @@ test('Booking ledger deliberately uses only a separate property namespace',()=>{
  assert.equal(store.has('STUDY1_SANDBOX_BOOKINGS_V1'),true);
  assert.equal(s.adminGetSandboxConfig().config.revision,main.config.revision);
 });
+
+test('Config update cannot orphan ACTIVE synthetic bookings or shrink below occupancy',()=>{
+ const {s,store,locks}=setup();
+ const first=s.adminChangeTestBooking(req('CREATE','TST-001','test_slot_1','create001',0));
+ s.adminChangeTestBooking(req('CREATE','TST-002','test_slot_1','create002',first.revision));
+ const draft=JSON.parse(JSON.stringify(s.adminGetSandboxConfig().config));
+ delete draft.schemaVersion;delete draft.revision;
+ const originalBooking=store.get('STUDY1_SANDBOX_BOOKINGS_V1');
+ const orphan={...draft,testSlots:[]};
+ assert.throws(()=>s.adminSaveSandboxConfig(orphan,0),/已有有效測試預約/);
+ const reduced=JSON.parse(JSON.stringify(draft));
+ reduced.testSlots[0].capacity=1;
+ assert.throws(()=>s.adminSaveSandboxConfig(reduced,0),/容量調低於已預約數/);
+ assert.equal(store.get('STUDY1_SANDBOX_BOOKINGS_V1'),originalBooking);
+ assert.equal(store.has('STUDY1_SANDBOX_ADMIN_CONFIG_V1'),false);
+ assert.equal(s.adminGetSandboxConfig().config.revision,0);
+ assert.equal(locks.held,false);
+});
+test('Capacity edits are allowed after cancellation releases active test occupancy',()=>{
+ const {s,store}=setup();
+ const first=s.adminChangeTestBooking(req('CREATE','TST-001','test_slot_1','create001',0));
+ const second=s.adminChangeTestBooking(req('CREATE','TST-002','test_slot_1','create002',first.revision));
+ s.adminChangeTestBooking(req('CANCEL','TST-002',null,'cancel002',second.revision));
+ const draft=JSON.parse(JSON.stringify(s.adminGetSandboxConfig().config));
+ delete draft.schemaVersion;delete draft.revision;
+ draft.testSlots[0].capacity=1;
+ const before=store.get('STUDY1_SANDBOX_BOOKINGS_V1');
+ const saved=s.adminSaveSandboxConfig(draft,0);
+ assert.equal(saved.config.revision,1);
+ assert.equal(saved.config.testSlots[0].capacity,1);
+ assert.equal(store.get('STUDY1_SANDBOX_BOOKINGS_V1'),before);
+ const view=s.adminGetTestBookings();
+ assert.equal(view.slots[0].booked,1);
+ assert.equal(view.slots[0].remaining,0);
+ assert.equal(view.slots[0].overCapacity,false);
+});

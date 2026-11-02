@@ -93,6 +93,16 @@ function adminSaveSandboxConfig(input,expectedRevision){
   try{
     const current=study1AdminPersisted_();
     study1AdminRequireRevision_(current,expectedRevision);
+    // The config editor and booking RPC share this script lock. A saved
+    // capacity must never invalidate an existing ACTIVE test reservation.
+    // This is read-only against the separate synthetic booking property.
+    const activeBookings=study1SandboxBookingState_().bookings.filter(b=>b.status==='ACTIVE');
+    for(const slotId of new Set(activeBookings.map(b=>b.slotId))){
+      const slot=config.testSlots.find(x=>x.id===slotId);
+      const occupied=activeBookings.filter(b=>b.slotId===slotId).length;
+      if(!slot||slot.capacity<occupied)
+        throw Error('已有有效測試預約，不能移除時段或把容量調低於已預約數：'+slotId);
+    }
     const newValue={schemaVersion:1,revision:current.revision+1,config};
     const payload=JSON.stringify(newValue);
     if(payload.length>7500)throw Error('測試設定過大');
