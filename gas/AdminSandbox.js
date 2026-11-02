@@ -72,6 +72,11 @@ function adminGetSandboxConfig(){
   return {mode:'SANDBOX_ONLY',open:false,consentReady:false,
     store:'ScriptProperties:STUDY1_SANDBOX_ADMIN_CONFIG_V1',config:study1AdminPersisted_()};
 }
+/** Validate an unsaved admin draft on the server, without touching any property. */
+function adminValidateSandboxConfig(input){
+  study1AdminOwnerRequired_();
+  return {mode:'SANDBOX_ONLY',open:false,consentReady:false,config:study1AdminValidate_(input)};
+}
 function adminSaveSandboxConfig(input,expectedRevision){
   study1AdminOwnerRequired_();
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('無效的設定版本');

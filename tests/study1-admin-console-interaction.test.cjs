@@ -7,7 +7,7 @@ const clientHTML=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html')
 const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
-const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','reload','status'];
+const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status'];
 function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
  const props=new Map(),locks={held:false,count:0};
  const store={getProperty:key=>props.get(key)||null,setProperty:(key,v)=>{
@@ -35,7 +35,8 @@ function client(srv){
   withSuccessHandler(cb){success=cb;return api;},
   withFailureHandler(cb){failure=cb;return api;},
   adminGetSandboxConfig(){calls.push('get');try{success(srv.ctx.adminGetSandboxConfig());}catch(e){failure(e);}},
-  adminSaveSandboxConfig(config,rev){calls.push('save');try{success(srv.ctx.adminSaveSandboxConfig(config,rev));}catch(e){failure(e);}}
+  adminSaveSandboxConfig(config,rev){calls.push('save');try{success(srv.ctx.adminSaveSandboxConfig(config,rev));}catch(e){failure(e);}},
+  adminValidateSandboxConfig(config){calls.push('check');try{success(srv.ctx.adminValidateSandboxConfig(config));}catch(e){failure(e);}}
  };
  const ctx=vm.createContext({document:{getElementById:id=>dom.get(id)},google:{script:{run:api}},JSON,String,Number,Error});
  vm.runInContext(clientSource,ctx,{timeout:1000});
@@ -135,4 +136,27 @@ test('Google-redacted active email does not prevent Google-restricted owner-only
  assert.equal(ui.el('save').disabled,false);
  assert.equal(ui.el('revision').textContent,'0');
  assert.equal(h.props.size,0);
+});
+
+test('Owner can check unsaved editor changes through real server validation without persistence',()=>{
+ const s=server(),ui=client(s);
+ ui.el('title').value='〔測試〕僅驗證';
+ ui.click('check');
+ assert.deepEqual(ui.calls,['get','check']);
+ assert.match(ui.el('status').textContent,/檢查通過.*尚未儲存/);
+ assert.equal(ui.el('save').disabled,false);
+ assert.equal(ui.el('revision').textContent,'0');
+ assert.equal(s.props.size,0);
+ ui.el('slots').value='[{"id":"test_slot_1","start":"2027-02-30T10:00","location":"測試","capacity":2}]';
+ ui.click('check');
+ assert.deepEqual(ui.calls,['get','check','check']);
+ assert.match(ui.el('status').textContent,/檢查未通過.*時段格式錯誤/);
+ assert.equal(ui.el('save').disabled,false);
+ assert.equal(s.props.size,0);
+});
+test('Non-owner cannot use the new unsaved validation RPC',()=>{
+ const s=server('visitor@example.com','solac.tw@gmail.com');
+ const draft={studyTitle:'〔測試〕非法請求'};
+ assert.throws(()=>s.ctx.adminValidateSandboxConfig(draft),/拒絕存取/);
+ assert.equal(s.props.size,0);
 });

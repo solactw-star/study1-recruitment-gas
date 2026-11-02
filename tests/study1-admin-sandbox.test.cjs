@@ -90,3 +90,22 @@ test('Server rejects impossible calendar dates, invalid clock time and empty san
  assert.equal(result.config.revision,1);
  assert.equal(h.values.size,1);
 });
+
+test('Owner may validate an unsaved draft without writing or incrementing revision',()=>{
+ const h=harness(),draft=JSON.parse(JSON.stringify(h.scope.adminGetSandboxConfig().config));
+ delete draft.schemaVersion;delete draft.revision;
+ draft.studyTitle='〔測試〕僅驗證';
+ const result=h.scope.adminValidateSandboxConfig(draft);
+ assert.equal(result.mode,'SANDBOX_ONLY');
+ assert.equal(result.open,false);assert.equal(result.consentReady,false);
+ assert.equal(result.config.studyTitle,draft.studyTitle);
+ assert.equal(h.values.size,0);assert.equal(h.reads(),0);assert.equal(h.locks(),0);
+ draft.testSlots[0].start='2027-02-30T10:00';
+ assert.throws(()=>h.scope.adminValidateSandboxConfig(draft),/時段格式錯誤/);
+ assert.equal(h.values.size,0);
+});
+test('Unsaved validation rejects non-owner sessions before reading data',()=>{
+ const h=harness('visitor@example.com','solac.tw@gmail.com');
+ assert.throws(()=>h.scope.adminValidateSandboxConfig({}),/拒絕存取/);
+ assert.equal(h.values.size,0);
+});

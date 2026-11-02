@@ -30,6 +30,7 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 <label for="pdf">研究同意書 PDF 核定版本備註（不會簽署）</label><textarea id="pdf" maxlength="400"></textarea>
 <p>目前測試資料版本：<strong id="revision">—</strong></p>
 <button id="save" type="button" disabled>儲存隔離測試設定</button>
+<button class="secondary" id="check" type="button" disabled>檢查設定（不儲存）</button>
 <button class="secondary" id="reload" type="button">重新讀取</button>
 <div id="status" role="status" aria-live="polite">確認研究室權限中……</div>
 </section>
@@ -41,7 +42,7 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 const $=id=>document.getElementById(id);
 let revision=null;
 function status(message){$('status').textContent=String(message);}
-function setDisabled(flag){$('save').disabled=!!flag;$('reload').disabled=!!flag;}
+function setDisabled(flag){$('save').disabled=!!flag;$('reload').disabled=!!flag;$('check').disabled=!!flag;}
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
  const c=response.config;revision=c.revision;
@@ -53,17 +54,35 @@ function render(response){
 function failed(error){setDisabled(false);$('save').disabled=true;status('已拒絕操作或發生錯誤：'+String(error&&error.message||error));}
 function reload(){setDisabled(true);status('驗證研究室帳號並讀取測試設定……');
  google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminGetSandboxConfig();}
+function editorData(){
+ return {studyTitle:$('title').value,researchIntro:$('intro').value,eligibilityNote:$('eligibility').value,
+  screeningQuestions:JSON.parse($('questions').value),testSlots:JSON.parse($('slots').value),
+  emailTemplate:$('template').value,pdfVersionNote:$('pdf').value};
+}
+function check(){
+ try{
+  const data=editorData();
+  setDisabled(true);status('正在由伺服器檢查測試設定，不會儲存……');
+  google.script.run.withSuccessHandler(function(response){
+   setDisabled(false);
+   if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false){
+    status('伺服器未確認關閉測試模式，已拒絕檢查結果。');return;
+   }
+   status('伺服器檢查通過；變更尚未儲存。');
+  }).withFailureHandler(function(error){
+   setDisabled(false);status('伺服器檢查未通過：'+String(error&&error.message||error));
+  }).adminValidateSandboxConfig(data);
+ }catch(e){setDisabled(false);status('請修正測試設定格式：'+String(e.message));}
+}
 function save(){
  try{
   if(!Number.isSafeInteger(revision))throw Error('請先取得設定版本');
-  const data={studyTitle:$('title').value,researchIntro:$('intro').value,eligibilityNote:$('eligibility').value,
-    screeningQuestions:JSON.parse($('questions').value),testSlots:JSON.parse($('slots').value),
-    emailTemplate:$('template').value,pdfVersionNote:$('pdf').value};
+  const data=editorData();
   setDisabled(true);status('驗證並儲存隔離測試設定……');
   google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminSaveSandboxConfig(data,revision);
  }catch(e){status('請修正測試設定格式：'+String(e.message));}
 }
-$('reload').addEventListener('click',reload);$('save').addEventListener('click',save);
+$('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);
 reload();
 })();
 </script></body></html>
