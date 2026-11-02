@@ -37,7 +37,7 @@ test('existing booked slot allows safe capacity update but rejects relocation or
  const state=booked(),s=state.config.slots[0];
  assert.equal(core.editSlot(state,'S1',edit(state.config,{capacity:1})).config.slots[0].capacity,1);
  assert.throws(()=>core.editSlot(state,'S1',edit(state.config,{capacity:0})),/容量/);
- assert.throws(()=>core.editSlot(state,'S1',edit(state.config,{start:'2030-01-03T10:00:00Z'})),/時間或地點/);
+ assert.throws(()=>core.editSlot(state,'S1',edit(state.config,{start:'2030-01-03T10:00:00Z',end:'2030-01-03T11:00:00Z'})),/時間或地點/);
  assert.throws(()=>core.editSlot(state,'S1',edit(state.config,{location:'OTHER'})),/時間或地點/);
  assert.equal(s.location,'DEMO-LAB');
 });
