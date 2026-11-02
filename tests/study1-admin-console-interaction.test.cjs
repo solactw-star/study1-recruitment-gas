@@ -222,11 +222,22 @@ test('Redacted active identity disables structured slot controls before any RPC 
 });
 
 test('Owner-only browser self-test invokes actual GAS handler and shows PASS only after cleanup',()=>{
- const s=server(),ui=client(s);
+ const s=server();s.props.set('OPEN','false');s.props.set('CONSENT_READY','false');
+ const ui=client(s);
  ui.click('selftest');
  assert.deepEqual(ui.calls,['get','selftest']);
  assert.match(ui.el('selftestResult').textContent,/PASS（GAS 真實執行）/);
  assert.match(ui.el('selftestResult').textContent,/暫存測試資料已清理/);
+ assert.equal(s.props.size,2);
+ assert.equal(s.props.get('OPEN'),'false');
+ assert.equal(s.props.get('CONSENT_READY'),'false');
+});
+test('Browser self-test reports FAIL when closed flags are not confirmed; never claims live PASS',()=>{
+ const s=server(),ui=client(s);
+ ui.click('selftest');
+ assert.deepEqual(ui.calls,['get','selftest']);
+ assert.match(ui.el('selftestResult').textContent,/FAIL/);
+ assert.doesNotMatch(ui.el('selftestResult').textContent,/PASS/);
  assert.equal(s.props.size,0);
 });
 test('Browser self-test with non-owner is blocked; no PASS and no property writes',()=>{
