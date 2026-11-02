@@ -26,6 +26,20 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 <section><h2>測試預約設定</h2>
 <label for="slots">測試時段 JSON（最多八筆）</label><textarea id="slots" rows="6" spellcheck="false"></textarea>
 <small>格式：{"id":"test_slot_1","start":"2027-01-01T10:00","location":"〔測試〕研究室 A","capacity":2}</small>
+<div class="notice" role="group" aria-labelledby="slotEditorTitle">
+<h3 id="slotEditorTitle">測試時段表單編輯器</h3>
+<p>不必直接修改 JSON。選擇序號載入，編輯後按「套用」；再按上方「檢查設定」與「儲存」才會寫入隔離設定。</p>
+<label for="slotNumber">時段序號（1 至 8）</label><input id="slotNumber" type="number" min="1" max="8" step="1" value="1">
+<button class="secondary" id="slotLoad" type="button" disabled>載入此序號</button>
+<label for="slotStart">開始日期與時間（測試用當地時間，尚未換算 UTC）</label>
+<input id="slotStart" type="datetime-local" min="2000-01-01T00:00" max="2100-12-31T23:59">
+<label for="slotLocation">測試地點</label><input id="slotLocation" maxlength="100" autocomplete="off">
+<label for="slotCapacity">測試名額（1 至 20）</label><input id="slotCapacity" type="number" min="1" max="20" step="1">
+<button class="secondary" id="slotApply" type="button" disabled>套用此筆修改（尚未儲存）</button>
+<button class="secondary" id="slotAdd" type="button" disabled>新增測試時段</button>
+<button class="secondary" id="slotRemove" type="button" disabled>刪除此筆測試時段</button>
+<p><small>僅編輯下方 JSON 測試草稿；不修改正式 Slots 工作表，不產生預約，也不寄送通知。</small></p>
+</div>
 <label for="template">通知範本（不會寄送）</label><textarea id="template" maxlength="750"></textarea>
 <label for="pdf">研究同意書 PDF 核定版本備註（不會簽署）</label><textarea id="pdf" maxlength="400"></textarea>
 <p>目前測試資料版本：<strong id="revision">—</strong></p>
@@ -42,16 +56,16 @@ small{color:#51696b}#status{padding:12px;background:#e6f2ef;min-height:25px;whit
 const $=id=>document.getElementById(id);
 let revision=null;
 function status(message){$('status').textContent=String(message);}
-function setDisabled(flag){$('save').disabled=!!flag;$('reload').disabled=!!flag;$('check').disabled=!!flag;}
+function setDisabled(flag){for(const id of ['save','reload','check','slotLoad','slotApply','slotAdd','slotRemove'])$(id).disabled=!!flag;}
 function render(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
  const c=response.config;revision=c.revision;
  $('title').value=c.studyTitle;$('intro').value=c.researchIntro;$('eligibility').value=c.eligibilityNote;
  $('questions').value=JSON.stringify(c.screeningQuestions,null,2);$('slots').value=JSON.stringify(c.testSlots,null,2);
  $('template').value=c.emailTemplate;$('pdf').value=c.pdfVersionNote;$('revision').textContent=String(revision);
- setDisabled(false);status('已載入隔離測試資料；正式報名與簽署仍關閉。');
+ setDisabled(false);$('slotNumber').value='1';loadSlot(false);status('已載入隔離測試資料；正式報名與簽署仍關閉。');
 }
-function failed(error){setDisabled(false);$('save').disabled=true;status('已拒絕操作或發生錯誤：'+String(error&&error.message||error));}
+function failed(error){setDisabled(true);$('reload').disabled=false;status('已拒絕操作或發生錯誤：'+String(error&&error.message||error));}
 function reload(){setDisabled(true);status('驗證研究室帳號並讀取測試設定……');
  google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminGetSandboxConfig();}
 function editorData(){
@@ -82,7 +96,68 @@ function save(){
   google.script.run.withSuccessHandler(render).withFailureHandler(failed).adminSaveSandboxConfig(data,revision);
  }catch(e){status('請修正測試設定格式：'+String(e.message));}
 }
+function slotRows(){
+ const rows=JSON.parse($('slots').value);
+ if(!Array.isArray(rows))throw Error('測試時段 JSON 必須是陣列');
+ return rows;
+}
+function selectedSlot(rows){
+ const n=Number($('slotNumber').value);
+ if(!Number.isInteger(n)||n<1||n>rows.length)throw Error('請選擇現有的時段序號（1 至 '+rows.length+'）');
+ return n-1;
+}
+function loadSlot(announce=true){
+ try{
+  const rows=slotRows(),slot=rows[selectedSlot(rows)];
+  $('slotStart').value=slot.start;
+  $('slotLocation').value=slot.location;
+  $('slotCapacity').value=String(slot.capacity);
+  if(announce)status('已載入測試時段 '+slot.id+'；修改尚未儲存。');
+ }catch(e){
+  $('slotStart').value='';$('slotLocation').value='';$('slotCapacity').value='';
+  if(announce)status('無法載入測試時段：'+String(e.message));
+ }
+}
+function slotDraft(id){
+ const capacity=Number($('slotCapacity').value);
+ if(!Number.isInteger(capacity)||capacity<1||capacity>20||
+    !$('slotStart').value||!$('slotLocation').value.trim())throw Error('請填寫有效的日期時間、地點及 1 至 20 名額');
+ return {id,start:$('slotStart').value,location:$('slotLocation').value,capacity};
+}
+function applySlot(){
+ try{
+  const rows=slotRows(),i=selectedSlot(rows);
+  rows[i]=slotDraft(rows[i].id);
+  $('slots').value=JSON.stringify(rows,null,2);
+  status('已套用第 '+(i+1)+' 筆至草稿。請按「檢查設定」再儲存；目前未寫入 GAS。');
+ }catch(e){status('測試時段修改未套用：'+String(e.message));}
+}
+function addSlot(){
+ try{
+  const rows=slotRows();
+  if(rows.length>=8)throw Error('最多八筆測試時段');
+  const used=new Set(rows.map(x=>x.id));
+  let id='';
+  for(let n=1;n<=8;n++)if(!used.has('test_slot_'+n)){id='test_slot_'+n;break;}
+  if(!id)throw Error('測試時段代碼已用完');
+  rows.push(slotDraft(id));
+  $('slots').value=JSON.stringify(rows,null,2);
+  $('slotNumber').value=String(rows.length);
+  status('已新增 '+id+' 至草稿，尚未儲存。');
+ }catch(e){status('測試時段未新增：'+String(e.message));}
+}
+function removeSlot(){
+ try{
+  const rows=slotRows(),i=selectedSlot(rows),id=rows[i].id;
+  rows.splice(i,1);
+  $('slots').value=JSON.stringify(rows,null,2);
+  $('slotNumber').value=String(Math.max(1,Math.min(i+1,rows.length)));
+  loadSlot(false);
+  status('已從草稿移除 '+id+'；尚未儲存。');
+ }catch(e){status('測試時段未刪除：'+String(e.message));}
+}
 $('reload').addEventListener('click',reload);$('save').addEventListener('click',save);$('check').addEventListener('click',check);
+$('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
 reload();
 })();
 </script></body></html>
