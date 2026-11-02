@@ -71,11 +71,15 @@ test('Modified and nonprimary clicks retain native navigation behavior',()=>{
   assert.equal(h.targets.main.scrollOptions,null);
  }
 });
-test('Research contacts match consent Version02 and existing site contact stays available',()=>{
+test('Latest user-authorized website contact details are shown',()=>{
  assert.match(html,/研究計畫聯絡人：賴詩潔/);
- assert.match(html,/mailto:psy\.shihchieh@gmail\.com/);
- assert.match(html,/tel:\+88632643414/);
- assert.match(html,/研究計畫主持人：葉理豪副教授/);
+ assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
+ assert.doesNotMatch(html,/mailto:psy\.shihchieh@gmail\.com/);
+ assert.match(html,/tel:\+88632563414/);
+ assert.match(html,/03-256-3414/);
+ assert.doesNotMatch(html,/03-264-3414/);
+ assert.match(html,/研究計畫主持人：葉理豪/);
+ assert.doesNotMatch(html,/葉理豪副教授/);
  assert.match(html,/mailto:lhyeh@cycu\.edu\.tw/);
  assert.match(html,/tel:\+88632643413/);
  assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
