@@ -96,6 +96,10 @@ function dateLabel(iso){return new Date(iso).toLocaleString('zh-TW',{dateStyle:'
 function currentId(){return el('applicant').value.trim();}
 function currentBooking(){return state.bookings.find(function(b){return b.applicant===currentId()&&b.status==='CONFIRMED';});}
 function render(){
+ // Configuration and booking changes invalidate previous mock eligibility/OTP gates.
+ eligible=false;verified=false;otpIssued=false;
+ message('eligibility-status','資料已更新，請重新檢查模擬資格');
+ message('otp-status','請重新執行模擬驗證');
  el('project-title').textContent=state.config.title;el('project-intro').textContent=state.config.intro;el('consent-note').textContent=state.config.consent;
  el('edit-title').value=state.config.title;el('edit-intro').value=state.config.intro;el('edit-consent').value=state.config.consent;
  var q=el('questions');q.replaceChildren();
