@@ -1,8 +1,9 @@
 'use strict';
-// Push-driven *Index-only* Study1 GAS sync. Deployment and other source files are preserved.
+// Push-driven allowlisted Index + CLOSED Website sync. All other GAS files are preserved.
 // Never push GitHub's entire gas directory. No user action is required per Index update.
 const fs=require('node:fs'),path=require('node:path');
 const core=require('./study1-gas-index-preview.cjs');
+const backend=require('./study1-gas-backend-allowlist.cjs');
 const id=core.SCRIPT_ID;
 const ensure=(v,message)=>{if(!v)throw Error(message)};
 const snapPath=()=>path.join(process.env.RUNNER_TEMP,'study1-auto-index-snapshot.json');
@@ -22,8 +23,8 @@ function assertEvent(env){
  ensure(env.GITHUB_REPOSITORY_PRIVATE==='true','Repository is not private');
  ensure(/^[0-9a-f]{40}$/.test(env.GITHUB_SHA||''),'Missing exact triggering commit SHA');
 }
-async function prepare(api,indexSource){
- core.assertIndex(indexSource);
+async function prepare(api,indexSource,websiteSource){
+ core.assertIndex(indexSource);backend.assertClosedWebsite(websiteSource);
  const remote=await api.getContent();core.assertRemote(remote);
  const candidates=await api.deployments();
  console.log('GAS deployment metadata:',JSON.stringify(candidates.map(z=>({idPrefix:String(z.deploymentId||'').slice(0,9),version:z.deploymentConfig?.versionNumber,scriptIdMatches:z.deploymentConfig?.scriptId===id,manifest:z.deploymentConfig?.manifestFileName,description:z.deploymentConfig?.description||'',updateTime:z.updateTime||'',entryPointTypes:(z.entryPoints||[]).map(p=>({type:p.entryPointType,hasWebApp:!!p.webApp,urlShape:p.webApp?.url?{exec:/\/exec(?:\?|$)/.test(p.webApp.url),dev:/\/dev(?:\?|$)/.test(p.webApp.url)}:null}))}))));
@@ -35,25 +36,34 @@ async function prepare(api,indexSource){
  const headManifest=JSON.parse(core.file(remote.files,'appsscript','JSON').source);
  const permissionMatch=JSON.stringify(depManifest.webapp)===JSON.stringify(headManifest.webapp);
  console.log('Existing deployment audience:',depManifest.webapp?.access,'GAS HEAD audience:',headManifest.webapp?.access,'safe to version:',permissionMatch);
- const updated=core.merge(remote,indexSource);
- const indexChanged=!same(remote.files,updated);
+ const updated=backend.mergeApproved(core,remote,indexSource,websiteSource);
+ const approvedSourceChanged=!same(remote.files,updated);
  const deployedIndex=core.file(deployedContent.files,'Index','HTML').source;
- const deploymentChanged=deployedIndex!==indexSource;
+ const deployedWebsite=core.file(deployedContent.files,'Website','SERVER_JS').source;
+ const deploymentChanged=deployedIndex!==indexSource||deployedWebsite!==websiteSource;
  if(!permissionMatch&&deploymentChanged)console.log('DEPLOYMENT_ACCESS_PRESERVE: original /exec access will be retained when making an immutable version');
  console.log('CURRENT_DEPLOYED_VERSION:',current.deploymentConfig.versionNumber,'DEPLOYED_INDEX_MATCHES_GITHUB:',!deploymentChanged);
  const snapshot={scriptId:id,triggerSha:process.env.GITHUB_SHA||'',readAt:new Date().toISOString(),
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
-  indexSha256:core.sha(indexSource),deployment:dep,deploymentId:dep.deploymentId,
-  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,indexChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
+  indexSha256:core.sha(indexSource),websiteSha256:core.sha(websiteSource),deployment:dep,deploymentId:dep.deploymentId,
+  oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,approvedSourceChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
+ if(approvedSourceChanged||deploymentChanged){
+  snapshot.backup=await api.backupToDrive(snapshot);
+  console.log('Verified 828 Drive backup ID:',snapshot.backup.id);
+ }
  fs.writeFileSync(snapPath(),JSON.stringify(snapshot,null,2),{mode:0o600});
  console.log('GAS remote HEAD SHA256:',snapshot.remoteSha256);
  console.log('GAS proposed HEAD SHA256:',snapshot.desiredSha256);
  console.log('Selected existing deployment:',snapshot.deploymentId,'old version:',snapshot.oldVersion);
- console.log('Index update required:',indexChanged,'deployment update required:',deploymentChanged);
+ console.log('Approved source update required:',approvedSourceChanged,'deployment update required:',deploymentChanged);
  return snapshot;
 }
 function compareNoIndex(a,b){
  const omit=fs=>fs.filter(x=>x.name!=='Index').map(fields);
+ return same(omit(a),omit(b));
+}
+function compareUnapproved(a,b){
+ const omit=fs=>fs.filter(x=>x.name!=='Index'&&x.name!=='Website').map(fields);
  return same(omit(a),omit(b));
 }
 async function waitForVersion(api,deploymentId,expected,attempts=5,pause=ms=>new Promise(done=>setTimeout(done,ms))){
@@ -67,29 +77,33 @@ async function waitForVersion(api,deploymentId,expected,attempts=5,pause=ms=>new
  }
  throw Error('Deployment update not visible after repeated readback');
 }
-async function apply(api,indexSource,s){
- ensure(s.scriptId===id&&s.triggerSha===process.env.GITHUB_SHA&&s.indexSha256===core.sha(indexSource),'Snapshot mismatch');
- core.assertIndex(indexSource);
+async function apply(api,indexSource,websiteSource,s){
+ ensure(s.scriptId===id&&s.triggerSha===process.env.GITHUB_SHA&&s.indexSha256===core.sha(indexSource)&&s.websiteSha256===core.sha(websiteSource),'Snapshot mismatch');
+ core.assertIndex(indexSource);backend.assertClosedWebsite(websiteSource);
+ if(s.approvedSourceChanged||s.deploymentChanged){
+  ensure(s.backup&&typeof s.backup.id==='string'&&typeof s.backup.sha256==='string','Missing permanent 828 backup');
+  await api.verifyDriveBackup(s.backup.id,s.backup.sha256);
+ }
  // Fetch again immediately before mutation. Never write through a stale snapshot.
  const remote=await api.getContent();core.assertRemote(remote);
  ensure(core.digest(remote.files)===s.remoteSha256,'GAS was edited while the job ran; no write');
  const dep=await api.getDeployment(s.deploymentId);
  core.deploymentCheck(dep,s.deploymentId,s.oldVersion);
  ensure(JSON.stringify(dep)===JSON.stringify(s.deployment),'Existing /exec was changed while the job ran');
- const desired=core.merge(remote,indexSource);
+ const desired=backend.mergeApproved(core,remote,indexSource,websiteSource);
  ensure(core.digest(desired)===s.desiredSha256,'Proposed content changed since backup');
- if(!s.indexChanged&&!s.deploymentChanged){
+ if(!s.approvedSourceChanged&&!s.deploymentChanged){
    console.log('SYNC_VERIFIED=true; already identical GAS HEAD and existing /exec version');
    return {status:'already-current',id:s.deploymentId,version:s.oldVersion,sha:s.desiredSha256};
  }
  // Preserve entire remote file set; send only editable File fields from HEAD.
- if(s.indexChanged){
+ if(s.approvedSourceChanged){
    const result=await api.putContent(desired.map(fields));
    ensure(same(result.files,desired),'GAS updateContent response does not match the proposed content');
  }
  const reloaded=await api.getContent();core.assertRemote(reloaded);
  ensure(same(reloaded.files,desired),'GAS HEAD readback differs; DO NOT deploy');
- ensure(compareNoIndex(reloaded.files,s.original.files),'Non-Index GAS files unexpectedly modified; DO NOT deploy');
+ ensure(compareUnapproved(reloaded.files,s.original.files),'Unapproved GAS files unexpectedly modified; DO NOT deploy');
  let newVersion,expectedVersionFiles=desired;
  if(!s.permissionMatch){
    // Existing /exec is MYSELF, while HEAD is ANYONE_ANONYMOUS. Preserve both:
@@ -122,11 +136,11 @@ async function apply(api,indexSource,s){
      if(same(live.files,staged))await api.putContent(desired.map(fields));
      else ensure(same(live.files,desired),'Concurrent GAS edit during staging; unsafe to restore automatically');
      const restored=await api.getContent();core.assertRemote(restored);
-     ensure(same(restored.files,desired)&&compareNoIndex(restored.files,s.original.files),'Original GAS HEAD settings were not fully restored');
+     ensure(same(restored.files,desired)&&compareUnapproved(restored.files,s.original.files),'Original GAS HEAD settings were not fully restored');
      console.log('GAS HEAD restored to original testing audience; other source files preserved.');
    }
  }else{
-   newVersion=await api.createVersion('Study1 closed preview auto-sync Index only ('+process.env.GITHUB_SHA.slice(0,12)+')');
+   newVersion=await api.createVersion('Study1 closed preview auto-sync approved sources ('+process.env.GITHUB_SHA.slice(0,12)+')');
  }
  ensure(newVersion&&Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation failed');
  const immutable=await api.getVersion(newVersion.versionNumber);
@@ -143,9 +157,9 @@ async function apply(api,indexSource,s){
  const details=core.deploymentCheck(finalDeployment,s.deploymentId,newVersion.versionNumber);
  ensure(details.url===s.oldUrl,'Existing /exec URL changed unexpectedly');
  const deployed=await api.getVersion(newVersion.versionNumber);
- ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from committed Index / preserved audience');
+ ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from approved sources / preserved audience');
  const final=await api.getContent();
- ensure(same(final.files,desired)&&compareNoIndex(final.files,s.original.files),'Final GAS HEAD mismatch');
+ ensure(same(final.files,desired)&&compareUnapproved(final.files,s.original.files),'Final GAS HEAD mismatch');
  console.log('SYNC_VERIFIED=true; original /exec deployment preserved; version',newVersion.versionNumber,'sha256',s.desiredSha256);
  return {status:'deployed',id:s.deploymentId,version:newVersion.versionNumber,sha:s.desiredSha256};
 }
@@ -153,10 +167,11 @@ async function main(){
  assertEvent(process.env);
  const phase=process.argv[2];ensure(phase==='prepare'||phase==='apply','Invalid execution phase');
  const indexSource=fs.readFileSync(path.join(__dirname,'../gas/Index.html'),'utf8');
+ const websiteSource=fs.readFileSync(path.join(__dirname,'../gas/Website.js'),'utf8');
  const api=await core.authorizedApi();
- if(phase==='prepare')return prepare(api,indexSource);
+ if(phase==='prepare')return prepare(api,indexSource,websiteSource);
  const s=JSON.parse(fs.readFileSync(snapPath(),'utf8'));
- return apply(api,indexSource,s);
+ return apply(api,indexSource,websiteSource,s);
 }
 if(require.main===module)main().catch(e=>{console.error('AUTO_GAS_SYNC_BLOCKED: '+e.message);process.exitCode=1});
-module.exports={assertEvent,targetDeployment,compareNoIndex,waitForVersion,prepare,apply,fields};
+module.exports={assertEvent,targetDeployment,compareNoIndex,compareUnapproved,waitForVersion,prepare,apply,fields};

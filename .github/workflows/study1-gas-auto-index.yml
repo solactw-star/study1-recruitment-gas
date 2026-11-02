@@ -1,9 +1,11 @@
-name: Study1 GAS auto-sync approved Index
+name: Study1 GAS auto-sync approved Index and CLOSED Website
 on:
   push:
     branches: [main]
     paths:
       - 'gas/Index.html'
+      - 'gas/Website.js'
+      - 'scripts/study1-gas-backend-allowlist.cjs'
       - 'scripts/study1-gas-auto-index.cjs'
       - '.github/workflows/study1-gas-auto-index.yml'
 permissions:
@@ -27,12 +29,15 @@ jobs:
         run: |
           npm test
           node --check scripts/study1-gas-auto-index.cjs
+          node --check scripts/study1-gas-backend-allowlist.cjs
           node --check gas/Website.js
-      - name: Check that checked-out Index matches current main
+      - name: Check that approved checked-out sources match current main
         run: |
           git fetch origin main --depth=1
           git show origin/main:gas/Index.html > "$RUNNER_TEMP/main-index.html"
           cmp gas/Index.html "$RUNNER_TEMP/main-index.html"
+          git show origin/main:gas/Website.js > "$RUNNER_TEMP/main-website.js"
+          cmp gas/Website.js "$RUNNER_TEMP/main-website.js"
       - name: Load existing 828 OAuth secret
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
@@ -52,12 +57,14 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
-      - name: Reconfirm current main Index before writing
+      - name: Reconfirm approved main sources before writing
         run: |
           git fetch origin main --depth=1
           git show origin/main:gas/Index.html > "$RUNNER_TEMP/main-index-after.html"
           cmp gas/Index.html "$RUNNER_TEMP/main-index-after.html"
-      - name: Update existing GAS HEAD and original /exec with Index only, then read back
+          git show origin/main:gas/Website.js > "$RUNNER_TEMP/main-website-after.js"
+          cmp gas/Website.js "$RUNNER_TEMP/main-website-after.js"
+      - name: Update approved Index and CLOSED Website in existing GAS and /exec, then read back
         run: node scripts/study1-gas-auto-index.cjs apply
       - name: Delete temporary OAuth credentials
         if: always()

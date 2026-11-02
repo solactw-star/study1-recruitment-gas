@@ -3,6 +3,7 @@
 // updateContent itself is full-set replacement: use the *remote* files and alter Index.source alone.
 // GAS API does not provide atomic compare-and-swap; final re-read minimizes concurrent-edit risk.
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const driveBackup=require('./study1-gas-drive-backup.cjs');
 const SCRIPT_ID='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z';
 const CONFIRM='I_AUTHORIZE_STUDY1_EXISTING_EXEC_INDEX_ONLY';
 const sha=s=>crypto.createHash('sha256').update(s).digest('hex');
@@ -85,6 +86,8 @@ async function authorizedApi(){
     return res.json();
   }
   return {
+    backupToDrive:snapshot=>driveBackup.create(fetch,token,snapshot),
+    verifyDriveBackup:(id,hash)=>driveBackup.verify(fetch,token,id,hash),
     getContent:()=>request('GET','/content'),
     getVersion:v=>request('GET','/content?versionNumber='+v),
     putContent:files=>request('PUT','/content',{files}),
