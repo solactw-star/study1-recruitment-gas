@@ -58,6 +58,10 @@ function compareNoIndex(a,b){
  const omit=fs=>fs.filter(x=>x.name!=='Index').map(fields);
  return same(omit(a),omit(b));
 }
+function compareUnapproved(a,b){
+ const omit=fs=>fs.filter(x=>x.name!=='Index'&&x.name!=='Website').map(fields);
+ return same(omit(a),omit(b));
+}
 async function waitForVersion(api,deploymentId,expected,attempts=5,pause=ms=>new Promise(done=>setTimeout(done,ms))){
  let latest;
  for(let i=0;i<attempts;i++){
@@ -91,7 +95,7 @@ async function apply(api,indexSource,websiteSource,s){
  }
  const reloaded=await api.getContent();core.assertRemote(reloaded);
  ensure(same(reloaded.files,desired),'GAS HEAD readback differs; DO NOT deploy');
- ensure(compareNoIndex(reloaded.files,s.original.files),'Non-Index GAS files unexpectedly modified; DO NOT deploy');
+ ensure(compareUnapproved(reloaded.files,s.original.files),'Unapproved GAS files unexpectedly modified; DO NOT deploy');
  let newVersion,expectedVersionFiles=desired;
  if(!s.permissionMatch){
    // Existing /exec is MYSELF, while HEAD is ANYONE_ANONYMOUS. Preserve both:
@@ -124,7 +128,7 @@ async function apply(api,indexSource,websiteSource,s){
      if(same(live.files,staged))await api.putContent(desired.map(fields));
      else ensure(same(live.files,desired),'Concurrent GAS edit during staging; unsafe to restore automatically');
      const restored=await api.getContent();core.assertRemote(restored);
-     ensure(same(restored.files,desired)&&compareNoIndex(restored.files,s.original.files),'Original GAS HEAD settings were not fully restored');
+     ensure(same(restored.files,desired)&&compareUnapproved(restored.files,s.original.files),'Original GAS HEAD settings were not fully restored');
      console.log('GAS HEAD restored to original testing audience; other source files preserved.');
    }
  }else{
@@ -147,7 +151,7 @@ async function apply(api,indexSource,websiteSource,s){
  const deployed=await api.getVersion(newVersion.versionNumber);
  ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from committed Index / preserved audience');
  const final=await api.getContent();
- ensure(same(final.files,desired)&&compareNoIndex(final.files,s.original.files),'Final GAS HEAD mismatch');
+ ensure(same(final.files,desired)&&compareUnapproved(final.files,s.original.files),'Final GAS HEAD mismatch');
  console.log('SYNC_VERIFIED=true; original /exec deployment preserved; version',newVersion.versionNumber,'sha256',s.desiredSha256);
  return {status:'deployed',id:s.deploymentId,version:newVersion.versionNumber,sha:s.desiredSha256};
 }
@@ -162,4 +166,4 @@ async function main(){
  return apply(api,indexSource,websiteSource,s);
 }
 if(require.main===module)main().catch(e=>{console.error('AUTO_GAS_SYNC_BLOCKED: '+e.message);process.exitCode=1});
-module.exports={assertEvent,targetDeployment,compareNoIndex,waitForVersion,prepare,apply,fields};
+module.exports={assertEvent,targetDeployment,compareNoIndex,compareUnapproved,waitForVersion,prepare,apply,fields};
