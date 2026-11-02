@@ -1,4 +1,4 @@
-name: Study1 GAS auto-sync approved Index
+name: Study1 GAS auto-sync approved Index and CLOSED Website
 on:
   push:
     branches: [main]
@@ -31,7 +31,7 @@ jobs:
           node --check scripts/study1-gas-auto-index.cjs
           node --check scripts/study1-gas-backend-allowlist.cjs
           node --check gas/Website.js
-      - name: Check that checked-out Index matches current main
+      - name: Check that approved checked-out sources match current main
         run: |
           git fetch origin main --depth=1
           git show origin/main:gas/Index.html > "$RUNNER_TEMP/main-index.html"
@@ -57,7 +57,7 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 7
-      - name: Reconfirm current main Index before writing
+      - name: Reconfirm approved main sources before writing
         run: |
           git fetch origin main --depth=1
           git show origin/main:gas/Index.html > "$RUNNER_TEMP/main-index-after.html"
