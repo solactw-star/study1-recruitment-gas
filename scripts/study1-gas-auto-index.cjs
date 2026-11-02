@@ -47,6 +47,10 @@ async function prepare(api,indexSource,websiteSource){
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
   indexSha256:core.sha(indexSource),websiteSha256:core.sha(websiteSource),deployment:dep,deploymentId:dep.deploymentId,
   oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,approvedSourceChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
+ if(approvedSourceChanged||deploymentChanged){
+  snapshot.backup=await api.backupToDrive(snapshot);
+  console.log('Verified 828 Drive backup ID:',snapshot.backup.id);
+ }
  fs.writeFileSync(snapPath(),JSON.stringify(snapshot,null,2),{mode:0o600});
  console.log('GAS remote HEAD SHA256:',snapshot.remoteSha256);
  console.log('GAS proposed HEAD SHA256:',snapshot.desiredSha256);
