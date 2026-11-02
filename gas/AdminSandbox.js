@@ -99,9 +99,14 @@ function adminSaveSandboxConfig(input,expectedRevision){
     const activeBookings=study1SandboxBookingState_().bookings.filter(b=>b.status==='ACTIVE');
     for(const slotId of new Set(activeBookings.map(b=>b.slotId))){
       const slot=config.testSlots.find(x=>x.id===slotId);
+      const previous=current.testSlots.find(x=>x.id===slotId);
       const occupied=activeBookings.filter(b=>b.slotId===slotId).length;
       if(!slot||slot.capacity<occupied)
         throw Error('已有有效測試預約，不能移除時段或把容量調低於已預約數：'+slotId);
+      // Changing a booked slot's date or location silently reschedules every
+      // ACTIVE synthetic reservation. Require explicit MOVE/CANCEL first.
+      if(!previous||slot.start!==previous.start||slot.location!==previous.location)
+        throw Error('已有有效測試預約，不能直接變更時段日期或地點：'+slotId);
     }
     const newValue={schemaVersion:1,revision:current.revision+1,config};
     const payload=JSON.stringify(newValue);
