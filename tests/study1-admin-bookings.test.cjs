@@ -139,3 +139,16 @@ test('Active synthetic booking pins its slot date and location until cancellatio
  assert.equal(s.adminGetTestBookings().bookings[0].status,'CANCELLED');
  assert.equal(locks.held,false);
 });
+
+test('Booking list uses the shared lock and fails closed during a concurrent update',()=>{
+ const {s,store,locks}=setup();
+ locks.held=true;
+ assert.throws(()=>s.adminGetTestBookings(),/隔離預約正在更新/);
+ assert.equal(locks.held,true,'Failed acquisition must not release another transaction lock');
+ locks.held=false;
+ const view=s.adminGetTestBookings();
+ assert.equal(view.revision,0);
+ assert.equal(view.slots[0].remaining,2);
+ assert.equal(locks.held,false,'Successful read must release the lock');
+ assert.equal(store.size,0,'Read-only snapshot must not write a property');
+});

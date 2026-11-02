@@ -281,9 +281,16 @@ function study1SandboxBookingView_(state,config){
 function adminGetTestBookings(){
   study1AdminOwnerRequired_();
   study1SandboxBookingFlags_();
-  const config=study1AdminPersisted_();
-  const state=study1SandboxBookingState_();
-  return study1SandboxBookingView_(state,config);
+  // Config edits and booking writes use this same script lock. Read both
+  // together so the owner never sees a mixed-revision capacity snapshot.
+  const lock=LockService.getScriptLock();
+  if(!lock.tryLock(8000))throw Error('隔離預約正在更新，請稍後重新讀取');
+  try{
+    study1SandboxBookingFlags_();
+    const config=study1AdminPersisted_();
+    const state=study1SandboxBookingState_();
+    return study1SandboxBookingView_(state,config);
+  }finally{lock.releaseLock();}
 }
 /** Pure shared booking transition: used by locked owner RPC and isolated live self-test. */
 function study1SandboxBookingMutation_(input,state,config){
