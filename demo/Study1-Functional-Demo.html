@@ -21,6 +21,7 @@
 <label for="edit-consent">測試同意書說明（純文字）</label><textarea id="edit-consent" rows="3" maxlength="2000"></textarea><button id="save-text">儲存研究資訊</button>
 <h3>資格問題設定</h3><div id="admin-questions"></div><label for="new-question">新增測試題目（是／否題）</label><input id="new-question" maxlength="180" placeholder="例如：是否已閱讀測試注意事項？"><label for="new-answer">符合測試條件的答案</label><select id="new-answer"><option value="yes">是</option><option value="no">否</option></select><button id="add-question">新增測試題目</button>
 <h3>時段與容量設定</h3><p class="muted">可展開既有時段直接編輯。已有有效模擬預約的時段不可更改時間或地點，容量不得低於已預約人數；資料只保存在此瀏覽器。</p><div id="admin-slots"></div><div class="row"><div><label for="new-start">開始時間（本地）</label><input id="new-start" type="datetime-local"></div><div><label for="new-end">結束時間（本地）</label><input id="new-end" type="datetime-local"></div><div><label for="new-capacity">容量</label><input id="new-capacity" type="number" min="1" max="100" value="2"></div><div><label for="new-location">測試地點代碼</label><input id="new-location" value="DEMO-LAB" maxlength="60"></div></div><button id="add-slot">新增時段</button>
+<h3>測試預約管理</h3><p class="muted">可查看並模擬改期或取消本機虛構預約；不可處理真人資料。正式系統必須另外實作伺服器授權、稽核及交易鎖。</p><div id="admin-bookings" aria-live="polite"></div>
 <h3>同意書 PDF 測試替換</h3><label for="pdf-file">選擇本機 PDF（僅供此分頁預覽，不上傳伺服器）</label><input id="pdf-file" type="file" accept="application/pdf,.pdf"><p class="muted">本機 PDF 不會永久保存；重開頁面需要重新選擇。正式版必須由有權限的研究人員上傳至 828 私有 Drive，驗證核准版本與 SHA-256。</p>
 <h3>資料移轉與清除</h3><button id="export-config">匯出測試設定 JSON（不含預約）</button><label for="import-config">匯入測試設定 JSON</label><input id="import-config" type="file" accept=".json,application/json"><button id="reset" class="secondary">清除本機所有測試資料並還原</button><p id="admin-message" class="status" role="status"></p></section>
 </main><footer>Study 1｜離線測試版｜非正式報名、非真實 OTP、非有效電子簽署</footer>
@@ -139,7 +140,29 @@ function editSlot(state,slotId,changes){
   })};
  return replaceConfig(before,candidate);
 }
-root.Study1DemoCore={validateConfig:validateConfig,validateState:validateState,replaceConfig:replaceConfig,editSlot:editSlot,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
+/** Admin operations are mock-only: validate first, work on copies, revalidate before returning. */
+function adminMoveBooking(state,applicant,newSlot,now){
+ var safe=validateState(state);
+ if(!validId(applicant)||typeof newSlot!=='string'||!/^S[0-9]{1,8}$/.test(newSlot))
+  fail('測試預約識別碼不合法');
+ if(!Number.isSafeInteger(now)||now<0||!Number.isFinite(new Date(now).getTime()))
+  fail('操作時間不合法');
+ reschedule(safe.config,safe.bookings,applicant,newSlot,now);
+ return validateState(safe);
+}
+function adminCancelBooking(state,applicant,now){
+ var safe=validateState(state);
+ if(!validId(applicant))fail('測試預約識別碼不合法');
+ if(!Number.isSafeInteger(now)||now<0||!Number.isFinite(new Date(now).getTime()))
+  fail('操作時間不合法');
+ var current=active(safe.bookings).find(function(b){return b.applicant===applicant;});
+ if(!current)fail('找不到有效預約');
+ var slot=safe.config.slots.find(function(s){return s.id===current.slotId;});
+ if(!slot||Date.parse(slot.start)<=now)fail('原時段已開始，不能從後台取消');
+ cancel(safe.bookings,applicant,now);
+ return validateState(safe);
+}
+root.Study1DemoCore={validateConfig:validateConfig,validateState:validateState,replaceConfig:replaceConfig,editSlot:editSlot,adminMoveBooking:adminMoveBooking,adminCancelBooking:adminCancelBooking,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
 })(window);
 </script>
 <script>
@@ -210,7 +233,44 @@ function render(){
   div.appendChild(details);
   div.appendChild(button('移除時段',function(){if(count){message('admin-message','有有效預約的時段不可直接刪除。');return;}state.config.slots=state.config.slots.filter(function(x){return x.id!==s.id;});save();render();}));sa.appendChild(div);
  });
- renderBooking();
+ renderBooking();renderAdminBookings();
+}
+function renderAdminBookings(){
+ var panel=el('admin-bookings');panel.replaceChildren();
+ var current=state.bookings.filter(function(b){return b.status==='CONFIRMED';});
+ var cancelled=state.bookings.length-current.length;
+ panel.appendChild(text('p','有效虛構預約 '+current.length+' 筆；已取消歷史 '+cancelled+' 筆。'));
+ if(!current.length){panel.appendChild(text('p','目前沒有有效的測試預約。'));return;}
+ current.forEach(function(b){
+  var slot=state.config.slots.find(function(s){return s.id===b.slotId;});
+  var div=document.createElement('div');div.className='card';
+  div.appendChild(text('p',b.applicant+'｜'+b.slotId+'｜'+dateLabel(slot.start)+'｜'+slot.location));
+  if(Date.parse(slot.start)<=Date.now()){
+   div.appendChild(text('p','時段已開始，禁止後台改期或取消。'));
+  }else{
+   var choices=state.config.slots.filter(function(s){
+    return s.id!==b.slotId&&Date.parse(s.start)>Date.now()&&
+     core.remaining(state.config,state.bookings,s.id,b.applicant,Date.now())>0;
+   });
+   if(choices.length){
+    var label=document.createElement('label');label.textContent='改期目標（'+b.applicant+'）';
+    var select=document.createElement('select');select.setAttribute('aria-label','選擇 '+b.applicant+' 的新測試時段');
+    choices.forEach(function(s){select.appendChild(option(s.id,s.id+'｜'+dateLabel(s.start)));});
+    label.appendChild(select);div.appendChild(label);
+    div.appendChild(button('後台模擬改期',function(){
+     try{state=core.adminMoveBooking(state,b.applicant,select.value,Date.now());
+      save();render();message('admin-message','已改期 '+b.applicant+'（僅本機）。');
+     }catch(e){message('admin-message','改期失敗：'+e.message);}
+    }));
+   }
+   div.appendChild(button('後台模擬取消',function(){
+    try{state=core.adminCancelBooking(state,b.applicant,Date.now());
+     save();render();message('admin-message','已取消 '+b.applicant+'（僅本機）。');
+    }catch(e){message('admin-message','取消失敗：'+e.message);}
+   }));
+  }
+  panel.appendChild(div);
+ });
 }
 function renderBooking(){var b=currentBooking();message('booking-status',b?'模擬預約已確認：'+b.slotId+'｜'+dateLabel(state.config.slots.find(function(s){return s.id===b.slotId;}).start):'此代號目前沒有有效模擬預約');}
 function act(fn){try{fn();save();render();message('participant-message','操作完成（僅本機模擬，沒有真實預約）。');}catch(e){message('participant-message','無法完成：'+e.message);}}
