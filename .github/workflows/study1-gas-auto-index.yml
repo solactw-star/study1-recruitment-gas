@@ -1,0 +1,64 @@
+name: Study1 GAS auto-sync approved Index
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gas/Index.html'
+      - 'scripts/study1-gas-auto-index.cjs'
+      - '.github/workflows/study1-gas-auto-index.yml'
+permissions:
+  contents: read
+concurrency:
+  group: study1-gas-source-sync
+  cancel-in-progress: false
+jobs:
+  sync-preview:
+    if: ${{ github.event.repository.private }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Require approved CLOSED preview and pass all tests
+        run: |
+          npm test
+          node --check scripts/study1-gas-auto-index.cjs
+          node --check gas/Website.js
+      - name: Check that checked-out Index matches current main
+        run: |
+          git fetch origin main --depth=1
+          git show origin/main:gas/Index.html > "$RUNNER_TEMP/main-index.html"
+          cmp gas/Index.html "$RUNNER_TEMP/main-index.html"
+      - name: Load existing 828 OAuth secret
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || { echo 'Existing 828 OAuth secret unavailable'; exit 1; }
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$RUNNER_TEMP/.clasprc.json"
+          echo "CLASPRC_PATH=$RUNNER_TEMP/.clasprc.json" >> "$GITHUB_ENV"
+          echo "GITHUB_REPOSITORY_PRIVATE=true" >> "$GITHUB_ENV"
+      - name: Derive full GAS state and deployment without user input
+        run: node scripts/study1-gas-auto-index.cjs prepare
+      - name: Save complete original GAS HEAD and deployment config before mutation
+        uses: actions/upload-artifact@v4
+        with:
+          name: study1-gas-auto-prewrite-${{ github.run_id }}
+          path: ${{ runner.temp }}/study1-auto-index-snapshot.json
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+      - name: Reconfirm current main Index before writing
+        run: |
+          git fetch origin main --depth=1
+          git show origin/main:gas/Index.html > "$RUNNER_TEMP/main-index-after.html"
+          cmp gas/Index.html "$RUNNER_TEMP/main-index-after.html"
+      - name: Update existing GAS HEAD and original /exec with Index only, then read back
+        run: node scripts/study1-gas-auto-index.cjs apply
+      - name: Delete temporary OAuth credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/.clasprc.json"

@@ -158,4 +158,4 @@ async function main(){
   }
 }
 if(require.main===module)main().catch(e=>{console.error('Study1 sync stopped: '+e.message);process.exitCode=1;});
-module.exports={SCRIPT_ID,CONFIRM,sha,digest,file,assertIndex,assertRemote,deploymentCheck,config,merge,storedCredentials,prepare,apply};
+module.exports={SCRIPT_ID,CONFIRM,sha,digest,file,assertIndex,assertRemote,deploymentCheck,config,merge,storedCredentials,authorizedApi,prepare,apply};
