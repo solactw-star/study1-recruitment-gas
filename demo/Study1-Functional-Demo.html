@@ -20,7 +20,7 @@
 <div class="row"><div><label for="edit-title">研究標題</label><input id="edit-title" maxlength="100"></div><div><label for="edit-intro">研究介紹</label><textarea id="edit-intro" rows="3" maxlength="1200"></textarea></div></div>
 <label for="edit-consent">測試同意書說明（純文字）</label><textarea id="edit-consent" rows="3" maxlength="2000"></textarea><button id="save-text">儲存研究資訊</button>
 <h3>資格問題設定</h3><div id="admin-questions"></div><label for="new-question">新增測試題目（是／否題）</label><input id="new-question" maxlength="180" placeholder="例如：是否已閱讀測試注意事項？"><label for="new-answer">符合測試條件的答案</label><select id="new-answer"><option value="yes">是</option><option value="no">否</option></select><button id="add-question">新增測試題目</button>
-<h3>時段與容量設定</h3><div id="admin-slots"></div><div class="row"><div><label for="new-start">開始時間（本地）</label><input id="new-start" type="datetime-local"></div><div><label for="new-end">結束時間（本地）</label><input id="new-end" type="datetime-local"></div><div><label for="new-capacity">容量</label><input id="new-capacity" type="number" min="1" max="100" value="2"></div><div><label for="new-location">測試地點代碼</label><input id="new-location" value="DEMO-LAB" maxlength="60"></div></div><button id="add-slot">新增時段</button>
+<h3>時段與容量設定</h3><p class="muted">可展開既有時段直接編輯。已有有效模擬預約的時段不可更改時間或地點，容量不得低於已預約人數；資料只保存在此瀏覽器。</p><div id="admin-slots"></div><div class="row"><div><label for="new-start">開始時間（本地）</label><input id="new-start" type="datetime-local"></div><div><label for="new-end">結束時間（本地）</label><input id="new-end" type="datetime-local"></div><div><label for="new-capacity">容量</label><input id="new-capacity" type="number" min="1" max="100" value="2"></div><div><label for="new-location">測試地點代碼</label><input id="new-location" value="DEMO-LAB" maxlength="60"></div></div><button id="add-slot">新增時段</button>
 <h3>同意書 PDF 測試替換</h3><label for="pdf-file">選擇本機 PDF（僅供此分頁預覽，不上傳伺服器）</label><input id="pdf-file" type="file" accept="application/pdf,.pdf"><p class="muted">本機 PDF 不會永久保存；重開頁面需要重新選擇。正式版必須由有權限的研究人員上傳至 828 私有 Drive，驗證核准版本與 SHA-256。</p>
 <h3>資料移轉與清除</h3><button id="export-config">匯出測試設定 JSON（不含預約）</button><label for="import-config">匯入測試設定 JSON</label><input id="import-config" type="file" accept=".json,application/json"><button id="reset" class="secondary">清除本機所有測試資料並還原</button><p id="admin-message" class="status" role="status"></p></section>
 </main><footer>Study 1｜離線測試版｜非正式報名、非真實 OTP、非有效電子簽署</footer>
@@ -124,7 +124,22 @@ function replaceConfig(state,candidate){
  });
  return after;
 }
-root.Study1DemoCore={validateConfig:validateConfig,validateState:validateState,replaceConfig:replaceConfig,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
+/** Edit one existing demo slot without breaking active reservations. */
+function editSlot(state,slotId,changes){
+ var before=validateState(state);
+ if(typeof slotId!=='string'||!before.config.slots.some(function(s){return s.id===slotId;}))
+  fail('找不到可編輯的測試時段');
+ if(!changes||typeof changes!=='object'||Array.isArray(changes))
+  fail('時段修改內容不合法');
+ var candidate={title:before.config.title,intro:before.config.intro,
+  consent:before.config.consent,questions:before.config.questions,
+  slots:before.config.slots.map(function(s){
+   return s.id===slotId?{id:s.id,start:changes.start,end:changes.end,
+    capacity:changes.capacity,location:changes.location}:s;
+  })};
+ return replaceConfig(before,candidate);
+}
+root.Study1DemoCore={validateConfig:validateConfig,validateState:validateState,replaceConfig:replaceConfig,editSlot:editSlot,qualify:qualify,remaining:remaining,book:book,reschedule:reschedule,cancel:cancel,validId:validId};
 })(window);
 </script>
 <script>
@@ -141,6 +156,17 @@ function text(tag,value){var node=document.createElement(tag);node.textContent=v
 function button(label,fn){var b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',fn);return b;}
 function option(value,label){var o=document.createElement('option');o.value=value;o.textContent=label;return o;}
 function dateLabel(iso){return new Date(iso).toLocaleString('zh-TW',{dateStyle:'medium',timeStyle:'short'});}
+function toLocalInput(iso){
+ var d=new Date(iso),p=function(n){return String(n).padStart(2,'0');};
+ return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'T'+p(d.getHours())+':'+p(d.getMinutes());
+}
+function editableField(parent,id,label,type,value){
+ var lab=document.createElement('label');lab.htmlFor=id;lab.textContent=label;
+ var input=document.createElement('input');input.id=id;input.type=type;input.value=value;
+ if(type==='number'){input.min='1';input.max='100';input.step='1';}
+ if(type==='text')input.maxLength=60;
+ parent.appendChild(lab);parent.appendChild(input);return input;
+}
 function currentId(){return el('applicant').value.trim();}
 function currentBooking(){return state.bookings.find(function(b){return b.applicant===currentId()&&b.status==='CONFIRMED';});}
 function render(){
@@ -161,7 +187,28 @@ function render(){
   var desc=s.id+'｜'+dateLabel(s.start)+' 至 '+dateLabel(s.end)+'｜'+s.location+'｜剩餘 '+Math.max(0,s.capacity-count)+' / '+s.capacity;
   slots.appendChild(text('p',desc));
   if(Date.parse(s.start)>Date.now()&&count<s.capacity){select.appendChild(option(s.id,desc));change.appendChild(option(s.id,desc));}
-  var div=document.createElement('div');div.className='card';div.appendChild(text('span',desc));div.appendChild(button('移除時段',function(){if(count){message('admin-message','有有效預約的時段不可直接刪除。');return;}state.config.slots=state.config.slots.filter(function(x){return x.id!==s.id;});save();render();}));sa.appendChild(div);
+  var div=document.createElement('div');div.className='card';div.appendChild(text('p',desc));
+  var details=document.createElement('details'),summary=document.createElement('summary');
+  summary.textContent='編輯 '+s.id+'（時間、地點、容量）';details.appendChild(summary);
+  var start=editableField(details,'edit-'+s.id+'-start','開始時間（本地）','datetime-local',toLocalInput(s.start));
+  var end=editableField(details,'edit-'+s.id+'-end','結束時間（本地）','datetime-local',toLocalInput(s.end));
+  var capacity=editableField(details,'edit-'+s.id+'-capacity','容量','number',String(s.capacity));
+  var location=editableField(details,'edit-'+s.id+'-location','測試地點代碼','text',s.location);
+  details.appendChild(button('儲存此時段修改',function(){
+   try{
+    var startDate=new Date(start.value),endDate=new Date(end.value);
+    if(!Number.isFinite(startDate.getTime())||!Number.isFinite(endDate.getTime()))
+     throw Error('請輸入有效的開始及結束時間');
+    var capacityValue=Number(capacity.value);
+    if(!capacity.value.trim()||!Number.isSafeInteger(capacityValue))
+     throw Error('容量必須是整數');
+    state=core.editSlot(state,s.id,{start:startDate.toISOString(),end:endDate.toISOString(),
+     capacity:capacityValue,location:location.value});
+    save();render();message('admin-message','已更新 '+s.id+'（僅本機測試）。');
+   }catch(e){message('admin-message','修改失敗：'+e.message);}
+  }));
+  div.appendChild(details);
+  div.appendChild(button('移除時段',function(){if(count){message('admin-message','有有效預約的時段不可直接刪除。');return;}state.config.slots=state.config.slots.filter(function(x){return x.id!==s.id;});save();render();}));sa.appendChild(div);
  });
  renderBooking();
 }
