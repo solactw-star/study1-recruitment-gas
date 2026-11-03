@@ -9,7 +9,11 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
  {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
- {name:'BookingCore',type:'SERVER_JS',path:'gas/BookingCore.js'}
+ {name:'BookingCore',type:'SERVER_JS',path:'gas/BookingCore.js'},
+ {name:'OtpThrottle',type:'SERVER_JS',path:'gas/OtpThrottle.js'},
+ {name:'OtpTransaction',type:'SERVER_JS',path:'gas/OtpTransaction.js'},
+ {name:'BookingHoldTransaction',type:'SERVER_JS',path:'gas/BookingHoldTransaction.js'},
+ {name:'Study1FixtureAdapter',type:'SERVER_JS',path:'gas/Study1FixtureAdapter.js'}
 ]);
 function assertClosedWebsite(source){
  if(typeof source!=='string')throw Error('Missing Website source');
@@ -101,6 +105,27 @@ function assertBookingCore(source){
    throw Error('BookingCore expected pure method or read-only preflight missing');
 }
 
+function assertFixtureAdapter(source){
+ assertPinnedCore(source,'423a4aaa0aedcf9643769e2e74373b248ac6cefc','Study1FixtureAdapter');
+ const expected=new Set(['study1FixtureLock_','study1FixtureEmail_',
+  'study1FixtureOtpSnapshot_','study1FixtureIssue_','study1FixtureVerify_',
+  'study1FixtureBookingSnapshot_','study1FixtureHold_']);
+ const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
+ if(found.length!==expected.size||found.some(x=>!expected.has(x))||
+   new Set(found).size!==expected.size)throw Error('Unreviewed fixture adapter function');
+ for(const token of ['otpThrottleIssuePreflight_(','otpVerifyOnceLocked_(',
+   'bookingHoldOnceLocked_(','outerLock.hasLock()','example.invalid'])
+  if(!source.includes(token))throw Error('Fixture adapter transaction guard missing');
+ if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|PropertiesService|LockService|eval)\b/.test(source))
+  throw Error('Fixture adapter cannot access live resources');
+}
+function assertTransactionKernel(source,expected,name){
+ assertPinnedCore(source,expected,name);
+ if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|PropertiesService|LockService|eval)\b/.test(source))
+  throw Error('Transaction kernel cannot access live resources');
+ const names=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
+ if(names.some(x=>!x.endsWith('_')))throw Error('Unreviewed public transaction endpoint');
+}
 function assertUnifiedFlow(source){
  if(typeof source!=='string')throw Error('Unified flow source missing');
  for(const token of ["const STUDY1_UNIFIED_FIXTURE_KEY_='STUDY1_UNIFIED_FIXTURE_V1'",
@@ -109,7 +134,9 @@ function assertUnifiedFlow(source){
    "function study1UnifiedPreviewCommand(command){","LockService.getScriptLock()",
    "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw)",
    "fixture.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_)",
-   "c.action==='ADMIN_RESET'","action==='CONSENT_REVIEW'","action==='ADMIN_RESEARCH'"])
+   "c.action==='ADMIN_RESET'","action==='CONSENT_REVIEW'","action==='ADMIN_RESEARCH'",
+   "study1FixtureIssue_(s,a,now)","study1FixtureVerify_(s,a,p.code,now,outerLock)",
+   "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -141,13 +168,21 @@ function assertUnifiedHtml(html){
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');
 }
-function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore){
+function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter){
  core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);assertOtpCore(otpCore);assertBookingCore(bookingCore);
+ assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle');
+ assertTransactionKernel(otpTransaction,'85e554cab2c6767fd80545b8c6e573c99e750a9e','OtpTransaction');
+ assertTransactionKernel(bookingHoldTransaction,'1f12a687625ceb72414227451853a900e3dab692','BookingHoldTransaction');
+ assertFixtureAdapter(fixtureAdapter);
  const originals=remote.files,merged=structuredClone(originals);
  const incoming=[{name:'Index',type:'HTML',source:index},{name:'Website',type:'SERVER_JS',source:website},
   {name:'AdminSandbox',type:'SERVER_JS',source:adminScript},{name:'AdminConsole',type:'HTML',source:adminHtml},
   {name:'Study1Flow',type:'SERVER_JS',source:unifiedScript},{name:'Study1Unified',type:'HTML',source:unifiedHtml},
-  {name:'OtpCore',type:'SERVER_JS',source:otpCore},{name:'BookingCore',type:'SERVER_JS',source:bookingCore}];
+  {name:'OtpCore',type:'SERVER_JS',source:otpCore},{name:'BookingCore',type:'SERVER_JS',source:bookingCore},
+  {name:'OtpThrottle',type:'SERVER_JS',source:otpThrottle},
+  {name:'OtpTransaction',type:'SERVER_JS',source:otpTransaction},
+  {name:'BookingHoldTransaction',type:'SERVER_JS',source:bookingHoldTransaction},
+  {name:'Study1FixtureAdapter',type:'SERVER_JS',source:fixtureAdapter}];
  for(const change of incoming){
   const collisions=merged.filter(f=>f.name===change.name);
   if(collisions.length>1||collisions.some(f=>f.type!==change.type))throw Error('Unexpected remote GAS file collision: '+change.name);
@@ -159,4 +194,4 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  if(core.digest(keep(merged))!==core.digest(keep(originals)))throw Error('Unapproved remote GAS source changed');
  return merged;
 }
-module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,mergeApproved};
+module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,assertFixtureAdapter,assertTransactionKernel,mergeApproved};

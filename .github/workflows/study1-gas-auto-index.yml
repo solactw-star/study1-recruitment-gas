@@ -11,6 +11,10 @@ on:
       - 'gas/Study1Unified.html'
       - 'gas/OtpCore.js'
       - 'gas/BookingCore.js'
+      - 'gas/OtpThrottle.js'
+      - 'gas/OtpTransaction.js'
+      - 'gas/BookingHoldTransaction.js'
+      - 'gas/Study1FixtureAdapter.js'
       - 'tests/study1-unified.test.cjs'
       - 'tests/study1-admin-sandbox.test.cjs'
       - 'tests/study1-admin-bookings.test.cjs'
@@ -45,6 +49,10 @@ jobs:
           node --check gas/AdminSandbox.js
           node --check gas/OtpCore.js
           node --check gas/BookingCore.js
+          node --check gas/OtpThrottle.js
+          node --check gas/OtpTransaction.js
+          node --check gas/BookingHoldTransaction.js
+          node --check gas/Study1FixtureAdapter.js
           node --check gas/Study1Unified.js
       - name: Check that approved checked-out sources match current main
         run: |
@@ -65,6 +73,14 @@ jobs:
           cmp gas/OtpCore.js "$RUNNER_TEMP/main-otp.js"
           git show origin/main:gas/BookingCore.js > "$RUNNER_TEMP/main-booking.js"
           cmp gas/BookingCore.js "$RUNNER_TEMP/main-booking.js"
+          git show origin/main:gas/Study1FixtureAdapter.js > "$RUNNER_TEMP/main-fixture-adapter.js"
+          cmp gas/Study1FixtureAdapter.js "$RUNNER_TEMP/main-fixture-adapter.js"
+          git show origin/main:gas/BookingHoldTransaction.js > "$RUNNER_TEMP/main-booking-hold-transaction.js"
+          cmp gas/BookingHoldTransaction.js "$RUNNER_TEMP/main-booking-hold-transaction.js"
+          git show origin/main:gas/OtpTransaction.js > "$RUNNER_TEMP/main-otp-transaction.js"
+          cmp gas/OtpTransaction.js "$RUNNER_TEMP/main-otp-transaction.js"
+          git show origin/main:gas/OtpThrottle.js > "$RUNNER_TEMP/main-otp-throttle.js"
+          cmp gas/OtpThrottle.js "$RUNNER_TEMP/main-otp-throttle.js"
       - name: Load existing 828 OAuth secret
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
@@ -103,6 +119,14 @@ jobs:
           cmp gas/OtpCore.js "$RUNNER_TEMP/main-otp-after.js"
           git show origin/main:gas/BookingCore.js > "$RUNNER_TEMP/main-booking-after.js"
           cmp gas/BookingCore.js "$RUNNER_TEMP/main-booking-after.js"
+          git show origin/main:gas/Study1FixtureAdapter.js > "$RUNNER_TEMP/main-fixture-adapter-after.js"
+          cmp gas/Study1FixtureAdapter.js "$RUNNER_TEMP/main-fixture-adapter-after.js"
+          git show origin/main:gas/BookingHoldTransaction.js > "$RUNNER_TEMP/main-booking-hold-transaction-after.js"
+          cmp gas/BookingHoldTransaction.js "$RUNNER_TEMP/main-booking-hold-transaction-after.js"
+          git show origin/main:gas/OtpTransaction.js > "$RUNNER_TEMP/main-otp-transaction-after.js"
+          cmp gas/OtpTransaction.js "$RUNNER_TEMP/main-otp-transaction-after.js"
+          git show origin/main:gas/OtpThrottle.js > "$RUNNER_TEMP/main-otp-throttle-after.js"
+          cmp gas/OtpThrottle.js "$RUNNER_TEMP/main-otp-throttle-after.js"
       - name: Update approved Index and CLOSED Website in existing GAS and /exec, then read back
         run: node scripts/study1-gas-auto-index.cjs apply
       - name: Delete temporary OAuth credentials
