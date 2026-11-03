@@ -109,6 +109,44 @@ function study1UnifiedPdfFixture_(){
   sha256:hash,base64,approved:false,title:'TEST PDF - NOT REC - SYNTHETIC ONLY'};
 }
 /** No formal retention/permission is authorized by the simulated governance. */
+/**
+ * Formal activation evidence inventory. This is a read-only specification
+ * checklist, NOT an approval engine: self-declared hashes or TEST metadata
+ * cannot satisfy a source-byte, REC, retention or identity gate.
+ * Every future production port remains separately FORMAL_BLOCKED.
+ */
+function study1UnifiedFormalReadiness_(s){
+ const gates=[
+  {id:'REC_PROTOCOL_APPROVAL',state:'PENDING',reason:'須核對研究倫理審查核准內容與生效版本'},
+  {id:'DATA_RETENTION_APPROVAL',state:'PENDING',reason:'保存期間、刪除時點與例外尚未核定'},
+  {id:'ACCESS_ROLE_APPROVAL',state:'PENDING',reason:'正式研究人員角色、最小權限與撤權程序未核定'},
+  {id:'FORMAL_STORAGE_SCHEMA',state:'BLOCKED',reason:'正式 Sheets adapter 尚未核准或接入'},
+  {id:'OTP_DELIVERY_AUTHORIZATION',state:'BLOCKED',reason:'真人信箱及 OTP 寄送均禁止'},
+  {id:'NOTIFICATION_POLICY_APPROVAL',state:'PENDING',reason:'寄送時機、重試間隔與錯誤處理待核定'},
+  {id:'CONSENT_SIGNING_EVIDENCE',state:'BLOCKED',reason:'未建置核准 PDF 的有效閱覽、簽署與證據保存'},
+  {id:'OWNER_LIVE_ACCEPTANCE',state:'PENDING',reason:'完整正式流程尚無真人上線驗收授權'}
+ ];
+ const provenance={};
+ for(const exp of ['E1','E2']){
+  const c=s.policy.consent[exp],m=s.policy.screening.mappings[exp];
+  provenance[exp]={screeningSource:m.source,screeningVersion:m.version,
+   recVersion:c.version,declaredSha256:c.sha256,sourceDocumentId:null,
+   sourceVersionVerified:false,sourceBytesVerified:false,
+   recApprovalVerified:false,preSignedResearcherPdfVerified:false};
+  gates.push(
+   {id:exp+'_SCREENING_SOURCE',state:'PENDING',reason:'初篩對照仍為 REC 草稿，缺核准來源及版本核對'},
+   {id:exp+'_REC_PDF_BYTES',state:'BLOCKED',reason:'缺已核准 REC PDF 原始位元組及獨立 SHA-256 回讀'},
+   {id:exp+'_RESEARCHER_PRESIGN',state:'BLOCKED',reason:'缺經核對之研究人員預簽原始文件'}
+  );
+ }
+ return {mode:'FORMAL_BLOCKED',activationAllowed:false,passed:0,total:gates.length,
+  gates,provenance,
+  notificationPolicy:{channel:'DISABLED',realEmail:'PROHIBITED',
+   sendOnlyAfter:['CONFIRM_COMMITTED','MOVE_COMMITTED','CANCEL_COMMITTED'],
+   maxSimulatedAttempts:3,realRetryBackoff:'PENDING',realDeliveryAudit:'PENDING'},
+  storagePolicy:{formalRead:'DENIED',formalWrite:'DENIED',
+   retention:'PENDING',rolePermissions:'PENDING',consentSignature:'DENIED'}};
+}
 function study1UnifiedGovernance_(s){
  return {mode:'TEST',approval:'PENDING',access:'828_OWNER_ONLY',
   publicIntake:'DISABLED',realData:'NEVER_COLLECTED',audit:'SIM_ACTION_ONLY',
@@ -325,6 +363,7 @@ function study1UnifiedView_(s){
    [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
   policy:s.policy,audit:study1UnifiedAudit_(s),
   pdfFixture:study1UnifiedPdfFixture_(),governance:study1UnifiedGovernance_(s),
+  formalReadiness:study1UnifiedFormalReadiness_(s),
   slots:s.slots.map(slot=>{
    const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
    return {...slot,bookable,remaining:bookable?
