@@ -110,6 +110,9 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <h3>正式資料保存／權限／REC 文件狀態（唯讀）</h3>
 <p class="note">正式保留期限與權限尚未核准。此處不會讀寫任何真人資料。</p>
 <pre id="governanceStatus" aria-label="資料保存與權限稽核狀態"></pre>
+<h3>正式啟用必要證據及通知條件（唯讀）</h3>
+<p class="note">每項狀態均須依核准原始文件與真實資料治理驗證；輸入待核版本或 SHA-256 文字不能解除正式阻擋。</p>
+<pre id="formalReadinessStatus" aria-label="正式啟用必要證據與阻擋項目"></pre>
 <p class="note">集中驗收結束可清除全部 SIM 測試申請、虛構預約、通知與稽核。只刪除 STUDY1_UNIFIED_FIXTURE_V1，不更動 OPEN／CONSENT_READY 或其他資料。</p>
 <button id="adminReset" class="secondary" type="button" disabled>清空統一網站的虛構驗收資料</button></section>
 <p><a href="?view=admin">返回現有研究室管理後台</a></p>
@@ -178,6 +181,10 @@ function render(response){
   !response.governance||response.governance.mode!=='TEST'||
   response.governance.approval!=='PENDING'||
   response.governance.publicIntake!=='DISABLED'||
+  !response.formalReadiness||response.formalReadiness.mode!=='FORMAL_BLOCKED'||
+  response.formalReadiness.activationAllowed!==false||
+  !Array.isArray(response.formalReadiness.gates)||
+  response.formalReadiness.passed!==0||
   response.researchSource!=='REC_DRAFT_ONLY'||response.researchApproval!=='PENDING'||
   !response.definitions||!['E1','E2'].every(exp=>{
    const d=response.definitions[exp];
@@ -190,6 +197,7 @@ function render(response){
  $('testPdfLink').href='data:application/pdf;base64,'+response.pdfFixture.base64;
  $('testPdfHash').textContent=response.pdfFixture.sha256;
  $('governanceStatus').textContent=JSON.stringify(response.governance,null,2);
+ $('formalReadinessStatus').textContent=JSON.stringify(response.formalReadiness,null,2);
  for(const exp of ['E1','E2']){
   const d=response.definitions[exp];
   $('definitionTitle'+exp).textContent=d.label;
