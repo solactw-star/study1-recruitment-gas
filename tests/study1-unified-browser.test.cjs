@@ -1,7 +1,16 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const crypto=require('node:crypto');
-const fixtureUtilities={Charset:{UTF_8:'UTF-8'},computeHmacSha256Signature:(payload,secret)=>[...crypto.createHmac('sha256',secret).update(payload,'utf8').digest()].map(b=>b>127?b-256:b)};
+const fixtureUtilities={
+ Charset:{UTF_8:'UTF-8'},
+ DigestAlgorithm:{SHA_256:'SHA_256'},
+ base64Decode:b64=>[...Buffer.from(b64,'base64')].map(b=>b>127?b-256:b),
+ computeDigest:(alg,bytes)=>{assert.equal(alg,'SHA_256');
+  return [...crypto.createHash('sha256')
+   .update(Buffer.from(bytes.map(x=>x<0?x+256:x))).digest()].map(b=>b>127?b-256:b);},
+ computeHmacSha256Signature:(payload,secret)=>[...crypto.createHmac('sha256',secret)
+  .update(payload,'utf8').digest()].map(b=>b>127?b-256:b)
+};
 const gasDir=path.join(__dirname,'../gas');
 const serverCode=fs.readFileSync(path.join(gasDir,'OtpCore.js'),'utf8')+'\n'+
  fs.readFileSync(path.join(gasDir,'BookingCore.js'),'utf8')+'\n'+
@@ -182,5 +191,24 @@ test('Unified browser edits screening version and simulates notification retries
  h.set('adminNotificationResult','SIM_OK');h.click('adminNotificationAttempt');
  assert.equal(h.read().notifications[0].status,'SIM_DELIVERED');
  assert.equal(h.dom.get('adminNotificationAttempt').disabled,true);
+ assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
+});
+
+test('Single-site browser shows independent synthetic PDF viewer and PENDING retention governance',()=>{
+ const h=harness(),model=h.read();
+ assert.equal(model.pdfFixture.approved,false);
+ assert.ok(h.dom.get('testPdfLink').href.startsWith('data:application/pdf;base64,'));
+ assert.equal(h.dom.get('testPdfHash').textContent,model.pdfFixture.sha256);
+ assert.match(h.dom.get('governanceStatus').textContent,/FORMAL_BLOCKED/);
+ assert.match(h.dom.get('governanceStatus').textContent,/PENDING/);
+ h.click('start');for(const id of ['adult','cycu','noDx','noTherapy','noPractice','noE1'])h.check(id,true);
+ h.click('screen');h.click('otpRequest');h.set('otp','00000000');h.click('otpVerify');
+ h.set('slot','SIM-SLOT-E1-A');h.click('hold');
+ assert.equal(h.dom.get('pdfDemoReview').disabled,false);
+ h.click('pdfDemoReview');
+ assert.ok(h.read().applications[0].pdfDemoReviewedAt);
+ assert.equal(h.dom.get('pdfDemoReview').disabled,true);
+ assert.equal(h.read().policy.consent.E1.approval,'PENDING');
+ assert.equal(h.read().governance.documents.E1.sourceBytesVerified,false);
  assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
 });

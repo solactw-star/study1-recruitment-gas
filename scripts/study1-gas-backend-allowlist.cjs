@@ -136,6 +136,9 @@ function assertUnifiedFlow(source){
    "fixture.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_)",
    "c.action==='ADMIN_RESET'","action==='CONSENT_REVIEW'","action==='ADMIN_RESEARCH'",
    "action==='ADMIN_SCREENING'","action==='ADMIN_NOTIFY_ATTEMPT'",
+   "action==='PDF_DEMO_REVIEW'","function study1UnifiedPdfFixture_(){",
+   "Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256",
+   "kind:'SIMULATED_PDF_NOT_REC'","function study1UnifiedGovernance_(){",
    "study1FixtureIssue_(s,a,now)","study1FixtureVerify_(s,a,p.code,now,outerLock)",
    "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
@@ -147,7 +150,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedPolicy_','study1UnifiedValidatePolicy_','study1UnifiedValidateSlots_',
   'study1UnifiedAudit_','study1UnifiedNotify_','study1UnifiedProductionAdapter_',
   'study1UnifiedResearch_','study1UnifiedValidateResearch_',
-  'study1UnifiedCoreAvailability_','study1UnifiedCoreOtpDecision_']);
+  'study1UnifiedCoreAvailability_','study1UnifiedCoreOtpDecision_',
+  'study1UnifiedPdfFixture_','study1UnifiedGovernance_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -167,6 +171,9 @@ function assertUnifiedHtml(html){
   !html.includes("command('ADMIN_RESET'")||
   !html.includes("command('ADMIN_SCREENING'")||
   !html.includes("command('ADMIN_NOTIFY_ATTEMPT'")||
+  !html.includes("command('PDF_DEMO_REVIEW'")||
+  !html.includes('id="testPdfLink"')||
+  !html.includes('id="governanceStatus"')||
   !html.includes('正式報名未開放'))throw Error('Unified website missing TEST-only workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');

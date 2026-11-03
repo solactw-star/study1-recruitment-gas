@@ -1,7 +1,16 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const crypto=require('node:crypto');
-const fixtureUtilities={Charset:{UTF_8:'UTF-8'},computeHmacSha256Signature:(payload,secret)=>[...crypto.createHmac('sha256',secret).update(payload,'utf8').digest()].map(b=>b>127?b-256:b)};
+const fixtureUtilities={
+ Charset:{UTF_8:'UTF-8'},
+ DigestAlgorithm:{SHA_256:'SHA_256'},
+ base64Decode:b64=>[...Buffer.from(b64,'base64')].map(b=>b>127?b-256:b),
+ computeDigest:(alg,bytes)=>{assert.equal(alg,'SHA_256');
+  return [...crypto.createHash('sha256')
+   .update(Buffer.from(bytes.map(x=>x<0?x+256:x))).digest()].map(b=>b>127?b-256:b);},
+ computeHmacSha256Signature:(payload,secret)=>[...crypto.createHmac('sha256',secret)
+  .update(payload,'utf8').digest()].map(b=>b>127?b-256:b)
+};
 const gasDir=path.join(__dirname,'../gas');
 const src=fs.readFileSync(path.join(gasDir,'OtpCore.js'),'utf8')+'\n'+
  fs.readFileSync(path.join(gasDir,'BookingCore.js'),'utf8')+'\n'+
@@ -419,4 +428,52 @@ test('Simulated notification failure and retry never enable formal sending',()=>
  assert.equal(s.read().policy.notification.status,'DISABLED');
  assert.equal(s.read().policy.retention.status,'PENDING');
  assert.deepEqual([...s.p.keys()].sort(),['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']);
+});
+
+test('Byte-verified synthetic PDF and owner governance expose NO approved REC document',()=>{
+ const s=setup(),state=s.read(),f=state.pdfFixture;
+ assert.equal(f.kind,'SIMULATED_PDF_NOT_REC');
+ assert.equal(f.approved,false);assert.equal(f.mime,'application/pdf');
+ const bytes=Buffer.from(f.base64,'base64');
+ assert.equal(bytes.length,615);
+ assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'),
+  '82e8b20b8d0849f5482a94f1f8adf1e3c3bf1d41b45c33ab48dbd4481fe72ad1');
+ assert.equal(state.governance.approval,'PENDING');
+ assert.equal(state.governance.publicIntake,'DISABLED');
+ assert.equal(state.governance.retention.days,null);
+ assert.equal(state.governance.subjectExport,'FORMAL_BLOCKED');
+ assert.equal(state.governance.documents.E1.formalPdfAvailable,false);
+ assert.equal(state.governance.documents.E1.sourceBytesVerified,false);
+ assert.equal(s.writes,0,'Read-only PDF/governance must never persist');
+});
+test('Synthetic PDF review records only demo metadata while REC consent remains PENDING',()=>{
+ const s=setup();
+ s.cmd('START',{experiment:'E1'});
+ assert.throws(()=>s.cmd('PDF_DEMO_REVIEW',{id:'SIM-001',sha256:s.read().pdfFixture.sha256}),/有效暫留/);
+ s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});
+ s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ const bad=s.read().revision;
+ assert.throws(()=>s.cmd('PDF_DEMO_REVIEW',{id:'SIM-001',sha256:'0'.repeat(64)}),/完整雜湊/);
+ assert.equal(s.read().revision,bad);
+ const f=s.read().pdfFixture;
+ let result=s.cmd('PDF_DEMO_REVIEW',{id:'SIM-001',sha256:f.sha256});
+ assert.ok(result.applications[0].pdfDemoReviewedAt);
+ assert.equal(result.applications[0].consentReviewedAt,null);
+ assert.equal(result.governance.documents.E1.approved,false);
+ assert.equal(result.governance.documents.E1.formalPdfAvailable,false);
+ assert.throws(()=>s.cmd('PDF_DEMO_REVIEW',{id:'SIM-001',sha256:f.sha256}),/有效暫留/);
+ assert.doesNotMatch(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'),/JVBERi0xLjQ/);
+ assert.equal(s.p.get('OPEN'),'false');
+ assert.equal(s.p.get('CONSENT_READY'),'false');
+});
+test('Synthetic PDF byte mismatch causes fail-closed read with zero writes',()=>{
+ const s=setup(),prev=s.writes;
+ const orig=s.ctx.Utilities.computeDigest;
+ s.ctx.Utilities.computeDigest=()=>new Array(32).fill(0);
+ assert.throws(()=>s.read(),/SHA-256 驗證失敗/);
+ assert.equal(s.writes,prev);
+ s.ctx.Utilities.computeDigest=orig;
+ assert.equal(s.read().pdfFixture.kind,'SIMULATED_PDF_NOT_REC');
 });

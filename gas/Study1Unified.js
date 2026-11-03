@@ -94,6 +94,33 @@ function study1UnifiedProductionAdapter_(){
   exportAudit:deny,deleteParticipant:deny});
 }
 
+/**
+ * Byte-verified one-page synthetic PDF. It is NOT an REC consent document.
+ * The actual approved REC PDF bytes are absent and remain inaccessible.
+ */
+function study1UnifiedPdfFixture_(){
+ const base64='JVBERi0xLjQKJeLjz9MKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1MDAgMjIwXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA2NiA+PgpzdHJlYW0KQlQgL0YxIDE1IFRmIDQwIDE1MCBUZCAoVEVTVCBQREYgLSBOT1QgUkVDIC0gU1lOVEhFVElDIE9OTFkpIFRqIEVUCmVuZHN0cmVhbQplbmRvYmoKNSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCA2CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMDY0IDAwMDAwIG4gCjAwMDAwMDAxMjEgMDAwMDAwIG4gCjAwMDAwMDAyNDcgMDAwMDAwIG4gCjAwMDAwMDAzNjMgMDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgNiAvUm9vdCAxIDAgUiA+PgpzdGFydHhyZWYKNDMzCiUlRU9G';
+ const bytes=Utilities.base64Decode(base64);
+ if(bytes.length!==615)throw Error('虛構 PDF 位元組長度不符');
+ const hash=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
+  .map(x=>(x<0?x+256:x).toString(16).padStart(2,'0')).join('');
+ if(hash!=='82e8b20b8d0849f5482a94f1f8adf1e3c3bf1d41b45c33ab48dbd4481fe72ad1')throw Error('虛構 PDF SHA-256 驗證失敗');
+ return {kind:'SIMULATED_PDF_NOT_REC',mime:'application/pdf',bytes:615,
+  sha256:hash,base64,approved:false,title:'TEST PDF - NOT REC - SYNTHETIC ONLY'};
+}
+/** No formal retention/permission is authorized by the simulated governance. */
+function study1UnifiedGovernance_(s){
+ return {mode:'TEST',approval:'PENDING',access:'828_OWNER_ONLY',
+  publicIntake:'DISABLED',realData:'NEVER_COLLECTED',audit:'SIM_ACTION_ONLY',
+  subjectExport:'FORMAL_BLOCKED',subjectDeletion:'FORMAL_BLOCKED',
+  fixtureDeletion:'STUDY1_UNIFIED_FIXTURE_V1_ONLY',
+  retention:{status:s.policy.retention.status,days:s.policy.retention.days},
+  notification:{status:s.policy.notification.status},
+  documents:Object.fromEntries(['E1','E2'].map(exp=>[exp,{
+   source:'REC_DRAFT_ONLY',version:s.policy.consent[exp].version,
+   declaredSha256:s.policy.consent[exp].sha256,sourceBytesVerified:false,
+   approved:false,formalPdfAvailable:false}]))};
+}
 function study1UnifiedDefinitions_(){
  return {
   E1:{label:'實驗一｜記憶與內感覺',duration:'90–120 分鐘',
@@ -203,6 +230,10 @@ function study1UnifiedRead_(){
     (typeof a.consentSha256!=='string'||
      (a.consentSha256!==''&&!/^[a-f0-9]{64}$/.test(a.consentSha256))))
    throw Error('虛構同意書鎖定雜湊格式異常');
+  if(a.pdfDemoReviewedAt!==undefined&&a.pdfDemoReviewedAt!==null&&
+      (!Number.isFinite(a.pdfDemoReviewedAt)||a.pdfDemoReviewedAt<=0||
+       a.pdfDemoSha256!=='82e8b20b8d0849f5482a94f1f8adf1e3c3bf1d41b45c33ab48dbd4481fe72ad1'))
+   throw Error('虛構 PDF 閱覽紀錄不合法');
   if(a.consentReviewedAt!==undefined&&a.consentReviewedAt!==null&&
      (!Number.isFinite(a.consentReviewedAt)||a.consentReviewedAt<=0))
    throw Error('測試版本資訊閱覽時間不合法');
@@ -293,6 +324,7 @@ function study1UnifiedView_(s){
   definitions:Object.fromEntries(Object.entries(s.research).filter(([k])=>k==='E1'||k==='E2').map(([k,v])=>
    [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
   policy:s.policy,audit:study1UnifiedAudit_(s),
+  pdfFixture:study1UnifiedPdfFixture_(),governance:study1UnifiedGovernance_(s),
   slots:s.slots.map(slot=>{
    const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
    return {...slot,bookable,remaining:bookable?
@@ -301,7 +333,7 @@ function study1UnifiedView_(s){
    screeningVersion:a.screeningVersion||null,screeningSource:a.screeningSource||null,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
    consentSha256:a.consentSha256===undefined?null:a.consentSha256,
-   consentReviewedAt:a.consentReviewedAt||null,
+   consentReviewedAt:a.consentReviewedAt||null,pdfDemoReviewedAt:a.pdfDemoReviewedAt||null,
    holdUntil:a.holdUntil,
    holdExpired:['HELD','CONSENTED'].includes(a.phase)&&Number.isFinite(a.holdUntil)&&a.holdUntil<=Date.now(),
    signatureDemo:a.signatureDemo})),
@@ -315,7 +347,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_RESET'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_RESET'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -336,7 +368,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   s.applications.push({id:next,experiment:p.experiment,phase:'STARTED',eligible:null,
     otpAttempts:0,otpRequestedAt:null,otpHistory:[],slotId:null,holdUntil:null,
     consentVersion:null,consentSha256:null,consentReviewedAt:null,
-    consentReviewedVersion:null,consentReviewedSha256:null,signatureDemo:false});return;
+    consentReviewedVersion:null,consentReviewedSha256:null,
+    pdfDemoReviewedAt:null,pdfDemoSha256:null,signatureDemo:false});return;
  }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
@@ -449,9 +482,18 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    a.consentVersion=s.policy.consent[a.experiment].version;
    a.consentSha256=s.policy.consent[a.experiment].sha256;
    a.consentReviewedAt=null;a.consentReviewedVersion=null;
-   a.consentReviewedSha256=null;a.signatureDemo=false;}
+   a.consentReviewedSha256=null;a.pdfDemoReviewedAt=null;a.pdfDemoSha256=null;a.signatureDemo=false;}
   else study1UnifiedNotify_(s,a,'MOVE');
   return;
+ }
+ if(action==='PDF_DEMO_REVIEW'){
+  if(a.phase!=='HELD'||a.holdUntil<=now||
+    Object.keys(p).sort().join(',')!=='id,sha256'||
+    p.sha256!==study1UnifiedPdfFixture_().sha256||
+    a.pdfDemoReviewedAt!==null&&a.pdfDemoReviewedAt!==undefined)
+    throw Error('虛構 PDF 閱覽紀錄需有效暫留及完整雜湊');
+  // Demo review metadata cannot be interpreted as genuine REC PDF reading.
+  a.pdfDemoReviewedAt=now;a.pdfDemoSha256=p.sha256;return;
  }
  if(action==='CONSENT_REVIEW'){
   if(a.phase!=='HELD'||a.holdUntil<=now||

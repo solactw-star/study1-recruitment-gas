@@ -58,6 +58,11 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <p>模擬同意版本：<strong id="consentVersion">尚未選擇申請</strong></p>
 <p>暫留時鎖定的 PDF SHA-256（僅測試 metadata，未核對 PDF 原檔）：<code id="consentHash">尚未建立暫留</code></p>
 <p class="note">目前沒有已核准的 PDF 閱讀器。本步只能核對虛構的版本資訊，<strong>不代表已閱覽正式 REC PDF</strong>，正式簽署仍不可使用。</p>
+<p>以下是有 SHA-256 的虛構測試 PDF，<strong>不是 E1／E2 的 REC 同意書</strong>，不代表核准或正式同意。</p>
+<p><a id="testPdfLink" href="#" download="Study1_SYNTHETIC_NOT_REC.pdf" rel="noopener">開啟虛構 PDF（非 REC）</a></p>
+<p>虛構 PDF SHA-256：<code id="testPdfHash">尚未取得</code></p>
+<button id="pdfDemoReview" type="button" disabled>記錄虛構 PDF 測試流程</button>
+<p id="pdfDemoStatus" role="status">尚未執行測試。</p>
 <button id="reviewConsent" type="button" disabled>核對虛構版本資訊（非 PDF 閱覽）</button>
 <p id="reviewStatus" role="status">尚未核對虛構版本資訊。</p>
 <label class="check"><input id="agree" type="checkbox">已閱讀「此處僅為測試、並非有效研究同意書」警示</label>
@@ -102,6 +107,9 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <button id="adminSlotsSave" type="button" disabled>儲存測試時段與容量</button></section>
 <section class="panel" aria-labelledby="auditTitle"><h2 id="auditTitle">研究室後台｜最小化稽核紀錄</h2>
 <p>僅顯示最近 15 次測試操作類型／revision，不呈現初篩逐題答覆、OTP 或原始請求。正式資料保存與權限政策待核。</p><ol id="audit"></ol>
+<h3>正式資料保存／權限／REC 文件狀態（唯讀）</h3>
+<p class="note">正式保留期限與權限尚未核准。此處不會讀寫任何真人資料。</p>
+<pre id="governanceStatus" aria-label="資料保存與權限稽核狀態"></pre>
 <p class="note">集中驗收結束可清除全部 SIM 測試申請、虛構預約、通知與稽核。只刪除 STUDY1_UNIFIED_FIXTURE_V1，不更動 OPEN／CONSENT_READY 或其他資料。</p>
 <button id="adminReset" class="secondary" type="button" disabled>清空統一網站的虛構驗收資料</button></section>
 <p><a href="?view=admin">返回現有研究室管理後台</a></p>
@@ -142,7 +150,7 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminReset'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminReset','pdfDemoReview'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
  $('adminNotificationAttempt').disabled=!model.notifications.some(n=>n.status!=='SIM_DELIVERED'&&n.attempts<3);
@@ -151,6 +159,7 @@ function syncControls(busy=false){
  $('otpVerify').disabled=phase!=='OTP_SENT';
  $('hold').disabled=!(phase==='VERIFIED'||a?.holdExpired);
  $('reviewConsent').disabled=phase!=='HELD'||a.holdExpired||a.consentSha256===null||!!a.consentReviewedAt;
+ $('pdfDemoReview').disabled=phase!=='HELD'||a.holdExpired||!!a.pdfDemoReviewedAt;
  $('consent').disabled=phase!=='HELD'||a.holdExpired||!a.consentReviewedAt;
  $('confirm').disabled=phase!=='CONSENTED';
  $('move').disabled=phase!=='CONFIRMED';
@@ -163,7 +172,12 @@ function render(response){
   !response.policy||!response.policy.screening||!response.policy.screening.questions||
   !response.policy.consent||!response.policy.screening.mappings||
   !response.policy.screening.mappings.E1||!response.policy.screening.mappings.E2||
-  !Array.isArray(response.audit)||
+  !Array.isArray(response.audit)||!response.pdfFixture||
+  response.pdfFixture.kind!=='SIMULATED_PDF_NOT_REC'||
+  response.pdfFixture.approved!==false||!/^[a-f0-9]{64}$/.test(response.pdfFixture.sha256)||
+  !response.governance||response.governance.mode!=='TEST'||
+  response.governance.approval!=='PENDING'||
+  response.governance.publicIntake!=='DISABLED'||
   response.researchSource!=='REC_DRAFT_ONLY'||response.researchApproval!=='PENDING'||
   !response.definitions||!['E1','E2'].every(exp=>{
    const d=response.definitions[exp];
@@ -173,6 +187,9 @@ function render(response){
   model=null;syncControls();info('GAS 測試流程資料格式不合法，已禁止操作。',false);return;
  }
  model=response;
+ $('testPdfLink').href='data:application/pdf;base64,'+response.pdfFixture.base64;
+ $('testPdfHash').textContent=response.pdfFixture.sha256;
+ $('governanceStatus').textContent=JSON.stringify(response.governance,null,2);
  for(const exp of ['E1','E2']){
   const d=response.definitions[exp];
   $('definitionTitle'+exp).textContent=d.label;
@@ -191,6 +208,7 @@ function render(response){
  $('screeningVersion').textContent='初篩對照表版本：'+
   (a?.screeningVersion||response.policy.screening.mappings[a?.experiment||$('study').value]?.version||'PENDING');
  $('consentHash').textContent=a&&a.consentVersion?(a.consentSha256||'PENDING／未核實 PDF 位元組'):'尚未建立測試暫留';
+ $('pdfDemoStatus').textContent=a?.pdfDemoReviewedAt?'已記錄虛構 PDF，非 REC 閱覽或有效簽署。':'尚未記錄虛構 PDF，正式 REC 閱覽未開放。';
  $('reviewStatus').textContent=a?.holdExpired?
   '虛構暫留已逾期；請重新保留時段並重新核對待核版本。':
   a?.consentReviewedAt?'已核對虛構版本資訊；非正式 PDF 閱覽。':
@@ -247,6 +265,11 @@ $('otpVerify').addEventListener('click',()=>{const a=active();if(a)command('OTP_
 $('hold').addEventListener('click',()=>{const a=active();if(a)command('HOLD',{id:a.id,slotId:$('slot').value})});
 $('move').addEventListener('click',()=>{const a=active();if(a)command('MOVE',{id:a.id,slotId:$('slot').value})});
 $('cancel').addEventListener('click',()=>{const a=active();if(a&&confirm('取消這筆 SIM 虛構預約？'))command('CANCEL',{id:a.id})});
+$('pdfDemoReview').addEventListener('click',()=>{
+ const a=active();if(!a)return;
+ if(!confirm('僅記錄虛構 PDF 測試流程？不等於 REC 閱覽或有效簽署。'))return;
+ command('PDF_DEMO_REVIEW',{id:a.id,sha256:model.pdfFixture.sha256});
+});
 $('reviewConsent').addEventListener('click',()=>{
  const a=active();if(!a||a.consentSha256===null)return;
  if(!confirm('這只核對虛構版本資訊，沒有閱讀正式 REC PDF。要記錄測試核對嗎？'))return;
