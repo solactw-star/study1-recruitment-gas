@@ -1,11 +1,15 @@
 'use strict';
-// Exact CLOSED backend + sandbox admin allowlist; never deploy Booking/OTP modules.
+const crypto=require('node:crypto');
+// Exact CLOSED backend + admin + unified TEST path. Audited OTP/Booking kernels
+// may be deployed only at pinned source hashes; no production sheet adapter.
 const APPROVED_BACKEND=Object.freeze([
  {name:'Website',type:'SERVER_JS',path:'gas/Website.js'},
  {name:'AdminSandbox',type:'SERVER_JS',path:'gas/AdminSandbox.js'},
  {name:'AdminConsole',type:'HTML',path:'gas/AdminConsole.html'},
  {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
- {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'}
+ {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'},
+ {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
+ {name:'BookingCore',type:'SERVER_JS',path:'gas/BookingCore.js'}
 ]);
 function assertClosedWebsite(source){
  if(typeof source!=='string')throw Error('Missing Website source');
@@ -73,6 +77,30 @@ function assertAdminHtml(html){
  for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","STUDY1_SANDBOX_EXPORT_V1","importConfig()","adminGetTestBookings()","adminChangeTestBooking({action,bookingCode,slotId,requestId,expectedRevision:bookingRevision})","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))throw Error('Unreviewed admin HTML operation');
 }
+
+/** Content-addressed review gate for EXISTING, unchanged pure core files.
+ * No token, real participant, live adapter or Sheet mutation is authorized.
+ * BookingCore contains an underscore-suffixed manual read-only schema preflight:
+ * NEVER call it from the deployed owner preview workflow.
+ */
+function assertPinnedCore(source,expected,name){
+ if(typeof source!=='string')throw Error(name+' source missing');
+ const bytes=Buffer.from(source,'utf8');
+ const sha=crypto.createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
+ if(sha!==expected)throw Error('PINNED '+name+' source changed; manual review required');
+}
+function assertOtpCore(source){
+ assertPinnedCore(source,'d85a6a161613b017fa7b144826d31333eab0ee89','OtpCore');
+ if(!source.includes('function otpEvaluateVerification_(')||
+    !source.includes('function otpHmacHex_('))throw Error('OtpCore pure methods missing');
+}
+function assertBookingCore(source){
+ assertPinnedCore(source,'496fa02b896f71682bf2dead373b2a146cfe0f7e','BookingCore');
+ if(!source.includes('function bookingComputeAvailability_(')||
+    !source.includes('function bookingVerifySheetHeaders_('))
+   throw Error('BookingCore expected pure method or read-only preflight missing');
+}
+
 function assertUnifiedFlow(source){
  if(typeof source!=='string')throw Error('Unified flow source missing');
  for(const token of ["const STUDY1_UNIFIED_FIXTURE_KEY_='STUDY1_UNIFIED_FIXTURE_V1'",
@@ -90,7 +118,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedPreviewGet','study1UnifiedPreviewCommand',
   'study1UnifiedPolicy_','study1UnifiedValidatePolicy_','study1UnifiedValidateSlots_',
   'study1UnifiedAudit_','study1UnifiedNotify_','study1UnifiedProductionAdapter_',
-  'study1UnifiedResearch_','study1UnifiedValidateResearch_']);
+  'study1UnifiedResearch_','study1UnifiedValidateResearch_',
+  'study1UnifiedCoreAvailability_','study1UnifiedCoreOtpDecision_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -108,12 +137,13 @@ function assertUnifiedHtml(html){
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');
 }
-function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml){
- core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);
+function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore){
+ core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);assertOtpCore(otpCore);assertBookingCore(bookingCore);
  const originals=remote.files,merged=structuredClone(originals);
  const incoming=[{name:'Index',type:'HTML',source:index},{name:'Website',type:'SERVER_JS',source:website},
   {name:'AdminSandbox',type:'SERVER_JS',source:adminScript},{name:'AdminConsole',type:'HTML',source:adminHtml},
-  {name:'Study1Flow',type:'SERVER_JS',source:unifiedScript},{name:'Study1Unified',type:'HTML',source:unifiedHtml}];
+  {name:'Study1Flow',type:'SERVER_JS',source:unifiedScript},{name:'Study1Unified',type:'HTML',source:unifiedHtml},
+  {name:'OtpCore',type:'SERVER_JS',source:otpCore},{name:'BookingCore',type:'SERVER_JS',source:bookingCore}];
  for(const change of incoming){
   const collisions=merged.filter(f=>f.name===change.name);
   if(collisions.length>1||collisions.some(f=>f.type!==change.type))throw Error('Unexpected remote GAS file collision: '+change.name);
@@ -125,4 +155,4 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  if(core.digest(keep(merged))!==core.digest(keep(originals)))throw Error('Unapproved remote GAS source changed');
  return merged;
 }
-module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,mergeApproved};
+module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,mergeApproved};

@@ -1,7 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const crypto=require('node:crypto');
+const fixtureUtilities={Charset:{UTF_8:'UTF-8'},computeHmacSha256Signature:(payload,secret)=>[...crypto.createHmac('sha256',secret).update(payload,'utf8').digest()].map(b=>b>127?b-256:b)};
 const gasDir=path.join(__dirname,'../gas');
-const serverCode=fs.readFileSync(path.join(gasDir,'AdminSandbox.js'),'utf8')+'\n'+fs.readFileSync(path.join(gasDir,'Study1Unified.js'),'utf8');
+const serverCode=fs.readFileSync(path.join(gasDir,'OtpCore.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'BookingCore.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'AdminSandbox.js'),'utf8')+'\n'+fs.readFileSync(path.join(gasDir,'Study1Unified.js'),'utf8');
 const html=fs.readFileSync(path.join(gasDir,'Study1Unified.html'),'utf8');
 const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
 if(scripts.length!==1)throw Error('One unified application script required');
@@ -12,7 +16,7 @@ function harness(){
   deleteProperty:k=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');props.delete(k)}};
  const lock={tryLock:()=>{assert.equal(locked,false);locked=true;return true},releaseLock:()=>{assert.equal(locked,true);locked=false;}};
  const backend=vm.createContext({Session:{getActiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'}),getEffectiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'})},
-  PropertiesService:{getScriptProperties:()=>p},LockService:{getScriptLock:()=>lock},Date,JSON,Object,Array,Set,Map,Number,String,Error});
+  PropertiesService:{getScriptProperties:()=>p},LockService:{getScriptLock:()=>lock},Utilities:fixtureUtilities,Date,JSON,Object,Array,Set,Map,Number,String,Error});
  vm.runInContext(serverCode,backend,{timeout:2000});
  const dom=new Map();
  function element(id){

@@ -187,21 +187,65 @@ function study1UnifiedRead_(){
  }
  return s;
 }
+
+/**
+ * Reuse the pre-reviewed BookingCore availability computation with in-memory
+ * synthetic rows ONLY. No Sheet ID, participant details, or adapter access.
+ * A synthetic two-hour end is solely a fixture shape for the pure kernel;
+ * NOT an experiment duration or a formally approved timeslot policy.
+ */
+function study1UnifiedCoreAvailability_(s,now){
+ const slotRows=s.slots.map(slot=>{
+  const start=Date.parse(slot.when.replace(' ','T')+':00+08:00');
+  if(!Number.isFinite(start))throw Error('虛構時段日期異常');
+  return [slot.id,new Date(start).toISOString(),
+   new Date(start+7200000).toISOString(),slot.capacity,
+   'SIM_ONLY','OPEN','SIM_OWNER',''];
+ });
+ const reservationRows=s.applications.filter(a=>a.slotId!==null).map(a=>{
+  const status=({HELD:'HELD',CONSENTED:'HELD',CONFIRMED:'CONFIRMED',
+   CANCELLED:'CANCELLED'})[a.phase];
+  if(!status)throw Error('虛構預約狀態與時段衝突');
+  const expiry=a.holdUntil===null?'':new Date(a.holdUntil).toISOString();
+  return [a.id,a.id,a.slotId,status,expiry,
+   'SIM_ONLY_'+a.id,new Date(now).toISOString(),'','',''];
+ });
+ return bookingComputeAvailability_(slotRows,reservationRows,new Date(now).toISOString());
+}
+/**
+ * Call the original audited OTP evaluator using exclusively synthetic
+ * challenge data. Fixed dummy fixture key and code never authorize real email.
+ * The real production adapter remains independently fail-closed.
+ */
+function study1UnifiedCoreOtpDecision_(app,code,now){
+ const secret='SIMULATED_ONLY_NOT_A_PRODUCTION_SECRET_V1';
+ const challenge='SIM-OTP-'+app.id;
+ const issued=app.otpRequestedAt;
+ const expiry=issued+OTP_RULES_.ttlMinutes*60000;
+ const row=[challenge,app.id,OTP_RULES_.emailPurpose,
+  otpHmacHex_(challenge,app.id,OTP_RULES_.emailPurpose,'00000000',secret),
+  new Date(expiry).toISOString(),app.otpAttempts,'',
+  'fixture@example.invalid',new Date(issued).toISOString()];
+ return otpEvaluateVerification_(row,code,new Date(now).toISOString(),secret);
+}
+
 function study1UnifiedCapacity_(s,slotId,now){
  return s.applications.filter(a=>a.slotId===slotId&&
   (a.phase==='CONFIRMED'||
    ['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil>now)).length;
 }
 function study1UnifiedView_(s){
+ const now=Date.now();
+ const available=new Map(study1UnifiedCoreAvailability_(s,now).map(x=>[x.slotId,x.remaining]));
  return {mode:'TEST',open:false,consentReady:false,formalApproval:'PENDING',
   revision:s.revision,researchSource:s.research.source,researchApproval:s.research.approval,
   definitions:Object.fromEntries(Object.entries(s.research).filter(([k])=>k==='E1'||k==='E2').map(([k,v])=>
    [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
   policy:s.policy,audit:study1UnifiedAudit_(s),
-  slots:s.slots.map(slot=>{const now=Date.now();
+  slots:s.slots.map(slot=>{
    const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
    return {...slot,bookable,remaining:bookable?
-    slot.capacity-study1UnifiedCapacity_(s,slot.id,now):0};}),
+    (available.get(slot.id)||0):0};}),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
    consentSha256:a.consentSha256===undefined?null:a.consentSha256,
@@ -306,10 +350,14 @@ function study1UnifiedTransition_(s,cmd,now){
   if(a.phase!=='OTP_SENT'||Object.keys(p).sort().join(',')!=='code,id')
     throw Error('OTP 測試流程順序錯誤');
   if(typeof p.code!=='string'||!/^[0-9]{8}$/.test(p.code))throw Error('測試 OTP 格式錯誤');
-  if(now-a.otpRequestedAt>600000||a.otpAttempts>=5)throw Error('測試 OTP 已過期或超過嘗試限制');
-  a.otpAttempts++;
-  if(p.code!=='00000000')return; // Persist the failed attempt within the locked fixture transaction.
-  a.phase='VERIFIED';return;
+  const decision=study1UnifiedCoreOtpDecision_(a,p.code,now);
+  if(decision.reason==='EXPIRED'||decision.reason==='ATTEMPT_LIMIT')
+   throw Error('測試 OTP 已過期或超過嘗試限制');
+  if(decision.reason!=='MATCH'&&decision.reason!=='INVALID')
+   throw Error('測試 OTP 核心拒絕驗證');
+  a.otpAttempts=decision.attemptsAfter;
+  if(decision.verified)a.phase='VERIFIED';
+  return;
  }
  if(action==='HOLD'||action==='MOVE'){
   // Expired synthetic holds can be renewed only after a fresh capacity check.
@@ -322,7 +370,7 @@ function study1UnifiedTransition_(s,cmd,now){
   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
   if(!slot||(slot.id===a.slotId&&!expiredHold)||
      Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
-     study1UnifiedCapacity_(s,slot.id,now)>=slot.capacity)
+     !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0)))
     throw Error('測試時段不存在、重複、已開始或已額滿');
   a.slotId=slot.id;
   if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;

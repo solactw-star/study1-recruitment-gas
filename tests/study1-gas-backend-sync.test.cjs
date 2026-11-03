@@ -9,6 +9,8 @@ const adminSource=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),
 const adminHtml=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html'),'utf8');
 const unified=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.js'),'utf8');
 const unifiedHtml=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.html'),'utf8');
+const otpCore=fs.readFileSync(path.join(__dirname,'../gas/OtpCore.js'),'utf8');
+const bookingCore=fs.readFileSync(path.join(__dirname,'../gas/BookingCore.js'),'utf8');
 const index=fs.readFileSync(path.join(__dirname,'../gas/Index.html'),'utf8');
 function remote(){
  return {files:[
@@ -20,11 +22,13 @@ function remote(){
 }
 test('Current reviewed CLOSED Website source passes strict server gate',()=>{
  assert.doesNotThrow(()=>backend.assertClosedWebsite(website));
- assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified']);
+ assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','OtpCore','BookingCore']);
  assert.doesNotThrow(()=>backend.assertAdminSandbox(adminSource));
  assert.doesNotThrow(()=>backend.assertAdminHtml(adminHtml));
  assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
  assert.doesNotThrow(()=>backend.assertUnifiedHtml(unifiedHtml));
+ assert.doesNotThrow(()=>backend.assertOtpCore(otpCore));
+ assert.doesNotThrow(()=>backend.assertBookingCore(bookingCore));
 });
 test('Rejects new server endpoints and changes to fail-closed intake',()=>{
  assert.throws(()=>backend.assertClosedWebsite(website+'\nfunction newPublicEndpoint(){}'),/Unreviewed/);
@@ -32,13 +36,15 @@ test('Rejects new server endpoints and changes to fail-closed intake',()=>{
  assert.throws(()=>backend.assertClosedWebsite(website+'\n// SpreadsheetApp'),/Live data/);
 });
 test('Approved merge preserves manifest and unknown remote-only GAS modules byte for byte',()=>{
- const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml);
+ const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
  assert.equal(core.file(result,'Index','HTML').source,index);
  assert.equal(core.file(result,'Website','SERVER_JS').source,website);
  assert.equal(core.file(result,'AdminSandbox','SERVER_JS').source,adminSource);
  assert.equal(core.file(result,'AdminConsole','HTML').source,adminHtml);
  assert.equal(core.file(result,'Study1Flow','SERVER_JS').source,unified);
  assert.equal(core.file(result,'Study1Unified','HTML').source,unifiedHtml);
+ assert.equal(core.file(result,'OtpCore','SERVER_JS').source,otpCore);
+ assert.equal(core.file(result,'BookingCore','SERVER_JS').source,bookingCore);
  assert.equal(core.file(result,'Untracked','SERVER_JS').source,'preserve this remote-only file');
  assert.equal(core.file(result,'appsscript','JSON').source,core.file(original.files,'appsscript','JSON').source);
  assert.equal(sync.compareUnapproved(result,original.files),true);
@@ -48,7 +54,7 @@ test('Approved merge preserves manifest and unknown remote-only GAS modules byte
 });
 test('A reviewed CLOSED Website-only change is included without modifying other GAS files',()=>{
  const original=remote(),changed=website+'\n// reviewed comment only';
- const result=backend.mergeApproved(core,original,index,changed,adminSource,adminHtml,unified,unifiedHtml);
+ const result=backend.mergeApproved(core,original,index,changed,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
  assert.equal(core.file(result,'Website','SERVER_JS').source,changed);
  assert.equal(sync.compareUnapproved(result,original.files),true);
  assert.equal(sync.compareNoIndex(result,original.files),false);
@@ -57,6 +63,10 @@ test('Workflow watches both reviewed source files, never triggers force push',()
  const workflow=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
  assert.match(workflow,/'gas\/Website.js'/);
  assert.match(workflow,/'scripts\/study1-gas-backend-allowlist.cjs'/);
+ assert.match(workflow,/'gas\/OtpCore.js'/);
+ assert.match(workflow,/'gas\/BookingCore.js'/);
+ assert.match(workflow,/main-otp-after.js/);
+ assert.match(workflow,/main-booking-after.js/);
  assert.match(workflow,/main-website-after.js/);
  assert.doesNotMatch(workflow,/clasp push --force/);
 });
@@ -67,17 +77,18 @@ test('Admin source guard rejects new functions, live research Sheets calls and a
  assert.throws(()=>backend.assertAdminSandbox(adminSource.replace('Session.getActiveUser().getEmail()','Session.getEffectiveUser().getEmail()')),/Unreviewed AdminSandbox/);
  assert.throws(()=>backend.assertAdminHtml(adminHtml+'<script src="https://bad.test/x.js"></script>'),/Unreviewed/);
 });
-test('The admin screen and backend are allowlisted, yet Booking/OTP are never allowed',()=>{
- const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml);
- assert.equal(result.length,8);
- assert.equal(result.some(x=>/^Booking|^Otp/.test(x.name)),false);
+test('Only reviewed internal Booking/OTP pure cores are allowed, not transaction adapters',()=>{
+ const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ assert.equal(result.length,10);
+ assert.deepEqual(result.filter(x=>/^Booking|^Otp/.test(x.name)).map(x=>x.name).sort(),['BookingCore','OtpCore']);
+ assert.equal(result.some(x=>x.name==='BookingHoldTransaction'||x.name==='OtpTransaction'),false);
  const withProtected=remote();withProtected.files.push({name:'BookingCore',type:'SERVER_JS',source:'DO NOT TOUCH'});
- const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml,unified,unifiedHtml);
+ const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
  assert.equal(core.file(r,'BookingCore','SERVER_JS').source,'DO NOT TOUCH');
 });
 test('Admin file-name collision or unexpected type fails before writing GAS',()=>{
  const conflicting=remote();conflicting.files.push({name:'AdminSandbox',type:'JSON',source:'{}'});
- assert.throws(()=>backend.mergeApproved(core,conflicting,index,website,adminSource,adminHtml,unified,unifiedHtml),/collision/);
+ assert.throws(()=>backend.mergeApproved(core,conflicting,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore),/collision/);
 });
 test('Workflow watches sandbox backend and HTML and checks both against current main',()=>{
  const w=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
@@ -101,4 +112,17 @@ test('Unified formal-code TEST mode is owner-only and never deploys OTP/Booking 
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\n// MailApp'),/cannot access live/);
  assert.throws(()=>backend.assertUnifiedHtml(unifiedHtml+'<script src="x"></script>'),/forbidden/);
  assert.match(website,/view==='preview'\)\{study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\)/);
+});
+
+test('Only content-pinned internal core sources are allowed into the private /exec',()=>{
+ assert.throws(()=>backend.assertOtpCore(otpCore+'\n// modified'),/PINNED OtpCore/);
+ assert.throws(()=>backend.assertBookingCore(bookingCore+'\n// modified'),/PINNED BookingCore/);
+ const r=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ assert.equal(r.find(f=>f.name==='BookingCore').source,bookingCore);
+ assert.equal(r.find(f=>f.name==='OtpCore').source,otpCore);
+ assert.equal(r.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),false);
+ const changed=remote();changed.files.push({name:'BookingCore',type:'SERVER_JS',source:'other'});
+ const replaced=backend.mergeApproved(core,changed,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ assert.equal(replaced.find(f=>f.name==='BookingCore').source,bookingCore);
+ assert.equal(sync.compareUnapproved(replaced,changed.files),true);
 });

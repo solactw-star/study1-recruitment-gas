@@ -9,6 +9,8 @@ on:
       - 'gas/AdminConsole.html'
       - 'gas/Study1Unified.js'
       - 'gas/Study1Unified.html'
+      - 'gas/OtpCore.js'
+      - 'gas/BookingCore.js'
       - 'tests/study1-unified.test.cjs'
       - 'tests/study1-admin-sandbox.test.cjs'
       - 'tests/study1-admin-bookings.test.cjs'
@@ -41,6 +43,9 @@ jobs:
           node --check scripts/study1-gas-backend-allowlist.cjs
           node --check gas/Website.js
           node --check gas/AdminSandbox.js
+          node --check gas/OtpCore.js
+          node --check gas/BookingCore.js
+          node --check gas/Study1Unified.js
       - name: Check that approved checked-out sources match current main
         run: |
           git fetch origin main --depth=1
@@ -56,6 +61,10 @@ jobs:
           cmp gas/Study1Unified.js "$RUNNER_TEMP/main-unified.js"
           git show origin/main:gas/Study1Unified.html > "$RUNNER_TEMP/main-unified.html"
           cmp gas/Study1Unified.html "$RUNNER_TEMP/main-unified.html"
+          git show origin/main:gas/OtpCore.js > "$RUNNER_TEMP/main-otp.js"
+          cmp gas/OtpCore.js "$RUNNER_TEMP/main-otp.js"
+          git show origin/main:gas/BookingCore.js > "$RUNNER_TEMP/main-booking.js"
+          cmp gas/BookingCore.js "$RUNNER_TEMP/main-booking.js"
       - name: Load existing 828 OAuth secret
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
@@ -90,6 +99,10 @@ jobs:
           cmp gas/Study1Unified.js "$RUNNER_TEMP/main-unified-after.js"
           git show origin/main:gas/Study1Unified.html > "$RUNNER_TEMP/main-unified-after.html"
           cmp gas/Study1Unified.html "$RUNNER_TEMP/main-unified-after.html"
+          git show origin/main:gas/OtpCore.js > "$RUNNER_TEMP/main-otp-after.js"
+          cmp gas/OtpCore.js "$RUNNER_TEMP/main-otp-after.js"
+          git show origin/main:gas/BookingCore.js > "$RUNNER_TEMP/main-booking-after.js"
+          cmp gas/BookingCore.js "$RUNNER_TEMP/main-booking-after.js"
       - name: Update approved Index and CLOSED Website in existing GAS and /exec, then read back
         run: node scripts/study1-gas-auto-index.cjs apply
       - name: Delete temporary OAuth credentials

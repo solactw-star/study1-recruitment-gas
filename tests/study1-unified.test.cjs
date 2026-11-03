@@ -1,7 +1,11 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const crypto=require('node:crypto');
+const fixtureUtilities={Charset:{UTF_8:'UTF-8'},computeHmacSha256Signature:(payload,secret)=>[...crypto.createHmac('sha256',secret).update(payload,'utf8').digest()].map(b=>b>127?b-256:b)};
 const gasDir=path.join(__dirname,'../gas');
-const src=fs.readFileSync(path.join(gasDir,'AdminSandbox.js'),'utf8')+'\n'+fs.readFileSync(path.join(gasDir,'Study1Unified.js'),'utf8');
+const src=fs.readFileSync(path.join(gasDir,'OtpCore.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'BookingCore.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'AdminSandbox.js'),'utf8')+'\n'+fs.readFileSync(path.join(gasDir,'Study1Unified.js'),'utf8');
 const html=fs.readFileSync(path.join(gasDir,'Study1Unified.html'),'utf8');
 function setup({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open='false',consent='false'}={}){
  const p=new Map([['OPEN',open],['CONSENT_READY',consent]]);let writes=0,deletes=0;let held=false,locks=0;
@@ -10,7 +14,7 @@ function setup({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open=
  const ctx=vm.createContext({
   Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
   PropertiesService:{getScriptProperties:()=>props},
-  LockService:{getScriptLock:()=>lock},Date,JSON,Number,String,Object,Array,Set,Map,Error
+  LockService:{getScriptLock:()=>lock},Utilities:fixtureUtilities,Date,JSON,Number,String,Object,Array,Set,Map,Error
  });
  vm.runInContext(src,ctx,{timeout:2000});
  let n=0;
@@ -324,4 +328,30 @@ test('Unified booking never offers or reserves past Taipei-local synthetic slots
  assert.equal(s.read().revision,rev);
  const m=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-B'});
  assert.equal(m.applications[0].phase,'HELD');
+});
+
+test('The unified E1/E2 TEST flow executes the existing pure BookingCore and OtpCore under a locked fake adapter',()=>{
+ const s=setup();
+ assert.equal(typeof s.ctx.bookingComputeAvailability_,'function');
+ assert.equal(typeof s.ctx.otpEvaluateVerification_,'function');
+ s.cmd('START',{experiment:'E1'});
+ s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});
+ const m=s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ assert.equal(m.applications[0].phase,'VERIFIED');
+ let status=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ const sim=s.ctx.study1UnifiedRead_();
+ const rows=s.ctx.study1UnifiedCoreAvailability_(sim,Date.now());
+ assert.equal(rows.find(row=>row.slotId==='SIM-SLOT-E1-A').remaining,1);
+ assert.equal(status.slots.find(row=>row.id==='SIM-SLOT-E1-A').remaining,1);
+ assert.equal(s.ctx.study1UnifiedCoreOtpDecision_(sim.applications[0],'12345678',Date.now()).reason,'INVALID');
+ assert.equal(s.p.get('OPEN'),'false');
+ assert.equal(s.p.get('CONSENT_READY'),'false');
+ assert.equal(s.held,false);
+});
+test('A malformed kernel row rejects every synthetic slot rather than guessing availability',()=>{
+ const s=setup(),fixture=s.ctx.study1UnifiedInitial_();
+ fixture.slots[0].capacity=0;
+ assert.throws(()=>s.ctx.study1UnifiedCoreAvailability_(fixture,Date.now()),/容量不合法/);
+ assert.equal(s.writes,0);
 });
