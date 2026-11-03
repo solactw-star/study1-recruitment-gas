@@ -48,5 +48,5 @@ test('Booking hold kernel runs only on shadow rows while the external lock is he
  assert.equal(held.held,true);assert.equal(held.reason,'CREATED');
  assert.equal(a.slotId,null,'shadow append must not mutate persistent application');
  assert.throws(()=>c.study1FixtureHold_(s,a,slot,'REQ-SIM-ADAPTER00002',now,{hasLock:()=>false}),/全域鎖/);
- assert.doesNotMatch(src,/\bSpreadsheetApp\s*\.|\bMailApp\s*\.|\bGmailApp\s*\./);
+ assert.doesNotMatch(fs.readFileSync(path.join(dir,'Study1FixtureAdapter.js'),'utf8'),/\bSpreadsheetApp\s*\.|\bMailApp\s*\.|\bGmailApp\s*\./);
 });
