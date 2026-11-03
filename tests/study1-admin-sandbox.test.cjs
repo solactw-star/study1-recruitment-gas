@@ -1,9 +1,9 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
-function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDelete=null){
+function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDelete=null,defaultClosed=true){
  const values=new Map();let writes=0,locks=0;
- const p={getProperty:k=>values.has(k)?values.get(k):null,setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
+ const p={getProperty:k=>values.has(k)?values.get(k):(defaultClosed&&['OPEN','CONSENT_READY'].includes(k)?'false':null),setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
@@ -109,6 +109,20 @@ test('Unsaved validation rejects non-owner sessions before reading data',()=>{
  const h=harness('visitor@example.com','solac.tw@gmail.com');
  assert.throws(()=>h.scope.adminValidateSandboxConfig({}),/拒絕存取/);
  assert.equal(h.values.size,0);
+});
+
+test('Admin config read, draft validation and save fail closed if runtime flags are missing or enabled',()=>{
+ for(const mode of ['missing','open','consent']){
+  const h=harness('solac.tw@gmail.com','solac.tw@gmail.com',null,mode!=='missing');
+  if(mode==='open')h.values.set('OPEN','true');
+  if(mode==='consent')h.values.set('CONSENT_READY','true');
+  const before=JSON.stringify([...h.values]);
+  assert.throws(()=>h.scope.adminGetSandboxConfig(),/關閉旗標/,mode);
+  assert.throws(()=>h.scope.adminValidateSandboxConfig({}),/關閉旗標/,mode);
+  assert.throws(()=>h.scope.adminSaveSandboxConfig({},0),/關閉旗標/,mode);
+  assert.equal(JSON.stringify([...h.values]),before,mode);
+  assert.equal(h.reads(),0,mode);assert.equal(h.locks(),0,mode);
+ }
 });
 
 test('Owner self-test verifies disposable property, stale revision and full cleanup',()=>{
