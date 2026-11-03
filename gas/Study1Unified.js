@@ -58,6 +58,13 @@ function study1UnifiedAudit_(s){
   revision:s.requests.length-Math.min(s.requests.length,15)+i+1,
   action:JSON.parse(r.fingerprint)[0]}));
 }
+/* Preview notification uses the same owner-edited template; never sends email. */
+function study1UnifiedNotify_(s,a,event){
+ const labels={CONFIRM:'確認',MOVE:'改期',CANCEL:'取消'};
+ if(!Object.prototype.hasOwnProperty.call(labels,event))throw Error('未知測試通知事件');
+ s.notifications.push({id:a.id,event,
+  text:'〔SIM '+labels[event]+'〕'+s.config.emailTemplate+'（僅預覽，未寄送）'});
+}
 function study1UnifiedProductionAdapter_(){
  const deny=()=>{throw Error('正式資料 adapter 尚未核准，拒絕讀寫及寄送');};
  return Object.freeze({read:deny,requestOtp:deny,verifyOtp:deny,holdSlot:deny,
@@ -126,6 +133,13 @@ function study1UnifiedRead_(){
     (typeof a.consentSha256!=='string'||
      (a.consentSha256!==''&&!/^[a-f0-9]{64}$/.test(a.consentSha256))))
    throw Error('虛構同意書鎖定雜湊格式異常');
+  if(a.consentReviewedAt!==undefined&&a.consentReviewedAt!==null&&
+     (!Number.isFinite(a.consentReviewedAt)||a.consentReviewedAt<=0))
+   throw Error('測試版本資訊閱覽時間不合法');
+  if(a.consentReviewedAt!=null&&
+     (a.consentReviewedVersion!==a.consentVersion||
+      a.consentReviewedSha256!==a.consentSha256))
+   throw Error('測試版本資訊閱覽與鎖定版本不符');
   appIds.add(a.id);
  }
  for(const request of s.requests){
@@ -163,6 +177,7 @@ function study1UnifiedView_(s){
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
    consentSha256:a.consentSha256===undefined?null:a.consentSha256,
+   consentReviewedAt:a.consentReviewedAt||null,
    holdUntil:a.holdUntil,signatureDemo:a.signatureDemo})),
   notifications:s.notifications.slice(-6).map(n=>({...n})),
   fixtureOtp:'00000000'};
@@ -174,7 +189,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_SLOTS','ADMIN_POLICY'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_RESET'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -193,7 +208,8 @@ function study1UnifiedTransition_(s,cmd,now){
   const next='SIM-'+String(s.applications.length+1).padStart(3,'0');
   s.applications.push({id:next,experiment:p.experiment,phase:'STARTED',eligible:null,
     otpAttempts:0,otpRequestedAt:null,slotId:null,holdUntil:null,
-    consentVersion:null,consentSha256:null,signatureDemo:false});return;
+    consentVersion:null,consentSha256:null,consentReviewedAt:null,
+    consentReviewedVersion:null,consentReviewedSha256:null,signatureDemo:false});return;
  }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
@@ -266,30 +282,45 @@ function study1UnifiedTransition_(s,cmd,now){
   a.slotId=slot.id;
   if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;
    a.consentVersion=s.policy.consent[a.experiment].version;
-   a.consentSha256=s.policy.consent[a.experiment].sha256;}
-  else s.notifications.push({id:a.id,event:'MOVE',text:'〔測試通知〕已改期；沒有寄送電子郵件。'});
+   a.consentSha256=s.policy.consent[a.experiment].sha256;
+   a.consentReviewedAt=null;a.consentReviewedVersion=null;a.consentReviewedSha256=null;}
+  else study1UnifiedNotify_(s,a,'MOVE');
   return;
+ }
+ if(action==='CONSENT_REVIEW'){
+  if(a.phase!=='HELD'||a.holdUntil<=now||
+     Object.keys(p).sort().join(',')!=='id,sha256,version'||
+     p.version!==a.consentVersion||p.sha256!==a.consentSha256||
+     p.version!==s.policy.consent[a.experiment].version||
+     p.sha256!==s.policy.consent[a.experiment].sha256)
+    throw Error('測試同意資訊未與暫留版本核對');
+  // This records ONLY review of synthetic version metadata, NOT viewing a REC PDF.
+  a.consentReviewedAt=now;a.consentReviewedVersion=p.version;
+  a.consentReviewedSha256=p.sha256;return;
  }
  if(action==='CONSENT'){
   if(a.phase!=='HELD'||a.holdUntil<=now||
     Object.keys(p).sort().join(',')!=='accepted,id,signature,version'||
     p.accepted!==true||p.signature!=='SIMULATED_SIGN_ONLY'||
     p.version!==a.consentVersion||p.version!==s.policy.consent[a.experiment].version||
-    a.consentSha256!==s.policy.consent[a.experiment].sha256)
-     throw Error('虛構同意書版本／雜湊或模擬簽署不符');
+    a.consentSha256!==s.policy.consent[a.experiment].sha256||
+    !Number.isFinite(a.consentReviewedAt)||
+    a.consentReviewedVersion!==a.consentVersion||
+    a.consentReviewedSha256!==a.consentSha256)
+     throw Error('虛構同意書版本／雜湊、閱覽紀錄或模擬簽署不符');
   a.phase='CONSENTED';a.consentVersion=p.version;a.signatureDemo=true;return;
  }
  if(action==='CONFIRM'){
   if(a.phase!=='CONSENTED'||a.holdUntil<=now||Object.keys(p).join(',')!=='id')
     throw Error('簽署測試或暫留期限未確認');
   a.phase='CONFIRMED';a.holdUntil=null;
-  s.notifications.push({id:a.id,event:'CONFIRM',text:'〔測試通知〕預約已確認；不會發送郵件。'});return;
+  study1UnifiedNotify_(s,a,'CONFIRM');return;
  }
  if(action==='CANCEL'){
   if(!['HELD','CONSENTED','CONFIRMED'].includes(a.phase)||Object.keys(p).join(',')!=='id')
     throw Error('只有有效的虛構預約可取消');
   a.phase='CANCELLED';a.holdUntil=null;
-  s.notifications.push({id:a.id,event:'CANCEL',text:'〔測試通知〕預約已取消；不會發送郵件。'});return;
+  study1UnifiedNotify_(s,a,'CANCEL');return;
  }
  throw Error('不可執行測試操作');
 }
@@ -323,6 +354,17 @@ function study1UnifiedPreviewCommand(command){
    return {...study1UnifiedView_(s),deduplicated:true};
   }
   if(s.revision!==c.expectedRevision)throw Error('版本已變更，請重新讀取');
+  if(c.action==='ADMIN_RESET'){
+   if(Object.keys(c.payload).join(',')!=='confirmation'||
+      c.payload.confirmation!=='RESET_SIM_FIXTURE_ONLY')
+    throw Error('清除測試資料須使用完整確認字串');
+   // Delete exactly one owner-only fixture key. Never touch research data or flags.
+   const fixture=PropertiesService.getScriptProperties();
+   fixture.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+   if(fixture.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==null)
+    throw Error('測試資料清除後回讀失敗');
+   return {...study1UnifiedView_(study1UnifiedInitial_()),deduplicated:false,reset:true};
+  }
   if(s.requests.length>=40)throw Error('測試交易歷史已達上限');
   // Work on an isolated copy so rejected transitions never mutate the stored model.
   const next=JSON.parse(JSON.stringify(s));

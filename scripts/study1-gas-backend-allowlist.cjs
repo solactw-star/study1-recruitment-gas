@@ -79,7 +79,9 @@ function assertUnifiedFlow(source){
    "function study1UnifiedAssertOwner_(){","study1AdminOwnerRequired_();",
    "study1SandboxBookingFlags_();","function study1UnifiedPreviewGet(){",
    "function study1UnifiedPreviewCommand(command){","LockService.getScriptLock()",
-   "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw)"])
+   "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw)",
+   "fixture.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_)",
+   "c.action==='ADMIN_RESET'","action==='CONSENT_REVIEW'"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -87,7 +89,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedRequireCommand_','study1UnifiedEligibility_','study1UnifiedTransition_',
   'study1UnifiedPreviewGet','study1UnifiedPreviewCommand',
   'study1UnifiedPolicy_','study1UnifiedValidatePolicy_','study1UnifiedValidateSlots_',
-  'study1UnifiedAudit_','study1UnifiedProductionAdapter_']);
+  'study1UnifiedAudit_','study1UnifiedNotify_','study1UnifiedProductionAdapter_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -99,6 +101,8 @@ function assertUnifiedHtml(html){
   !html.includes('study1UnifiedPreviewGet()')||
   !html.includes('study1UnifiedPreviewCommand(envelope)')||
   !html.includes('SIMULATED_SIGN_ONLY')||
+  !html.includes("command('CONSENT_REVIEW'")||
+  !html.includes("command('ADMIN_RESET'")||
   !html.includes('正式報名未開放'))throw Error('Unified website missing TEST-only workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');

@@ -4,8 +4,8 @@ const gasDir=path.join(__dirname,'../gas');
 const src=fs.readFileSync(path.join(gasDir,'AdminSandbox.js'),'utf8')+'\n'+fs.readFileSync(path.join(gasDir,'Study1Unified.js'),'utf8');
 const html=fs.readFileSync(path.join(gasDir,'Study1Unified.html'),'utf8');
 function setup({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open='false',consent='false'}={}){
- const p=new Map([['OPEN',open],['CONSENT_READY',consent]]);let writes=0;let held=false,locks=0;
- const props={getProperty:k=>p.has(k)?p.get(k):null,setProperty:(k,v)=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');p.set(k,v);writes++;},deleteProperty:()=>{throw Error('No deletes in unified workflow');}};
+ const p=new Map([['OPEN',open],['CONSENT_READY',consent]]);let writes=0,deletes=0;let held=false,locks=0;
+ const props={getProperty:k=>p.has(k)?p.get(k):null,setProperty:(k,v)=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');p.set(k,v);writes++;},deleteProperty:k=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');p.delete(k);deletes++;}};
  const lock={tryLock:()=>{assert.equal(held,false);held=true;locks++;return true;},releaseLock:()=>{assert.equal(held,true);held=false;},hasLock:()=>held};
  const ctx=vm.createContext({
   Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
@@ -21,7 +21,7 @@ function setup({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open=
    action,payload,expectedRevision:r,requestId:requestId||'REQ-SIM-TEST'+String(++n).padStart(6,'0')
   })));
  };
- return {p,ctx,read,cmd,get writes(){return writes},get locks(){return locks},get held(){return held}};
+ return {p,ctx,read,cmd,get writes(){return writes},get deletes(){return deletes},get locks(){return locks},get held(){return held}};
 }
 const good={adult:true,cycu:true,diagnosed:false,treatment:false,frequentPractice:false,joinedE1:false};
 test('Production recruitment remains unavailable; only owner-locked TEST fixture flow exists',()=>{
@@ -42,6 +42,9 @@ test('Experiment 1 complete participant-shaped flow uses synthetic OTP, slot, co
  m=s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});assert.equal(m.applications[0].phase,'VERIFIED');
  m=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
  assert.equal(m.applications[0].phase,'HELD');assert.equal(m.slots[0].remaining,1);
+ assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/閱覽紀錄/);
+ m=s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_REC_APPROVAL_E1',sha256:''});
+ assert.ok(m.applications[0].consentReviewedAt);
  m=s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'});
  assert.equal(m.applications[0].phase,'CONSENTED');
  m=s.cmd('CONFIRM',{id:'SIM-001'});assert.equal(m.applications[0].phase,'CONFIRMED');
@@ -50,7 +53,7 @@ test('Experiment 1 complete participant-shaped flow uses synthetic OTP, slot, co
  assert.equal(m.slots[0].remaining,2);assert.equal(m.slots[1].remaining,1);
  m=s.cmd('CANCEL',{id:'SIM-001'});
  assert.equal(m.slots[1].remaining,2);assert.equal(m.applications[0].phase,'CANCELLED');
- assert.equal(s.writes,9);assert.equal(s.p.size,3);assert.equal(s.p.get('OPEN'),'false');
+ assert.equal(s.writes,10);assert.equal(s.p.size,3);assert.equal(s.p.get('OPEN'),'false');
  assert.equal(s.p.get('CONSENT_READY'),'false');assert.equal(s.held,false);
  assert.deepEqual([...s.p.keys()].sort(),['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']);
 });
@@ -178,6 +181,8 @@ test('Pending REC versions and question labels are editable but held consent sta
  assert.equal(m.applications[0].consentSha256,'a'.repeat(64));
  assert.throws(()=>s.cmd('ADMIN_POLICY',{questions,consent:{...consent,E1:{version:'PENDING_REC_E1_REV3',sha256:''}}}),/版本鎖定/);
  assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/版本/);
+ m=s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_REC_E1_REV2',sha256:'a'.repeat(64)});
+ assert.ok(m.applications[0].consentReviewedAt);
  m=s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_E1_REV2',signature:'SIMULATED_SIGN_ONLY'});
  assert.equal(m.applications[0].phase,'CONSENTED');
  m=s.cmd('CONFIRM',{id:'SIM-001'});
@@ -200,4 +205,45 @@ test('Legacy synthetic hold missing PDF hash cannot be silently treated as newly
  assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,
   version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/雜湊/);
  assert.equal(s.read().applications[0].phase,'HELD');
+});
+
+test('Synthetic consent review binds held version and hash, never substitutes for a real REC PDF',()=>{
+ const s=setup();
+ s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ const before=s.read().revision;
+ assert.throws(()=>s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_OTHER',sha256:''}),/版本核對/);
+ assert.equal(s.read().revision,before);
+ assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/閱覽紀錄/);
+ const m=s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_REC_APPROVAL_E1',sha256:''});
+ assert.ok(Number.isFinite(m.applications[0].consentReviewedAt));
+ assert.deepEqual(m.audit.at(-1).action,'CONSENT_REVIEW');
+ assert.equal(s.read().policy.consent.E1.approval,'PENDING');
+});
+test('Owner-edited notification template drives SAME workflow, without sending mail',()=>{
+ const s=setup();s.cmd('ADMIN_EDIT',{title:'SIM',notice:'TEST',emailTemplate:'自訂 SIM 通知模板'});
+ s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_REC_APPROVAL_E1',sha256:''});
+ s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'});
+ const m=s.cmd('CONFIRM',{id:'SIM-001'});
+ assert.match(m.notifications[0].text,/自訂 SIM 通知模板/);
+ assert.match(m.notifications[0].text,/未寄送/);
+ assert.equal(s.p.size,3);
+});
+test('Owner can reset ONLY dedicated unified fixture after exact confirmation and revision check',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});
+ const before=s.read().revision;
+ assert.throws(()=>s.cmd('ADMIN_RESET',{confirmation:'WRONG'}),/完整確認字串/);
+ assert.throws(()=>s.cmd('ADMIN_RESET',{confirmation:'RESET_SIM_FIXTURE_ONLY'},0),/版本已變更/);
+ assert.equal(s.read().revision,before);
+ const m=s.cmd('ADMIN_RESET',{confirmation:'RESET_SIM_FIXTURE_ONLY'});
+ assert.equal(m.reset,true);assert.equal(m.revision,0);assert.equal(m.applications.length,0);
+ assert.equal(s.deletes,1);assert.equal(s.p.size,2);
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+ assert.equal(s.held,false);
+ const restarted=s.cmd('START',{experiment:'E2'});
+ assert.equal(restarted.applications[0].id,'SIM-001');
 });

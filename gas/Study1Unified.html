@@ -55,6 +55,9 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <p>正式同意書需以核定 PDF 原檔及版本為準。目前不把 REC 草稿全文轉成網頁簽署，也不產生可供正式使用的電子簽名檔。</p>
 <p>模擬同意版本：<strong id="consentVersion">尚未選擇申請</strong></p>
 <p>暫留時鎖定的 PDF SHA-256（僅測試 metadata，未核對 PDF 原檔）：<code id="consentHash">尚未建立暫留</code></p>
+<p class="note">目前沒有已核准的 PDF 閱讀器。本步只能核對虛構的版本資訊，<strong>不代表已閱覽正式 REC PDF</strong>，正式簽署仍不可使用。</p>
+<button id="reviewConsent" type="button" disabled>核對虛構版本資訊（非 PDF 閱覽）</button>
+<p id="reviewStatus" role="status">尚未核對虛構版本資訊。</p>
 <label class="check"><input id="agree" type="checkbox">已閱讀「此處僅為測試、並非有效研究同意書」警示</label>
 <label for="signature">固定虛構簽署字串（不可輸入真實姓名）</label><input id="signature" maxlength="19" value="SIMULATED_SIGN_ONLY">
 <div class="row"><button id="consent" type="button" disabled>儲存模擬同意版本</button><button id="confirm" type="button" disabled>確認虛構預約</button></div>
@@ -82,7 +85,9 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <label for="adminSlotsJson">測試時段設定 JSON</label><textarea id="adminSlotsJson" rows="10" spellcheck="false"></textarea>
 <button id="adminSlotsSave" type="button" disabled>儲存測試時段與容量</button></section>
 <section class="panel" aria-labelledby="auditTitle"><h2 id="auditTitle">研究室後台｜最小化稽核紀錄</h2>
-<p>僅顯示最近 15 次測試操作類型／revision，不呈現初篩逐題答覆、OTP 或原始請求。正式資料保存與權限政策待核。</p><ol id="audit"></ol></section>
+<p>僅顯示最近 15 次測試操作類型／revision，不呈現初篩逐題答覆、OTP 或原始請求。正式資料保存與權限政策待核。</p><ol id="audit"></ol>
+<p class="note">集中驗收結束可清除全部 SIM 測試申請、虛構預約、通知與稽核。只刪除 STUDY1_UNIFIED_FIXTURE_V1，不更動 OPEN／CONSENT_READY 或其他資料。</p>
+<button id="adminReset" class="secondary" type="button" disabled>清空統一網站的虛構驗收資料</button></section>
 <p><a href="?view=admin">返回現有研究室管理後台</a></p>
 </main>
 <script>
@@ -111,6 +116,7 @@ function command(action,payload){
   // otherwise the owner can remain stuck on an older ineligible record.
   if(action==='START'&&Array.isArray(response?.applications)&&response.applications.length)
    selected=response.applications.at(-1).id;
+  if(action==='ADMIN_RESET')selected=null;
   pending=null;render(response);info(response.deduplicated?'相同測試請求已完成去重。':'虛構交易已由 GAS 回讀，沒有真人資料。',true);
  }).withFailureHandler(e=>{
   syncControls(false);info('虛構交易未獲確認：'+String(e&&e.message||e)+'。如為 revision 衝突，請重新讀取。',false);
@@ -120,14 +126,15 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','consent','confirm','adminSave','adminPolicySave','adminSlotsSave'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminPolicySave','adminSlotsSave','adminReset'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
  $('screen').disabled=phase!=='STARTED';
  $('otpRequest').disabled=!['SCREENED','OTP_SENT'].includes(phase);
  $('otpVerify').disabled=phase!=='OTP_SENT';
  $('hold').disabled=phase!=='VERIFIED';
- $('consent').disabled=phase!=='HELD';
+ $('reviewConsent').disabled=phase!=='HELD'||a.consentSha256===null||!!a.consentReviewedAt;
+ $('consent').disabled=phase!=='HELD'||!a.consentReviewedAt;
  $('confirm').disabled=phase!=='CONSENTED';
  $('move').disabled=phase!=='CONFIRMED';
  $('cancel').disabled=!['HELD','CONSENTED','CONFIRMED'].includes(phase);
@@ -151,6 +158,8 @@ function render(response){
  $('summary').textContent=a?JSON.stringify(a,null,2):'尚未建立申請';
  $('consentVersion').textContent=a?(a.consentVersion||response.definitions[a.experiment].recVersion):'尚未選擇申請';
  $('consentHash').textContent=a&&a.consentVersion?(a.consentSha256||'PENDING／未核實 PDF 位元組'):'尚未建立測試暫留';
+ $('reviewStatus').textContent=a?.consentReviewedAt?
+  '已核對虛構版本資訊；非正式 PDF 閱覽。':'尚未核對虛構版本資訊。';
  const slots=$('slot');slots.replaceChildren();
  for(const slot of response.slots.filter(s=>!a||s.experiment===a.experiment)){
   const opt=document.createElement('option');opt.value=slot.id;
@@ -191,6 +200,11 @@ $('otpVerify').addEventListener('click',()=>{const a=active();if(a)command('OTP_
 $('hold').addEventListener('click',()=>{const a=active();if(a)command('HOLD',{id:a.id,slotId:$('slot').value})});
 $('move').addEventListener('click',()=>{const a=active();if(a)command('MOVE',{id:a.id,slotId:$('slot').value})});
 $('cancel').addEventListener('click',()=>{const a=active();if(a&&confirm('取消這筆 SIM 虛構預約？'))command('CANCEL',{id:a.id})});
+$('reviewConsent').addEventListener('click',()=>{
+ const a=active();if(!a||a.consentSha256===null)return;
+ if(!confirm('這只核對虛構版本資訊，沒有閱讀正式 REC PDF。要記錄測試核對嗎？'))return;
+ command('CONSENT_REVIEW',{id:a.id,version:a.consentVersion,sha256:a.consentSha256});
+});
 $('consent').addEventListener('click',()=>{const a=active();if(!a||!$('agree').checked)return info('請確認此處僅為測試，並非正式同意。',false);
  command('CONSENT',{id:a.id,accepted:true,version:model.definitions[a.experiment].recVersion,signature:$('signature').value})});
 $('confirm').addEventListener('click',()=>{const a=active();if(a)command('CONFIRM',{id:a.id})});
@@ -205,6 +219,10 @@ $('adminPolicySave').addEventListener('click',()=>{
   for(const exp of ['E1','E2'])consent[exp]={version:$('adminConsent'+exp).value,sha256:$('adminHash'+exp).value};
   command('ADMIN_POLICY',{questions,consent});
  }catch(e){info('題目 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
+$('adminReset').addEventListener('click',()=>{
+ if(!confirm('確定只清空 STUDY1_UNIFIED_FIXTURE_V1 的全部虛構驗收資料？此動作不可復原。'))return;
+ command('ADMIN_RESET',{confirmation:'RESET_SIM_FIXTURE_ONLY'});
 });
 $('refresh').addEventListener('click',runRead);
 runRead();

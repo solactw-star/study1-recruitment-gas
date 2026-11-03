@@ -8,7 +8,8 @@ if(scripts.length!==1)throw Error('One unified application script required');
 const src=scripts[0][1],ids=[...new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(x=>x[1]))];
 function harness(){
  const props=new Map([['OPEN','false'],['CONSENT_READY','false']]);let locked=false,writes=0;
- const p={getProperty:k=>props.has(k)?props.get(k):null,setProperty:(k,v)=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');writes++;props.set(k,v)}};
+ const p={getProperty:k=>props.has(k)?props.get(k):null,setProperty:(k,v)=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');writes++;props.set(k,v)},
+  deleteProperty:k=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');props.delete(k)}};
  const lock={tryLock:()=>{assert.equal(locked,false);locked=true;return true},releaseLock:()=>{assert.equal(locked,true);locked=false;}};
  const backend=vm.createContext({Session:{getActiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'}),getEffectiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'})},
   PropertiesService:{getScriptProperties:()=>p},LockService:{getScriptLock:()=>lock},Date,JSON,Object,Array,Set,Map,Number,String,Error});
@@ -49,11 +50,12 @@ test('Actual single-site browser UI takes E1 from screening through test OTP, ho
  h.click('otpRequest');assert.equal(h.read().applications[0].phase,'OTP_SENT');
  h.set('otp','00000000');h.click('otpVerify');assert.equal(h.read().applications[0].phase,'VERIFIED');
  h.set('slot','SIM-SLOT-E1-A');h.click('hold');assert.equal(h.read().applications[0].phase,'HELD');
+ h.click('reviewConsent');assert.ok(h.read().applications[0].consentReviewedAt);
  h.check('agree',true);h.click('consent');assert.equal(h.read().applications[0].phase,'CONSENTED');
  h.click('confirm');assert.equal(h.read().applications[0].phase,'CONFIRMED');
  h.set('slot','SIM-SLOT-E1-B');h.click('move');assert.equal(h.read().applications[0].slotId,'SIM-SLOT-E1-B');
  h.click('cancel');assert.equal(h.read().applications[0].phase,'CANCELLED');
- assert.deepEqual(h.calls,['READ','START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT','CONFIRM','MOVE','CANCEL']);
+ assert.deepEqual(h.calls,['READ','START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL']);
  assert.equal(h.dom.get('bookingCreate'),undefined,'No separate sandbox booking widget on the unified page');
  assert.match(h.dom.get('summary').textContent,/CANCELLED/);
  assert.ok(h.dom.get('notifications').children.length>=3);
@@ -107,5 +109,18 @@ test('Unified owner browser edits the same slot/policy state and reads minimal a
  h.set('slot','SIM-SLOT-E1-A');h.click('hold');
  assert.equal(h.dom.get('consentHash').textContent,'b'.repeat(64));
  assert.ok(h.dom.get('audit').children.length>=2);
+ assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
+});
+
+test('Unified owner browser can reset synthetic acceptance data and start again without changing CLOSED flags',()=>{
+ const h=harness();
+ h.click('start');assert.equal(h.read().applications.length,1);
+ assert.equal(h.dom.get('reviewConsent').disabled,true);
+ h.click('adminReset');
+ assert.equal(h.read().applications.length,0);
+ assert.equal(h.read().revision,0);
+ assert.equal(h.dom.get('application').children.length,0);
+ assert.equal(h.props.size,2);
+ h.click('start');assert.equal(h.read().applications[0].id,'SIM-001');
  assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
 });
