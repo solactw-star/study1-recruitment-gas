@@ -240,11 +240,11 @@ test('Owner-only browser self-test invokes actual GAS handler and shows PASS onl
  assert.equal(s.props.get('OPEN'),'false');
  assert.equal(s.props.get('CONSENT_READY'),'false');
 });
-test('Browser self-test reports FAIL when closed flags are not confirmed; never claims live PASS',()=>{
+test('Browser self-test is disabled when closed flags are not confirmed; never claims live PASS',()=>{
  const s=server('solac.tw@gmail.com','solac.tw@gmail.com',false),ui=client(s);
- ui.click('selftest');
- assert.deepEqual(ui.calls,['get','selftest']);
- assert.match(ui.el('selftestResult').textContent,/FAIL/);
+ assert.deepEqual(ui.calls,['get']);
+ assert.equal(ui.el('selftest').disabled,true);
+ assert.match(ui.el('status').textContent,/關閉旗標/);
  assert.doesNotMatch(ui.el('selftestResult').textContent,/PASS/);
  assert.equal(s.props.size,0);
 });
