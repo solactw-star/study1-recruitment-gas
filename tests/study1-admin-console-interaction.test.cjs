@@ -42,7 +42,11 @@ function client(srv,options={}){
    success(response);
   },
   adminSaveSandboxConfig(config,rev){calls.push('save');try{success(srv.ctx.adminSaveSandboxConfig(config,rev));}catch(e){failure(e);}},
-  adminValidateSandboxConfig(config){calls.push('check');try{success(srv.ctx.adminValidateSandboxConfig(config));}catch(e){failure(e);}},
+  adminValidateSandboxConfig(config){calls.push('check');let response;
+   try{response=options.validateReply?options.validateReply(config):srv.ctx.adminValidateSandboxConfig(config);}
+   catch(e){failure(e);return;}
+   success(response);
+  },
   adminRunSandboxSelfTest(){calls.push('selftest');try{success(srv.ctx.adminRunSandboxSelfTest());}catch(e){failure(e);}},
   adminGetTestBookings(){calls.push('booking-read');try{success(srv.ctx.adminGetTestBookings());}catch(e){failure(e);}},
   adminChangeTestBooking(data){calls.push('booking-write');try{success(srv.ctx.adminChangeTestBooking(data));}catch(e){failure(e);}}
@@ -595,4 +599,41 @@ test('Failed booking refresh invalidates stale capacity and revision while allow
  ui.click('bookingRefresh');
  assert.equal(ui.el('bookingCreate').disabled,false,'Fresh successful read restores controls');
  assert.match(ui.el('bookingList').textContent,/test_slot_1/);
+});
+test('Malformed GAS draft-check success reply never claims validated and disables stale save',()=>{
+ const s=server();
+ let invalid=true;
+ const ui=client(s,{validateReply:draft=>invalid?
+  {mode:'SANDBOX_ONLY',open:false,consentReady:false,config:null}:
+  s.ctx.adminValidateSandboxConfig(draft)});
+ assert.equal(ui.el('save').disabled,false);
+ ui.el('title').value='〔測試〕不接受虛假驗證回覆';
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查未通過/);
+ assert.doesNotMatch(ui.el('status').textContent,/檢查通過；變更尚未儲存/);
+ assert.equal(ui.el('save').disabled,true);
+ assert.equal(ui.el('reload').disabled,false);
+ assert.equal(s.props.size,0,'Malformed validation result must not persist data');
+ invalid=false;
+ ui.click('reload');
+ ui.click('check');
+ assert.match(ui.el('status').textContent,/檢查通過/);
+ assert.equal(ui.el('save').disabled,false);
+});
+test('Malformed GAS import validation success reply never applies an unverified draft',()=>{
+ const s=server(),ui=client(s,{validateReply:()=>({mode:'SANDBOX_ONLY',
+  open:false,consentReady:false,config:{studyTitle:'〔測試〕缺少驗證欄位'}})});
+ const original=ui.el('title').value;
+ ui.click('exportConfig');
+ const pack=JSON.parse(ui.el('portableJson').value);
+ pack.config.studyTitle='〔測試〕不得匯入';
+ ui.el('portableJson').value=JSON.stringify(pack);
+ ui.click('importConfig');
+ assert.equal(ui.el('title').value,original,'Unverified draft must not be applied');
+ assert.match(ui.el('status').textContent,/匯入已拒絕/);
+ assert.equal(ui.el('save').disabled,true);
+ assert.equal(ui.el('reload').disabled,false);
+ assert.equal(s.props.size,0);
+ ui.click('reload');
+ assert.equal(ui.el('save').disabled,false,'A verified config read restores the UI');
 });

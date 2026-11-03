@@ -177,6 +177,30 @@ function portableFields(c){
   screeningQuestions:c.screeningQuestions,testSlots:c.testSlots,emailTemplate:c.emailTemplate,
   pdfVersionNote:c.pdfVersionNote};
 }
+function verifiedDraftResponse(response){
+ const c=response&&response.config;
+ return !!(response&&response.mode==='SANDBOX_ONLY'&&
+   response.open===false&&response.consentReady===false&&
+   c&&typeof c==='object'&&!Array.isArray(c)&&
+   Object.keys(c).sort().join(',')===
+    'eligibilityNote,emailTemplate,pdfVersionNote,researchIntro,screeningQuestions,studyTitle,testSlots'&&
+   ['studyTitle','researchIntro','eligibilityNote','emailTemplate','pdfVersionNote']
+    .every(k=>typeof c[k]==='string')&&
+   c.studyTitle.trim()&&Array.isArray(c.screeningQuestions)&&
+   c.screeningQuestions.length<=6&&c.screeningQuestions.every(q=>
+     q&&typeof q==='object'&&!Array.isArray(q)&&
+     Object.keys(q).sort().join(',')==='id,required,text'&&
+     typeof q.id==='string'&&/^test_q[1-6]$/.test(q.id)&&
+     typeof q.text==='string'&&!!q.text.trim()&&typeof q.required==='boolean')&&
+   Array.isArray(c.testSlots)&&c.testSlots.length<=8&&c.testSlots.every(slot=>
+     slot&&typeof slot==='object'&&!Array.isArray(slot)&&
+     Object.keys(slot).sort().join(',')==='capacity,id,location,start'&&
+     typeof slot.id==='string'&&/^test_slot_[1-8]$/.test(slot.id)&&
+     typeof slot.start==='string'&&
+     /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(slot.start)&&
+     typeof slot.location==='string'&&!!slot.location.trim()&&
+     Number.isInteger(slot.capacity)&&slot.capacity>=1&&slot.capacity<=20));
+}
 function exportConfig(){
  if(!Number.isSafeInteger(revision)||!lastLoadedConfig){status('尚未讀取研究室隔離設定，無法匯出。');return;}
  $('portableJson').value=JSON.stringify({format:'STUDY1_SANDBOX_EXPORT_V1',
@@ -200,10 +224,9 @@ function importConfig(){
   setDisabled(true);
   status('正在用伺服器驗證測試備份（不寫入）……');
   google.script.run.withSuccessHandler(function(response){
-   if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||
-     response.consentReady!==false||!response.config){
+   if(!verifiedDraftResponse(response)){
       setDisabled(true);$('reload').disabled=false;
-      status('伺服器未確認關閉測試模式，匯入已拒絕。');return;
+      status('伺服器未回傳有效的隔離設定驗證結果，匯入已拒絕；請重新讀取。');return;
    }
    const safe=response.config;
    $('title').value=safe.studyTitle;$('intro').value=safe.researchIntro;
@@ -226,8 +249,9 @@ function check(){
   setDisabled(true);status('正在由伺服器檢查測試設定，不會儲存……');
   google.script.run.withSuccessHandler(function(response){
    setDisabled(false);
-   if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false){
-    status('伺服器未確認關閉測試模式，已拒絕檢查結果。');return;
+   if(!verifiedDraftResponse(response)){
+    setDisabled(true);$('reload').disabled=false;
+    status('伺服器未回傳有效的隔離設定驗證結果，檢查未通過；請重新讀取。');return;
    }
    status('伺服器檢查通過；變更尚未儲存。');
   }).withFailureHandler(function(error){
