@@ -35,12 +35,12 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 </section>
 <section class="panel" aria-labelledby="screenTitle"><h2 id="screenTitle">步驟二｜資格初篩（僅模擬，不填個人資料）</h2>
 <p>兩個實驗共同要求年滿 18 歲且具中原大學學生身分、目前無診斷之心理疾患且未因心理狀況持續治療、沒有規律正念或相關練習經驗；實驗二另要求未參與過實驗一。</p>
-<label class="check"><input type="checkbox" id="adult">模擬：年滿 18 歲</label>
-<label class="check"><input type="checkbox" id="cycu">模擬：具中原大學學生身分</label>
-<label class="check"><input type="checkbox" id="noDx">模擬：目前無醫師診斷之心理疾患</label>
-<label class="check"><input type="checkbox" id="noTherapy">模擬：未因心理狀況接受持續治療</label>
-<label class="check"><input type="checkbox" id="noPractice">模擬：沒有每週一次、每次至少一小時、持續至少三個月的相關練習</label>
-<label class="check"><input type="checkbox" id="noE1">模擬：未曾參與實驗一（實驗二條件）</label>
+<label class="check"><input type="checkbox" id="adult"><span id="label_adult">模擬：年滿 18 歲</span></label>
+<label class="check"><input type="checkbox" id="cycu"><span id="label_cycu">模擬：具中原大學學生身分</span></label>
+<label class="check"><input type="checkbox" id="noDx"><span id="label_diagnosed">模擬：目前無醫師診斷之心理疾患</span></label>
+<label class="check"><input type="checkbox" id="noTherapy"><span id="label_treatment">模擬：未因心理狀況接受持續治療</span></label>
+<label class="check"><input type="checkbox" id="noPractice"><span id="label_frequentPractice">模擬：沒有每週一次、每次至少一小時、持續至少三個月的相關練習</span></label>
+<label class="check"><input type="checkbox" id="noE1"><span id="label_joinedE1">模擬：未曾參與實驗一（實驗二條件）</span></label>
 <button id="screen" type="button" disabled>進行測試資格判定</button><p class="muted">本測試只儲存布林結果，不保留各題健康答覆。</p>
 </section>
 <section class="panel" aria-labelledby="otpTitle"><h2 id="otpTitle">步驟三｜信箱驗證流程</h2>
@@ -67,6 +67,21 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <button id="adminSave" type="button" disabled>儲存同一網站測試設定</button>
 <p><small>真正管理權限、正式 REC 版本核准及正式資料來源的啟用仍須另外驗收。</small></p>
 </section>
+<section class="panel" aria-labelledby="policyTitle"><h2 id="policyTitle">研究室後台｜初篩文字與 REC 待核版本</h2>
+<p class="note">此處只修改 TEST 題目顯示文字及待核 PDF 版本／預期雜湊，不改動正式納排判定、不讀取 PDF 位元組，也不構成核准簽署。正式政策一律 PENDING。</p>
+<label for="adminQuestionsJson">六題文字 JSON（固定欄位 key）</label><textarea id="adminQuestionsJson" rows="9" spellcheck="false"></textarea>
+<div class="grid"><div><label for="adminConsentE1">E1 REC 待核版本</label><input id="adminConsentE1" maxlength="72">
+<label for="adminHashE1">E1 PDF SHA-256（待獨立核驗，可留空）</label><input id="adminHashE1" maxlength="64"></div>
+<div><label for="adminConsentE2">E2 REC 待核版本</label><input id="adminConsentE2" maxlength="72">
+<label for="adminHashE2">E2 PDF SHA-256（待獨立核驗，可留空）</label><input id="adminHashE2" maxlength="64"></div></div>
+<button id="adminPolicySave" type="button" disabled>儲存測試題目與待核 REC 版本</button>
+<p class="muted">保存期限 PENDING、正式通知 DISABLED；正式來源需研究團隊核准。</p></section>
+<section class="panel" aria-labelledby="adminSlotsTitle"><h2 id="adminSlotsTitle">研究室後台｜測試時段／容量管理</h2>
+<p>編輯同一網站的時段 JSON 陣列，最多八筆；when 格式 YYYY-MM-DD HH:MM，id 格式 SIM-SLOT-E1-A。已有歷史預約不得刪除時段或更動日期／實驗，容量不得小於有效預約。</p>
+<label for="adminSlotsJson">測試時段設定 JSON</label><textarea id="adminSlotsJson" rows="10" spellcheck="false"></textarea>
+<button id="adminSlotsSave" type="button" disabled>儲存測試時段與容量</button></section>
+<section class="panel" aria-labelledby="auditTitle"><h2 id="auditTitle">研究室後台｜最小化稽核紀錄</h2>
+<p>僅顯示最近 15 次測試操作類型／revision，不呈現初篩逐題答覆、OTP 或原始請求。正式資料保存與權限政策待核。</p><ol id="audit"></ol></section>
 <p><a href="?view=admin">返回現有研究室管理後台</a></p>
 </main>
 <script>
@@ -104,7 +119,7 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','consent','confirm','adminSave'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','consent','confirm','adminSave','adminPolicySave','adminSlotsSave'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
  $('screen').disabled=phase!=='STARTED';
@@ -119,7 +134,8 @@ function syncControls(busy=false){
 function render(response){
  if(!response||response.mode!=='TEST'||response.open!==false||response.consentReady!==false||
   !Number.isSafeInteger(response.revision)||!Array.isArray(response.applications)||
-  !Array.isArray(response.slots)||!Array.isArray(response.notifications)||!response.config){
+  !Array.isArray(response.slots)||!Array.isArray(response.notifications)||!response.config||
+  !response.policy||!response.policy.screening||!response.policy.consent||!Array.isArray(response.audit)){
   model=null;syncControls();info('GAS 測試流程資料格式不合法，已禁止操作。',false);return;
  }
  model=response;
@@ -145,6 +161,18 @@ function render(response){
  $('adminTitleField').value=response.config.title;
  $('adminNotice').value=response.config.notice;
  $('adminEmail').value=response.config.emailTemplate;
+ $('adminSlotsJson').value=JSON.stringify(response.slots.map(s=>({id:s.id,experiment:s.experiment,when:s.when,capacity:s.capacity})),null,2);
+ $('adminQuestionsJson').value=JSON.stringify(response.policy.screening.questions,null,2);
+ for(const key of ['adult','cycu','diagnosed','treatment','frequentPractice','joinedE1'])
+  $('label_'+key).textContent=response.policy.screening.questions[key];
+ for(const exp of ['E1','E2']){
+  $('adminConsent'+exp).value=response.policy.consent[exp].version;
+  $('adminHash'+exp).value=response.policy.consent[exp].sha256;
+ }
+ const audit=$('audit');audit.replaceChildren();
+ for(const event of response.audit){
+  const li=document.createElement('li');li.textContent='revision '+event.revision+'｜'+event.action;audit.append(li);
+ }
  syncControls();
 }
 $('start').addEventListener('click',()=>command('START',{experiment:$('study').value}));
@@ -165,6 +193,17 @@ $('consent').addEventListener('click',()=>{const a=active();if(!a||!$('agree').c
  command('CONSENT',{id:a.id,accepted:true,version:model.definitions[a.experiment].recVersion,signature:$('signature').value})});
 $('confirm').addEventListener('click',()=>{const a=active();if(a)command('CONFIRM',{id:a.id})});
 $('adminSave').addEventListener('click',()=>command('ADMIN_EDIT',{title:$('adminTitleField').value,notice:$('adminNotice').value,emailTemplate:$('adminEmail').value}));
+$('adminSlotsSave').addEventListener('click',()=>{
+ try{command('ADMIN_SLOTS',{slots:JSON.parse($('adminSlotsJson').value)});}
+ catch(e){info('時段 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
+$('adminPolicySave').addEventListener('click',()=>{
+ try{
+  const questions=JSON.parse($('adminQuestionsJson').value),consent={};
+  for(const exp of ['E1','E2'])consent[exp]={version:$('adminConsent'+exp).value,sha256:$('adminHash'+exp).value};
+  command('ADMIN_POLICY',{questions,consent});
+ }catch(e){info('題目 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
 $('refresh').addEventListener('click',runRead);
 runRead();
 })();

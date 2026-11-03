@@ -6,6 +6,64 @@
  * Formal use requires separate approval and a reviewed production adapter.
  */
 const STUDY1_UNIFIED_FIXTURE_KEY_='STUDY1_UNIFIED_FIXTURE_V1';
+/* Draft-only policy: editable text and PDF metadata, never approved or signed. */
+function study1UnifiedPolicy_(){
+ return {screening:{source:'REC_DRAFT_ONLY',version:'PENDING_SCREENING_APPROVAL',questions:{
+ adult:'模擬：年滿 18 歲',cycu:'模擬：具中原大學學生身分',
+ diagnosed:'模擬：目前無醫師診斷之心理疾患',
+ treatment:'模擬：未因心理狀況接受持續治療',
+ frequentPractice:'模擬：沒有規律正念或相關練習',
+ joinedE1:'模擬：未曾參與實驗一（實驗二條件）'}},
+ consent:{E1:{version:'PENDING_REC_APPROVAL_E1',sha256:'',approval:'PENDING'},
+ E2:{version:'PENDING_REC_APPROVAL_E2',sha256:'',approval:'PENDING'}},
+ retention:{status:'PENDING',days:null},notification:{status:'DISABLED'}};
+}
+function study1UnifiedValidatePolicy_(v){
+ const keys=['adult','cycu','diagnosed','treatment','frequentPractice','joinedE1'];
+ if(!v||!v.screening||v.screening.source!=='REC_DRAFT_ONLY'||
+ v.screening.version!=='PENDING_SCREENING_APPROVAL'||!v.screening.questions||
+ Object.keys(v.screening.questions).sort().join(',')!==keys.sort().join(',')||
+ keys.some(k=>typeof v.screening.questions[k]!=='string'||!v.screening.questions[k].trim()||
+ v.screening.questions[k].length>120||/[<>]/.test(v.screening.questions[k]))||
+ !v.consent||!v.retention||v.retention.status!=='PENDING'||v.retention.days!==null||
+ !v.notification||v.notification.status!=='DISABLED')throw Error('研究政策測試設定不合法');
+ for(const exp of ['E1','E2']){
+  const c=v.consent[exp];
+  if(!c||c.approval!=='PENDING'||typeof c.version!=='string'||
+  !/^PENDING_[A-Z0-9_]{3,64}$/.test(c.version)||typeof c.sha256!=='string'||
+  (c.sha256!==''&&!/^[a-f0-9]{64}$/.test(c.sha256)))
+   throw Error('REC 版本必須維持 PENDING，PDF 雜湊格式必須正確');
+ }
+ return true;
+}
+function study1UnifiedValidateSlots_(slots){
+ if(!Array.isArray(slots)||slots.length>8)throw Error('測試時段不得超過八筆');
+ const seen=new Set();
+ for(const s of slots){
+  if(!s||Object.keys(s).sort().join(',')!=='capacity,experiment,id,when'||
+  typeof s.id!=='string'||!/^SIM-SLOT-E[12]-[A-Z]$/.test(s.id)||
+  !['E1','E2'].includes(s.experiment)||!s.id.includes('-'+s.experiment+'-')||
+  typeof s.when!=='string'||!/^20[0-9]{2}-(0[1-9]|1[0-2])-([0-2][0-9]|3[01]) ([01][0-9]|2[0-3]):[0-5][0-9]$/.test(s.when)||
+  !Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>20||seen.has(s.id))
+   throw Error('測試時段欄位、容量或日期不合法');
+  const date=s.when.replace(' ','T')+':00Z';
+  if(Number.isNaN(Date.parse(date))||new Date(date).toISOString().slice(0,16)!==date.slice(0,16))
+   throw Error('測試時段日期不存在');
+  seen.add(s.id);
+ }
+ return true;
+}
+function study1UnifiedAudit_(s){
+ return s.requests.slice(-15).map((r,i)=>({
+  revision:s.requests.length-Math.min(s.requests.length,15)+i+1,
+  action:JSON.parse(r.fingerprint)[0]}));
+}
+function study1UnifiedProductionAdapter_(){
+ const deny=()=>{throw Error('正式資料 adapter 尚未核准，拒絕讀寫及寄送');};
+ return Object.freeze({read:deny,requestOtp:deny,verifyOtp:deny,holdSlot:deny,
+  submitConsent:deny,sendNotification:deny,writeParticipant:deny});
+}
+
 function study1UnifiedDefinitions_(){
  return {
   E1:{label:'實驗一｜記憶與內感覺',duration:'90–120 分鐘',
@@ -23,6 +81,7 @@ function study1UnifiedInitial_(){
   title:'Study 1｜正式網站整合流程（測試資料模式）',
   notice:'所有資料均為虛構測試，不會建立正式報名、寄信或產生有效同意書。',
   emailTemplate:'〔測試通知〕預約狀態變更，正式寄送尚未啟用。'},
+  policy:study1UnifiedPolicy_(),
   slots:[
    {id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-01-05 10:00',capacity:2},
    {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-01-06 14:00',capacity:2},
@@ -38,6 +97,7 @@ function study1UnifiedRead_(){
  const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
  if(raw===null)return study1UnifiedInitial_();
  const s=JSON.parse(raw);
+ if(s&&!s.policy)s.policy=study1UnifiedPolicy_(); // migrate only owner fixture
  if(!s||s.schemaVersion!==1||!Number.isSafeInteger(s.revision)||s.revision<1||
     !s.config||typeof s.config.title!=='string'||typeof s.config.notice!=='string'||
     typeof s.config.emailTemplate!=='string'||
@@ -46,6 +106,8 @@ function study1UnifiedRead_(){
     !Array.isArray(s.requests)||s.requests.length>40||
     !Array.isArray(s.notifications)||s.notifications.length>15||
     s.revision!==s.requests.length)throw Error('統一網站測試資料版本不一致，拒絕操作');
+ study1UnifiedValidatePolicy_(s.policy);
+ study1UnifiedValidateSlots_(s.slots);
  const ids=new Set(),usedReq=new Set();
  for(const slot of s.slots){
   if(!slot||!/^SIM-SLOT-E[12]-[A-Z]$/.test(slot.id)||!['E1','E2'].includes(slot.experiment)||
@@ -66,6 +128,8 @@ function study1UnifiedRead_(){
   if(!request||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(request.id)||
     typeof request.fingerprint!=='string'||request.fingerprint.length>800||
     usedReq.has(request.id))throw Error('虛構請求歷史異常');
+  let parsed;try{parsed=JSON.parse(request.fingerprint);}catch(e){throw Error('虛構稽核格式不合法');}
+  if(!Array.isArray(parsed)||parsed.length!==2||typeof parsed[0]!=='string')throw Error('虛構稽核格式不合法');
   usedReq.add(request.id);
  }
  const occupancy=new Map();
@@ -88,7 +152,9 @@ function study1UnifiedCapacity_(s,slotId,now){
 }
 function study1UnifiedView_(s){
  return {mode:'TEST',open:false,consentReady:false,formalApproval:'PENDING',
-  revision:s.revision,definitions:study1UnifiedDefinitions_(),config:s.config,
+  revision:s.revision,definitions:Object.fromEntries(Object.entries(study1UnifiedDefinitions_()).map(([k,v])=>
+   [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
+  policy:s.policy,audit:study1UnifiedAudit_(s),
   slots:s.slots.map(slot=>({...slot,remaining:slot.capacity-study1UnifiedCapacity_(s,slot.id,Date.now())})),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
@@ -103,7 +169,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_SLOTS','ADMIN_POLICY'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -129,6 +195,37 @@ function study1UnifiedTransition_(s,cmd,now){
     ['title','notice','emailTemplate'].some(k=>typeof p[k]!=='string'||p[k].length>500||
       /[<>]/.test(p[k])))throw Error('後台設定草稿格式錯誤');
   s.config={title:p.title,notice:p.notice,emailTemplate:p.emailTemplate};return;
+ }
+
+ if(action==='ADMIN_SLOTS'){
+  if(Object.keys(p).join(',')!=='slots')throw Error('時段管理欄位不合法');
+  study1UnifiedValidateSlots_(p.slots);
+  for(const old of s.slots){
+   const next=p.slots.find(x=>x.id===old.id);
+   if(s.applications.some(a=>a.slotId===old.id)&&
+      (!next||next.experiment!==old.experiment||next.when!==old.when))
+    throw Error('已有歷史預約的時段不得刪除或變更日期／實驗');
+   if(next&&study1UnifiedCapacity_(s,old.id,now)>next.capacity)
+    throw Error('測試容量低於有效預約數');
+  }
+  s.slots=p.slots.map(x=>({id:x.id,experiment:x.experiment,when:x.when,capacity:x.capacity}));return;
+ }
+ if(action==='ADMIN_POLICY'){
+  if(Object.keys(p).sort().join(',')!=='consent,questions')throw Error('研究政策欄位不合法');
+  const next=study1UnifiedPolicy_();next.screening.questions=p.questions;
+  for(const exp of ['E1','E2']){
+   if(!p.consent||!p.consent[exp]||Object.keys(p.consent[exp]).sort().join(',')!=='sha256,version')
+    throw Error('REC 版本欄位不合法');
+   next.consent[exp]={...p.consent[exp],approval:'PENDING'};
+  }
+  study1UnifiedValidatePolicy_(next);
+  for(const a of s.applications){
+   if(['HELD','CONSENTED'].includes(a.phase)&&
+    (next.consent[a.experiment].version!==s.policy.consent[a.experiment].version||
+     next.consent[a.experiment].sha256!==s.policy.consent[a.experiment].sha256))
+    throw Error('已有有效暫留，禁止更動 REC 版本鎖定');
+  }
+  s.policy=next;return;
  }
  if(typeof p.id!=='string'||!/^SIM-[0-9]{3}$/.test(p.id))throw Error('只能操作虛構申請識別碼');
  const a=byId(p.id);if(!a)throw Error('虛構申請不存在');
@@ -162,7 +259,8 @@ function study1UnifiedTransition_(s,cmd,now){
   if(!slot||slot.id===a.slotId||study1UnifiedCapacity_(s,slot.id,now)>=slot.capacity)
     throw Error('測試時段不存在、重複或已額滿');
   a.slotId=slot.id;
-  if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;}
+  if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;
+   a.consentVersion=s.policy.consent[a.experiment].version;}
   else s.notifications.push({id:a.id,event:'MOVE',text:'〔測試通知〕已改期；沒有寄送電子郵件。'});
   return;
  }
@@ -170,7 +268,7 @@ function study1UnifiedTransition_(s,cmd,now){
   if(a.phase!=='HELD'||a.holdUntil<=now||
     Object.keys(p).sort().join(',')!=='accepted,id,signature,version'||
     p.accepted!==true||p.signature!=='SIMULATED_SIGN_ONLY'||
-    p.version!==study1UnifiedDefinitions_()[a.experiment].recVersion)
+    p.version!==a.consentVersion||p.version!==s.policy.consent[a.experiment].version)
      throw Error('虛構同意書版本或模擬簽署不符');
   a.phase='CONSENTED';a.consentVersion=p.version;a.signatureDemo=true;return;
  }
@@ -223,6 +321,7 @@ function study1UnifiedPreviewCommand(command){
   const next=JSON.parse(JSON.stringify(s));
   study1UnifiedTransition_(next,c,Date.now());
   if(next.notifications.length>15)throw Error('測試通知歷程已達上限');
+  study1UnifiedValidatePolicy_(next.policy);study1UnifiedValidateSlots_(next.slots);
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);

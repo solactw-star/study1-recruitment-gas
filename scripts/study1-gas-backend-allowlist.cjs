@@ -85,7 +85,9 @@ function assertUnifiedFlow(source){
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
   'study1UnifiedRead_','study1UnifiedCapacity_','study1UnifiedView_',
   'study1UnifiedRequireCommand_','study1UnifiedEligibility_','study1UnifiedTransition_',
-  'study1UnifiedPreviewGet','study1UnifiedPreviewCommand']);
+  'study1UnifiedPreviewGet','study1UnifiedPreviewCommand',
+  'study1UnifiedPolicy_','study1UnifiedValidatePolicy_','study1UnifiedValidateSlots_',
+  'study1UnifiedAudit_','study1UnifiedProductionAdapter_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');

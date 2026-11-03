@@ -148,3 +148,35 @@ test('Synthetic request audit never persists screening answers or plaintext OTP'
  assert.doesNotMatch(raw,/00000000/);
  assert.match(raw,/"eligible":true/);
 });
+
+test('Unified owner admin edits synthetic slot capacity with occupancy and historical reference guards',()=>{
+ const s=setup(),slots=s.read().slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));
+ let m=s.cmd('ADMIN_SLOTS',{slots:[...slots,{id:'SIM-SLOT-E1-C',experiment:'E1',when:'2027-01-10 11:30',capacity:2}]});
+ assert.equal(m.slots.length,5);assert.equal(m.audit.at(-1).action,'ADMIN_SLOTS');
+ s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-C'});
+ assert.throws(()=>s.cmd('ADMIN_SLOTS',{slots}),/歷史預約/);
+ assert.throws(()=>s.cmd('ADMIN_SLOTS',{slots:[...slots,{id:'SIM-SLOT-E1-C',experiment:'E1',when:'2027-01-11 11:30',capacity:2}]}),/歷史預約/);
+ assert.equal(s.read().slots.length,5);
+});
+test('Pending REC versions and question labels are editable but held consent stays pinned',()=>{
+ const s=setup(),p=s.read().policy;
+ const questions={...p.screening.questions,adult:'模擬：成年者'};
+ const consent={E1:{version:'PENDING_REC_E1_REV2',sha256:'a'.repeat(64)},
+ E2:{version:p.consent.E2.version,sha256:''}};
+ let m=s.cmd('ADMIN_POLICY',{questions,consent});
+ assert.equal(m.policy.screening.questions.adult,'模擬：成年者');
+ assert.equal(m.policy.consent.E1.approval,'PENDING');
+ assert.equal(m.policy.retention.status,'PENDING');
+ s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ m=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ assert.equal(m.applications[0].consentVersion,'PENDING_REC_E1_REV2');
+ assert.throws(()=>s.cmd('ADMIN_POLICY',{questions,consent:{...consent,E1:{version:'PENDING_REC_E1_REV3',sha256:''}}}),/版本鎖定/);
+ assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/版本/);
+ m=s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_E1_REV2',signature:'SIMULATED_SIGN_ONLY'});
+ assert.equal(m.applications[0].phase,'CONSENTED');
+ assert.throws(()=>s.ctx.study1UnifiedProductionAdapter_().writeParticipant(),/尚未核准/);
+ assert.doesNotMatch(JSON.stringify(m.audit),/00000000|diagnosed|frequentPractice/);
+});

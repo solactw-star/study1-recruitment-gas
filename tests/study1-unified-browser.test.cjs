@@ -92,3 +92,16 @@ test('If closed flags change, unified GUI fails closed on refresh and keeps loca
  assert.match(h.dom.get('status').textContent,/無法讀取/);
  assert.equal(h.props.size,2);
 });
+
+test('Unified owner browser edits the same slot/policy state and reads minimal audit',()=>{
+ const h=harness(),slots=h.read().slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));
+ h.set('adminSlotsJson',JSON.stringify([...slots,{id:'SIM-SLOT-E2-C',experiment:'E2',when:'2027-01-10 12:30',capacity:4}]));
+ h.click('adminSlotsSave');assert.equal(h.read().slots.length,5);
+ const questions={...h.read().policy.screening.questions,adult:'模擬：已滿十八歲'};
+ h.set('adminQuestionsJson',JSON.stringify(questions));h.set('adminConsentE1','PENDING_REC_E1_REV2');
+ h.set('adminHashE1','b'.repeat(64));h.click('adminPolicySave');
+ assert.equal(h.read().policy.consent.E1.version,'PENDING_REC_E1_REV2');
+ assert.equal(h.dom.get('label_adult').textContent,'模擬：已滿十八歲');
+ assert.ok(h.dom.get('audit').children.length>=2);
+ assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
+});
