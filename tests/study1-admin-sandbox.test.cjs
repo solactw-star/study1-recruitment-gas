@@ -1,9 +1,9 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
-function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
+function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDelete=null){
  const values=new Map();let writes=0,locks=0;
- const p={getProperty:k=>values.has(k)?values.get(k):null,setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);}};
+ const p={getProperty:k=>values.has(k)?values.get(k):null,setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
@@ -116,6 +116,7 @@ test('Owner self-test verifies disposable property, stale revision and full clea
  const original=h.values.size;
  const r=h.scope.adminRunSandboxSelfTest();
  assert.equal(r.ok,true);assert.equal(r.cleanupVerified,true);
+ assert.equal(r.postCleanupVerified,true);
  assert.equal(r.open,false);assert.equal(r.consentReady,false);
  assert.equal(r.checks.length,8);assert.equal(h.values.size,original);assert.equal(h.locks(),0);
  assert.equal(h.values.get('OPEN'),'false');assert.equal(h.values.get('CONSENT_READY'),'false');
@@ -202,6 +203,21 @@ test('Owner self-test fails closed on a corrupt existing sandbox booking ledger 
   assert.equal(JSON.stringify([...h.values]),before,scenario.name);
   assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false,scenario.name);
   assert.equal(h.reads(),0,scenario.name);
+  assert.equal(h.locks(),0,scenario.name);
+ }
+});
+
+test('Owner self-test never reports PASS when disposal changes protected state',()=>{
+ const scenarios=[
+  {name:'OPEN flag',mutate:values=>values.set('OPEN','true'),expected:/清理後正式收件旗標/},
+  {name:'admin config',mutate:values=>values.set('STUDY1_SANDBOX_ADMIN_CONFIG_V1','CORRUPT'),expected:/清理後原設定/},
+  {name:'real test bookings',mutate:values=>values.set('STUDY1_SANDBOX_BOOKINGS_V1','CORRUPT'),expected:/清理後原預約資料/}
+ ];
+ for(const scenario of scenarios){
+  const h=harness('solac.tw@gmail.com','solac.tw@gmail.com',scenario.mutate);
+  h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+  assert.throws(()=>h.scope.adminRunSandboxSelfTest(),scenario.expected,scenario.name);
+  assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false,scenario.name);
   assert.equal(h.locks(),0,scenario.name);
  }
 });

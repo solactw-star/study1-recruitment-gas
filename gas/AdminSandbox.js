@@ -130,11 +130,12 @@ function adminRunSandboxSelfTest(){
   if(!lock.tryLock(8000))throw Error('其他測試設定工作進行中，請稍後重試');
   const p=PropertiesService.getScriptProperties();
   let created=false,payload='',result=null;
+  let before,bookingBefore,openBefore,consentBefore;
   try{
-    const before=p.getProperty(STUDY1_ADMIN_PROPERTY_);
-    const bookingBefore=p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_);
-    const openBefore=p.getProperty('OPEN');
-    const consentBefore=p.getProperty('CONSENT_READY');
+    before=p.getProperty(STUDY1_ADMIN_PROPERTY_);
+    bookingBefore=p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_);
+    openBefore=p.getProperty('OPEN');
+    consentBefore=p.getProperty('CONSENT_READY');
     if(openBefore!=='false'||consentBefore!=='false')
       throw Error('正式收件關閉旗標未確認為 false，停止隔離自我測試');
     const current=study1AdminPersisted_();
@@ -238,6 +239,19 @@ function adminRunSandboxSelfTest(){
         p.deleteProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_);
         if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==null)
           throw Error('隔離測試鍵刪除後回讀失敗');
+      }
+      // PASS requires a final read AFTER disposal and BEFORE releasing the
+      // shared lock. Earlier checks alone cannot verify cleanup side effects.
+      if(result){
+        if(p.getProperty(STUDY1_ADMIN_PROPERTY_)!==before)
+          throw Error('隔離自我測試清理後原設定發生異動');
+        if(p.getProperty(STUDY1_SANDBOX_BOOKINGS_PROPERTY_)!==bookingBefore)
+          throw Error('隔離自我測試清理後原預約資料發生異動');
+        if(p.getProperty('OPEN')!==openBefore||p.getProperty('CONSENT_READY')!==consentBefore)
+          throw Error('隔離自我測試清理後正式收件旗標發生異動');
+        if(study1AdminPersisted_().revision!==result.mainRevision)
+          throw Error('隔離自我測試清理後設定 revision 發生異動');
+        result.postCleanupVerified=true;
       }
     }finally{lock.releaseLock();}
   }

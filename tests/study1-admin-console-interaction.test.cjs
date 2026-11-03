@@ -232,6 +232,7 @@ test('Owner-only browser self-test invokes actual GAS handler and shows PASS onl
  assert.deepEqual(ui.calls,['get','selftest']);
  assert.match(ui.el('selftestResult').textContent,/PASS（GAS 真實執行）/);
  assert.match(ui.el('selftestResult').textContent,/暫存測試資料已清理/);
+ assert.match(ui.el('selftestResult').textContent,/清理後再度核實/);
  assert.match(ui.el('selftestResult').textContent,/隔離預約交易驗證/);
  assert.match(ui.el('selftestResult').textContent,/建立虛構預約/);
  assert.match(ui.el('selftestResult').textContent,/取消後容量回復/);
