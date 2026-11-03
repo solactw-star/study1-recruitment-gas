@@ -49,6 +49,9 @@ function harness(){
   },
   study1UnifiedPreviewCommand(data){
    calls.push(data.action);try{success(backend.study1UnifiedPreviewCommand(data))}catch(e){failure(e)}
+  },
+  study1UnifiedPreviewSelfTest(){
+   calls.push('SELF_TEST');try{success(backend.study1UnifiedPreviewSelfTest())}catch(e){failure(e)}
   }};
  const front=vm.createContext({document:{getElementById:id=>dom.get(id),createElement:()=>element('dynamic')},
   google:{script:{run:rpc}},Date,Math,JSON,String,Object,Number,Set,
@@ -227,4 +230,15 @@ test('The owner-only formal readiness panel stays blocked after editing draft PD
  assert.equal(h.read().formalReadiness.activationAllowed,false);
  assert.equal(h.props.get('OPEN'),'false');
  assert.equal(h.props.get('CONSENT_READY'),'false');
+});
+
+test('Unified owner UI invokes read-only GAS whole-site self-test without touching fixture',()=>{
+ const h=harness(),writes=h.writes;
+ h.click('adminAcceptance');
+ assert.equal(h.writes,writes);
+ assert.equal(h.calls.at(-1),'SELF_TEST');
+ assert.match(h.dom.get('acceptanceStatus').textContent,/OWNER_ONLY_IN_MEMORY/);
+ assert.match(h.dom.get('acceptanceStatus').textContent,/FORMAL_BLOCKED/);
+ assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
+ assert.equal(h.locked,false);
 });

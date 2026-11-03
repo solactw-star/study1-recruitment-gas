@@ -107,6 +107,10 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <button id="adminSlotsSave" type="button" disabled>儲存測試時段與容量</button></section>
 <section class="panel" aria-labelledby="auditTitle"><h2 id="auditTitle">研究室後台｜最小化稽核紀錄</h2>
 <p>僅顯示最近 15 次測試操作類型／revision，不呈現初篩逐題答覆、OTP 或原始請求。正式資料保存與權限政策待核。</p><ol id="audit"></ol>
+<h3>同一網站狀態機｜整站記憶體驗收</h3>
+<p class="note">此功能只在 828 私人 GAS 以虛構資料執行 E1／E2 全流程，直接測試現有伺服器核心；不讀寫既有測試資料、正式 Sheets、REC 或真人資料。通過不等於正式上線驗收。</p>
+<button id="adminAcceptance" type="button" disabled>執行整站唯記憶體自測（零持久寫入）</button>
+<pre id="acceptanceStatus" role="status" aria-label="整站記憶體驗收結果">尚未執行。</pre>
 <h3>正式資料保存／權限／REC 文件狀態（唯讀）</h3>
 <p class="note">正式保留期限與權限尚未核准。此處不會讀寫任何真人資料。</p>
 <pre id="governanceStatus" aria-label="資料保存與權限稽核狀態"></pre>
@@ -153,7 +157,7 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminReset','pdfDemoReview'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminReset','pdfDemoReview','adminAcceptance'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
  $('adminNotificationAttempt').disabled=!model.notifications.some(n=>n.status!=='SIM_DELIVERED'&&n.attempts<3);
@@ -311,6 +315,25 @@ $('adminNotificationAttempt').addEventListener('click',()=>{
  if(!Number.isSafeInteger(index)||!model?.notifications.some(n=>n.index===index&&n.status!=='SIM_DELIVERED'&&n.attempts<3))
   return info('沒有可重試的虛構通知。',false);
  command('ADMIN_NOTIFY_ATTEMPT',{index,result:$('adminNotificationResult').value});
+});
+$('adminAcceptance').addEventListener('click',()=>{
+ $('adminAcceptance').disabled=true;
+ $('acceptanceStatus').textContent='GAS 正在執行零寫入的整站記憶體驗收……';
+ google.script.run.withSuccessHandler(r=>{
+  if(!r||r.ok!==true||r.mode!=='OWNER_ONLY_IN_MEMORY'||r.formalMode!=='FORMAL_BLOCKED'||
+     r.persistentWrites!==0||!Array.isArray(r.checks)||r.passed!==r.checks.length||r.passed<10){
+   $('acceptanceStatus').textContent='GAS 自測回傳格式不合法，拒絕宣稱通過。';
+   info('整站記憶體驗收未獲確認。',false);
+  }else{
+   $('acceptanceStatus').textContent=JSON.stringify(r,null,2);
+   info('GAS 記憶體自測 '+r.passed+' 項通過；正式 REC／收件仍禁止。',true);
+  }
+  syncControls();
+ }).withFailureHandler(e=>{
+  $('acceptanceStatus').textContent='FAIL：'+String(e&&e.message||e);
+  info('整站記憶體驗收失敗，沒有寫入測試或正式資料。',false);
+  syncControls();
+ }).study1UnifiedPreviewSelfTest();
 });
 $('adminReset').addEventListener('click',()=>{
  if(!confirm('確定只清空 STUDY1_UNIFIED_FIXTURE_V1 的全部虛構驗收資料？此動作不可復原。'))return;

@@ -507,3 +507,24 @@ test('Owner-supplied draft PDF SHA and screening version never unlock a formal g
  assert.equal(r.gates.find(g=>g.id==='E1_REC_PDF_BYTES').state,'BLOCKED');
  assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
 });
+
+test('Owner-only GAS whole-site in-memory acceptance uses same E1/E2 kernels with zero writes',()=>{
+ const s=setup(),before=s.read(),writes=s.writes,deletes=s.deletes;
+ const r=JSON.parse(JSON.stringify(s.ctx.study1UnifiedPreviewSelfTest()));
+ assert.equal(r.ok,true);assert.equal(r.mode,'OWNER_ONLY_IN_MEMORY');
+ assert.equal(r.formalMode,'FORMAL_BLOCKED');assert.equal(r.persistentWrites,0);
+ assert.ok(r.passed>=14);assert.equal(r.failed,0);
+ assert.ok(r.checks.includes('E1_CONFIRM'));assert.ok(r.checks.includes('E2_EXCLUSION'));
+ assert.ok(r.checks.includes('FORMAL_ADAPTER_DENIED'));
+ assert.equal(s.writes,writes);assert.equal(s.deletes,deletes);
+ assert.deepEqual(s.read(),before);
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+ assert.equal(s.held,false);
+});
+test('Whole-site in-memory acceptance rejects non-owner and OPEN flags',()=>{
+ for(const opts of [{active:'intruder@example.invalid'},{open:'true'},{consent:'true'}]){
+  const s=setup(opts);
+  assert.throws(()=>s.ctx.study1UnifiedPreviewSelfTest());
+  assert.equal(s.writes,0);assert.equal(s.deletes,0);assert.equal(s.held,false);
+ }
+});

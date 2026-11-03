@@ -142,6 +142,7 @@ function assertUnifiedFlow(source){
    "study1FixtureIssue_(s,a,now)","study1FixtureVerify_(s,a,p.code,now,outerLock)",
    "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)",
    "function study1UnifiedFormalReadiness_(s){",
+   "function study1UnifiedPreviewSelfTest(){",
    "formalReadiness:study1UnifiedFormalReadiness_(s)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
@@ -154,7 +155,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedResearch_','study1UnifiedValidateResearch_',
   'study1UnifiedCoreAvailability_','study1UnifiedCoreOtpDecision_',
   'study1UnifiedPdfFixture_','study1UnifiedGovernance_',
-  'study1UnifiedFormalReadiness_']);
+  'study1UnifiedFormalReadiness_','study1UnifiedPreviewSelfTest']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -178,6 +179,8 @@ function assertUnifiedHtml(html){
   !html.includes('id="testPdfLink"')||
   !html.includes('id="governanceStatus"')||
   !html.includes('id="formalReadinessStatus"')||
+  !html.includes('id="adminAcceptance"')||
+  !html.includes('study1UnifiedPreviewSelfTest()')||
   !html.includes('正式報名未開放'))throw Error('Unified website missing TEST-only workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');

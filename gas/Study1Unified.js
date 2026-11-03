@@ -572,6 +572,85 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
  }
  throw Error('不可執行測試操作');
 }
+
+/**
+ * Owner-only, zero-persistence whole-site smoke test. It executes the same
+ * E1/E2 transitions and synthetic OTP/booking kernels solely in memory.
+ * It never reads existing fixtures, REC, Sheets, real email or signatures.
+ * PASS is not research approval or live participant acceptance.
+ */
+function study1UnifiedPreviewSelfTest(){
+ study1UnifiedAssertOwner_();
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(8000))throw Error('整站記憶體驗收暫時鎖定');
+ try{
+  study1SandboxBookingFlags_();
+  const now=Date.now(),s=study1UnifiedInitial_(),checks=[];
+  const date=days=>new Date(now+days*86400000+8*3600000)
+   .toISOString().slice(0,16).replace('T',' ');
+  s.slots=[
+   {id:'SIM-SLOT-E1-A',experiment:'E1',when:date(3),capacity:2},
+   {id:'SIM-SLOT-E1-B',experiment:'E1',when:date(4),capacity:2},
+   {id:'SIM-SLOT-E2-A',experiment:'E2',when:date(5),capacity:2}
+  ];
+  const check=(id,ok)=>{if(ok!==true)throw Error('整站記憶體驗收失敗：'+id);checks.push(id);};
+  let seq=0;
+  const step=(action,payload)=>{
+   const cmd=study1UnifiedRequireCommand_({action,payload,expectedRevision:s.revision,
+    requestId:'REQ-SIM-ACCEPTANCE_'+String(++seq).padStart(8,'0')});
+   study1UnifiedTransition_(s,cmd,now,lock);
+   study1UnifiedValidateSlots_(s.slots);
+   study1UnifiedValidatePolicy_(s.policy);
+  };
+  const answers={adult:true,cycu:true,diagnosed:false,treatment:false,
+   frequentPractice:false,joinedE1:false};
+  step('START',{experiment:'E1'});
+  step('SCREEN',{id:'SIM-001',answers});
+  check('E1_SCREEN',s.applications[0].phase==='SCREENED');
+  step('OTP_REQUEST',{id:'SIM-001'});
+  step('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+  check('E1_OTP',s.applications[0].phase==='VERIFIED');
+  step('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+  check('E1_HOLD',s.applications[0].phase==='HELD'&&study1UnifiedCapacity_(s,'SIM-SLOT-E1-A',now)===1);
+  step('PDF_DEMO_REVIEW',{id:'SIM-001',sha256:study1UnifiedPdfFixture_().sha256});
+  check('SYNTHETIC_PDF_ONLY',s.applications[0].pdfDemoReviewedAt===now);
+  step('CONSENT_REVIEW',{id:'SIM-001',version:s.policy.consent.E1.version,sha256:s.policy.consent.E1.sha256});
+  step('CONSENT',{id:'SIM-001',accepted:true,version:s.policy.consent.E1.version,signature:'SIMULATED_SIGN_ONLY'});
+  check('E1_TEST_CONSENT',s.applications[0].phase==='CONSENTED'&&s.applications[0].signatureDemo===true);
+  step('CONFIRM',{id:'SIM-001'});
+  check('E1_CONFIRM',s.applications[0].phase==='CONFIRMED'&&s.notifications.length===1);
+  step('MOVE',{id:'SIM-001',slotId:'SIM-SLOT-E1-B'});
+  check('E1_MOVE',s.applications[0].slotId==='SIM-SLOT-E1-B');
+  step('CANCEL',{id:'SIM-001'});
+  check('E1_CANCEL',s.applications[0].phase==='CANCELLED'&&study1UnifiedCapacity_(s,'SIM-SLOT-E1-B',now)===0);
+  step('START',{experiment:'E2'});
+  step('SCREEN',{id:'SIM-002',answers:{...answers,joinedE1:true}});
+  check('E2_EXCLUSION',s.applications[1].phase==='INELIGIBLE');
+  step('START',{experiment:'E2'});
+  step('SCREEN',{id:'SIM-003',answers});
+  check('E2_SCREEN',s.applications[2].phase==='SCREENED');
+  step('OTP_REQUEST',{id:'SIM-003'});
+  step('OTP_VERIFY',{id:'SIM-003',code:'00000000'});
+  step('HOLD',{id:'SIM-003',slotId:'SIM-SLOT-E2-A'});
+  check('E2_OTP_AND_HOLD',s.applications[2].phase==='HELD');
+  step('ADMIN_NOTIFY_ATTEMPT',{index:0,result:'FAIL'});
+  check('NOTIFY_SIM_FAILURE',s.notifications[0].status==='SIM_FAILED'&&s.notifications[0].attempts===1);
+  step('ADMIN_NOTIFY_ATTEMPT',{index:0,result:'SIM_OK'});
+  check('NOTIFY_SIM_RETRY',s.notifications[0].status==='SIM_DELIVERED'&&s.notifications[0].attempts===2);
+  const readiness=study1UnifiedFormalReadiness_(s);
+  check('FORMAL_GATES_BLOCKED',readiness.activationAllowed===false&&readiness.mode==='FORMAL_BLOCKED'&&
+   readiness.passed===0&&readiness.gates.every(g=>g.state!=='PASS')&&
+   Object.values(readiness.provenance).every(p=>p.sourceBytesVerified===false));
+  let denied=false;try{study1UnifiedProductionAdapter_().readParticipant();}catch(e){denied=true;}
+  check('FORMAL_ADAPTER_DENIED',denied);
+  check('NO_RAW_SCREENING_ANSWERS',!JSON.stringify(s).includes('"answers"'));
+  study1SandboxBookingFlags_();
+  return {ok:true,mode:'OWNER_ONLY_IN_MEMORY',checks,passed:checks.length,failed:0,
+   persistentWrites:0,formalMode:'FORMAL_BLOCKED',recPdfApproved:false,
+   ownerLiveAcceptance:'NOT_VERIFIED',realEmailSent:false};
+ }finally{lock.releaseLock();}
+}
+
 /** Single future site workflow, currently only reachable to the 828 owner in TEST mode. */
 function study1UnifiedPreviewGet(){
  study1UnifiedAssertOwner_();

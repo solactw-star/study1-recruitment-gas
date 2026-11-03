@@ -12,7 +12,7 @@ const vm = require('node:vm');
 const gasDir = path.join(__dirname, '..', 'gas');
 const approvedPublicFunctions = [
   'adminGetSandboxConfig', 'adminSaveSandboxConfig', 'adminValidateSandboxConfig', 'adminRunSandboxSelfTest', 'adminGetTestBookings', 'adminChangeTestBooking', // strictly owner-authorized, sandbox-only
-  'study1UnifiedPreviewGet', 'study1UnifiedPreviewCommand', // owner-only shared formal workflow TEST adapter; NOT public enrollment
+  'study1UnifiedPreviewGet', 'study1UnifiedPreviewCommand', 'study1UnifiedPreviewSelfTest', // owner-only shared formal workflow TEST adapter; NOT public enrollment
   'cancelHold', 'doGet', 'getPublicConfig', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
   'requestOtp', 'submitConsent', 'verifyOtp'
