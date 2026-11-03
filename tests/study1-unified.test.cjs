@@ -48,7 +48,7 @@ test('Experiment 1 complete participant-shaped flow uses synthetic OTP, slot, co
  m=s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'});
  assert.equal(m.applications[0].phase,'CONSENTED');
  m=s.cmd('CONFIRM',{id:'SIM-001'});assert.equal(m.applications[0].phase,'CONFIRMED');
- assert.equal(m.notifications.length,1);assert.match(m.notifications[0].text,/不會發送/);
+ assert.equal(m.notifications.length,1);assert.match(m.notifications[0].text,/未寄送/);
  m=s.cmd('MOVE',{id:'SIM-001',slotId:'SIM-SLOT-E1-B'});
  assert.equal(m.slots[0].remaining,2);assert.equal(m.slots[1].remaining,1);
  m=s.cmd('CANCEL',{id:'SIM-001'});
