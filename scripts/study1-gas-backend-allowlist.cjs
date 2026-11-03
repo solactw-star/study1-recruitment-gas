@@ -3,7 +3,9 @@
 const APPROVED_BACKEND=Object.freeze([
  {name:'Website',type:'SERVER_JS',path:'gas/Website.js'},
  {name:'AdminSandbox',type:'SERVER_JS',path:'gas/AdminSandbox.js'},
- {name:'AdminConsole',type:'HTML',path:'gas/AdminConsole.html'}
+ {name:'AdminConsole',type:'HTML',path:'gas/AdminConsole.html'},
+ {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
+ {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'}
 ]);
 function assertClosedWebsite(source){
  if(typeof source!=='string')throw Error('Missing Website source');
@@ -12,6 +14,7 @@ function assertClosedWebsite(source){
   "operations:'1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ'",
   "function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();",
   "HtmlService.createHtmlOutputFromFile('AdminConsole')",
+  "study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified')",
   "HtmlService.createHtmlOutputFromFile('Index')",
   'function getPublicConfig(){return {open:false,consentReady:false',
   'function requestOtp(){return rejectIntake_();}',
@@ -70,11 +73,40 @@ function assertAdminHtml(html){
  for(const token of ["google.script.run.withSuccessHandler(render)","adminGetSandboxConfig()","adminSaveSandboxConfig(data,revision)","adminValidateSandboxConfig(data)","adminRunSandboxSelfTest()","STUDY1_SANDBOX_EXPORT_V1","importConfig()","adminGetTestBookings()","adminChangeTestBooking({action,bookingCode,slotId,requestId,expectedRevision:bookingRevision})","目前不接受真人報名"])if(!html.includes(token))throw Error('Admin HTML missing safe workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))throw Error('Unreviewed admin HTML operation');
 }
-function mergeApproved(core,remote,index,website,adminScript,adminHtml){
- core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);
+function assertUnifiedFlow(source){
+ if(typeof source!=='string')throw Error('Unified flow source missing');
+ for(const token of ["const STUDY1_UNIFIED_FIXTURE_KEY_='STUDY1_UNIFIED_FIXTURE_V1'",
+   "function study1UnifiedAssertOwner_(){","study1AdminOwnerRequired_();",
+   "study1SandboxBookingFlags_();","function study1UnifiedPreviewGet(){",
+   "function study1UnifiedPreviewCommand(command){","LockService.getScriptLock()",
+   "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw)"])
+  if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
+ const expected=new Set([
+  'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
+  'study1UnifiedRead_','study1UnifiedCapacity_','study1UnifiedView_',
+  'study1UnifiedRequireCommand_','study1UnifiedEligibility_','study1UnifiedTransition_',
+  'study1UnifiedPreviewGet','study1UnifiedPreviewCommand']);
+ const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
+ if(functions.length!==expected.size||new Set(functions).size!==expected.size||
+   functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
+ if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))
+  throw Error('Unified workflow cannot access live research data or send emails');
+}
+function assertUnifiedHtml(html){
+ if(typeof html!=='string'||!html.startsWith('<!doctype html>')||
+  !html.includes('study1UnifiedPreviewGet()')||
+  !html.includes('study1UnifiedPreviewCommand(envelope)')||
+  !html.includes('SIMULATED_SIGN_ONLY')||
+  !html.includes('正式報名未開放'))throw Error('Unified website missing TEST-only workflow');
+ if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
+  throw Error('Unified website has forbidden external or raw HTML operations');
+}
+function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml){
+ core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);
  const originals=remote.files,merged=structuredClone(originals);
  const incoming=[{name:'Index',type:'HTML',source:index},{name:'Website',type:'SERVER_JS',source:website},
-  {name:'AdminSandbox',type:'SERVER_JS',source:adminScript},{name:'AdminConsole',type:'HTML',source:adminHtml}];
+  {name:'AdminSandbox',type:'SERVER_JS',source:adminScript},{name:'AdminConsole',type:'HTML',source:adminHtml},
+  {name:'Study1Flow',type:'SERVER_JS',source:unifiedScript},{name:'Study1Unified',type:'HTML',source:unifiedHtml}];
  for(const change of incoming){
   const collisions=merged.filter(f=>f.name===change.name);
   if(collisions.length>1||collisions.some(f=>f.type!==change.type))throw Error('Unexpected remote GAS file collision: '+change.name);
@@ -86,4 +118,4 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml){
  if(core.digest(keep(merged))!==core.digest(keep(originals)))throw Error('Unapproved remote GAS source changed');
  return merged;
 }
-module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,mergeApproved};
+module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,mergeApproved};

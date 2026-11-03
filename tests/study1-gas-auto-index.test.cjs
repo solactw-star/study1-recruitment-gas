@@ -26,6 +26,10 @@ test('Automatic deployment workflow is push-only, secret-bearing and limited to 
  const text=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
  assert.match(text,/^on:\n  push:\n    branches: \[main\]/m);
  assert.match(text,/'gas\/Index.html'/);
+ assert.match(text,/'gas\/Study1Unified.js'/);
+ assert.match(text,/'gas\/Study1Unified.html'/);
+ assert.match(text,/main-unified-after.js/);
+ assert.match(text,/main-unified-after.html/);
  assert.doesNotMatch(text,/clasp(?:@\d+)? push\b/);
  assert.match(text,/CLASPRC_JSON/);
  assert.match(text,/node scripts\/study1-gas-auto-index.cjs prepare/);

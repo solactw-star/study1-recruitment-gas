@@ -658,3 +658,14 @@ test('Malformed GAS import validation success reply never applies an unverified 
  ui.click('reload');
  assert.equal(ui.el('save').disabled,false,'A verified config read restores the UI');
 });
+
+test('Owner-only unified participant preview HTML route preserves CLOSED public routing',()=>{
+ const s=routeHarness();
+ assert.equal(s.ctx.doGet({parameter:{view:'preview'}}).name,'Study1Unified');
+ assert.deepEqual(s.htmlCalls,['Study1Unified']);
+ assert.equal(s.props.size,0);
+ const guest=routeHarness('','solac.tw@gmail.com');
+ assert.throws(()=>guest.ctx.doGet({parameter:{view:'preview'}}),/拒絕存取/);
+ assert.deepEqual(guest.htmlCalls,[]);
+ assert.equal(guest.ctx.doGet({parameter:{view:'home'}}).name,'Index');
+});

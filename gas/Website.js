@@ -4,7 +4,7 @@
  */
 const SITE_CONTACT_ = 'lily4318@cycu.edu.tw';
 const SITE_RESOURCES_ = Object.freeze({workspace:'1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU',sourceFolder:'1O6j7PQWMNUbb_a6cWHegy7lBZPMQ0Hiu',personal:'1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI',operations:'1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ'});
-function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();return HtmlService.createHtmlOutputFromFile('AdminConsole').setTitle('Study 1｜研究室測試後台').addMetaTag('viewport','width=device-width, initial-scale=1');}return HtmlService.createHtmlOutputFromFile('Index').setTitle('Study 1｜研究招募資訊').addMetaTag('viewport','width=device-width, initial-scale=1');}
+function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();return HtmlService.createHtmlOutputFromFile('AdminConsole').setTitle('Study 1｜研究室測試後台').addMetaTag('viewport','width=device-width, initial-scale=1');}if(e&&e.parameter&&e.parameter.view==='preview'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified').setTitle('Study 1｜完整招募流程測試模式').addMetaTag('viewport','width=device-width, initial-scale=1');}return HtmlService.createHtmlOutputFromFile('Index').setTitle('Study 1｜研究招募資訊').addMetaTag('viewport','width=device-width, initial-scale=1');}
 function getPublicConfig(){return {open:false,consentReady:false,contact:SITE_CONTACT_,mode:'CLOSED_INFORMATION'};}
 function rejectIntake_(){throw new Error('目前尚未開放正式報名與電子簽署。請聯絡研究團隊：'+SITE_CONTACT_);}
 function requestOtp(){return rejectIntake_();}

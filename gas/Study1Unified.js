@@ -204,7 +204,14 @@ function study1UnifiedPreviewCommand(command){
  try{
   study1SandboxBookingFlags_();
   const s=study1UnifiedRead_();
-  const fingerprint=JSON.stringify([c.action,c.payload]);
+  // Never persist per-question health/screening responses or even fixture OTP.
+  // Replay identity stores only a derived test eligibility outcome / OTP match.
+  const fingerprint=c.action==='SCREEN'?
+    JSON.stringify([c.action,{id:c.payload.id,eligible:study1UnifiedEligibility_(
+      s.applications.find(a=>a.id===c.payload.id)?.experiment,c.payload.answers)}]):
+    c.action==='OTP_VERIFY'?
+    JSON.stringify([c.action,{id:c.payload.id,matched:c.payload.code==='00000000'}]):
+    JSON.stringify([c.action,c.payload]);
   const found=s.requests.find(x=>x.id===c.requestId);
   if(found){
    if(found.fingerprint!==fingerprint)throw Error('請求識別碼對應不同操作');

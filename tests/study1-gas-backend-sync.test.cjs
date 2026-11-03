@@ -7,6 +7,8 @@ const sync=require('../scripts/study1-gas-auto-index.cjs');
 const website=fs.readFileSync(path.join(__dirname,'../gas/Website.js'),'utf8');
 const adminSource=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
 const adminHtml=fs.readFileSync(path.join(__dirname,'../gas/AdminConsole.html'),'utf8');
+const unified=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.js'),'utf8');
+const unifiedHtml=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.html'),'utf8');
 const index=fs.readFileSync(path.join(__dirname,'../gas/Index.html'),'utf8');
 function remote(){
  return {files:[
@@ -18,9 +20,11 @@ function remote(){
 }
 test('Current reviewed CLOSED Website source passes strict server gate',()=>{
  assert.doesNotThrow(()=>backend.assertClosedWebsite(website));
- assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole']);
+ assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified']);
  assert.doesNotThrow(()=>backend.assertAdminSandbox(adminSource));
  assert.doesNotThrow(()=>backend.assertAdminHtml(adminHtml));
+ assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
+ assert.doesNotThrow(()=>backend.assertUnifiedHtml(unifiedHtml));
 });
 test('Rejects new server endpoints and changes to fail-closed intake',()=>{
  assert.throws(()=>backend.assertClosedWebsite(website+'\nfunction newPublicEndpoint(){}'),/Unreviewed/);
@@ -28,11 +32,13 @@ test('Rejects new server endpoints and changes to fail-closed intake',()=>{
  assert.throws(()=>backend.assertClosedWebsite(website+'\n// SpreadsheetApp'),/Live data/);
 });
 test('Approved merge preserves manifest and unknown remote-only GAS modules byte for byte',()=>{
- const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml);
+ const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml);
  assert.equal(core.file(result,'Index','HTML').source,index);
  assert.equal(core.file(result,'Website','SERVER_JS').source,website);
  assert.equal(core.file(result,'AdminSandbox','SERVER_JS').source,adminSource);
  assert.equal(core.file(result,'AdminConsole','HTML').source,adminHtml);
+ assert.equal(core.file(result,'Study1Flow','SERVER_JS').source,unified);
+ assert.equal(core.file(result,'Study1Unified','HTML').source,unifiedHtml);
  assert.equal(core.file(result,'Untracked','SERVER_JS').source,'preserve this remote-only file');
  assert.equal(core.file(result,'appsscript','JSON').source,core.file(original.files,'appsscript','JSON').source);
  assert.equal(sync.compareUnapproved(result,original.files),true);
@@ -42,7 +48,7 @@ test('Approved merge preserves manifest and unknown remote-only GAS modules byte
 });
 test('A reviewed CLOSED Website-only change is included without modifying other GAS files',()=>{
  const original=remote(),changed=website+'\n// reviewed comment only';
- const result=backend.mergeApproved(core,original,index,changed,adminSource,adminHtml);
+ const result=backend.mergeApproved(core,original,index,changed,adminSource,adminHtml,unified,unifiedHtml);
  assert.equal(core.file(result,'Website','SERVER_JS').source,changed);
  assert.equal(sync.compareUnapproved(result,original.files),true);
  assert.equal(sync.compareNoIndex(result,original.files),false);
@@ -62,16 +68,16 @@ test('Admin source guard rejects new functions, live research Sheets calls and a
  assert.throws(()=>backend.assertAdminHtml(adminHtml+'<script src="https://bad.test/x.js"></script>'),/Unreviewed/);
 });
 test('The admin screen and backend are allowlisted, yet Booking/OTP are never allowed',()=>{
- const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml);
- assert.equal(result.length,6);
+ const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml);
+ assert.equal(result.length,8);
  assert.equal(result.some(x=>/^Booking|^Otp/.test(x.name)),false);
  const withProtected=remote();withProtected.files.push({name:'BookingCore',type:'SERVER_JS',source:'DO NOT TOUCH'});
- const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml);
+ const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml,unified,unifiedHtml);
  assert.equal(core.file(r,'BookingCore','SERVER_JS').source,'DO NOT TOUCH');
 });
 test('Admin file-name collision or unexpected type fails before writing GAS',()=>{
  const conflicting=remote();conflicting.files.push({name:'AdminSandbox',type:'JSON',source:'{}'});
- assert.throws(()=>backend.mergeApproved(core,conflicting,index,website,adminSource,adminHtml),/collision/);
+ assert.throws(()=>backend.mergeApproved(core,conflicting,index,website,adminSource,adminHtml,unified,unifiedHtml),/collision/);
 });
 test('Workflow watches sandbox backend and HTML and checks both against current main',()=>{
  const w=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
@@ -86,4 +92,13 @@ test('MYSELF deployment plus explicit active and effective owner identities are 
  assert.equal(manifest.webapp.executeAs,'USER_DEPLOYING');
  const code=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
  assert.match(code,/if\(effective!==STUDY1_ADMIN_OWNER_\|\|active!==STUDY1_ADMIN_OWNER_\)/);
+});
+
+test('Unified formal-code TEST mode is owner-only and never deploys OTP/Booking kernels',()=>{
+ const merged=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml);
+ assert.equal(merged.some(f=>f.name==='OtpCore'||f.name==='BookingCore'),false);
+ assert.throws(()=>backend.assertUnifiedFlow(unified+'\nfunction unsafePublicEndpoint(){}'),/Unreviewed/);
+ assert.throws(()=>backend.assertUnifiedFlow(unified+'\n// MailApp'),/cannot access live/);
+ assert.throws(()=>backend.assertUnifiedHtml(unifiedHtml+'<script src="x"></script>'),/forbidden/);
+ assert.match(website,/view==='preview'\)\{study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\)/);
 });

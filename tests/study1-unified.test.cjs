@@ -135,3 +135,16 @@ test('Unified HTML is a complete user journey in one owner-only interface with n
  assert.doesNotMatch(html,/<input[^>]+type="email"/i);
  assert.match(html,/正式報名未開放/);
 });
+
+test('Synthetic request audit never persists screening answers or plaintext OTP',()=>{
+ const sim=setup();
+ sim.cmd('START',{experiment:'E1'});
+ sim.cmd('SCREEN',{id:'SIM-001',answers:good});
+ sim.cmd('OTP_REQUEST',{id:'SIM-001'});
+ sim.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ const raw=sim.p.get('STUDY1_UNIFIED_FIXTURE_V1');
+ assert.ok(typeof raw==='string');
+ assert.doesNotMatch(raw,/"diagnosed"|"frequentPractice"|"treatment"|"joinedE1"/);
+ assert.doesNotMatch(raw,/00000000/);
+ assert.match(raw,/"eligible":true/);
+});
