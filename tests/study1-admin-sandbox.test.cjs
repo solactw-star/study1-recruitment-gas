@@ -176,3 +176,32 @@ test('Owner live-shaped self-test runs isolated booking lifecycle, idempotency a
  assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false);
  assert.equal(h.locks(),0);
 });
+
+test('Owner self-test fails closed on a corrupt existing sandbox booking ledger before writing a disposable key',()=>{
+ const booking=(code,slotId)=>({code,slotId,status:'ACTIVE'});
+ const request=(id,code,slotId)=>({requestId:id,fingerprint:JSON.stringify(['CREATE',code,slotId])});
+ const cases=[
+  {name:'orphan ACTIVE reservation',state:{schemaVersion:1,revision:1,
+    bookings:[booking('TST-101','test_slot_8')],
+    requests:[request('REQ-orphan001','TST-101','test_slot_8')]},error:/對應時段不存在/},
+  {name:'preexisting over-capacity reservations',state:{schemaVersion:1,revision:3,
+    bookings:[booking('TST-101','test_slot_1'),booking('TST-102','test_slot_1'),booking('TST-103','test_slot_1')],
+    requests:[request('REQ-overcap01','TST-101','test_slot_1'),
+      request('REQ-overcap02','TST-102','test_slot_1'),
+      request('REQ-overcap03','TST-103','test_slot_1')]},error:/超過時段容量/},
+  {name:'revision/request drift',state:{schemaVersion:1,revision:2,
+    bookings:[booking('TST-101','test_slot_1')],
+    requests:[request('REQ-revdrift1','TST-101','test_slot_1')]},error:/版本與請求歷史不一致/}
+ ];
+ for(const scenario of cases){
+  const h=harness();
+  h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+  h.values.set('STUDY1_SANDBOX_BOOKINGS_V1',JSON.stringify(scenario.state));
+  const before=JSON.stringify([...h.values]);
+  assert.throws(()=>h.scope.adminRunSandboxSelfTest(),scenario.error,scenario.name);
+  assert.equal(JSON.stringify([...h.values]),before,scenario.name);
+  assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false,scenario.name);
+  assert.equal(h.reads(),0,scenario.name);
+  assert.equal(h.locks(),0,scenario.name);
+ }
+});
