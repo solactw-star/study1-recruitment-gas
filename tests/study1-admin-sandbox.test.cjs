@@ -161,7 +161,8 @@ test('Self-test does not mutate a previously saved real sandbox configuration',(
 
 test('Self-test refuses missing or enabled OPEN/CONSENT_READY without creating disposable data',()=>{
  for(const [open,consent] of [[null,null],['true','false'],['false','true'],['false',null]]){
-  const h=harness();if(open!==null)h.values.set('OPEN',open);
+  const h=harness('solac.tw@gmail.com','solac.tw@gmail.com',null,false);
+  if(open!==null)h.values.set('OPEN',open);
   if(consent!==null)h.values.set('CONSENT_READY',consent);
   const before=new Map(h.values);
   assert.throws(()=>h.scope.adminRunSandboxSelfTest(),/關閉旗標未確認/);
