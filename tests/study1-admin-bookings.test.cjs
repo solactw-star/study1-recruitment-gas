@@ -152,3 +152,24 @@ test('Booking list uses the shared lock and fails closed during a concurrent upd
  assert.equal(locks.held,false,'Successful read must release the lock');
  assert.equal(store.size,0,'Read-only snapshot must not write a property');
 });
+
+test('Inconsistent existing synthetic ledger fails closed on read and mutation',()=>{
+ const {s,store,locks}=setup();
+ const key='STUDY1_SANDBOX_BOOKINGS_V1';
+ const make=(bookings,requests,revision)=>({schemaVersion:1,revision,bookings,requests});
+ const entry=(code,slotId)=>({code,slotId,status:'ACTIVE'});
+ const request=(code,n)=>({requestId:'REQ-existing0'+n,fingerprint:JSON.stringify(['CREATE',code,'test_slot_1'])});
+ const cases=[
+  [make([entry('TST-001','test_slot_1')],[request('TST-001',1)],2),/版本與請求歷史不一致/],
+  [make([entry('TST-001','test_slot_2')],[request('TST-001',1)],1),/對應時段不存在/],
+  [make([entry('TST-001','test_slot_1'),entry('TST-002','test_slot_1'),entry('TST-003','test_slot_1')],
+   [request('TST-001',1),request('TST-002',2),request('TST-003',3)],3),/超過時段容量/]
+ ];
+ for(const [state,error] of cases){
+  const original=JSON.stringify(state);store.set(key,original);
+  assert.throws(()=>s.adminGetTestBookings(),error);
+  assert.throws(()=>s.adminChangeTestBooking(req('CREATE','TST-004','test_slot_1','create004',state.revision)),error);
+  assert.equal(store.get(key),original,'Corrupt ledger must never be overwritten');
+  assert.equal(locks.held,false,'All failures must release the shared lock');
+ }
+});

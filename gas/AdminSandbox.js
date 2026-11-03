@@ -96,7 +96,9 @@ function adminSaveSandboxConfig(input,expectedRevision){
     // The config editor and booking RPC share this script lock. A saved
     // capacity must never invalidate an existing ACTIVE test reservation.
     // This is read-only against the separate synthetic booking property.
-    const activeBookings=study1SandboxBookingState_().bookings.filter(b=>b.status==='ACTIVE');
+    const existingState=study1SandboxBookingState_();
+    study1SandboxBookingIntegrity_(existingState,current);
+    const activeBookings=existingState.bookings.filter(b=>b.status==='ACTIVE');
     for(const slotId of new Set(activeBookings.map(b=>b.slotId))){
       const slot=config.testSlots.find(x=>x.id===slotId);
       const previous=current.testSlots.find(x=>x.id===slotId);
@@ -269,6 +271,20 @@ function study1SandboxBookingFlags_(){
   if(p.getProperty('OPEN')!=='false'||p.getProperty('CONSENT_READY')!=='false')
     throw Error('正式收件關閉旗標未確認，拒絕隔離預約');
 }
+/** Refuse malformed or inconsistent preexisting synthetic ledger before any read or write. */
+function study1SandboxBookingIntegrity_(state,config){
+  if(state.revision!==state.requests.length)
+    throw Error('隔離預約版本與請求歷史不一致');
+  const counts=new Map();
+  for(const booking of state.bookings){
+    if(booking.status!=='ACTIVE')continue;
+    const slot=config.testSlots.find(x=>x.id===booking.slotId);
+    if(!slot)throw Error('有效測試預約對應時段不存在：'+booking.slotId);
+    const count=(counts.get(booking.slotId)||0)+1;
+    if(count>slot.capacity)throw Error('既有測試預約超過時段容量：'+booking.slotId);
+    counts.set(booking.slotId,count);
+  }
+}
 function study1SandboxBookingView_(state,config){
   const slots=config.testSlots.map(slot=>{
     const booked=state.bookings.filter(b=>b.status==='ACTIVE'&&b.slotId===slot.id).length;
@@ -289,12 +305,14 @@ function adminGetTestBookings(){
     study1SandboxBookingFlags_();
     const config=study1AdminPersisted_();
     const state=study1SandboxBookingState_();
+    study1SandboxBookingIntegrity_(state,config);
     return study1SandboxBookingView_(state,config);
   }finally{lock.releaseLock();}
 }
 /** Pure shared booking transition: used by locked owner RPC and isolated live self-test. */
 function study1SandboxBookingMutation_(input,state,config){
   const {action,bookingCode,slotId,requestId,expectedRevision}=input;
+  study1SandboxBookingIntegrity_(state,config);
   const fingerprint=JSON.stringify([action,bookingCode,slotId]);
     const repeated=state.requests.find(x=>x.requestId===requestId);
     if(repeated){
