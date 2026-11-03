@@ -2,7 +2,15 @@
 
 私人 GitHub 原始碼儲存庫；正式 GAS 專案仍為 **1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z**，擁有帳號為 **solac.tw@gmail.com**。
 
-## 最新完成狀態（2026-10-29）
+## 現行私人測試部署（截至 2026-11-03 的核實快照）
+
+- **原 GAS 專案與私人 Web App 不變**：原 Script ID 為 `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`；原 `/exec` Deployment ID 為 `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s`，版本化部署權限維持 `MYSELF`，未開放公開招募。
+- **限定來源自動同步已運作**：`.github/workflows/study1-gas-auto-index.yml` 只在 `main` 推送其列明的 GAS、測試或同步程式路徑時執行；先檢查 CI、原 GAS 完整備份與競寫狀態，再只更新核准的 `Index`、`Website`、`AdminSandbox`、`AdminConsole`，同 ID 部署後回讀 SHA256。**單獨修改 `README.md` 不符合該工作流程的 `push.paths`，不會觸發 GAS 同步**。
+- **最新核實快照**：私人 GitHub `main=864106915543d97a2b7031ee4874fe72da0a9a26`；[CI 381/381 PASS](https://github.com/solactw-star/study1-recruitment-gas/actions/runs/41596133886)；[GAS 原 `/exec` v31，`SYNC_VERIFIED=true`](https://github.com/solactw-star/study1-recruitment-gas/actions/runs/41596133947)，完整 SHA256 為 `28764132dae9a80b8f96c1a1991456153323e031aed14a6d2adfb8f4b75f9166`。更新前完整備份保存在 828 私人 Drive，File ID `1DyK4XxkujVjCoA92B7r2WoKdX3fros5P`。
+- 使用者已提供原私人 GAS 後台 **8 項設定＋6 項虛構預約自我測試 PASS** 及 `OPEN=false`、`CONSENT_READY=false` 的 Script Properties 截圖。該截圖不能單獨證實新版 v31 已執行相同測試，也不等於獨立 Google 執行日誌稽核。
+- **正式研究收件仍關閉**：公開 OTP、真人預約、同意書電子簽署入口均拒絕執行。現行部署僅供關閉研究資訊頁及研究室隔離測試後台；不得從歷史備份或 CI PASS 推論已核准正式開放。未來版本須以當次 `main`、Actions、GAS /exec 及原備份回讀重新核對。
+
+## 初始歷史基準（2026-10-29；非現行部署狀態）
 
 - 已以 GitHub Actions **唯讀**讀取 GAS 原始碼；來源備份執行編號 `40848488750`。
 - 已比對四個 GAS 程式/設定檔的檔名與 SHA-256，將五個原始檔（包含 `.clasp.json`）保留至 `gas/`；原始備份長期存放於 828 Drive。
@@ -19,9 +27,9 @@ npm test
 
 所有 Apps Script 程式放在 `gas/`，`gas/.clasp.json` 指定原有 GAS 專案。切勿上傳 `.clasprc.json`、OAuth token、參與者資料、真實簽署 PDF 到 GitHub。
 
-初始來源雜湊參照 `docs/remote-baseline-20261029.json`。因為 GAS API 的更新會**取代整個專案的原始碼**，第一次同步必須在遠端仍與備份完全相同時才可以執行；若任何遠端檔案有變動，工作流程會自動停止，不擅自覆寫。
+初始來源雜湊參照 `docs/remote-baseline-20261029.json`，作為 2026-10-29 的歷史核對基準。GAS API 更新仍會**取代整個專案的原始碼**；初始同步當時要求遠端與備份完全相同。現行經核准的私人同步則以最新遠端全檔備份、核准來源範圍、競寫檢查、同 ID 部署及完整回讀為防護條件，不以初始基準檔冒充最新遠端狀態。
 
-> **注意**：原始基準文件需永久保留以利追溯，若之後確實修改並同步 GAS，必須重新取得並審核新的遠端基準，再設計後續部署流程；不可略過檢查或自行更新基準讓失敗通過。
+> **注意**：原始基準文件需永久保留以利追溯；後續每次 GAS 更新仍須依現行核准流程重新取得並審核遠端狀態、備份與回讀。不可略過驗證或自行修改基準讓失敗通過。
 
 ## 研究邊界
 
