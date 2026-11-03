@@ -71,12 +71,14 @@ function study1AdminPersisted_(){
 }
 function adminGetSandboxConfig(){
   study1AdminOwnerRequired_();
+  study1SandboxBookingFlags_();
   return {mode:'SANDBOX_ONLY',open:false,consentReady:false,
     store:'ScriptProperties:STUDY1_SANDBOX_ADMIN_CONFIG_V1',config:study1AdminPersisted_()};
 }
 /** Validate an unsaved admin draft on the server, without touching any property. */
 function adminValidateSandboxConfig(input){
   study1AdminOwnerRequired_();
+  study1SandboxBookingFlags_();
   return {mode:'SANDBOX_ONLY',open:false,consentReady:false,config:study1AdminValidate_(input)};
 }
 /** The same revision comparison is used by sandbox edits and disposable self-tests. */
@@ -86,11 +88,13 @@ function study1AdminRequireRevision_(current,expectedRevision){
 }
 function adminSaveSandboxConfig(input,expectedRevision){
   study1AdminOwnerRequired_();
+  study1SandboxBookingFlags_();
   if(!Number.isSafeInteger(expectedRevision)||expectedRevision<0)throw Error('無效的設定版本');
   const config=study1AdminValidate_(input);
   const lock=LockService.getScriptLock();
   if(!lock.tryLock(8000))throw Error('另一項測試設定更新正在進行，請重新讀取');
   try{
+    study1SandboxBookingFlags_();
     const current=study1AdminPersisted_();
     study1AdminRequireRevision_(current,expectedRevision);
     // The config editor and booking RPC share this script lock. A saved
