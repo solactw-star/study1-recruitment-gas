@@ -124,3 +124,16 @@ test('Unified owner browser can reset synthetic acceptance data and start again 
  h.click('start');assert.equal(h.read().applications[0].id,'SIM-001');
  assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
 });
+
+test('Research copy edited in owner console appears on participant-facing E1/E2 cards, not a separate demo',()=>{
+ const h=harness();
+ const r=h.read().definitions;
+ const research=Object.fromEntries(['E1','E2'].map(exp=>[exp,{
+  label:'〔SIM〕'+exp+' 動態研究說明',duration:r[exp].duration,
+  procedure:'研究室自訂測試流程 '+exp,compensation:r[exp].compensation}]));
+ h.set('adminResearchJson',JSON.stringify(research));h.click('adminResearchSave');
+ assert.equal(h.dom.get('definitionTitleE1').textContent,'〔SIM〕E1 動態研究說明');
+ assert.match(h.dom.get('definitionTextE2').textContent,/研究室自訂測試流程 E2/);
+ assert.equal(h.read().researchApproval,'PENDING');
+ assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
+});

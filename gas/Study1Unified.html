@@ -24,8 +24,8 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <section class="panel" aria-labelledby="noticeHeading"><h2 id="noticeHeading">網站狀態與研究規格</h2>
 <p class="note">正式報名未開放（OPEN=false／CONSENT_READY=false）。本頁操作僅建立 SIM 虛構紀錄，不寄送 OTP、郵件或寫入正式 Google Sheets；本頁的「同意」沒有法律效力。</p>
 <p>資格來源：所附實驗一／二 REC 同意書草稿。正式版本與線上電子同意程序仍須取得研究團隊核定；不可將預覽完成當作正式參與資格或已簽署。</p>
-<div class="grid"><article><h3>實驗一｜記憶與內感覺</h3><p>約 90–120 分鐘單次實驗，含記憶作業、量表與心跳偵測。來源列示完成後 200 元車馬費。</p></article>
-<article><h3>實驗二｜身心中軸覺察</h3><p>前置問卷、前測、8 週研究安排及後測，且未曾參加實驗一；來源列示分段補貼 200／1,600／200 元。</p></article></div>
+<div class="grid"><article><h3 id="definitionTitleE1">實驗一｜資料載入中</h3><p id="definitionTextE1">研究說明為 REC 草稿測試文字，尚待核准。</p></article>
+<article><h3 id="definitionTitleE2">實驗二｜資料載入中</h3><p id="definitionTextE2">研究說明為 REC 草稿測試文字，尚待核准。</p></article></div>
 </section>
 <section class="panel" aria-labelledby="beginTitle"><h2 id="beginTitle">步驟一｜選擇實驗並建立虛構測試申請</h2>
 <div class="row"><label for="study">實驗別</label><select id="study"><option value="E1">實驗一</option><option value="E2">實驗二</option></select>
@@ -71,6 +71,11 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <button id="adminSave" type="button" disabled>儲存同一網站測試設定</button>
 <p><small>真正管理權限、正式 REC 版本核准及正式資料來源的啟用仍須另外驗收。</small></p>
 </section>
+<section class="panel" aria-labelledby="researchAdminTitle"><h2 id="researchAdminTitle">研究室後台｜同一前台的 E1／E2 研究說明</h2>
+<p class="note">可編輯兩個實驗的標題、時間、流程與補貼文字，前台會使用相同的伺服器資料。僅限虛構測試；來源仍為 REC_DRAFT_ONLY，核准狀態永遠 PENDING，不會變更正式研究內容。</p>
+<label for="adminResearchJson">E1／E2 研究說明 JSON（各含 label、duration、procedure、compensation）</label>
+<textarea id="adminResearchJson" rows="13" spellcheck="false"></textarea>
+<button id="adminResearchSave" type="button" disabled>儲存兩個實驗的測試研究說明</button></section>
 <section class="panel" aria-labelledby="policyTitle"><h2 id="policyTitle">研究室後台｜初篩文字與 REC 待核版本</h2>
 <p class="note">此處只修改 TEST 題目顯示文字及待核 PDF 版本／預期雜湊，不改動正式納排判定、不讀取 PDF 位元組，也不構成核准簽署。正式政策一律 PENDING。</p>
 <label for="adminQuestionsJson">六題文字 JSON（固定欄位 key）</label><textarea id="adminQuestionsJson" rows="9" spellcheck="false"></textarea>
@@ -126,7 +131,7 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminPolicySave','adminSlotsSave','adminReset'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminSlotsSave','adminReset'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
  $('screen').disabled=phase!=='STARTED';
@@ -143,10 +148,22 @@ function render(response){
  if(!response||response.mode!=='TEST'||response.open!==false||response.consentReady!==false||
   !Number.isSafeInteger(response.revision)||!Array.isArray(response.applications)||
   !Array.isArray(response.slots)||!Array.isArray(response.notifications)||!response.config||
-  !response.policy||!response.policy.screening||!response.policy.consent||!Array.isArray(response.audit)){
+  !response.policy||!response.policy.screening||!response.policy.screening.questions||
+  !response.policy.consent||!Array.isArray(response.audit)||
+  response.researchSource!=='REC_DRAFT_ONLY'||response.researchApproval!=='PENDING'||
+  !response.definitions||!['E1','E2'].every(exp=>{
+   const d=response.definitions[exp];
+   return !!d&&['label','duration','procedure','compensation','recVersion'].every(k=>
+    typeof d[k]==='string'&&d[k].length>0);
+  })){
   model=null;syncControls();info('GAS 測試流程資料格式不合法，已禁止操作。',false);return;
  }
  model=response;
+ for(const exp of ['E1','E2']){
+  const d=response.definitions[exp];
+  $('definitionTitle'+exp).textContent=d.label;
+  $('definitionText'+exp).textContent=d.duration+'｜'+d.procedure+'｜'+d.compensation;
+ }
  if(!response.applications.some(a=>a.id===selected))selected=response.applications.at(-1)?.id||null;
  const apps=$('application');apps.replaceChildren();
  for(const a of response.applications){
@@ -172,6 +189,9 @@ function render(response){
  $('adminTitleField').value=response.config.title;
  $('adminNotice').value=response.config.notice;
  $('adminEmail').value=response.config.emailTemplate;
+ $('adminResearchJson').value=JSON.stringify(Object.fromEntries(['E1','E2'].map(exp=>
+  [exp,Object.fromEntries(['label','duration','procedure','compensation'].map(k=>
+   [k,response.definitions[exp][k]]))])),null,2);
  $('adminSlotsJson').value=JSON.stringify(response.slots.map(s=>({id:s.id,experiment:s.experiment,when:s.when,capacity:s.capacity})),null,2);
  $('adminQuestionsJson').value=JSON.stringify(response.policy.screening.questions,null,2);
  for(const key of ['adult','cycu','diagnosed','treatment','frequentPractice','joinedE1'])
@@ -209,6 +229,10 @@ $('consent').addEventListener('click',()=>{const a=active();if(!a||!$('agree').c
  command('CONSENT',{id:a.id,accepted:true,version:model.definitions[a.experiment].recVersion,signature:$('signature').value})});
 $('confirm').addEventListener('click',()=>{const a=active();if(a)command('CONFIRM',{id:a.id})});
 $('adminSave').addEventListener('click',()=>command('ADMIN_EDIT',{title:$('adminTitleField').value,notice:$('adminNotice').value,emailTemplate:$('adminEmail').value}));
+$('adminResearchSave').addEventListener('click',()=>{
+ try{command('ADMIN_RESEARCH',{research:JSON.parse($('adminResearchJson').value)});}
+ catch(e){info('研究說明 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
 $('adminSlotsSave').addEventListener('click',()=>{
  try{command('ADMIN_SLOTS',{slots:JSON.parse($('adminSlotsJson').value)});}
  catch(e){info('時段 JSON 格式錯誤：'+String(e&&e.message||e),false);}

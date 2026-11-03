@@ -247,3 +247,42 @@ test('Owner can reset ONLY dedicated unified fixture after exact confirmation an
  const restarted=s.cmd('START',{experiment:'E2'});
  assert.equal(restarted.applications[0].id,'SIM-001');
 });
+
+test('Owner edits E1/E2 draft research copy used by the SAME participant view; provenance remains PENDING',()=>{
+ const s=setup(),before=s.read();
+ const research=Object.fromEntries(['E1','E2'].map(exp=>[exp,{
+  label:'〔SIM〕'+exp+' 新標題',duration:'測試時長 60 分鐘',
+  procedure:'僅供測試的研究步驟',compensation:'虛構補貼文字'}]));
+ const m=s.cmd('ADMIN_RESEARCH',{research});
+ assert.equal(m.definitions.E1.label,'〔SIM〕E1 新標題');
+ assert.equal(m.definitions.E2.procedure,'僅供測試的研究步驟');
+ assert.equal(m.researchSource,'REC_DRAFT_ONLY');
+ assert.equal(m.researchApproval,'PENDING');
+ assert.equal(m.definitions.E1.recVersion,before.definitions.E1.recVersion);
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+ assert.equal(s.p.size,3);
+ assert.equal(m.audit.at(-1).action,'ADMIN_RESEARCH');
+});
+test('Draft research editor rejects markup, missing fields and unreviewed provenance without mutating fixture',()=>{
+ const s=setup(),r=s.read().definitions;
+ const research=Object.fromEntries(['E1','E2'].map(exp=>[exp,
+  Object.fromEntries(['label','duration','procedure','compensation'].map(k=>[k,r[exp][k]]))]));
+ const revision=s.read().revision;
+ assert.throws(()=>s.cmd('ADMIN_RESEARCH',{research:{E1:research.E1}}),/草稿欄位/);
+ assert.throws(()=>s.cmd('ADMIN_RESEARCH',{research:{...research,E2:{...research.E2,label:'<script>'}}}),/欄位不合法/);
+ assert.throws(()=>s.cmd('ADMIN_RESEARCH',{research:{...research,E2:{...research.E2,extra:'x'}}}),/欄位不合法/);
+ assert.throws(()=>s.ctx.study1UnifiedValidateResearch_({...research,source:'APPROVED',approval:'APPROVED'}),/草稿來源/);
+ assert.equal(s.read().revision,revision);assert.equal(s.writes,0);
+});
+test('Legacy owner-only fixture receives draft research defaults on read without a migration write',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});
+ const stored=JSON.parse(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'));
+ delete stored.research;
+ s.p.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(stored));
+ const before=s.writes,m=s.read();
+ assert.equal(s.writes,before);
+ assert.equal(m.definitions.E1.label,'實驗一｜記憶與內感覺');
+ assert.equal(m.researchApproval,'PENDING');
+ s.cmd('START',{experiment:'E2'});
+ assert.equal(JSON.parse(s.p.get('STUDY1_UNIFIED_FIXTURE_V1')).research.source,'REC_DRAFT_ONLY');
+});
