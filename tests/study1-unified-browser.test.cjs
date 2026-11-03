@@ -212,3 +212,19 @@ test('Single-site browser shows independent synthetic PDF viewer and PENDING ret
  assert.equal(h.read().governance.documents.E1.sourceBytesVerified,false);
  assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
 });
+
+test('The owner-only formal readiness panel stays blocked after editing draft PDF metadata',()=>{
+ const h=harness();
+ assert.match(h.dom.get('formalReadinessStatus').textContent,/FORMAL_BLOCKED/);
+ assert.match(h.dom.get('formalReadinessStatus').textContent,/E1_REC_PDF_BYTES/);
+ h.set('adminConsentE1','PENDING_E1_DRAFT_V2');
+ h.set('adminHashE1','a'.repeat(64));
+ h.click('adminPolicySave');
+ const status=h.dom.get('formalReadinessStatus').textContent;
+ assert.match(status,/PENDING_E1_DRAFT_V2/);
+ assert.match(status,/sourceBytesVerified/);
+ assert.match(status,/FORMAL_BLOCKED/);
+ assert.equal(h.read().formalReadiness.activationAllowed,false);
+ assert.equal(h.props.get('OPEN'),'false');
+ assert.equal(h.props.get('CONSENT_READY'),'false');
+});
