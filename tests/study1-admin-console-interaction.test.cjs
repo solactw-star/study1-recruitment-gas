@@ -8,9 +8,9 @@ const scripts=[...clientHTML.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/
 if(scripts.length!==1)throw Error('Expected exactly one inline admin client script');
 const clientSource=scripts[0][1];
 const IDs=['title','intro','eligibility','questions','slots','template','pdf','revision','save','check','reload','status','slotNumber','slotLoad','slotStart','slotLocation','slotCapacity','slotApply','slotAdd','slotRemove','selftest','selftestResult','questionNumber','questionLoad','questionText','questionRequired','questionApply','questionAdd','questionRemove','exportConfig','importConfig','portableJson','bookingRefresh','bookingList','bookingCapacity','bookingCapacityTable','bookingTable','bookingFilterStatus','bookingFilterSlot','bookingFilterCode','bookingFilterSummary','bookingFeedback','bookingExisting','bookingCode','bookingSlotId','bookingRequest','bookingCreate','bookingMove','bookingCancel'];
-function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com'){
+function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',defaultClosed=true){
  const props=new Map(),locks={held:false,count:0};
- const store={getProperty:key=>props.has(key)?props.get(key):null,setProperty:(key,v)=>{
+ const store={getProperty:key=>props.has(key)?props.get(key):(defaultClosed&&['OPEN','CONSENT_READY'].includes(key)?'false':null),setProperty:(key,v)=>{
   assert.ok(['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_SANDBOX_BOOKINGS_V1'].includes(key),'Only isolated properties');
   props.set(key,v);
  },deleteProperty:key=>{assert.equal(key,'STUDY1_SANDBOX_SELFTEST_V1');props.delete(key);}};
@@ -241,7 +241,7 @@ test('Owner-only browser self-test invokes actual GAS handler and shows PASS onl
  assert.equal(s.props.get('CONSENT_READY'),'false');
 });
 test('Browser self-test reports FAIL when closed flags are not confirmed; never claims live PASS',()=>{
- const s=server(),ui=client(s);
+ const s=server('solac.tw@gmail.com','solac.tw@gmail.com',false),ui=client(s);
  ui.click('selftest');
  assert.deepEqual(ui.calls,['get','selftest']);
  assert.match(ui.el('selftestResult').textContent,/FAIL/);
