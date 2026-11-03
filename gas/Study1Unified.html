@@ -91,6 +91,10 @@ function command(action,payload){
  syncControls(true);
  info('GAS 正在驗證虛構交易及 revision……');
  google.script.run.withSuccessHandler(response=>{
+  // Newly created synthetic applications must become the active selection;
+  // otherwise the owner can remain stuck on an older ineligible record.
+  if(action==='START'&&Array.isArray(response?.applications)&&response.applications.length)
+   selected=response.applications.at(-1).id;
   pending=null;render(response);info(response.deduplicated?'相同測試請求已完成去重。':'虛構交易已由 GAS 回讀，沒有真人資料。',true);
  }).withFailureHandler(e=>{
   syncControls(false);info('虛構交易未獲確認：'+String(e&&e.message||e)+'。如為 revision 衝突，請重新讀取。',false);

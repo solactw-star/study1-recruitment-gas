@@ -66,6 +66,7 @@ test('Unified browser reuses the same server for E2 eligibility and its own test
  h.check('noE1',false);h.click('screen');assert.equal(h.read().applications[0].phase,'INELIGIBLE');
  assert.equal(h.dom.get('otpRequest').disabled,true);
  h.click('start'); // another E2 synthetic application, same site and server
+ assert.equal(h.dom.get('application').value,'SIM-002','New application must be selected');
  h.check('noE1',true);h.click('screen');
  h.click('otpRequest');h.set('otp','00000000');h.click('otpVerify');
  h.set('slot','SIM-SLOT-E2-A');h.click('hold');
