@@ -286,3 +286,42 @@ test('Legacy owner-only fixture receives draft research defaults on read without
  s.cmd('START',{experiment:'E2'});
  assert.equal(JSON.parse(s.p.get('STUDY1_UNIFIED_FIXTURE_V1')).research.source,'REC_DRAFT_ONLY');
 });
+
+// Integrated recovery of synthetic reservations and expired consent locks.
+test('Expired synthetic hold can be renewed with fresh capacity and cleared consent metadata',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_REC_APPROVAL_E1',sha256:''});
+ s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'});
+ const old=JSON.parse(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'));
+ old.applications[0].holdUntil=Date.now()-1000;
+ s.p.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(old));
+ assert.equal(s.read().applications[0].holdExpired,true);
+ assert.equal(s.read().slots[0].remaining,2);
+ assert.throws(()=>s.cmd('CANCEL',{id:'SIM-001'}),/只有有效/);
+ assert.throws(()=>s.cmd('CONFIRM',{id:'SIM-001'}),/期限/);
+ const m=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ assert.equal(m.applications[0].phase,'HELD');
+ assert.equal(m.applications[0].holdExpired,false);
+ assert.equal(m.applications[0].consentReviewedAt,null);
+ assert.equal(m.applications[0].signatureDemo,false);
+ assert.ok(m.applications[0].holdUntil>Date.now());
+ assert.equal(m.slots[0].remaining,1);
+ assert.equal(s.p.get('OPEN'),'false');
+ assert.equal(s.p.get('CONSENT_READY'),'false');
+});
+test('Unified booking never offers or reserves past Taipei-local synthetic slots',()=>{
+ const s=setup(),slots=s.read().slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));
+ slots[0].when='2020-01-05 10:00';
+ s.cmd('ADMIN_SLOTS',{slots});
+ assert.equal(s.read().slots[0].bookable,false);
+ assert.equal(s.read().slots[0].remaining,0);
+ s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ const rev=s.read().revision;
+ assert.throws(()=>s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'}),/已開始/);
+ assert.equal(s.read().revision,rev);
+ const m=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-B'});
+ assert.equal(m.applications[0].phase,'HELD');
+});

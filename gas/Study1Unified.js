@@ -198,12 +198,17 @@ function study1UnifiedView_(s){
   definitions:Object.fromEntries(Object.entries(s.research).filter(([k])=>k==='E1'||k==='E2').map(([k,v])=>
    [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
   policy:s.policy,audit:study1UnifiedAudit_(s),
-  slots:s.slots.map(slot=>({...slot,remaining:slot.capacity-study1UnifiedCapacity_(s,slot.id,Date.now())})),
+  slots:s.slots.map(slot=>{const now=Date.now();
+   const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
+   return {...slot,bookable,remaining:bookable?
+    slot.capacity-study1UnifiedCapacity_(s,slot.id,now):0};}),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
    consentSha256:a.consentSha256===undefined?null:a.consentSha256,
    consentReviewedAt:a.consentReviewedAt||null,
-   holdUntil:a.holdUntil,signatureDemo:a.signatureDemo})),
+   holdUntil:a.holdUntil,
+   holdExpired:['HELD','CONSENTED'].includes(a.phase)&&Number.isFinite(a.holdUntil)&&a.holdUntil<=Date.now(),
+   signatureDemo:a.signatureDemo})),
   notifications:s.notifications.slice(-6).map(n=>({...n})),
   fixtureOtp:'00000000'};
 }
@@ -307,17 +312,24 @@ function study1UnifiedTransition_(s,cmd,now){
   a.phase='VERIFIED';return;
  }
  if(action==='HOLD'||action==='MOVE'){
-  if(action==='HOLD'&&a.phase!=='VERIFIED')throw Error('尚未完成測試驗證');
+  // Expired synthetic holds can be renewed only after a fresh capacity check.
+  const expiredHold=['HELD','CONSENTED'].includes(a.phase)&&
+   Number.isFinite(a.holdUntil)&&a.holdUntil<=now;
+  if(action==='HOLD'&&a.phase!=='VERIFIED'&&!expiredHold)
+   throw Error('尚未完成測試驗證');
   if(action==='MOVE'&&a.phase!=='CONFIRMED')throw Error('只允許已確認虛構預約改期');
   if(Object.keys(p).sort().join(',')!=='id,slotId')throw Error('時段操作欄位不完整');
   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
-  if(!slot||slot.id===a.slotId||study1UnifiedCapacity_(s,slot.id,now)>=slot.capacity)
-    throw Error('測試時段不存在、重複或已額滿');
+  if(!slot||(slot.id===a.slotId&&!expiredHold)||
+     Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
+     study1UnifiedCapacity_(s,slot.id,now)>=slot.capacity)
+    throw Error('測試時段不存在、重複、已開始或已額滿');
   a.slotId=slot.id;
   if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;
    a.consentVersion=s.policy.consent[a.experiment].version;
    a.consentSha256=s.policy.consent[a.experiment].sha256;
-   a.consentReviewedAt=null;a.consentReviewedVersion=null;a.consentReviewedSha256=null;}
+   a.consentReviewedAt=null;a.consentReviewedVersion=null;
+   a.consentReviewedSha256=null;a.signatureDemo=false;}
   else study1UnifiedNotify_(s,a,'MOVE');
   return;
  }
@@ -351,7 +363,8 @@ function study1UnifiedTransition_(s,cmd,now){
   study1UnifiedNotify_(s,a,'CONFIRM');return;
  }
  if(action==='CANCEL'){
-  if(!['HELD','CONSENTED','CONFIRMED'].includes(a.phase)||Object.keys(p).join(',')!=='id')
+  if((['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil<=now)||
+     !['HELD','CONSENTED','CONFIRMED'].includes(a.phase)||Object.keys(p).join(',')!=='id')
     throw Error('只有有效的虛構預約可取消');
   a.phase='CANCELLED';a.holdUntil=null;
   study1UnifiedNotify_(s,a,'CANCEL');return;

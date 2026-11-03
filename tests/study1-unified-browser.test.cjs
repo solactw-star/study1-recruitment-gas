@@ -137,3 +137,23 @@ test('Research copy edited in owner console appears on participant-facing E1/E2 
  assert.equal(h.read().researchApproval,'PENDING');
  assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
 });
+
+test('Same owner preview re-holds expired synthetic reservation and hides past slots',()=>{
+ const h=harness();h.click('start');
+ for(const id of ['adult','cycu','noDx','noTherapy','noPractice','noE1'])h.check(id,true);
+ h.click('screen');h.click('otpRequest');h.set('otp','00000000');h.click('otpVerify');
+ h.set('slot','SIM-SLOT-E1-A');h.click('hold');
+ const state=JSON.parse(h.props.get('STUDY1_UNIFIED_FIXTURE_V1'));
+ state.applications[0].holdUntil=Date.now()-1000;
+ state.slots[1].when='2020-01-06 14:00';
+ h.props.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(state));
+ h.click('refresh');
+ assert.equal(h.dom.get('hold').disabled,false);
+ assert.equal(h.dom.get('consent').disabled,true);
+ assert.equal(h.dom.get('cancel').disabled,true);
+ assert.match(h.dom.get('reviewStatus').textContent,/逾期/);
+ assert.equal(h.dom.get('slot').children.some(x=>x.value==='SIM-SLOT-E1-B'),false);
+ h.set('slot','SIM-SLOT-E1-A');h.click('hold');
+ assert.equal(h.read().applications[0].holdExpired,false);
+ assert.equal(h.read().applications[0].phase,'HELD');
+});
