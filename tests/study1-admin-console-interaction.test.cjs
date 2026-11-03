@@ -45,7 +45,7 @@ function client(srv){
  const confirms=[];
  const ctx=vm.createContext({document:{getElementById:id=>dom.get(id),createElement:tag=>({tagName:tag,value:'',textContent:'',className:'',disabled:false,children:[],handlers:{},replaceChildren(...nodes){this.children=nodes;},addEventListener(type,listener){this.handlers[type]=listener;}})},window:{confirm:message=>{confirms.push(message);return true}},google:{script:{run:api}},JSON,String,Number,Error,Date,Math});
  vm.runInContext(clientSource,ctx,{timeout:1000});
- return {ctx,el:id=>dom.get(id),calls,confirms,change:id=>{const e=dom.get(id);e.handlers.change();},input:id=>{const e=dom.get(id);e.handlers.input();},click:id=>{const e=dom.get(id);assert.equal(e.disabled,false,'Disabled: '+id);e.handlers.click();}};
+ return {el:id=>dom.get(id),calls,confirms,change:id=>{const e=dom.get(id);e.handlers.change();},input:id=>{const e=dom.get(id);e.handlers.input();},click:id=>{const e=dom.get(id);assert.equal(e.disabled,false,'Disabled: '+id);e.handlers.click();}};
 }
 test('AdminConsole browser script loads synthetic settings from the actual server handlers',()=>{
  const s=server(),ui=client(s);
@@ -502,9 +502,10 @@ test('Malformed successful booking reply fails closed, reports the problem and p
  const ui=client(srv);
  ui.click('bookingRefresh');
  assert.equal(ui.el('bookingCreate').disabled,false);
- ui.ctx.setDisabled(true);
- ui.ctx.showBookings({mode:'SANDBOX_ONLY',open:false,consentReady:false,
+ const originalRead=srv.ctx.adminGetTestBookings;
+ srv.ctx.adminGetTestBookings=()=>({mode:'SANDBOX_ONLY',open:false,consentReady:false,
   revision:'corrupt-revision',slots:[],bookings:[]});
+ ui.click('bookingRefresh');
  assert.equal(ui.el('bookingRefresh').disabled,false);
  assert.equal(ui.el('bookingCreate').disabled,true);
  assert.equal(ui.el('bookingMove').disabled,true);
@@ -514,6 +515,7 @@ test('Malformed successful booking reply fails closed, reports the problem and p
  assert.equal(ui.el('bookingTable').children.length,0);
  assert.equal(ui.el('bookingCapacityTable').children.length,0);
  assert.equal(srv.props.size,2,'Invalid reply must never write GAS properties');
+ srv.ctx.adminGetTestBookings=originalRead;
  ui.click('bookingRefresh');
  assert.equal(ui.el('bookingCreate').disabled,false,'Real readback must recover the UI');
  assert.match(ui.el('bookingList').textContent,/test_slot_1/);
