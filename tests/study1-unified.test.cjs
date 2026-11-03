@@ -477,3 +477,33 @@ test('Synthetic PDF byte mismatch causes fail-closed read with zero writes',()=>
  s.ctx.Utilities.computeDigest=orig;
  assert.equal(s.read().pdfFixture.kind,'SIMULATED_PDF_NOT_REC');
 });
+
+test('Formal readiness is a complete, source-provenance checklist with every real port blocked',()=>{
+ const s=setup(),m=s.read(),r=m.formalReadiness;
+ assert.equal(r.mode,'FORMAL_BLOCKED');
+ assert.equal(r.activationAllowed,false);assert.equal(r.passed,0);
+ assert.equal(r.total,14);assert.equal(r.gates.length,14);
+ assert.equal(r.gates.find(g=>g.id==='E1_REC_PDF_BYTES').state,'BLOCKED');
+ assert.equal(r.gates.find(g=>g.id==='E2_SCREENING_SOURCE').state,'PENDING');
+ assert.equal(r.provenance.E1.sourceBytesVerified,false);
+ assert.equal(r.provenance.E2.recApprovalVerified,false);
+ assert.equal(r.notificationPolicy.channel,'DISABLED');
+ assert.deepEqual([...r.notificationPolicy.sendOnlyAfter],
+  ['CONFIRM_COMMITTED','MOVE_COMMITTED','CANCEL_COMMITTED']);
+ assert.equal(r.storagePolicy.formalWrite,'DENIED');
+ assert.equal(s.writes,0);assert.equal(s.p.size,2);
+});
+test('Owner-supplied draft PDF SHA and screening version never unlock a formal gate',()=>{
+ const s=setup(),initial=s.read(),consent={};
+ for(const exp of ['E1','E2'])consent[exp]={
+  version:'PENDING_'+exp+'_DRAFT_V2',sha256:'a'.repeat(64)};
+ s.cmd('ADMIN_POLICY',{questions:initial.policy.screening.questions,consent});
+ const m=s.read(),r=m.formalReadiness;
+ assert.equal(r.provenance.E1.declaredSha256,'a'.repeat(64));
+ assert.equal(r.provenance.E2.recVersion,'PENDING_E2_DRAFT_V2');
+ assert.equal(r.provenance.E1.sourceBytesVerified,false);
+ assert.equal(r.provenance.E1.sourceVersionVerified,false);
+ assert.equal(r.activationAllowed,false);assert.equal(r.passed,0);
+ assert.equal(r.gates.find(g=>g.id==='E1_REC_PDF_BYTES').state,'BLOCKED');
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+});
