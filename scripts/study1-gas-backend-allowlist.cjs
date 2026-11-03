@@ -138,7 +138,7 @@ function assertUnifiedFlow(source){
    "action==='ADMIN_SCREENING'","action==='ADMIN_NOTIFY_ATTEMPT'",
    "action==='PDF_DEMO_REVIEW'","function study1UnifiedPdfFixture_(){",
    "Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256",
-   "kind:'SIMULATED_PDF_NOT_REC'","function study1UnifiedGovernance_(){",
+   "kind:'SIMULATED_PDF_NOT_REC'","function study1UnifiedGovernance_(s){",
    "study1FixtureIssue_(s,a,now)","study1FixtureVerify_(s,a,p.code,now,outerLock)",
    "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
