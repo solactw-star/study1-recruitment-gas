@@ -30,6 +30,10 @@ test('Automatic deployment workflow is push-only, secret-bearing and limited to 
  assert.match(text,/'gas\/Study1Unified.html'/);
  assert.match(text,/'gas\/OtpCore.js'/);
  assert.match(text,/'gas\/BookingCore.js'/);
+ assert.match(text,/'gas\/OtpThrottle.js'/);
+ assert.match(text,/'gas\/OtpTransaction.js'/);
+ assert.match(text,/'gas\/BookingHoldTransaction.js'/);
+ assert.match(text,/'gas\/Study1FixtureAdapter.js'/);
  assert.match(text,/main-booking-after.js/);
  assert.match(text,/main-unified-after.js/);
  assert.match(text,/main-unified-after.html/);

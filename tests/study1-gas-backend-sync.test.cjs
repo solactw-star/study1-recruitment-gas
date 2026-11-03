@@ -11,6 +11,10 @@ const unified=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.js'),'ut
 const unifiedHtml=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.html'),'utf8');
 const otpCore=fs.readFileSync(path.join(__dirname,'../gas/OtpCore.js'),'utf8');
 const bookingCore=fs.readFileSync(path.join(__dirname,'../gas/BookingCore.js'),'utf8');
+const otpThrottle=fs.readFileSync(path.join(__dirname,'../gas/OtpThrottle.js'),'utf8');
+const otpTransaction=fs.readFileSync(path.join(__dirname,'../gas/OtpTransaction.js'),'utf8');
+const bookingHoldTransaction=fs.readFileSync(path.join(__dirname,'../gas/BookingHoldTransaction.js'),'utf8');
+const fixtureAdapter=fs.readFileSync(path.join(__dirname,'../gas/Study1FixtureAdapter.js'),'utf8');
 const index=fs.readFileSync(path.join(__dirname,'../gas/Index.html'),'utf8');
 function remote(){
  return {files:[
@@ -22,13 +26,15 @@ function remote(){
 }
 test('Current reviewed CLOSED Website source passes strict server gate',()=>{
  assert.doesNotThrow(()=>backend.assertClosedWebsite(website));
- assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','OtpCore','BookingCore']);
+ assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
  assert.doesNotThrow(()=>backend.assertAdminSandbox(adminSource));
  assert.doesNotThrow(()=>backend.assertAdminHtml(adminHtml));
  assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
  assert.doesNotThrow(()=>backend.assertUnifiedHtml(unifiedHtml));
  assert.doesNotThrow(()=>backend.assertOtpCore(otpCore));
  assert.doesNotThrow(()=>backend.assertBookingCore(bookingCore));
+ assert.doesNotThrow(()=>backend.assertFixtureAdapter(fixtureAdapter));
+ assert.doesNotThrow(()=>backend.assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle'));
 });
 test('Rejects new server endpoints and changes to fail-closed intake',()=>{
  assert.throws(()=>backend.assertClosedWebsite(website+'\nfunction newPublicEndpoint(){}'),/Unreviewed/);
@@ -36,7 +42,7 @@ test('Rejects new server endpoints and changes to fail-closed intake',()=>{
  assert.throws(()=>backend.assertClosedWebsite(website+'\n// SpreadsheetApp'),/Live data/);
 });
 test('Approved merge preserves manifest and unknown remote-only GAS modules byte for byte',()=>{
- const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
  assert.equal(core.file(result,'Index','HTML').source,index);
  assert.equal(core.file(result,'Website','SERVER_JS').source,website);
  assert.equal(core.file(result,'AdminSandbox','SERVER_JS').source,adminSource);
@@ -45,6 +51,9 @@ test('Approved merge preserves manifest and unknown remote-only GAS modules byte
  assert.equal(core.file(result,'Study1Unified','HTML').source,unifiedHtml);
  assert.equal(core.file(result,'OtpCore','SERVER_JS').source,otpCore);
  assert.equal(core.file(result,'BookingCore','SERVER_JS').source,bookingCore);
+ assert.equal(core.file(result,'OtpTransaction','SERVER_JS').source,otpTransaction);
+ assert.equal(core.file(result,'BookingHoldTransaction','SERVER_JS').source,bookingHoldTransaction);
+ assert.equal(core.file(result,'Study1FixtureAdapter','SERVER_JS').source,fixtureAdapter);
  assert.equal(core.file(result,'Untracked','SERVER_JS').source,'preserve this remote-only file');
  assert.equal(core.file(result,'appsscript','JSON').source,core.file(original.files,'appsscript','JSON').source);
  assert.equal(sync.compareUnapproved(result,original.files),true);
@@ -54,7 +63,7 @@ test('Approved merge preserves manifest and unknown remote-only GAS modules byte
 });
 test('A reviewed CLOSED Website-only change is included without modifying other GAS files',()=>{
  const original=remote(),changed=website+'\n// reviewed comment only';
- const result=backend.mergeApproved(core,original,index,changed,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ const result=backend.mergeApproved(core,original,index,changed,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
  assert.equal(core.file(result,'Website','SERVER_JS').source,changed);
  assert.equal(sync.compareUnapproved(result,original.files),true);
  assert.equal(sync.compareNoIndex(result,original.files),false);
@@ -77,18 +86,18 @@ test('Admin source guard rejects new functions, live research Sheets calls and a
  assert.throws(()=>backend.assertAdminSandbox(adminSource.replace('Session.getActiveUser().getEmail()','Session.getEffectiveUser().getEmail()')),/Unreviewed AdminSandbox/);
  assert.throws(()=>backend.assertAdminHtml(adminHtml+'<script src="https://bad.test/x.js"></script>'),/Unreviewed/);
 });
-test('Only reviewed internal Booking/OTP pure cores are allowed, not transaction adapters',()=>{
- const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
- assert.equal(result.length,10);
- assert.deepEqual(result.filter(x=>/^Booking|^Otp/.test(x.name)).map(x=>x.name).sort(),['BookingCore','OtpCore']);
- assert.equal(result.some(x=>x.name==='BookingHoldTransaction'||x.name==='OtpTransaction'),false);
- const withProtected=remote();withProtected.files.push({name:'BookingHoldTransaction',type:'SERVER_JS',source:'DO NOT TOUCH'});
- const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
- assert.equal(core.file(r,'BookingHoldTransaction','SERVER_JS').source,'DO NOT TOUCH');
+test('Only reviewed internal Booking/OTP pure cores are allowed, and fixture-only transaction adapters',()=>{
+ const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
+ assert.equal(result.length,14);
+ assert.deepEqual(result.filter(x=>/^Booking|^Otp/.test(x.name)).map(x=>x.name).sort(),['BookingCore','BookingHoldTransaction','OtpCore','OtpThrottle','OtpTransaction']);
+ assert.equal(result.some(x=>x.name==='BookingHoldTransaction'||x.name==='OtpTransaction'),true);
+ const withProtected=remote();withProtected.files.push({name:'BookingReadOnlySheet',type:'SERVER_JS',source:'DO NOT TOUCH'});
+ const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
+ assert.equal(core.file(r,'BookingReadOnlySheet','SERVER_JS').source,'DO NOT TOUCH');
 });
 test('Admin file-name collision or unexpected type fails before writing GAS',()=>{
  const conflicting=remote();conflicting.files.push({name:'AdminSandbox',type:'JSON',source:'{}'});
- assert.throws(()=>backend.mergeApproved(core,conflicting,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore),/collision/);
+ assert.throws(()=>backend.mergeApproved(core,conflicting,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter),/collision/);
 });
 test('Workflow watches sandbox backend and HTML and checks both against current main',()=>{
  const w=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
@@ -105,10 +114,10 @@ test('MYSELF deployment plus explicit active and effective owner identities are 
  assert.match(code,/if\(effective!==STUDY1_ADMIN_OWNER_\|\|active!==STUDY1_ADMIN_OWNER_\)/);
 });
 
-test('Unified TEST mode is owner-only and includes only pinned core functions, never transaction writers',()=>{
- const merged=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
- assert.deepEqual(merged.filter(f=>f.name==='OtpCore'||f.name==='BookingCore').map(f=>f.name).sort(),['BookingCore','OtpCore']);
- assert.equal(merged.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),false);
+test('Unified TEST mode is owner-only and includes only pinned core functions, transaction writers remain internal',()=>{
+ const merged=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
+ assert.deepEqual(merged.filter(f=>f.name==='OtpCore'||f.name==='BookingCore').map(f=>f.name).sort(),['BookingCore','BookingHoldTransaction','OtpCore','OtpThrottle','OtpTransaction']);
+ assert.equal(merged.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),true);
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\nfunction unsafePublicEndpoint(){}'),/Unreviewed/);
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\n// MailApp'),/cannot access live/);
  assert.throws(()=>backend.assertUnifiedHtml(unifiedHtml+'<script src="x"></script>'),/forbidden/);
@@ -118,12 +127,12 @@ test('Unified TEST mode is owner-only and includes only pinned core functions, n
 test('Only content-pinned internal core sources are allowed into the private /exec',()=>{
  assert.throws(()=>backend.assertOtpCore(otpCore+'\n// modified'),/PINNED OtpCore/);
  assert.throws(()=>backend.assertBookingCore(bookingCore+'\n// modified'),/PINNED BookingCore/);
- const r=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ const r=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
  assert.equal(r.find(f=>f.name==='BookingCore').source,bookingCore);
  assert.equal(r.find(f=>f.name==='OtpCore').source,otpCore);
- assert.equal(r.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),false);
+ assert.equal(r.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),true);
  const changed=remote();changed.files.push({name:'BookingCore',type:'SERVER_JS',source:'other'});
- const replaced=backend.mergeApproved(core,changed,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ const replaced=backend.mergeApproved(core,changed,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
  assert.equal(replaced.find(f=>f.name==='BookingCore').source,bookingCore);
  assert.equal(sync.compareUnapproved(replaced,changed.files),true);
 });
