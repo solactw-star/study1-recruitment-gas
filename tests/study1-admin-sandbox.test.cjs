@@ -221,3 +221,15 @@ test('Owner self-test never reports PASS when disposal changes protected state',
   assert.equal(h.locks(),0,scenario.name);
  }
 });
+test('Owner self-test refuses same-length but mismatched synthetic booking history before any writes',()=>{
+ const h=harness();h.values.set('OPEN','false');h.values.set('CONSENT_READY','false');
+ const record={schemaVersion:1,revision:1,
+  bookings:[{code:'TST-001',slotId:'test_slot_1',status:'ACTIVE'}],
+  requests:[{requestId:'REQ-mismatch01',fingerprint:JSON.stringify(['CREATE','TST-002','test_slot_1'])}]};
+ h.values.set('STUDY1_SANDBOX_BOOKINGS_V1',JSON.stringify(record));
+ const before=JSON.stringify([...h.values]);
+ assert.throws(()=>h.scope.adminRunSandboxSelfTest(),/狀態與請求歷史不一致/);
+ assert.equal(JSON.stringify([...h.values]),before);
+ assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false);
+ assert.equal(h.locks(),0);
+});

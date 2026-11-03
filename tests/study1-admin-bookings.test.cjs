@@ -173,3 +173,29 @@ test('Inconsistent existing synthetic ledger fails closed on read and mutation',
   assert.equal(locks.held,false,'All failures must release the shared lock');
  }
 });
+test('Synthetic ledger detects inconsistent history even when revision, capacity and row shape look valid',()=>{
+ const {s,store,locks}=setup();
+ const key='STUDY1_SANDBOX_BOOKINGS_V1';
+ const booking=(code,slotId,status='ACTIVE')=>({code,slotId,status});
+ const request=(requestId,action,code,slotId)=>({requestId,
+  fingerprint:JSON.stringify([action,code,slotId])});
+ const cases=[
+  {bookings:[booking('TST-001','test_slot_1')],
+   requests:[request('REQ-history01','CREATE','TST-002','test_slot_1')],revision:1},
+  {bookings:[booking('TST-001','test_slot_1','CANCELLED')],
+   requests:[request('REQ-history02','CREATE','TST-001','test_slot_1')],revision:1},
+  {bookings:[],
+   requests:[request('REQ-history03','CANCEL','TST-001',null)],revision:1},
+  {bookings:[booking('TST-001','test_slot_1')],
+   requests:[{requestId:'REQ-history04',fingerprint:'not-json'}],revision:1}
+ ];
+ for(const row of cases){
+  const state=JSON.stringify({schemaVersion:1,...row});
+  store.set(key,state);
+  assert.throws(()=>s.adminGetTestBookings(),/隔離預約(狀態與請求歷史|請求歷史)/);
+  assert.throws(()=>s.adminChangeTestBooking(req('CREATE','TST-002','test_slot_1','safe0001',row.revision)),
+   /隔離預約(狀態與請求歷史|請求歷史)/);
+  assert.equal(store.get(key),state,'Malformed ledger must not be overwritten');
+  assert.equal(locks.held,false);
+ }
+});

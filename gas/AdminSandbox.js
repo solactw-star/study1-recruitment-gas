@@ -301,6 +301,42 @@ function study1SandboxBookingIntegrity_(state,config){
     if(count>slot.capacity)throw Error('既有測試預約超過時段容量：'+booking.slotId);
     counts.set(booking.slotId,count);
   }
+  // Every successful CREATE/MOVE/CANCEL appends one canonical request to the
+  // bounded synthetic ledger. Reconstruct the lifecycle to detect a request
+  // fingerprint that no longer matches the current booking rows, even when
+  // revision, request count, and capacity otherwise look consistent.
+  const reconstructed=new Map();
+  for(const request of state.requests){
+    let parts;
+    try{parts=JSON.parse(request.fingerprint);}
+    catch(e){throw Error('隔離預約請求歷史內容不一致');}
+    if(!Array.isArray(parts)||parts.length!==3||
+      JSON.stringify(parts)!==request.fingerprint)
+      throw Error('隔離預約請求歷史內容不一致');
+    const [action,code,slotId]=parts;
+    if(typeof code!=='string'||!/^TST-[0-9]{3}$/.test(code))
+      throw Error('隔離預約請求歷史內容不一致');
+    const original=reconstructed.get(code);
+    if(action==='CREATE'){
+      if(original||typeof slotId!=='string'||!/^test_slot_[1-8]$/.test(slotId))
+        throw Error('隔離預約請求歷史順序異常');
+      reconstructed.set(code,{code,slotId,status:'ACTIVE'});
+    }else if(action==='MOVE'){
+      if(!original||original.status!=='ACTIVE'||typeof slotId!=='string'||
+         !/^test_slot_[1-8]$/.test(slotId)||original.slotId===slotId)
+        throw Error('隔離預約請求歷史順序異常');
+      original.slotId=slotId;
+    }else if(action==='CANCEL'){
+      if(!original||original.status!=='ACTIVE'||slotId!==null)
+        throw Error('隔離預約請求歷史順序異常');
+      original.status='CANCELLED';
+    }else throw Error('隔離預約請求歷史動作異常');
+  }
+  if(reconstructed.size!==state.bookings.length||
+    state.bookings.some(b=>{
+      const r=reconstructed.get(b.code);
+      return !r||r.slotId!==b.slotId||r.status!==b.status;
+    }))throw Error('隔離預約狀態與請求歷史不一致');
 }
 function study1SandboxBookingView_(state,config){
   const slots=config.testSlots.map(slot=>{
