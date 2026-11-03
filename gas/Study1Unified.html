@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Study 1｜正式網站流程整合預覽（僅測試資料）</title>
+<style>
+:root{color-scheme:light;--ink:#173d46;--teal:#176d73;--line:#d6e5e3;--bg:#f5faf9}
+*{box-sizing:border-box}body{margin:0;font:16px/1.75 system-ui,"Microsoft JhengHei",sans-serif;color:var(--ink);background:var(--bg)}
+header{background:#124953;color:white;padding:28px 20px}main,header>div{max-width:1100px;margin:auto}main{padding:20px}
+h1{font-size:clamp(23px,4vw,32px);margin:0}h2{font-size:21px;margin:0 0 12px}
+p{margin:8px 0 16px}.panel{background:white;border:1px solid var(--line);border-radius:14px;padding:22px;margin:18px 0}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+label{display:block;font-weight:650;margin:10px 0 5px}label.check{font-weight:400;display:flex;align-items:flex-start;gap:10px}
+input,textarea,select{font:inherit;border-radius:8px;border:1px solid #a0b9b8;background:white;padding:8px;max-width:100%;width:100%}
+input[type=checkbox]{width:auto;margin:6px 0 0;min-width:20px;min-height:20px}button{font:inherit;font-weight:700;background:var(--teal);color:white;padding:10px 16px;border:0;border-radius:8px;min-height:46px;cursor:pointer}
+button.secondary{background:#e4efed;color:#124953}button:disabled{opacity:.48;cursor:not-allowed}
+.note{border-left:4px solid #af7431;background:#fff6e9;padding:12px 14px;border-radius:4px}
+.ok{color:#17632a}.warn{color:#974a13}.muted{color:#56676a}code{overflow-wrap:anywhere}
+#status{white-space:pre-wrap;font-weight:650}#summary{white-space:pre-wrap;background:#eff5f4;padding:13px;border-radius:8px}
+small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inline-block;padding:2px 10px;background:#deeee9;color:#1c5c57;border-radius:99px}
+:focus-visible{outline:3px solid #ad6028;outline-offset:2px}[hidden]{display:none!important}
+@media(max-width:700px){.grid{grid-template-columns:1fr}.panel{padding:16px}main{padding:12px}}
+</style></head>
+<body><header><div><p class="badge">828 研究室 · 僅限私人預覽</p><h1>記憶與身體感覺研究｜招募流程整合預覽</h1><p>同一套正式流程程式的虛構資料模式；不得輸入真人姓名、信箱、健康資訊或簽名。</p></div></header>
+<main>
+<section class="panel" aria-labelledby="noticeHeading"><h2 id="noticeHeading">網站狀態與研究規格</h2>
+<p class="note">正式報名未開放（OPEN=false／CONSENT_READY=false）。本頁操作僅建立 SIM 虛構紀錄，不寄送 OTP、郵件或寫入正式 Google Sheets；本頁的「同意」沒有法律效力。</p>
+<p>資格來源：所附實驗一／二 REC 同意書草稿。正式版本與線上電子同意程序仍須取得研究團隊核定；不可將預覽完成當作正式參與資格或已簽署。</p>
+<div class="grid"><article><h3>實驗一｜記憶與內感覺</h3><p>約 90–120 分鐘單次實驗，含記憶作業、量表與心跳偵測。來源列示完成後 200 元車馬費。</p></article>
+<article><h3>實驗二｜身心中軸覺察</h3><p>前置問卷、前測、8 週研究安排及後測，且未曾參加實驗一；來源列示分段補貼 200／1,600／200 元。</p></article></div>
+</section>
+<section class="panel" aria-labelledby="beginTitle"><h2 id="beginTitle">步驟一｜選擇實驗並建立虛構測試申請</h2>
+<div class="row"><label for="study">實驗別</label><select id="study"><option value="E1">實驗一</option><option value="E2">實驗二</option></select>
+<button id="start" type="button" disabled>建立 SIM 測試申請</button></div>
+<label for="application">切換目前虛構申請</label><select id="application"></select>
+<p id="appStatus" role="status">尚未取得測試資料。</p><pre id="summary" aria-label="目前測試申請狀態"></pre>
+</section>
+<section class="panel" aria-labelledby="screenTitle"><h2 id="screenTitle">步驟二｜資格初篩（僅模擬，不填個人資料）</h2>
+<p>兩個實驗共同要求年滿 18 歲且具中原大學學生身分、目前無診斷之心理疾患且未因心理狀況持續治療、沒有規律正念或相關練習經驗；實驗二另要求未參與過實驗一。</p>
+<label class="check"><input type="checkbox" id="adult">模擬：年滿 18 歲</label>
+<label class="check"><input type="checkbox" id="cycu">模擬：具中原大學學生身分</label>
+<label class="check"><input type="checkbox" id="noDx">模擬：目前無醫師診斷之心理疾患</label>
+<label class="check"><input type="checkbox" id="noTherapy">模擬：未因心理狀況接受持續治療</label>
+<label class="check"><input type="checkbox" id="noPractice">模擬：沒有每週一次、每次至少一小時、持續至少三個月的相關練習</label>
+<label class="check"><input type="checkbox" id="noE1">模擬：未曾參與實驗一（實驗二條件）</label>
+<button id="screen" type="button" disabled>進行測試資格判定</button><p class="muted">本測試只儲存布林結果，不保留各題健康答覆。</p>
+</section>
+<section class="panel" aria-labelledby="otpTitle"><h2 id="otpTitle">步驟三｜信箱驗證流程</h2>
+<p>只模擬 OTP 發送／驗證／逾期／次數限制，不寄送電子郵件、不收取真實信箱。</p>
+<div class="row"><button id="otpRequest" type="button" disabled>建立虛構 OTP</button><label for="otp">測試 OTP（固定 00000000）</label><input id="otp" inputmode="numeric" maxlength="8" placeholder="00000000"><button id="otpVerify" type="button" disabled>驗證測試 OTP</button></div>
+</section>
+<section class="panel" aria-labelledby="slotsTitle"><h2 id="slotsTitle">步驟四｜時段與名額</h2>
+<label for="slot">可用虛構時段與剩餘容量</label><select id="slot"></select>
+<div class="row"><button id="hold" type="button" disabled>保留測試時段</button><button id="move" class="secondary" type="button" disabled>改期已確認的虛構預約</button><button id="cancel" class="secondary" type="button" disabled>取消虛構預約</button></div><p class="muted">暫留期限僅為 15 分鐘的測試 fixture；正式政策尚未核定。</p>
+</section>
+<section class="panel" aria-labelledby="consentTitle"><h2 id="consentTitle">步驟五｜知情同意書版本與模擬簽署</h2>
+<p>正式同意書需以核定 PDF 原檔及版本為準。目前不把 REC 草稿全文轉成網頁簽署，也不產生可供正式使用的電子簽名檔。</p>
+<p>模擬同意版本：<strong id="consentVersion">尚未選擇申請</strong></p>
+<label class="check"><input id="agree" type="checkbox">已閱讀「此處僅為測試、並非有效研究同意書」警示</label>
+<label for="signature">固定虛構簽署字串（不可輸入真實姓名）</label><input id="signature" maxlength="19" value="SIMULATED_SIGN_ONLY">
+<div class="row"><button id="consent" type="button" disabled>儲存模擬同意版本</button><button id="confirm" type="button" disabled>確認虛構預約</button></div>
+</section>
+<section class="panel" aria-labelledby="noticeTitle"><h2 id="noticeTitle">步驟六｜通知及結果查核</h2><p>通知只在資料庫的虛構測試歷程中產生預覽，不寄信。</p><ul id="notifications"></ul><button id="refresh" type="button">重新讀取 GAS 測試狀態</button><p id="status" role="status" aria-live="polite">檢查研究室私人存取權……</p></section>
+<section class="panel" aria-labelledby="adminTitle"><h2 id="adminTitle">研究室後台｜同一流程的測試設定</h2>
+<p>後台與參與者預覽共用測試模型，僅編輯此模式中的首頁說明及通知範本。預約容量由同一伺服器狀態機核對。</p>
+<label for="adminTitleField">首頁測試標題</label><input id="adminTitleField" maxlength="500">
+<label for="adminNotice">首頁測試說明</label><textarea id="adminNotice" maxlength="500" rows="3"></textarea>
+<label for="adminEmail">通知範本（不會寄送）</label><textarea id="adminEmail" maxlength="500" rows="3"></textarea>
+<button id="adminSave" type="button" disabled>儲存同一網站測試設定</button>
+<p><small>真正管理權限、正式 REC 版本核准及正式資料來源的啟用仍須另外驗收。</small></p>
+</section>
+<p><a href="?view=admin">返回現有研究室管理後台</a></p>
+</main>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+let model=null,selected=null,pending=null;
+function info(s,good){$('status').textContent=s;$('status').className=good?'ok':'warn';}
+function freshId(){return 'REQ-SIM-'+String(Date.now())+'-'+String(Math.floor(Math.random()*1000000));}
+function runRead(){
+ info('正在讀取原 GAS 私人測試流程……');
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{
+  model=null;syncControls();info('無法讀取測試流程：'+String(e&&e.message||e),false);
+ }).study1UnifiedPreviewGet();
+}
+function command(action,payload){
+ if(!model||model.mode!=='TEST'||model.open!==false||model.consentReady!==false)
+  return info('未獲得有效 TEST 模式資料；拒絕操作。',false);
+ const fingerprint=JSON.stringify([action,payload]);
+ if(!pending||pending.fingerprint!==fingerprint)pending={fingerprint,id:freshId()};
+ const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
+ syncControls(true);
+ info('GAS 正在驗證虛構交易及 revision……');
+ google.script.run.withSuccessHandler(response=>{
+  pending=null;render(response);info(response.deduplicated?'相同測試請求已完成去重。':'虛構交易已由 GAS 回讀，沒有真人資料。',true);
+ }).withFailureHandler(e=>{
+  syncControls(false);info('虛構交易未獲確認：'+String(e&&e.message||e)+'。如為 revision 衝突，請重新讀取。',false);
+ }).study1UnifiedPreviewCommand(envelope);
+}
+function active(){return model?.applications.find(a=>a.id===selected)||null;}
+function syncControls(busy=false){
+ const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
+ const a=valid?active():null,phase=a?.phase;
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','consent','confirm','adminSave'])
+  $(id).disabled=busy||!valid;
+ if(!valid||busy)return;
+ $('screen').disabled=phase!=='STARTED';
+ $('otpRequest').disabled=!['SCREENED','OTP_SENT'].includes(phase);
+ $('otpVerify').disabled=phase!=='OTP_SENT';
+ $('hold').disabled=phase!=='VERIFIED';
+ $('consent').disabled=phase!=='HELD';
+ $('confirm').disabled=phase!=='CONSENTED';
+ $('move').disabled=phase!=='CONFIRMED';
+ $('cancel').disabled=!['HELD','CONSENTED','CONFIRMED'].includes(phase);
+}
+function render(response){
+ if(!response||response.mode!=='TEST'||response.open!==false||response.consentReady!==false||
+  !Number.isSafeInteger(response.revision)||!Array.isArray(response.applications)||
+  !Array.isArray(response.slots)||!Array.isArray(response.notifications)||!response.config){
+  model=null;syncControls();info('GAS 測試流程資料格式不合法，已禁止操作。',false);return;
+ }
+ model=response;
+ if(!response.applications.some(a=>a.id===selected))selected=response.applications.at(-1)?.id||null;
+ const apps=$('application');apps.replaceChildren();
+ for(const a of response.applications){
+  const opt=document.createElement('option');opt.value=a.id;opt.textContent=a.id+'｜'+a.experiment+'｜'+a.phase;apps.append(opt);
+ }
+ if(selected)apps.value=selected;
+ const a=active();
+ $('appStatus').textContent=a?'目前：'+a.id+' / '+response.definitions[a.experiment].label:'請先建立虛構申請。';
+ $('summary').textContent=a?JSON.stringify(a,null,2):'尚未建立申請';
+ $('consentVersion').textContent=a?response.definitions[a.experiment].recVersion:'尚未選擇申請';
+ const slots=$('slot');slots.replaceChildren();
+ for(const slot of response.slots.filter(s=>!a||s.experiment===a.experiment)){
+  const opt=document.createElement('option');opt.value=slot.id;
+  opt.textContent=slot.when+'｜'+slot.id+'｜剩餘 '+slot.remaining+'/'+slot.capacity;slots.append(opt);
+ }
+ const n=$('notifications');n.replaceChildren();
+ for(const message of response.notifications){
+  const li=document.createElement('li');li.textContent=message.id+'：'+message.text;n.append(li);
+ }
+ $('adminTitleField').value=response.config.title;
+ $('adminNotice').value=response.config.notice;
+ $('adminEmail').value=response.config.emailTemplate;
+ syncControls();
+}
+$('start').addEventListener('click',()=>command('START',{experiment:$('study').value}));
+$('application').addEventListener('change',()=>{selected=$('application').value;render(model)});
+$('screen').addEventListener('click',()=>{
+ const a=active();if(!a)return;
+ command('SCREEN',{id:a.id,answers:{
+  adult:$('adult').checked,cycu:$('cycu').checked,diagnosed:!$('noDx').checked,
+  treatment:!$('noTherapy').checked,frequentPractice:!$('noPractice').checked,
+  joinedE1:!$('noE1').checked}});
+});
+$('otpRequest').addEventListener('click',()=>{const a=active();if(a)command('OTP_REQUEST',{id:a.id})});
+$('otpVerify').addEventListener('click',()=>{const a=active();if(a)command('OTP_VERIFY',{id:a.id,code:$('otp').value})});
+$('hold').addEventListener('click',()=>{const a=active();if(a)command('HOLD',{id:a.id,slotId:$('slot').value})});
+$('move').addEventListener('click',()=>{const a=active();if(a)command('MOVE',{id:a.id,slotId:$('slot').value})});
+$('cancel').addEventListener('click',()=>{const a=active();if(a&&confirm('取消這筆 SIM 虛構預約？'))command('CANCEL',{id:a.id})});
+$('consent').addEventListener('click',()=>{const a=active();if(!a||!$('agree').checked)return info('請確認此處僅為測試，並非正式同意。',false);
+ command('CONSENT',{id:a.id,accepted:true,version:model.definitions[a.experiment].recVersion,signature:$('signature').value})});
+$('confirm').addEventListener('click',()=>{const a=active();if(a)command('CONFIRM',{id:a.id})});
+$('adminSave').addEventListener('click',()=>command('ADMIN_EDIT',{title:$('adminTitleField').value,notice:$('adminNotice').value,emailTemplate:$('adminEmail').value}));
+$('refresh').addEventListener('click',runRead);
+runRead();
+})();
+</script></body></html>
