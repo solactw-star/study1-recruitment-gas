@@ -363,7 +363,19 @@ function renderBookingTables(){
 }
 function showBookings(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false||
-   !Number.isSafeInteger(response.revision)||!Array.isArray(response.slots)||!Array.isArray(response.bookings)){
+   !Number.isSafeInteger(response.revision)||response.revision<0||
+   !Array.isArray(response.slots)||!Array.isArray(response.bookings)||
+   !response.slots.every(x=>x&&typeof x==='object'&&
+     typeof x.id==='string'&&/^test_slot_[1-8]$/.test(x.id)&&
+     typeof x.start==='string'&&typeof x.location==='string'&&
+     Number.isSafeInteger(x.capacity)&&x.capacity>0&&
+     Number.isSafeInteger(x.booked)&&x.booked>=0&&
+     Number.isSafeInteger(x.remaining)&&x.remaining>=0&&
+     x.booked+x.remaining===x.capacity&&x.overCapacity===false)||
+   !response.bookings.every(x=>x&&typeof x==='object'&&
+     typeof x.code==='string'&&/^TST-[0-9]{3}$/.test(x.code)&&
+     typeof x.slotId==='string'&&/^test_slot_[1-8]$/.test(x.slotId)&&
+     (x.status==='ACTIVE'||x.status==='CANCELLED'))){
    // A malformed GAS success payload must not strand the owner with disabled
    // refresh controls, nor leave stale booking data actionable in the UI.
    bookingRevision=null;bookingView=null;pendingBookingRequest=null;
