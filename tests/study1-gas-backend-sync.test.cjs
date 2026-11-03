@@ -82,9 +82,9 @@ test('Only reviewed internal Booking/OTP pure cores are allowed, not transaction
  assert.equal(result.length,10);
  assert.deepEqual(result.filter(x=>/^Booking|^Otp/.test(x.name)).map(x=>x.name).sort(),['BookingCore','OtpCore']);
  assert.equal(result.some(x=>x.name==='BookingHoldTransaction'||x.name==='OtpTransaction'),false);
- const withProtected=remote();withProtected.files.push({name:'BookingCore',type:'SERVER_JS',source:'DO NOT TOUCH'});
+ const withProtected=remote();withProtected.files.push({name:'BookingHoldTransaction',type:'SERVER_JS',source:'DO NOT TOUCH'});
  const r=backend.mergeApproved(core,withProtected,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
- assert.equal(core.file(r,'BookingCore','SERVER_JS').source,'DO NOT TOUCH');
+ assert.equal(core.file(r,'BookingHoldTransaction','SERVER_JS').source,'DO NOT TOUCH');
 });
 test('Admin file-name collision or unexpected type fails before writing GAS',()=>{
  const conflicting=remote();conflicting.files.push({name:'AdminSandbox',type:'JSON',source:'{}'});
@@ -105,9 +105,10 @@ test('MYSELF deployment plus explicit active and effective owner identities are 
  assert.match(code,/if\(effective!==STUDY1_ADMIN_OWNER_\|\|active!==STUDY1_ADMIN_OWNER_\)/);
 });
 
-test('Unified formal-code TEST mode is owner-only and never deploys OTP/Booking kernels',()=>{
- const merged=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml);
- assert.equal(merged.some(f=>f.name==='OtpCore'||f.name==='BookingCore'),false);
+test('Unified TEST mode is owner-only and includes only pinned core functions, never transaction writers',()=>{
+ const merged=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore);
+ assert.deepEqual(merged.filter(f=>f.name==='OtpCore'||f.name==='BookingCore').map(f=>f.name).sort(),['BookingCore','OtpCore']);
+ assert.equal(merged.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),false);
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\nfunction unsafePublicEndpoint(){}'),/Unreviewed/);
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\n// MailApp'),/cannot access live/);
  assert.throws(()=>backend.assertUnifiedHtml(unifiedHtml+'<script src="x"></script>'),/forbidden/);
