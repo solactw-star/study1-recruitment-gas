@@ -155,7 +155,11 @@ function render(response){
    c.schemaVersion!==1||!Number.isSafeInteger(c.revision)||c.revision<0||
    !['studyTitle','researchIntro','eligibilityNote','emailTemplate','pdfVersionNote']
      .every(key=>typeof c[key]==='string')||
-   !Array.isArray(c.screeningQuestions)||!Array.isArray(c.testSlots)){
+   !Array.isArray(c.screeningQuestions)||!Array.isArray(c.testSlots)||
+   Object.keys(c).sort().join(',')!==
+     'eligibilityNote,emailTemplate,pdfVersionNote,researchIntro,revision,schemaVersion,screeningQuestions,studyTitle,testSlots'||
+   !verifiedDraftResponse({mode:response.mode,open:response.open,
+     consentReady:response.consentReady,config:portableFields(c)})){
   rejectConfigResponse();return;
  }
  revision=c.revision;lastLoadedConfig=JSON.parse(JSON.stringify(c));

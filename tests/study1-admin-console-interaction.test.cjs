@@ -85,6 +85,27 @@ test('Malformed GAS settings success payload invalidates stale revision, blocks 
  assert.equal(ui.el('revision').textContent,'0');
  assert.match(ui.el('status').textContent,/已載入隔離測試資料/);
 });
+test('Malformed nested GAS settings cannot enable stale saves; a fresh verified reload recovers',()=>{
+  const s=server();let invalid=0;
+  const ui=client(s,{configReply:()=>{
+    const response=s.ctx.adminGetSandboxConfig();
+    if(invalid===1)response.config.screeningQuestions=[null];
+    if(invalid===2)response.config.testSlots=[{id:'test_slot_1',start:'2027-01-01T10:00',location:'〔測試〕研究室 A',capacity:'2'}];
+    return response;
+  }});
+  for(const variant of [1,2]){
+    invalid=variant;ui.click('reload');
+    assert.equal(ui.el('save').disabled,true,'Nested invalid response must block writes');
+    assert.equal(ui.el('exportConfig').disabled,true);
+    assert.equal(ui.el('reload').disabled,false);
+    assert.equal(ui.el('revision').textContent,'—');
+    assert.match(ui.el('status').textContent,/回傳無效/);
+    assert.equal(s.props.size,0);
+    invalid=0;ui.click('reload');
+    assert.equal(ui.el('save').disabled,false,'Verified reload restores editing');
+    assert.equal(ui.el('revision').textContent,'0');
+  }
+});
 test('Edit > save > server readback > independent browser reload uses only isolated property',()=>{
  const s=server(),ui=client(s);
  ui.el('title').value='〔測試〕可編輯研究名稱';
