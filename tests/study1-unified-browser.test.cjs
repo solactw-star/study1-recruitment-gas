@@ -18,7 +18,7 @@ function harness(){
  const props=new Map([['OPEN','false'],['CONSENT_READY','false']]);let locked=false,writes=0;
  const p={getProperty:k=>props.has(k)?props.get(k):null,setProperty:(k,v)=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');writes++;props.set(k,v)},
   deleteProperty:k=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');props.delete(k)}};
- const lock={tryLock:()=>{assert.equal(locked,false);locked=true;return true},releaseLock:()=>{assert.equal(locked,true);locked=false;}};
+ const lock={tryLock:()=>{assert.equal(locked,false);locked=true;return true},releaseLock:()=>{assert.equal(locked,true);locked=false;},hasLock:()=>locked};
  const backend=vm.createContext({Session:{getActiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'}),getEffectiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'})},
   PropertiesService:{getScriptProperties:()=>p},LockService:{getScriptLock:()=>lock},Utilities:fixtureUtilities,Date,JSON,Object,Array,Set,Map,Number,String,Error});
  vm.runInContext(serverCode,backend,{timeout:2000});

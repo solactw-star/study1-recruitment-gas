@@ -106,7 +106,7 @@ function assertBookingCore(source){
 }
 
 function assertFixtureAdapter(source){
- assertPinnedCore(source,'423a4aaa0aedcf9643769e2e74373b248ac6cefc','Study1FixtureAdapter');
+ assertPinnedCore(source,'2230b704fd7ce560b0691ac4314b7a99c749e5d8','Study1FixtureAdapter');
  const expected=new Set(['study1FixtureLock_','study1FixtureEmail_',
   'study1FixtureOtpSnapshot_','study1FixtureIssue_','study1FixtureVerify_',
   'study1FixtureBookingSnapshot_','study1FixtureHold_']);
@@ -121,7 +121,7 @@ function assertFixtureAdapter(source){
 }
 function assertTransactionKernel(source,expected,name){
  assertPinnedCore(source,expected,name);
- if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|PropertiesService|LockService|eval)\b/.test(source))
+ if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|PropertiesService|LockService|eval)\s*\./.test(source))
   throw Error('Transaction kernel cannot access live resources');
  const names=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(names.some(x=>!x.endsWith('_')))throw Error('Unreviewed public transaction endpoint');

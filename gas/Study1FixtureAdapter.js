@@ -83,7 +83,7 @@ function study1FixtureBookingSnapshot_(s,now){
   const event=status==='CONFIRMED'||status==='CANCELLED'?
    new Date(now-1000).toISOString():'';
   return ['SIMRES_'+a.id,a.id,a.slotId,status,expiry,
-   'SIMHIST_'+a.id,new Date(created).toISOString(),
+   'SIMHISTORY_'+a.id,new Date(created).toISOString(),
    status==='CONFIRMED'?event:'',
    status==='CANCELLED'?event:'',
    event];
