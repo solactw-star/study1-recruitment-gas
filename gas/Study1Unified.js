@@ -85,7 +85,10 @@ function study1UnifiedDefinitions_(){
 }
 /* Owner-editable draft research copy. This is NOT an REC approval source. */
 function study1UnifiedResearch_(){
- return {source:'REC_DRAFT_ONLY',approval:'PENDING',...study1UnifiedDefinitions_()};
+ const defs=study1UnifiedDefinitions_();
+ return {source:'REC_DRAFT_ONLY',approval:'PENDING',
+  ...Object.fromEntries(['E1','E2'].map(exp=>[exp,
+   Object.fromEntries(['label','duration','procedure','compensation'].map(k=>[k,defs[exp][k]]))]))};
 }
 function study1UnifiedValidateResearch_(v){
  if(!v||typeof v!=='object'||Array.isArray(v)||
