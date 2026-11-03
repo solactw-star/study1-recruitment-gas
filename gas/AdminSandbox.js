@@ -139,6 +139,9 @@ function adminRunSandboxSelfTest(){
       throw Error('正式收件關閉旗標未確認為 false，停止隔離自我測試');
     const current=study1AdminPersisted_();
     if(!Number.isSafeInteger(current.revision)||current.revision<0)throw Error('原測試設定版本異常');
+    // A PASS must not conceal an already-corrupt isolated booking ledger.
+    // Read and validate it without mutation before creating disposable data.
+    study1SandboxBookingIntegrity_(study1SandboxBookingState_(),current);
     if(p.getProperty(STUDY1_ADMIN_SELFTEST_PROPERTY_)!==null)
       throw Error('自我測試鍵已存在，為保護既有資料不覆寫也不清除');
     const defaults=study1AdminDefault_();
