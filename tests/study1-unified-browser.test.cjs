@@ -102,6 +102,10 @@ test('Unified owner browser edits the same slot/policy state and reads minimal a
  h.set('adminHashE1','b'.repeat(64));h.click('adminPolicySave');
  assert.equal(h.read().policy.consent.E1.version,'PENDING_REC_E1_REV2');
  assert.equal(h.dom.get('label_adult').textContent,'模擬：已滿十八歲');
+ h.click('start');for(const id of ['adult','cycu','noDx','noTherapy','noPractice','noE1'])h.check(id,true);
+ h.click('screen');h.click('otpRequest');h.set('otp','00000000');h.click('otpVerify');
+ h.set('slot','SIM-SLOT-E1-A');h.click('hold');
+ assert.equal(h.dom.get('consentHash').textContent,'b'.repeat(64));
  assert.ok(h.dom.get('audit').children.length>=2);
  assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
 });

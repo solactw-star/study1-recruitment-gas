@@ -122,6 +122,10 @@ function study1UnifiedRead_(){
     !['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD','CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)||
     appIds.has(a.id)||typeof a.otpAttempts!=='number'||
     (a.slotId!==null&&!ids.has(a.slotId)))throw Error('虛構申請資料異常');
+  if(a.consentSha256!==undefined&&a.consentSha256!==null&&
+    (typeof a.consentSha256!=='string'||
+     (a.consentSha256!==''&&!/^[a-f0-9]{64}$/.test(a.consentSha256))))
+   throw Error('虛構同意書鎖定雜湊格式異常');
   appIds.add(a.id);
  }
  for(const request of s.requests){
@@ -158,6 +162,7 @@ function study1UnifiedView_(s){
   slots:s.slots.map(slot=>({...slot,remaining:slot.capacity-study1UnifiedCapacity_(s,slot.id,Date.now())})),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
+   consentSha256:a.consentSha256===undefined?null:a.consentSha256,
    holdUntil:a.holdUntil,signatureDemo:a.signatureDemo})),
   notifications:s.notifications.slice(-6).map(n=>({...n})),
   fixtureOtp:'00000000'};
@@ -188,7 +193,7 @@ function study1UnifiedTransition_(s,cmd,now){
   const next='SIM-'+String(s.applications.length+1).padStart(3,'0');
   s.applications.push({id:next,experiment:p.experiment,phase:'STARTED',eligible:null,
     otpAttempts:0,otpRequestedAt:null,slotId:null,holdUntil:null,
-    consentVersion:null,signatureDemo:false});return;
+    consentVersion:null,consentSha256:null,signatureDemo:false});return;
  }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
@@ -220,7 +225,7 @@ function study1UnifiedTransition_(s,cmd,now){
   }
   study1UnifiedValidatePolicy_(next);
   for(const a of s.applications){
-   if(['HELD','CONSENTED'].includes(a.phase)&&
+   if(['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil>now&&
     (next.consent[a.experiment].version!==s.policy.consent[a.experiment].version||
      next.consent[a.experiment].sha256!==s.policy.consent[a.experiment].sha256))
     throw Error('已有有效暫留，禁止更動 REC 版本鎖定');
@@ -260,7 +265,8 @@ function study1UnifiedTransition_(s,cmd,now){
     throw Error('測試時段不存在、重複或已額滿');
   a.slotId=slot.id;
   if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;
-   a.consentVersion=s.policy.consent[a.experiment].version;}
+   a.consentVersion=s.policy.consent[a.experiment].version;
+   a.consentSha256=s.policy.consent[a.experiment].sha256;}
   else s.notifications.push({id:a.id,event:'MOVE',text:'〔測試通知〕已改期；沒有寄送電子郵件。'});
   return;
  }
@@ -268,8 +274,9 @@ function study1UnifiedTransition_(s,cmd,now){
   if(a.phase!=='HELD'||a.holdUntil<=now||
     Object.keys(p).sort().join(',')!=='accepted,id,signature,version'||
     p.accepted!==true||p.signature!=='SIMULATED_SIGN_ONLY'||
-    p.version!==a.consentVersion||p.version!==s.policy.consent[a.experiment].version)
-     throw Error('虛構同意書版本或模擬簽署不符');
+    p.version!==a.consentVersion||p.version!==s.policy.consent[a.experiment].version||
+    a.consentSha256!==s.policy.consent[a.experiment].sha256)
+     throw Error('虛構同意書版本／雜湊或模擬簽署不符');
   a.phase='CONSENTED';a.consentVersion=p.version;a.signatureDemo=true;return;
  }
  if(action==='CONFIRM'){

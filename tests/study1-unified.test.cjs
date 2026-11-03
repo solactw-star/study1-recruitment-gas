@@ -175,10 +175,29 @@ test('Pending REC versions and question labels are editable but held consent sta
  s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
  m=s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
  assert.equal(m.applications[0].consentVersion,'PENDING_REC_E1_REV2');
+ assert.equal(m.applications[0].consentSha256,'a'.repeat(64));
  assert.throws(()=>s.cmd('ADMIN_POLICY',{questions,consent:{...consent,E1:{version:'PENDING_REC_E1_REV3',sha256:''}}}),/版本鎖定/);
  assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/版本/);
  m=s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_E1_REV2',signature:'SIMULATED_SIGN_ONLY'});
  assert.equal(m.applications[0].phase,'CONSENTED');
+ m=s.cmd('CONFIRM',{id:'SIM-001'});
+ m=s.cmd('ADMIN_POLICY',{questions,consent:{...consent,E1:{version:'PENDING_REC_E1_REV3',sha256:'b'.repeat(64)}}});
+ assert.equal(m.applications[0].consentVersion,'PENDING_REC_E1_REV2');
+ assert.equal(m.applications[0].consentSha256,'a'.repeat(64));
+ assert.equal(m.policy.consent.E1.sha256,'b'.repeat(64));
  assert.throws(()=>s.ctx.study1UnifiedProductionAdapter_().writeParticipant(),/尚未核准/);
  assert.doesNotMatch(JSON.stringify(m.audit),/00000000|diagnosed|frequentPractice/);
+});
+
+test('Legacy synthetic hold missing PDF hash cannot be silently treated as newly pinned',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ const raw=JSON.parse(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'));
+ delete raw.applications[0].consentSha256; // Historical owner-only fixture, not a participant record.
+ s.p.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(raw));
+ assert.equal(s.read().applications[0].consentSha256,null);
+ assert.throws(()=>s.cmd('CONSENT',{id:'SIM-001',accepted:true,
+  version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'}),/雜湊/);
+ assert.equal(s.read().applications[0].phase,'HELD');
 });
