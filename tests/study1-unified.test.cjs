@@ -144,7 +144,9 @@ test('Synthetic request audit never persists screening answers or plaintext OTP'
  sim.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
  const raw=sim.p.get('STUDY1_UNIFIED_FIXTURE_V1');
  assert.ok(typeof raw==='string');
- assert.doesNotMatch(raw,/"diagnosed"|"frequentPractice"|"treatment"|"joinedE1"/);
+ const stored=JSON.parse(raw);
+ // Policy schema contains question KEYS by design; no per-applicant answers are stored.
+ assert.doesNotMatch(JSON.stringify({applications:stored.applications,requests:stored.requests}),/"diagnosed"|"frequentPractice"|"treatment"|"joinedE1"/);
  assert.doesNotMatch(raw,/00000000/);
  assert.match(raw,/"eligible":true/);
 });
