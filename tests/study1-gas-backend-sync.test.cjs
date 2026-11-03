@@ -116,7 +116,7 @@ test('MYSELF deployment plus explicit active and effective owner identities are 
 
 test('Unified TEST mode is owner-only and includes only pinned core functions, transaction writers remain internal',()=>{
  const merged=backend.mergeApproved(core,remote(),index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
- assert.deepEqual(merged.filter(f=>f.name==='OtpCore'||f.name==='BookingCore').map(f=>f.name).sort(),['BookingCore','BookingHoldTransaction','OtpCore','OtpThrottle','OtpTransaction']);
+ assert.deepEqual(merged.filter(f=>f.name==='OtpCore'||f.name==='BookingCore').map(f=>f.name).sort(),['BookingCore','OtpCore']);
  assert.equal(merged.some(f=>f.name==='OtpTransaction'||f.name==='BookingHoldTransaction'),true);
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\nfunction unsafePublicEndpoint(){}'),/Unreviewed/);
  assert.throws(()=>backend.assertUnifiedFlow(unified+'\n// MailApp'),/cannot access live/);

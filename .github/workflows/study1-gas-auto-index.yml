@@ -16,6 +16,8 @@ on:
       - 'gas/BookingHoldTransaction.js'
       - 'gas/Study1FixtureAdapter.js'
       - 'tests/study1-unified.test.cjs'
+      - 'tests/study1-unified-transaction-adapter.test.cjs'
+      - 'tests/study1-unified-browser.test.cjs'
       - 'tests/study1-admin-sandbox.test.cjs'
       - 'tests/study1-admin-bookings.test.cjs'
       - 'tests/study1-admin-console-interaction.test.cjs'
