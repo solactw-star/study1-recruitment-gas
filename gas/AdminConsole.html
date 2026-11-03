@@ -140,9 +140,25 @@ function setDisabled(flag){
   for(const id of ['bookingExisting','bookingSlotId','bookingFilterStatus','bookingFilterSlot','bookingFilterCode'])$(id).disabled=true;
  }else updateBookingControls();
 }
+function rejectConfigResponse(){
+ // A GAS success callback can still contain an invalid payload. Never keep
+ // the previous revision or permit a stale save after a malformed readback.
+ revision=null;lastLoadedConfig=null;
+ $('revision').textContent='—';
+ setDisabled(true);$('reload').disabled=false;
+ status('GAS 測試設定回傳無效，已停用編輯與儲存；請重新讀取。');
+}
 function render(response){
- if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false)throw Error('後台未處於測試關閉模式');
- const c=response.config;revision=c.revision;lastLoadedConfig=JSON.parse(JSON.stringify(c));
+ const c=response&&response.config;
+ if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||
+   response.consentReady!==false||!c||typeof c!=='object'||Array.isArray(c)||
+   c.schemaVersion!==1||!Number.isSafeInteger(c.revision)||c.revision<0||
+   !['studyTitle','researchIntro','eligibilityNote','emailTemplate','pdfVersionNote']
+     .every(key=>typeof c[key]==='string')||
+   !Array.isArray(c.screeningQuestions)||!Array.isArray(c.testSlots)){
+  rejectConfigResponse();return;
+ }
+ revision=c.revision;lastLoadedConfig=JSON.parse(JSON.stringify(c));
  $('title').value=c.studyTitle;$('intro').value=c.researchIntro;$('eligibility').value=c.eligibilityNote;
  $('questions').value=JSON.stringify(c.screeningQuestions,null,2);$('slots').value=JSON.stringify(c.testSlots,null,2);
  $('template').value=c.emailTemplate;$('pdf').value=c.pdfVersionNote;$('revision').textContent=String(revision);

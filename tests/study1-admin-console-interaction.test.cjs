@@ -26,7 +26,7 @@ function server(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',defau
  vm.runInContext(serverSource,ctx,{timeout:1000});
  return {ctx,props,locks};
 }
-function client(srv){
+function client(srv,options={}){
  const dom=new Map(IDs.map(id=>[id,{value:'',disabled:id==='save',textContent:'',className:'',children:[],handlers:{},
   replaceChildren(...nodes){this.children=nodes;},
   addEventListener(type,listener){this.handlers[type]=listener;}}]));
@@ -35,7 +35,12 @@ function client(srv){
  const api={
   withSuccessHandler(cb){success=cb;return api;},
   withFailureHandler(cb){failure=cb;return api;},
-  adminGetSandboxConfig(){calls.push('get');try{success(srv.ctx.adminGetSandboxConfig());}catch(e){failure(e);}},
+  adminGetSandboxConfig(){calls.push('get');let response;
+   try{response=options.configReply?options.configReply():srv.ctx.adminGetSandboxConfig();}
+   catch(e){failure(e);return;}
+   // Browser success callback exceptions do not become GAS failure callbacks.
+   success(response);
+  },
   adminSaveSandboxConfig(config,rev){calls.push('save');try{success(srv.ctx.adminSaveSandboxConfig(config,rev));}catch(e){failure(e);}},
   adminValidateSandboxConfig(config){calls.push('check');try{success(srv.ctx.adminValidateSandboxConfig(config));}catch(e){failure(e);}},
   adminRunSandboxSelfTest(){calls.push('selftest');try{success(srv.ctx.adminRunSandboxSelfTest());}catch(e){failure(e);}},
@@ -56,6 +61,25 @@ test('AdminConsole browser script loads synthetic settings from the actual serve
  assert.equal(ui.el('revision').textContent,'0');
  assert.equal(ui.el('save').disabled,false);
  assert.equal(s.props.size,0,'Reading must not persist anything');
+});
+test('Malformed GAS settings success payload invalidates stale revision, blocks saves and allows reload recovery',()=>{
+ const s=server();let bad=false;
+ const ui=client(s,{configReply:()=>bad?
+  {mode:'SANDBOX_ONLY',open:false,consentReady:false,config:null}:
+  s.ctx.adminGetSandboxConfig()});
+ assert.equal(ui.el('save').disabled,false);
+ assert.equal(ui.el('revision').textContent,'0');
+ bad=true;ui.click('reload');
+ assert.equal(ui.el('save').disabled,true);
+ assert.equal(ui.el('exportConfig').disabled,true);
+ assert.equal(ui.el('reload').disabled,false);
+ assert.equal(ui.el('revision').textContent,'—');
+ assert.match(ui.el('status').textContent,/回傳無效/);
+ assert.equal(s.props.size,0,'Malformed reply must not persist any settings');
+ bad=false;ui.click('reload');
+ assert.equal(ui.el('save').disabled,false);
+ assert.equal(ui.el('revision').textContent,'0');
+ assert.match(ui.el('status').textContent,/已載入隔離測試資料/);
 });
 test('Edit > save > server readback > independent browser reload uses only isolated property',()=>{
  const s=server(),ui=client(s);
