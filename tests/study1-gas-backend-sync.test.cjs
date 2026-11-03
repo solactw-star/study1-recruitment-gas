@@ -127,3 +127,11 @@ test('Only content-pinned internal core sources are allowed into the private /ex
  assert.equal(replaced.find(f=>f.name==='BookingCore').source,bookingCore);
  assert.equal(sync.compareUnapproved(replaced,changed.files),true);
 });
+
+test('Unified TEST integration cannot call real Sheet preflight or unreviewed transaction writers',()=>{
+ for(const method of ['bookingVerifySheetHeaders_','bookingReadOnlySnapshot_',
+   'bookingHoldOnceLocked_','otpVerifyOnceLocked_']){
+  assert.throws(()=>backend.assertUnifiedFlow(unified+'\n// forbidden: '+method+'()'),/Forbidden production preflight/);
+ }
+ assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
+});

@@ -66,9 +66,16 @@ function study1UnifiedNotify_(s,a,event){
   text:'〔SIM '+labels[event]+'〕'+s.config.emailTemplate+'（僅預覽，未寄送）'});
 }
 function study1UnifiedProductionAdapter_(){
+ // Explicit fail-closed contract for the future approved production adapter.
+ // No Sheets, Drive, Mail, real participant or REC operation is possible here.
  const deny=()=>{throw Error('正式資料 adapter 尚未核准，拒絕讀寫及寄送');};
- return Object.freeze({read:deny,requestOtp:deny,verifyOtp:deny,holdSlot:deny,
-  submitConsent:deny,sendNotification:deny,writeParticipant:deny});
+ return Object.freeze({mode:'FORMAL_BLOCKED',approved:false,
+  source:'PENDING_REC_AND_DATA_APPROVAL',
+  read:deny,readParticipant:deny,lookupEligibility:deny,writeParticipant:deny,
+  requestOtp:deny,verifyOtp:deny,listSlots:deny,holdSlot:deny,
+  confirmBooking:deny,rescheduleBooking:deny,cancelBooking:deny,
+  readConsent:deny,submitConsent:deny,sendNotification:deny,
+  exportAudit:deny,deleteParticipant:deny});
 }
 
 function study1UnifiedDefinitions_(){

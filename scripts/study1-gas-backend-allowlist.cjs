@@ -125,6 +125,10 @@ function assertUnifiedFlow(source){
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
  if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))
   throw Error('Unified workflow cannot access live research data or send emails');
+ // Even the pinned BookingCore contains an INTERNAL read-only Sheet preflight.
+ // Never permit TEST flow code to call that preflight or unapproved writers.
+ if(/\b(?:bookingVerifySheetHeaders_|bookingReadOnlySnapshot_|bookingHoldOnceLocked_|otpVerifyOnceLocked_)\s*\(/.test(source))
+  throw Error('Forbidden production preflight or writer in TEST workflow');
 }
 function assertUnifiedHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>')||

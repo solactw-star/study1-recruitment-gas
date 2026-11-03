@@ -355,3 +355,21 @@ test('A malformed kernel row rejects every synthetic slot rather than guessing a
  assert.throws(()=>s.ctx.study1UnifiedCoreAvailability_(fixture,Date.now()),/容量不合法/);
  assert.equal(s.writes,0);
 });
+
+test('All formal-site adapter ports reject until REC/data approval, without touching real resources',()=>{
+ const s=setup();
+ const a=s.ctx.study1UnifiedProductionAdapter_();
+ assert.equal(a.mode,'FORMAL_BLOCKED');
+ assert.equal(a.approved,false);
+ assert.equal(a.source,'PENDING_REC_AND_DATA_APPROVAL');
+ assert.equal(Object.isFrozen(a),true);
+ for(const name of ['read','readParticipant','lookupEligibility','writeParticipant',
+  'requestOtp','verifyOtp','listSlots','holdSlot','confirmBooking',
+  'rescheduleBooking','cancelBooking','readConsent','submitConsent',
+  'sendNotification','exportAudit','deleteParticipant']){
+  assert.equal(typeof a[name],'function',name);
+  assert.throws(()=>a[name]({id:'SIM-001'}),/尚未核准/);
+ }
+ assert.equal(s.writes,0);
+ assert.deepEqual([...s.p.keys()].sort(),['CONSENT_READY','OPEN']);
+});
