@@ -520,3 +520,33 @@ test('Malformed successful booking reply fails closed, reports the problem and p
  assert.equal(ui.el('bookingCreate').disabled,false,'Real readback must recover the UI');
  assert.match(ui.el('bookingList').textContent,/test_slot_1/);
 });
+
+
+test('Malformed nested booking RPC payloads fail closed without stranding the refresh UI',()=>{
+ const srv=server();srv.props.set('OPEN','false');srv.props.set('CONSENT_READY','false');
+ const ui=client(srv);
+ const originalRead=srv.ctx.adminGetTestBookings;
+ const badReplies=[
+  {revision:0,slots:[null],bookings:[]},
+  {revision:0,slots:[{id:'test_slot_1',start:'2027-01-01T10:00',location:'A',
+    capacity:2,booked:0,remaining:'2',overCapacity:false}],bookings:[]},
+  {revision:0,slots:[],bookings:[null]},
+  {revision:0,slots:[],bookings:[{code:'TST-001',slotId:'test_slot_1',status:'UNKNOWN'}]}
+ ];
+ for(const bad of badReplies){
+  ui.click('bookingRefresh');
+  assert.equal(ui.el('bookingCreate').disabled,false);
+  srv.ctx.adminGetTestBookings=()=>({mode:'SANDBOX_ONLY',open:false,consentReady:false,...bad});
+  ui.click('bookingRefresh');
+  assert.equal(ui.el('bookingRefresh').disabled,false,'Owner must be able to recover');
+  for(const id of ['bookingCreate','bookingMove','bookingCancel'])
+    assert.equal(ui.el(id).disabled,true,id+' must be fail-closed');
+  assert.match(ui.el('bookingFeedback').textContent,/回傳格式錯誤/);
+  assert.equal(ui.el('bookingTable').children.length,0);
+  assert.equal(ui.el('bookingCapacity').children.length,0);
+  assert.equal(srv.props.size,2,'Malformed replies must not mutate GAS state');
+  srv.ctx.adminGetTestBookings=originalRead;
+ }
+ ui.click('bookingRefresh');
+ assert.equal(ui.el('bookingCreate').disabled,false);
+});
