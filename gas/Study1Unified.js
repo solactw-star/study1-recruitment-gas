@@ -135,6 +135,11 @@ function study1UnifiedRead_(){
  const s=JSON.parse(raw);
  if(s&&!s.policy)s.policy=study1UnifiedPolicy_(); // migrate only owner fixture
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
+ if(s&&Array.isArray(s.applications))s.applications.forEach(a=>{
+  if(!Array.isArray(a.otpHistory))a.otpHistory=a.otpRequestedAt===null?[]:
+   [{createdAt:a.otpRequestedAt,attempts:a.otpAttempts,
+    usedAt:a.phase==='OTP_SENT'?'':new Date(a.otpRequestedAt+1000).toISOString()}];
+ });
  if(!s||s.schemaVersion!==1||!Number.isSafeInteger(s.revision)||s.revision<1||
     !s.config||typeof s.config.title!=='string'||typeof s.config.notice!=='string'||
     typeof s.config.emailTemplate!=='string'||
@@ -171,6 +176,11 @@ function study1UnifiedRead_(){
      (a.consentReviewedVersion!==a.consentVersion||
       a.consentReviewedSha256!==a.consentSha256))
    throw Error('測試版本資訊閱覽與鎖定版本不符');
+  if(!Array.isArray(a.otpHistory)||a.otpHistory.length>3||
+    a.otpHistory.some(h=>!h||!Number.isFinite(h.createdAt)||
+     !Number.isSafeInteger(h.attempts)||h.attempts<0||h.attempts>5||
+     typeof h.usedAt!=='string'||(h.usedAt!==''&&Number.isNaN(Date.parse(h.usedAt)))))
+   throw Error('測試 OTP 歷程不合法');
   appIds.add(a.id);
  }
  for(const request of s.requests){
@@ -281,14 +291,14 @@ function study1UnifiedEligibility_(experiment,answers){
  return answers.adult&&answers.cycu&&!answers.diagnosed&&!answers.treatment&&
         !answers.frequentPractice&&(experiment==='E1'||!answers.joinedE1);
 }
-function study1UnifiedTransition_(s,cmd,now){
+function study1UnifiedTransition_(s,cmd,now,outerLock){
  const p=cmd.payload,action=cmd.action,byId=id=>s.applications.find(a=>a.id===id);
  if(action==='START'){
   if(Object.keys(p).sort().join(',')!=='experiment'||!['E1','E2'].includes(p.experiment)||
     s.applications.length>=8)throw Error('測試申請上限或實驗別格式錯誤');
   const next='SIM-'+String(s.applications.length+1).padStart(3,'0');
   s.applications.push({id:next,experiment:p.experiment,phase:'STARTED',eligible:null,
-    otpAttempts:0,otpRequestedAt:null,slotId:null,holdUntil:null,
+    otpAttempts:0,otpRequestedAt:null,otpHistory:[],slotId:null,holdUntil:null,
     consentVersion:null,consentSha256:null,consentReviewedAt:null,
     consentReviewedVersion:null,consentReviewedSha256:null,signatureDemo:false});return;
  }
@@ -351,19 +361,13 @@ function study1UnifiedTransition_(s,cmd,now){
     throw Error('尚未符合虛構 OTP 申請條件');
   if(a.otpRequestedAt!==null&&now-a.otpRequestedAt<60000)
     throw Error('虛構 OTP 重送太頻繁');
-  a.otpRequestedAt=now;a.otpAttempts=0;a.phase='OTP_SENT';return;
+  study1FixtureIssue_(s,a,now);a.phase='OTP_SENT';return;
  }
  if(action==='OTP_VERIFY'){
   if(a.phase!=='OTP_SENT'||Object.keys(p).sort().join(',')!=='code,id')
     throw Error('OTP 測試流程順序錯誤');
   if(typeof p.code!=='string'||!/^[0-9]{8}$/.test(p.code))throw Error('測試 OTP 格式錯誤');
-  const decision=study1UnifiedCoreOtpDecision_(a,p.code,now);
-  if(decision.reason==='EXPIRED'||decision.reason==='ATTEMPT_LIMIT')
-   throw Error('測試 OTP 已過期或超過嘗試限制');
-  if(decision.reason!=='MATCH'&&decision.reason!=='INVALID')
-   throw Error('測試 OTP 核心拒絕驗證');
-  a.otpAttempts=decision.attemptsAfter;
-  if(decision.verified)a.phase='VERIFIED';
+  study1FixtureVerify_(s,a,p.code,now,outerLock);
   return;
  }
  if(action==='HOLD'||action==='MOVE'){
@@ -379,6 +383,7 @@ function study1UnifiedTransition_(s,cmd,now){
      Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
      !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0)))
     throw Error('測試時段不存在、重複、已開始或已額滿');
+  if(action==='HOLD')study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock);
   a.slotId=slot.id;
   if(action==='HOLD'){a.phase='HELD';a.holdUntil=now+900000;
    a.consentVersion=s.policy.consent[a.experiment].version;
@@ -470,7 +475,7 @@ function study1UnifiedPreviewCommand(command){
   if(s.requests.length>=40)throw Error('測試交易歷史已達上限');
   // Work on an isolated copy so rejected transitions never mutate the stored model.
   const next=JSON.parse(JSON.stringify(s));
-  study1UnifiedTransition_(next,c,Date.now());
+  study1UnifiedTransition_(next,c,Date.now(),lock);
   if(next.notifications.length>15)throw Error('測試通知歷程已達上限');
   study1UnifiedValidatePolicy_(next.policy);study1UnifiedValidateResearch_(next.research);
   study1UnifiedValidateSlots_(next.slots);

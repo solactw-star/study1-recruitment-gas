@@ -5,6 +5,10 @@ const fixtureUtilities={Charset:{UTF_8:'UTF-8'},computeHmacSha256Signature:(payl
 const gasDir=path.join(__dirname,'../gas');
 const serverCode=fs.readFileSync(path.join(gasDir,'OtpCore.js'),'utf8')+'\n'+
  fs.readFileSync(path.join(gasDir,'BookingCore.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'OtpThrottle.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'OtpTransaction.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'BookingHoldTransaction.js'),'utf8')+'\n'+
+ fs.readFileSync(path.join(gasDir,'Study1FixtureAdapter.js'),'utf8')+'\n'+
  fs.readFileSync(path.join(gasDir,'AdminSandbox.js'),'utf8')+'\n'+fs.readFileSync(path.join(gasDir,'Study1Unified.js'),'utf8');
 const html=fs.readFileSync(path.join(gasDir,'Study1Unified.html'),'utf8');
 const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
