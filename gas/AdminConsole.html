@@ -363,8 +363,21 @@ function renderBookingTables(){
 }
 function showBookings(response){
  if(!response||response.mode!=='SANDBOX_ONLY'||response.open!==false||response.consentReady!==false||
-   !Number.isSafeInteger(response.revision)||!Array.isArray(response.slots)||!Array.isArray(response.bookings))
-   throw Error('隔離測試預約回傳格式錯誤');
+   !Number.isSafeInteger(response.revision)||!Array.isArray(response.slots)||!Array.isArray(response.bookings)){
+   // A malformed GAS success payload must not strand the owner with disabled
+   // refresh controls, nor leave stale booking data actionable in the UI.
+   bookingRevision=null;bookingView=null;pendingBookingRequest=null;
+   $('bookingRequest').value='';
+   $('bookingList').textContent='未取得有效的 GAS 測試預約回讀，請重新整理。';
+   $('bookingCapacity').replaceChildren();
+   $('bookingCapacityTable').replaceChildren();
+   $('bookingTable').replaceChildren();
+   $('bookingFilterSummary').textContent='測試預約資料回傳格式不符。';
+   setDisabled(false);
+   bookingFeedback('GAS 測試預約回傳格式錯誤，已停用既有預約操作；請重新讀取。','warn');
+   status('隔離測試預約回讀失敗；正式預約仍關閉。');
+   return;
+ }
  const prevSlot=$('bookingSlotId').value,prevBooking=$('bookingExisting').value;
  const prevFilter=$('bookingFilterSlot').value;
  bookingRevision=response.revision;bookingView=response;
