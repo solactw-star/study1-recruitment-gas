@@ -41,6 +41,7 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <label class="check"><input type="checkbox" id="noTherapy"><span id="label_treatment">模擬：未因心理狀況接受持續治療</span></label>
 <label class="check"><input type="checkbox" id="noPractice"><span id="label_frequentPractice">模擬：沒有每週一次、每次至少一小時、持續至少三個月的相關練習</span></label>
 <label class="check"><input type="checkbox" id="noE1"><span id="label_joinedE1">模擬：未曾參與實驗一（實驗二條件）</span></label>
+<p id="screeningVersion" class="muted">初篩對照表版本：PENDING</p>
 <button id="screen" type="button" disabled>進行測試資格判定</button><p class="muted">本測試只儲存布林結果，不保留各題健康答覆。</p>
 </section>
 <section class="panel" aria-labelledby="otpTitle"><h2 id="otpTitle">步驟三｜信箱驗證流程</h2>
@@ -85,7 +86,16 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <div><label for="adminConsentE2">E2 REC 待核版本</label><input id="adminConsentE2" maxlength="72">
 <label for="adminHashE2">E2 PDF SHA-256（待獨立核驗，可留空）</label><input id="adminHashE2" maxlength="64"></div></div>
 <button id="adminPolicySave" type="button" disabled>儲存測試題目與待核 REC 版本</button>
+<label for="adminMappingsJson">E1／E2 初篩條件及 PENDING 來源版本 JSON（僅虛構資料）</label>
+<textarea id="adminMappingsJson" rows="15" spellcheck="false"></textarea>
+<button id="adminScreeningSave" type="button" disabled>儲存版本化初篩測試對照表</button>
+<p class="muted">adult／cycu 必須 true；E1 joinedE1 為 null、E2 為 false；規則變動必須更新 PENDING 版本。</p>
 <p class="muted">保存期限 PENDING、正式通知 DISABLED；正式來源需研究團隊核准。</p></section>
+<section class="panel" aria-labelledby="notificationAdminTitle"><h2 id="notificationAdminTitle">研究室後台｜虛構通知失敗與重試</h2>
+<p class="note">同一 TEST 狀態機模擬通知失敗與重試，最多三次；不會呼叫寄信服務。</p>
+<label for="adminNotificationIndex">虛構通知</label><select id="adminNotificationIndex"></select>
+<label for="adminNotificationResult">模擬結果</label><select id="adminNotificationResult"><option value="FAIL">模擬失敗</option><option value="SIM_OK">模擬成功（不寄送）</option></select>
+<button id="adminNotificationAttempt" type="button" disabled>執行虛構通知嘗試</button></section>
 <section class="panel" aria-labelledby="adminSlotsTitle"><h2 id="adminSlotsTitle">研究室後台｜測試時段／容量管理</h2>
 <p>編輯同一網站的時段 JSON 陣列，最多八筆；when 格式 YYYY-MM-DD HH:MM，id 格式 SIM-SLOT-E1-A。已有歷史預約不得刪除時段或更動日期／實驗，容量不得小於有效預約。</p>
 <label for="adminSlotsJson">測試時段設定 JSON</label><textarea id="adminSlotsJson" rows="10" spellcheck="false"></textarea>
@@ -132,9 +142,10 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminSlotsSave','adminReset'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminReset'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
+ $('adminNotificationAttempt').disabled=!model.notifications.some(n=>n.status!=='SIM_DELIVERED'&&n.attempts<3);
  $('screen').disabled=phase!=='STARTED';
  $('otpRequest').disabled=!['SCREENED','OTP_SENT'].includes(phase);
  $('otpVerify').disabled=phase!=='OTP_SENT';
@@ -150,7 +161,9 @@ function render(response){
   !Number.isSafeInteger(response.revision)||!Array.isArray(response.applications)||
   !Array.isArray(response.slots)||!Array.isArray(response.notifications)||!response.config||
   !response.policy||!response.policy.screening||!response.policy.screening.questions||
-  !response.policy.consent||!Array.isArray(response.audit)||
+  !response.policy.consent||!response.policy.screening.mappings||
+  !response.policy.screening.mappings.E1||!response.policy.screening.mappings.E2||
+  !Array.isArray(response.audit)||
   response.researchSource!=='REC_DRAFT_ONLY'||response.researchApproval!=='PENDING'||
   !response.definitions||!['E1','E2'].every(exp=>{
    const d=response.definitions[exp];
@@ -175,6 +188,8 @@ function render(response){
  $('appStatus').textContent=a?'目前：'+a.id+' / '+response.definitions[a.experiment].label:'請先建立虛構申請。';
  $('summary').textContent=a?JSON.stringify(a,null,2):'尚未建立申請';
  $('consentVersion').textContent=a?(a.consentVersion||response.definitions[a.experiment].recVersion):'尚未選擇申請';
+ $('screeningVersion').textContent='初篩對照表版本：'+
+  (a?.screeningVersion||response.policy.screening.mappings[a?.experiment||$('study').value]?.version||'PENDING');
  $('consentHash').textContent=a&&a.consentVersion?(a.consentSha256||'PENDING／未核實 PDF 位元組'):'尚未建立測試暫留';
  $('reviewStatus').textContent=a?.holdExpired?
   '虛構暫留已逾期；請重新保留時段並重新核對待核版本。':
@@ -186,9 +201,17 @@ function render(response){
   opt.textContent=slot.when+'｜'+slot.id+'｜剩餘 '+slot.remaining+'/'+slot.capacity;slots.append(opt);
  }
  const n=$('notifications');n.replaceChildren();
+ const notificationSelect=$('adminNotificationIndex');notificationSelect.replaceChildren();
  for(const message of response.notifications){
-  const li=document.createElement('li');li.textContent=message.id+'：'+message.text;n.append(li);
+  const li=document.createElement('li');
+  li.textContent=message.id+'：'+message.text+'｜'+message.status+'（'+message.attempts+'/3）';n.append(li);
+  if(message.status!=='SIM_DELIVERED'&&message.attempts<3){
+   const opt=document.createElement('option');opt.value=String(message.index);
+   opt.textContent='#'+message.index+'｜'+message.id+'｜'+message.event+'｜'+message.status;
+   notificationSelect.append(opt);
+  }
  }
+ $('adminNotificationAttempt').disabled=notificationSelect.children.length===0;
  $('adminTitleField').value=response.config.title;
  $('adminNotice').value=response.config.notice;
  $('adminEmail').value=response.config.emailTemplate;
@@ -197,6 +220,7 @@ function render(response){
    [k,response.definitions[exp][k]]))])),null,2);
  $('adminSlotsJson').value=JSON.stringify(response.slots.map(s=>({id:s.id,experiment:s.experiment,when:s.when,capacity:s.capacity})),null,2);
  $('adminQuestionsJson').value=JSON.stringify(response.policy.screening.questions,null,2);
+ $('adminMappingsJson').value=JSON.stringify(response.policy.screening.mappings,null,2);
  for(const key of ['adult','cycu','diagnosed','treatment','frequentPractice','joinedE1'])
   $('label_'+key).textContent=response.policy.screening.questions[key];
  for(const exp of ['E1','E2']){
@@ -246,6 +270,16 @@ $('adminPolicySave').addEventListener('click',()=>{
   for(const exp of ['E1','E2'])consent[exp]={version:$('adminConsent'+exp).value,sha256:$('adminHash'+exp).value};
   command('ADMIN_POLICY',{questions,consent});
  }catch(e){info('題目 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
+$('adminScreeningSave').addEventListener('click',()=>{
+ try{command('ADMIN_SCREENING',{mappings:JSON.parse($('adminMappingsJson').value)});}
+ catch(e){info('初篩 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
+$('adminNotificationAttempt').addEventListener('click',()=>{
+ const index=Number($('adminNotificationIndex').value);
+ if(!Number.isSafeInteger(index)||!model?.notifications.some(n=>n.index===index&&n.status!=='SIM_DELIVERED'&&n.attempts<3))
+  return info('沒有可重試的虛構通知。',false);
+ command('ADMIN_NOTIFY_ATTEMPT',{index,result:$('adminNotificationResult').value});
 });
 $('adminReset').addEventListener('click',()=>{
  if(!confirm('確定只清空 STUDY1_UNIFIED_FIXTURE_V1 的全部虛構驗收資料？此動作不可復原。'))return;

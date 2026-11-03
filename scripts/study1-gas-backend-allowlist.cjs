@@ -135,6 +135,7 @@ function assertUnifiedFlow(source){
    "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw)",
    "fixture.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_)",
    "c.action==='ADMIN_RESET'","action==='CONSENT_REVIEW'","action==='ADMIN_RESEARCH'",
+   "action==='ADMIN_SCREENING'","action==='ADMIN_NOTIFY_ATTEMPT'",
    "study1FixtureIssue_(s,a,now)","study1FixtureVerify_(s,a,p.code,now,outerLock)",
    "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
@@ -164,6 +165,8 @@ function assertUnifiedHtml(html){
   !html.includes('SIMULATED_SIGN_ONLY')||
   !html.includes("command('CONSENT_REVIEW'")||
   !html.includes("command('ADMIN_RESET'")||
+  !html.includes("command('ADMIN_SCREENING'")||
+  !html.includes("command('ADMIN_NOTIFY_ATTEMPT'")||
   !html.includes('正式報名未開放'))throw Error('Unified website missing TEST-only workflow');
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');

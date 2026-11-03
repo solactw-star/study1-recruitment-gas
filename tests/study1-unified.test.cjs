@@ -377,3 +377,46 @@ test('All formal-site adapter ports reject until REC/data approval, without touc
  assert.equal(s.writes,0);
  assert.deepEqual([...s.p.keys()].sort(),['CONSENT_READY','OPEN']);
 });
+
+test('Versioned E1/E2 screening stores only eligibility and locked draft source',()=>{
+ const s=setup(),m=JSON.parse(JSON.stringify(s.read().policy.screening.mappings));
+ m.E1.rules.frequentPractice=null;
+ assert.throws(()=>s.cmd('ADMIN_SCREENING',{mappings:m}),/更新 PENDING 版本/);
+ m.E1.version='PENDING_E1_RULES_V2';s.cmd('ADMIN_SCREENING',{mappings:m});
+ const policy=s.read().policy;
+ s.cmd('ADMIN_POLICY',{questions:policy.screening.questions,consent:{
+  E1:{version:policy.consent.E1.version,sha256:policy.consent.E1.sha256},
+  E2:{version:policy.consent.E2.version,sha256:policy.consent.E2.sha256}}});
+ assert.equal(s.read().policy.screening.mappings.E1.version,'PENDING_E1_RULES_V2');
+ s.cmd('START',{experiment:'E1'});
+ let v=s.cmd('SCREEN',{id:'SIM-001',answers:{...good,frequentPractice:true}});
+ assert.equal(v.applications[0].phase,'SCREENED');
+ assert.equal(v.applications[0].screeningVersion,'PENDING_E1_RULES_V2');
+ assert.doesNotMatch(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'),/"answers"|"frequentPractice":true/);
+ m.E1.rules.frequentPractice=false;m.E1.version='PENDING_E1_RULES_V3';
+ v=s.cmd('ADMIN_SCREENING',{mappings:m});
+ assert.equal(v.applications[0].screeningVersion,'PENDING_E1_RULES_V2');
+ s.cmd('START',{experiment:'E1'});
+ v=s.cmd('SCREEN',{id:'SIM-002',answers:{...good,frequentPractice:true}});
+ assert.equal(v.applications[1].phase,'INELIGIBLE');
+ assert.equal(v.applications[1].screeningVersion,'PENDING_E1_RULES_V3');
+ m.E2.rules.joinedE1=null;
+ assert.throws(()=>s.cmd('ADMIN_SCREENING',{mappings:m}),/最低安全條件/);
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+});
+test('Simulated notification failure and retry never enable formal sending',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});s.cmd('SCREEN',{id:'SIM-001',answers:good});
+ s.cmd('OTP_REQUEST',{id:'SIM-001'});s.cmd('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ s.cmd('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ s.cmd('CONSENT_REVIEW',{id:'SIM-001',version:'PENDING_REC_APPROVAL_E1',sha256:''});
+ s.cmd('CONSENT',{id:'SIM-001',accepted:true,version:'PENDING_REC_APPROVAL_E1',signature:'SIMULATED_SIGN_ONLY'});
+ let v=s.cmd('CONFIRM',{id:'SIM-001'});assert.equal(v.notifications[0].status,'SIM_PENDING');
+ v=s.cmd('ADMIN_NOTIFY_ATTEMPT',{index:0,result:'FAIL'});
+ assert.equal(v.notifications[0].status,'SIM_FAILED');assert.equal(v.notifications[0].attempts,1);
+ v=s.cmd('ADMIN_NOTIFY_ATTEMPT',{index:0,result:'SIM_OK'});
+ assert.equal(v.notifications[0].status,'SIM_DELIVERED');assert.equal(v.notifications[0].attempts,2);
+ assert.throws(()=>s.cmd('ADMIN_NOTIFY_ATTEMPT',{index:0,result:'SIM_OK'}),/已完成/);
+ assert.equal(s.read().policy.notification.status,'DISABLED');
+ assert.equal(s.read().policy.retention.status,'PENDING');
+ assert.deepEqual([...s.p.keys()].sort(),['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']);
+});

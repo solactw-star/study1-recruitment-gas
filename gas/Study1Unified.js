@@ -13,7 +13,11 @@ function study1UnifiedPolicy_(){
  diagnosed:'模擬：目前無醫師診斷之心理疾患',
  treatment:'模擬：未因心理狀況接受持續治療',
  frequentPractice:'模擬：沒有規律正念或相關練習',
- joinedE1:'模擬：未曾參與實驗一（實驗二條件）'}},
+ joinedE1:'模擬：未曾參與實驗一（實驗二條件）'},
+ mappings:{
+ E1:{source:'REC_DRAFT_ONLY',version:'PENDING_E1_RULES_V1',rules:{adult:true,cycu:true,diagnosed:false,treatment:false,frequentPractice:false,joinedE1:null}},
+ E2:{source:'REC_DRAFT_ONLY',version:'PENDING_E2_RULES_V1',rules:{adult:true,cycu:true,diagnosed:false,treatment:false,frequentPractice:false,joinedE1:false}}
+ }},
  consent:{E1:{version:'PENDING_REC_APPROVAL_E1',sha256:'',approval:'PENDING'},
  E2:{version:'PENDING_REC_APPROVAL_E2',sha256:'',approval:'PENDING'}},
  retention:{status:'PENDING',days:null},notification:{status:'DISABLED'}};
@@ -25,9 +29,20 @@ function study1UnifiedValidatePolicy_(v){
  Object.keys(v.screening.questions).sort().join(',')!==keys.sort().join(',')||
  keys.some(k=>typeof v.screening.questions[k]!=='string'||!v.screening.questions[k].trim()||
  v.screening.questions[k].length>120||/[<>]/.test(v.screening.questions[k]))||
+ !v.screening.mappings||Object.keys(v.screening.mappings).sort().join(',')!=='E1,E2'||
  !v.consent||!v.retention||v.retention.status!=='PENDING'||v.retention.days!==null||
  !v.notification||v.notification.status!=='DISABLED')throw Error('研究政策測試設定不合法');
  for(const exp of ['E1','E2']){
+  const m=v.screening.mappings[exp];
+  if(!m||Object.keys(m).sort().join(',')!=='rules,source,version'||
+   m.source!=='REC_DRAFT_ONLY'||typeof m.version!=='string'||
+   !/^PENDING_[A-Z0-9_]{3,64}$/.test(m.version)||!m.rules||
+   Object.keys(m.rules).sort().join(',')!==keys.slice().sort().join(',')||
+   keys.some(k=>m.rules[k]!==null&&typeof m.rules[k]!=='boolean')||
+   m.rules.adult!==true||m.rules.cycu!==true||
+   (exp==='E1'&&m.rules.joinedE1!==null)||(exp==='E2'&&m.rules.joinedE1!==false))
+   throw Error('實驗初篩對照表必須維持 REC 草稿、版本與最低安全條件');
+
   const c=v.consent[exp];
   if(!c||c.approval!=='PENDING'||typeof c.version!=='string'||
   !/^PENDING_[A-Z0-9_]{3,64}$/.test(c.version)||typeof c.sha256!=='string'||
@@ -63,7 +78,8 @@ function study1UnifiedNotify_(s,a,event){
  const labels={CONFIRM:'確認',MOVE:'改期',CANCEL:'取消'};
  if(!Object.prototype.hasOwnProperty.call(labels,event))throw Error('未知測試通知事件');
  s.notifications.push({id:a.id,event,
-  text:'〔SIM '+labels[event]+'〕'+s.config.emailTemplate+'（僅預覽，未寄送）'});
+  text:'〔SIM '+labels[event]+'〕'+s.config.emailTemplate+'（僅預覽，未寄送）',
+  status:'SIM_PENDING',attempts:0,lastError:null});
 }
 function study1UnifiedProductionAdapter_(){
  // Explicit fail-closed contract for the future approved production adapter.
@@ -135,6 +151,11 @@ function study1UnifiedRead_(){
  const s=JSON.parse(raw);
  if(s&&!s.policy)s.policy=study1UnifiedPolicy_(); // migrate only owner fixture
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
+ if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
+  s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
+ if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
+  if(n&&n.status===undefined){n.status='SIM_PENDING';n.attempts=0;n.lastError=null;}
+ });
  if(s&&Array.isArray(s.applications))s.applications.forEach(a=>{
   if(!Array.isArray(a.otpHistory))a.otpHistory=a.otpRequestedAt===null?[]:
    [{createdAt:a.otpRequestedAt,attempts:a.otpAttempts,
@@ -151,6 +172,15 @@ function study1UnifiedRead_(){
  study1UnifiedValidatePolicy_(s.policy);
  study1UnifiedValidateResearch_(s.research);
  study1UnifiedValidateSlots_(s.slots);
+ for(const n of s.notifications){
+  if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
+   typeof n.text!=='string'||n.text.length>650||
+   !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(n.status)||
+   !Number.isSafeInteger(n.attempts)||n.attempts<0||n.attempts>3||
+   (n.lastError!==null&&n.lastError!=='SIMULATED_FAILURE')||
+   (n.status==='SIM_FAILED'&&n.lastError!=='SIMULATED_FAILURE'))
+    throw Error('虛構通知重送紀錄不合法');
+ }
  const ids=new Set(),usedReq=new Set();
  for(const slot of s.slots){
   if(!slot||!/^SIM-SLOT-E[12]-[A-Z]$/.test(slot.id)||!['E1','E2'].includes(slot.experiment)||
@@ -165,6 +195,10 @@ function study1UnifiedRead_(){
     !['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD','CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)||
     appIds.has(a.id)||typeof a.otpAttempts!=='number'||
     (a.slotId!==null&&!ids.has(a.slotId)))throw Error('虛構申請資料異常');
+  if(a.screeningVersion!==undefined&&a.screeningVersion!==null&&
+   (typeof a.screeningVersion!=='string'||!/^PENDING_[A-Z0-9_]{3,64}$/.test(a.screeningVersion)||
+    a.screeningSource!=='REC_DRAFT_ONLY'))
+   throw Error('虛構初篩來源版本不合法');
   if(a.consentSha256!==undefined&&a.consentSha256!==null&&
     (typeof a.consentSha256!=='string'||
      (a.consentSha256!==''&&!/^[a-f0-9]{64}$/.test(a.consentSha256))))
@@ -264,13 +298,14 @@ function study1UnifiedView_(s){
    return {...slot,bookable,remaining:bookable?
     (available.get(slot.id)||0):0};}),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
+   screeningVersion:a.screeningVersion||null,screeningSource:a.screeningSource||null,
    slotId:a.slotId,otpAttempts:a.otpAttempts,consentVersion:a.consentVersion,
    consentSha256:a.consentSha256===undefined?null:a.consentSha256,
    consentReviewedAt:a.consentReviewedAt||null,
    holdUntil:a.holdUntil,
    holdExpired:['HELD','CONSENTED'].includes(a.phase)&&Number.isFinite(a.holdUntil)&&a.holdUntil<=Date.now(),
    signatureDemo:a.signatureDemo})),
-  notifications:s.notifications.slice(-6).map(n=>({...n})),
+  notifications:s.notifications.slice(-6).map((n,i)=>({...n,index:s.notifications.length-Math.min(s.notifications.length,6)+i})),
   fixtureOtp:'00000000'};
 }
 function study1UnifiedRequireCommand_(command){
@@ -280,16 +315,17 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_RESET'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_RESET'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
-function study1UnifiedEligibility_(experiment,answers){
+function study1UnifiedEligibility_(experiment,answers,policy){
  if(!answers||typeof answers!=='object'||Array.isArray(answers)||
   Object.keys(answers).sort().join(',')!=='adult,cycu,diagnosed,frequentPractice,joinedE1,treatment'||
   Object.values(answers).some(x=>typeof x!=='boolean'))throw Error('資格測試答覆格式錯誤');
- return answers.adult&&answers.cycu&&!answers.diagnosed&&!answers.treatment&&
-        !answers.frequentPractice&&(experiment==='E1'||!answers.joinedE1);
+ const m=policy&&policy.screening&&policy.screening.mappings&&policy.screening.mappings[experiment];
+ if(!m)throw Error('實驗初篩來源版本缺失');
+ return Object.keys(m.rules).every(k=>m.rules[k]===null||answers[k]===m.rules[k]);
 }
 function study1UnifiedTransition_(s,cmd,now,outerLock){
  const p=cmd.payload,action=cmd.action,byId=id=>s.applications.find(a=>a.id===id);
@@ -318,6 +354,28 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   study1UnifiedValidateResearch_(next);
   s.research=JSON.parse(JSON.stringify(next));return;
  }
+ if(action==='ADMIN_SCREENING'){
+  if(Object.keys(p).join(',')!=='mappings'||!p.mappings||
+   Object.keys(p.mappings).sort().join(',')!=='E1,E2')throw Error('初篩版本對照表格式不合法');
+  const next=JSON.parse(JSON.stringify(s.policy));next.screening.mappings=p.mappings;
+  study1UnifiedValidatePolicy_(next);
+  for(const exp of ['E1','E2']){
+   const old=s.policy.screening.mappings[exp],fresh=next.screening.mappings[exp];
+   if(JSON.stringify(old.rules)!==JSON.stringify(fresh.rules)&&old.version===fresh.version)
+    throw Error('初篩規則異動必須更新 PENDING 版本號');
+  }
+  s.policy=next;return;
+ }
+ if(action==='ADMIN_NOTIFY_ATTEMPT'){
+  if(Object.keys(p).sort().join(',')!=='index,result'||
+   !Number.isSafeInteger(p.index)||p.index<0||p.index>=s.notifications.length||
+   !['FAIL','SIM_OK'].includes(p.result))throw Error('虛構通知重試指令不合法');
+  const n=s.notifications[p.index];
+  if(n.status==='SIM_DELIVERED'||n.attempts>=3)throw Error('虛構通知已完成或達重試上限');
+  n.attempts++;n.status=p.result==='FAIL'?'SIM_FAILED':'SIM_DELIVERED';
+  n.lastError=p.result==='FAIL'?'SIMULATED_FAILURE':null;
+  return; // No delivery adapter, no email or network calls.
+ }
  if(action==='ADMIN_SLOTS'){
   if(Object.keys(p).join(',')!=='slots')throw Error('時段管理欄位不合法');
   study1UnifiedValidateSlots_(p.slots);
@@ -333,7 +391,7 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
  }
  if(action==='ADMIN_POLICY'){
   if(Object.keys(p).sort().join(',')!=='consent,questions')throw Error('研究政策欄位不合法');
-  const next=study1UnifiedPolicy_();next.screening.questions=p.questions;
+  const next=JSON.parse(JSON.stringify(s.policy));next.screening.questions=p.questions;
   for(const exp of ['E1','E2']){
    if(!p.consent||!p.consent[exp]||Object.keys(p.consent[exp]).sort().join(',')!=='sha256,version')
     throw Error('REC 版本欄位不合法');
@@ -353,7 +411,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
  if(action==='SCREEN'){
   if(a.phase!=='STARTED'||Object.keys(p).sort().join(',')!=='answers,id')
     throw Error('初篩流程順序或欄位不符');
-  a.eligible=study1UnifiedEligibility_(a.experiment,p.answers);
+  a.eligible=study1UnifiedEligibility_(a.experiment,p.answers,s.policy);
+  a.screeningVersion=s.policy.screening.mappings[a.experiment].version;
+  a.screeningSource='REC_DRAFT_ONLY';
   a.phase=a.eligible?'SCREENED':'INELIGIBLE';return;
  }
  if(action==='OTP_REQUEST'){
@@ -451,7 +511,8 @@ function study1UnifiedPreviewCommand(command){
   // Replay identity stores only a derived test eligibility outcome / OTP match.
   const fingerprint=c.action==='SCREEN'?
     JSON.stringify([c.action,{id:c.payload.id,eligible:study1UnifiedEligibility_(
-      s.applications.find(a=>a.id===c.payload.id)?.experiment,c.payload.answers)}]):
+      s.applications.find(a=>a.id===c.payload.id)?.experiment,c.payload.answers,s.policy),
+      version:s.policy.screening.mappings[s.applications.find(a=>a.id===c.payload.id)?.experiment]?.version}]):
     c.action==='OTP_VERIFY'?
     JSON.stringify([c.action,{id:c.payload.id,matched:c.payload.code==='00000000'}]):
     JSON.stringify([c.action,c.payload]);

@@ -165,3 +165,22 @@ test('Same owner preview re-holds expired synthetic reservation and hides past s
  assert.equal(h.read().applications[0].holdExpired,false);
  assert.equal(h.read().applications[0].phase,'HELD');
 });
+
+test('Unified browser edits screening version and simulates notification retries',()=>{
+ const h=harness(),m=JSON.parse(h.dom.get('adminMappingsJson').value);
+ m.E1.rules.frequentPractice=null;m.E1.version='PENDING_E1_RULES_V2';
+ h.set('adminMappingsJson',JSON.stringify(m));h.click('adminScreeningSave');
+ h.click('start');for(const id of ['adult','cycu','noDx','noTherapy','noE1'])h.check(id,true);
+ h.check('noPractice',false);h.click('screen');
+ assert.equal(h.read().applications[0].phase,'SCREENED');
+ assert.match(h.dom.get('screeningVersion').textContent,/PENDING_E1_RULES_V2/);
+ h.click('otpRequest');h.set('otp','00000000');h.click('otpVerify');
+ h.set('slot','SIM-SLOT-E1-A');h.click('hold');h.click('reviewConsent');
+ h.check('agree',true);h.click('consent');h.click('confirm');
+ h.set('adminNotificationResult','FAIL');h.click('adminNotificationAttempt');
+ assert.equal(h.read().notifications[0].status,'SIM_FAILED');
+ h.set('adminNotificationResult','SIM_OK');h.click('adminNotificationAttempt');
+ assert.equal(h.read().notifications[0].status,'SIM_DELIVERED');
+ assert.equal(h.dom.get('adminNotificationAttempt').disabled,true);
+ assert.equal(h.props.get('OPEN'),'false');assert.equal(h.props.get('CONSENT_READY'),'false');
+});
