@@ -425,7 +425,10 @@ function refreshBookings(){
  setDisabled(true);
  bookingFeedback('正在讀取 GAS 測試時段、剩餘名額及預約狀態……');
  google.script.run.withSuccessHandler(showBookings).withFailureHandler(function(error){
-  setDisabled(false);bookingFeedback('讀取失敗：'+String(error&&error.message||error),'warn');
+  // A failed read is not evidence that the previous capacity/revision is
+  // still current. Reuse the malformed-response fail-closed invalidation.
+  showBookings(null);
+  bookingFeedback('讀取失敗：'+String(error&&error.message||error)+'；已停用舊預約操作，請重新讀取。','warn');
   status('測試預約查詢失敗；正式報名維持關閉。');
  }).adminGetTestBookings();
 }

@@ -550,3 +550,25 @@ test('Malformed nested booking RPC payloads fail closed without stranding the re
  ui.click('bookingRefresh');
  assert.equal(ui.el('bookingCreate').disabled,false);
 });
+test('Failed booking refresh invalidates stale capacity and revision while allowing retry',()=>{
+ const srv=server();srv.props.set('OPEN','false');srv.props.set('CONSENT_READY','false');
+ const ui=client(srv);
+ ui.click('bookingRefresh');
+ assert.equal(ui.el('bookingCreate').disabled,false);
+ const originalRead=srv.ctx.adminGetTestBookings;
+ srv.ctx.adminGetTestBookings=()=>{throw Error('SIMULATED_READ_UNAVAILABLE');};
+ ui.click('bookingRefresh');
+ assert.equal(ui.el('bookingRefresh').disabled,false,'Owner can retry a failed read');
+ for(const id of ['bookingCreate','bookingMove','bookingCancel'])
+   assert.equal(ui.el(id).disabled,true,id+' cannot use stale revision or capacity');
+ assert.match(ui.el('bookingFeedback').textContent,/SIMULATED_READ_UNAVAILABLE/);
+ assert.match(ui.el('bookingFeedback').textContent,/停用舊預約操作/);
+ assert.match(ui.el('bookingList').textContent,/未取得有效/);
+ assert.equal(ui.el('bookingTable').children.length,0);
+ assert.equal(ui.el('bookingCapacityTable').children.length,0);
+ assert.equal(srv.props.size,2,'Failure must not write any GAS properties');
+ srv.ctx.adminGetTestBookings=originalRead;
+ ui.click('bookingRefresh');
+ assert.equal(ui.el('bookingCreate').disabled,false,'Fresh successful read restores controls');
+ assert.match(ui.el('bookingList').textContent,/test_slot_1/);
+});
