@@ -482,7 +482,9 @@ test('Formal readiness is a complete, source-provenance checklist with every rea
  const s=setup(),m=s.read(),r=m.formalReadiness;
  assert.equal(r.mode,'FORMAL_BLOCKED');
  assert.equal(r.activationAllowed,false);assert.equal(r.passed,0);
- assert.equal(r.total,14);assert.equal(r.gates.length,14);
+ assert.equal(r.total,16);assert.equal(r.gates.length,16);
+ assert.equal(r.gates.find(g=>g.id==='E2_EIGHT_WEEK_PLAN_APPROVAL').state,'PENDING');
+ assert.equal(r.gates.find(g=>g.id==='FORMAL_DATA_PORT_AUTHORIZATION').state,'BLOCKED');
  assert.equal(r.gates.find(g=>g.id==='E1_REC_PDF_BYTES').state,'BLOCKED');
  assert.equal(r.gates.find(g=>g.id==='E2_SCREENING_SOURCE').state,'PENDING');
  assert.equal(r.provenance.E1.sourceBytesVerified,false);
