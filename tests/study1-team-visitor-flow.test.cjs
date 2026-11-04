@@ -193,7 +193,11 @@ test('Cross-page: team toggles E2 demo only; new visitor view enables synthetic 
  visitor.click('chooseE2');
  assert.equal(s.read().applications[0].experiment,'E2');
  assert.equal(s.read().applications[0].phase,'STARTED');
+ // The visitor started a new synthetic application, advancing the shared revision.
+ // Reload the team editor before saving to avoid overwriting concurrent changes.
+ team.click('refresh');
  team.set('modeE2','COMING_SOON');team.click('saveModes');
+ assert.equal(team.failures.length,0);
  visitor=page(s,'visitor');
  assert.equal(visitor.get('chooseE2').disabled,true);
  assert.match(visitor.get('stateE2').textContent,/2027 年.*尚未開放/);
