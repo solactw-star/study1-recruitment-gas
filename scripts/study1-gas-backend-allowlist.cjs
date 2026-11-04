@@ -143,7 +143,7 @@ function assertUnifiedFlow(source){
    "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)",
    "function study1UnifiedFormalReadiness_(s){",
    "function study1UnifiedPreviewSelfTest(){",
-   "formalReadiness:study1UnifiedFormalReadiness_(s)"])
+   "formalReadiness:study1UnifiedFormalReadiness_(s)","study1UnifiedValidateE2Weeks_(s.e2Weeks)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -155,7 +155,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedResearch_','study1UnifiedValidateResearch_',
   'study1UnifiedCoreAvailability_','study1UnifiedCoreOtpDecision_',
   'study1UnifiedPdfFixture_','study1UnifiedGovernance_',
-  'study1UnifiedFormalReadiness_','study1UnifiedPreviewSelfTest']);
+  'study1UnifiedFormalReadiness_','study1UnifiedPreviewSelfTest',
+  'study1UnifiedE2Weeks_','study1UnifiedValidateE2Weeks_','study1UnifiedFormalPorts_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');

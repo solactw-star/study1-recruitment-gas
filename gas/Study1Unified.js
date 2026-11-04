@@ -115,6 +115,59 @@ function study1UnifiedPdfFixture_(){
  * cannot satisfy a source-byte, REC, retention or identity gate.
  * Every future production port remains separately FORMAL_BLOCKED.
  */
+
+/** E2 eight-week OPERATIONS planning, not a REC-approved intervention schedule.
+ * Each row is a planning week, not a claim that one weekly class is sufficient.
+ * Dates and location notes are optional and TEST-only. Never assign participants.
+ */
+function study1UnifiedE2Weeks_(){
+ return Array.from({length:8},(_,i)=>({week:i+1,date:null,notes:''}));
+}
+function study1UnifiedValidateE2Weeks_(weeks){
+ if(!Array.isArray(weeks)||weeks.length!==8)throw Error('實驗二須保留完整八週測試規劃');
+ let previous='';
+ weeks.forEach((w,i)=>{
+  if(!w||typeof w!=='object'||Array.isArray(w)||
+     Object.keys(w).sort().join(',')!=='date,notes,week'||w.week!==i+1||
+     typeof w.notes!=='string'||w.notes.length>100||/[<>]/.test(w.notes)||
+     !(w.date===null||typeof w.date==='string'))
+    throw Error('八週測試時程格式錯誤：'+(i+1));
+  if(w.date!==null){
+   if(!/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(w.date)||
+      Number.isNaN(Date.parse(w.date+'T00:00:00Z'))||
+      new Date(w.date+'T00:00:00Z').toISOString().slice(0,10)!==w.date||
+      (previous&&w.date<=previous))
+     throw Error('八週日期無效或順序重複：'+(i+1));
+   previous=w.date;
+  }
+ });
+ return true;
+}
+/** Explicit role, evidence and port contracts. This does NOT grant any role
+ * or invoke a real storage/mail/REC connector; adapters remain denied.
+ */
+function study1UnifiedFormalPorts_(){
+ const ports=[
+  {name:'IDENTITY_VERIFY',state:'BLOCKED',needs:'核准身分及最小角色權限'},
+  {name:'OTP_SEND_REAL',state:'BLOCKED',needs:'正式寄信授權、個資欄位及節流政策'},
+  {name:'OTP_VERIFY_REAL',state:'BLOCKED',needs:'一次性驗證狀態與安全儲存核准'},
+  {name:'BOOKING_RESERVE',state:'BLOCKED',needs:'正式資料庫 schema、鎖及交易回讀'},
+  {name:'BOOKING_MOVE_CANCEL',state:'BLOCKED',needs:'正式歷程、稽核與通知政策'},
+  {name:'E2_EIGHT_WEEK_OPERATIONS',state:'BLOCKED',needs:'分組、團課／居家安排及出缺席政策核准'},
+  {name:'CONSENT_PDF_READ',state:'BLOCKED',needs:'原 REC 核准 PDF 位元組、版本及 SHA256'},
+  {name:'CONSENT_SIGN',state:'BLOCKED',needs:'簽署資格、研究人員預簽、時間戳與證據保存'},
+  {name:'NOTIFICATION_DISPATCH',state:'BLOCKED',needs:'核准郵件來源、模板及去重通知 outbox'},
+  {name:'SUBJECT_DATA_ACCESS',state:'BLOCKED',needs:'角色授權、留存、撤回、刪除與稽核證據'}
+ ];
+ return {mode:'FORMAL_BLOCKED',activated:false,publicIntake:false,
+  roles:{PI:'PENDING_APPROVAL',RESEARCH_COORDINATOR:'PENDING_APPROVAL',
+   PARTICIPANT:'PENDING_APPROVAL',AUDITOR:'PENDING_APPROVAL'},
+  ports,authorization:'EXTERNAL_APPROVAL_REQUIRED',
+  pdf:{sourceBytesVerified:false,recApproved:false,signatureEnabled:false},
+  otp:{realDelivery:false},booking:{formalWrites:false},
+  notification:{realDelivery:false},retention:{policy:'PENDING'}};
+}
+
 function study1UnifiedFormalReadiness_(s){
  const gates=[
   {id:'REC_PROTOCOL_APPROVAL',state:'PENDING',reason:'須核對研究倫理審查核准內容與生效版本'},
@@ -124,6 +177,8 @@ function study1UnifiedFormalReadiness_(s){
   {id:'OTP_DELIVERY_AUTHORIZATION',state:'BLOCKED',reason:'真人信箱及 OTP 寄送均禁止'},
   {id:'NOTIFICATION_POLICY_APPROVAL',state:'PENDING',reason:'寄送時機、重試間隔與錯誤處理待核定'},
   {id:'CONSENT_SIGNING_EVIDENCE',state:'BLOCKED',reason:'未建置核准 PDF 的有效閱覽、簽署與證據保存'},
+  {id:'E2_EIGHT_WEEK_PLAN_APPROVAL',state:'PENDING',reason:'實驗二團課／居家安排、研究分組、出席與追蹤政策仍待核定'},
+  {id:'FORMAL_DATA_PORT_AUTHORIZATION',state:'BLOCKED',reason:'正式 OTP／預約／通知及資料權限 adapter 尚未接入'},
   {id:'OWNER_LIVE_ACCEPTANCE',state:'PENDING',reason:'完整正式流程尚無真人上線驗收授權'}
  ];
  const provenance={};
@@ -204,7 +259,7 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-01-06 14:00',capacity:2},
    {id:'SIM-SLOT-E2-A',experiment:'E2',when:'2027-01-07 10:00',capacity:2},
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
-  ],applications:[],requests:[],notifications:[]};
+  ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[]};
 }
 function study1UnifiedAssertOwner_(){
  study1AdminOwnerRequired_();
@@ -216,6 +271,7 @@ function study1UnifiedRead_(){
  const s=JSON.parse(raw);
  if(s&&!s.policy)s.policy=study1UnifiedPolicy_(); // migrate only owner fixture
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
+ if(s&&!s.e2Weeks)s.e2Weeks=study1UnifiedE2Weeks_(); // read-only fixture migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -237,6 +293,7 @@ function study1UnifiedRead_(){
  study1UnifiedValidatePolicy_(s.policy);
  study1UnifiedValidateResearch_(s.research);
  study1UnifiedValidateSlots_(s.slots);
+ study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
   if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
    typeof n.text!=='string'||n.text.length>650||
@@ -363,7 +420,10 @@ function study1UnifiedView_(s){
    [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
   policy:s.policy,audit:study1UnifiedAudit_(s),
   pdfFixture:study1UnifiedPdfFixture_(),governance:study1UnifiedGovernance_(s),
-  formalReadiness:study1UnifiedFormalReadiness_(s),
+  formalReadiness:study1UnifiedFormalReadiness_(s),formalPorts:study1UnifiedFormalPorts_(),
+  e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
+   realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
+   weeks:s.e2Weeks.map(w=>({...w})),plannedWeeks:s.e2Weeks.filter(w=>w.date!==null).length},
   slots:s.slots.map(slot=>{
    const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
    return {...slot,bookable,remaining:bookable?
@@ -386,7 +446,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_RESET'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RESET'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -460,6 +520,11 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     throw Error('測試容量低於有效預約數');
   }
   s.slots=p.slots.map(x=>({id:x.id,experiment:x.experiment,when:x.when,capacity:x.capacity}));return;
+ }
+ if(action==='ADMIN_E2_WEEKS'){
+  if(Object.keys(p).join(',')!=='weeks')throw Error('實驗二八週測試時程只允許指定週次');
+  study1UnifiedValidateE2Weeks_(p.weeks);
+  s.e2Weeks=p.weeks.map(w=>({week:w.week,date:w.date,notes:w.notes}));return;
  }
  if(action==='ADMIN_POLICY'){
   if(Object.keys(p).sort().join(',')!=='consent,questions')throw Error('研究政策欄位不合法');
@@ -699,7 +764,7 @@ function study1UnifiedPreviewCommand(command){
   study1UnifiedTransition_(next,c,Date.now(),lock);
   if(next.notifications.length>15)throw Error('測試通知歷程已達上限');
   study1UnifiedValidatePolicy_(next.policy);study1UnifiedValidateResearch_(next.research);
-  study1UnifiedValidateSlots_(next.slots);
+  study1UnifiedValidateSlots_(next.slots);study1UnifiedValidateE2Weeks_(next.e2Weeks);
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);

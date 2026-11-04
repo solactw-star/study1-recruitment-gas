@@ -105,6 +105,12 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <p>編輯同一網站的時段 JSON 陣列，最多八筆；when 格式 YYYY-MM-DD HH:MM，id 格式 SIM-SLOT-E1-A。已有歷史預約不得刪除時段或更動日期／實驗，容量不得小於有效預約。</p>
 <label for="adminSlotsJson">測試時段設定 JSON</label><textarea id="adminSlotsJson" rows="10" spellcheck="false"></textarea>
 <button id="adminSlotsSave" type="button" disabled>儲存測試時段與容量</button></section>
+<section class="panel" aria-labelledby="e2OpsTitle"><h2 id="e2OpsTitle">實驗二｜八週營運排程（同一正式網站 TEST 模式）</h2>
+<p class="note">這是 E2 八週行政規劃的可編輯測試介面，不代表每週只需一堂課，也不設定正式團課、居家練習或研究分組政策；正式前後測、團課、居家安排、分組及追蹤均待 PI 核准。只寫入本網站 STUDY1_UNIFIED_FIXTURE_V1 虛構資料。</p>
+<label for="adminE2WeeksJson">八週時程 JSON（week 1–8、date 為 YYYY-MM-DD 或 null、notes 為測試備註）</label>
+<textarea id="adminE2WeeksJson" rows="11" spellcheck="false" aria-describedby="e2WeeksStatus"></textarea>
+<p id="e2WeeksStatus" role="status">尚未讀取八週測試時程。</p>
+<button id="adminE2WeeksSave" type="button" disabled>儲存八週虛構營運時程</button></section>
 <section class="panel" aria-labelledby="auditTitle"><h2 id="auditTitle">研究室後台｜最小化稽核紀錄</h2>
 <p>僅顯示最近 15 次測試操作類型／revision，不呈現初篩逐題答覆、OTP 或原始請求。正式資料保存與權限政策待核。</p><ol id="audit"></ol>
 <h3>同一網站狀態機｜整站記憶體驗收</h3>
@@ -117,6 +123,7 @@ small{font-size:13px}summary{cursor:pointer;font-weight:700}.badge{display:inlin
 <h3>正式啟用必要證據及通知條件（唯讀）</h3>
 <p class="note">每項狀態均須依核准原始文件與真實資料治理驗證；輸入待核版本或 SHA-256 文字不能解除正式阻擋。</p>
 <pre id="formalReadinessStatus" aria-label="正式啟用必要證據與阻擋項目"></pre>
+<h3>正式 OTP／預約／通知／PDF／簽署／角色權限接合契約（唯讀）</h3><p class="note">所有正式 port 均 BLOCKED，任何 TEST 設定不能解鎖；真正接合前必須以核准原始證據與獨立安全驗收確認。</p><pre id="formalPortsStatus" aria-label="正式服務接合契約與權限阻擋狀態"></pre>
 <p class="note">集中驗收結束可清除全部 SIM 測試申請、虛構預約、通知與稽核。只刪除 STUDY1_UNIFIED_FIXTURE_V1，不更動 OPEN／CONSENT_READY 或其他資料。</p>
 <button id="adminReset" class="secondary" type="button" disabled>清空統一網站的虛構驗收資料</button></section>
 <p><a href="?view=admin">返回現有研究室管理後台</a></p>
@@ -157,7 +164,7 @@ function active(){return model?.applications.find(a=>a.id===selected)||null;}
 function syncControls(busy=false){
  const valid=!!model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false;
  const a=valid?active():null,phase=a?.phase;
- for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminReset','pdfDemoReview','adminAcceptance'])
+ for(const id of ['start','screen','otpRequest','otpVerify','hold','move','cancel','reviewConsent','consent','confirm','adminSave','adminResearchSave','adminPolicySave','adminScreeningSave','adminNotificationAttempt','adminSlotsSave','adminE2WeeksSave','adminReset','pdfDemoReview','adminAcceptance'])
   $(id).disabled=busy||!valid;
  if(!valid||busy)return;
  $('adminNotificationAttempt').disabled=!model.notifications.some(n=>n.status!=='SIM_DELIVERED'&&n.attempts<3);
@@ -179,7 +186,13 @@ function render(response){
   !response.policy||!response.policy.screening||!response.policy.screening.questions||
   !response.policy.consent||!response.policy.screening.mappings||
   !response.policy.screening.mappings.E1||!response.policy.screening.mappings.E2||
-  !Array.isArray(response.audit)||!response.pdfFixture||
+  !Array.isArray(response.audit)||!response.e2Operations||
+  response.e2Operations.mode!=='TEST_PLANNING'||response.e2Operations.approval!=='PENDING'||
+  !Array.isArray(response.e2Operations.weeks)||response.e2Operations.weeks.length!==8||
+  !response.formalPorts||response.formalPorts.activated!==false||
+  response.formalPorts.mode!=='FORMAL_BLOCKED'||
+  !Array.isArray(response.formalPorts.ports)||response.formalPorts.ports.some(p=>p.state!=='BLOCKED')||
+  !response.pdfFixture||
   response.pdfFixture.kind!=='SIMULATED_PDF_NOT_REC'||
   response.pdfFixture.approved!==false||!/^[a-f0-9]{64}$/.test(response.pdfFixture.sha256)||
   !response.governance||response.governance.mode!=='TEST'||
@@ -202,6 +215,9 @@ function render(response){
  $('testPdfHash').textContent=response.pdfFixture.sha256;
  $('governanceStatus').textContent=JSON.stringify(response.governance,null,2);
  $('formalReadinessStatus').textContent=JSON.stringify(response.formalReadiness,null,2);
+ $('formalPortsStatus').textContent=JSON.stringify(response.formalPorts,null,2);
+ $('adminE2WeeksJson').value=JSON.stringify(response.e2Operations.weeks,null,2);
+ $('e2WeeksStatus').textContent='八週測試規劃：'+response.e2Operations.plannedWeeks+'/8 週有暫定日期；正式研究分組、團課與居家安排均待核准。';
  for(const exp of ['E1','E2']){
   const d=response.definitions[exp];
   $('definitionTitle'+exp).textContent=d.label;
@@ -298,6 +314,10 @@ $('adminResearchSave').addEventListener('click',()=>{
 $('adminSlotsSave').addEventListener('click',()=>{
  try{command('ADMIN_SLOTS',{slots:JSON.parse($('adminSlotsJson').value)});}
  catch(e){info('時段 JSON 格式錯誤：'+String(e&&e.message||e),false);}
+});
+$('adminE2WeeksSave').addEventListener('click',()=>{
+ try{command('ADMIN_E2_WEEKS',{weeks:JSON.parse($('adminE2WeeksJson').value)});}
+ catch(e){info('E2 八週測試時程 JSON 格式錯誤：'+String(e&&e.message||e),false);}
 });
 $('adminPolicySave').addEventListener('click',()=>{
  try{
