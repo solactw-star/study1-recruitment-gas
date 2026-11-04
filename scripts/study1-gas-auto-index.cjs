@@ -83,14 +83,14 @@ function compareUnapproved(a,b){
  const omit=fs=>fs.filter(x=>!approved.has(x.name)).map(fields);
  return same(omit(a),omit(b));
 }
-async function waitForVersion(api,deploymentId,expected,attempts=5,pause=ms=>new Promise(done=>setTimeout(done,ms))){
+async function waitForVersion(api,deploymentId,expected,attempts=25,pause=ms=>new Promise(done=>setTimeout(done,ms))){
  let latest;
  for(let i=0;i<attempts;i++){
    latest=await api.getDeployment(deploymentId);
    const observed=latest?.deploymentConfig?.versionNumber;
    if(observed===expected)return latest;
    ensure(Number.isInteger(observed)&&observed<expected,'Unexpected deployment version change after update');
-   if(i<attempts-1)await pause(300*(i+1));
+   if(i<attempts-1)await pause(Math.min(2000,500+250*i));
  }
  throw Error('Deployment update not visible after repeated readback');
 }
