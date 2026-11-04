@@ -279,3 +279,26 @@ test('Unauthorized identity and changed OPEN flag deny both GUI reads/writes wit
   assert.equal(s.store.has('STUDY1_UNIFIED_FIXTURE_V1'),false);
  }
 });
+
+test('Malformed owner team save success cannot falsely show saved or keep editing enabled',()=>{
+ const s=server(),team=page(s,'team'),before=s.writes;
+ s.ctx.study1UnifiedPreviewCommand=()=>({mode:'TEST',open:false,consentReady:false,
+  formalReadiness:{activationAllowed:false},recruitment:{
+   E1:{year:2026,mode:'DEMO_OPEN'},E2:{year:2027,mode:'COMING_SOON'}}});
+ team.set('modeE1','COMING_SOON');team.click('saveModes');
+ assert.match(team.get('status').textContent,/無法核實.*拒絕操作/);
+ assert.doesNotMatch(team.get('status').textContent,/已儲存/);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(s.writes,before);
+ closed(s);
+});
+test('Malformed visitor action success stops the synthetic flow and never enables selections',()=>{
+ const s=server(),visitor=page(s,'visitor'),before=s.writes;
+ s.ctx.study1UnifiedPreviewCommand=()=>({mode:'BROKEN'});
+ visitor.click('chooseE1');
+ assert.match(visitor.get('status').textContent,/回應無法驗證.*重新載入/);
+ assert.equal(visitor.get('chooseE1').disabled,true);
+ assert.equal(visitor.get('chooseE2').disabled,true);
+ assert.equal(s.writes,before);
+ closed(s);
+});

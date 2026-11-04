@@ -105,6 +105,20 @@ const $=id=>document.getElementById(id);
 const phases=['choose','screen','otp','slots','consent','confirm','done'];
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
 const setStatus=(message,error=false)=>{$('status').textContent=message;$('status').className=error?'error':'';};
+function safePreview(response){
+ return !!response&&response.mode==='TEST'&&response.open===false&&response.consentReady===false&&
+  response.formalReadiness?.activationAllowed===false&&
+  response.pdfFixture?.kind==='SIMULATED_PDF_NOT_REC'&&
+  response.recruitment?.E1?.year===2026&&response.recruitment?.E2?.year===2027&&
+  !!response.definitions?.E1&&!!response.definitions?.E2&&
+  !!response.policy?.screening?.questions&&!!response.config&&
+  Array.isArray(response.applications)&&Array.isArray(response.slots);
+}
+function refuseReply(message){
+ busy=false;model=null;selected=null;pending=null;
+ $('chooseE1').disabled=true;$('chooseE2').disabled=true;
+ setStatus(message,true);
+}
 const current=()=>model&&model.applications.find(a=>a.id===selected);
 const studyName=exp=>model&&model.definitions[exp]?model.definitions[exp].label:(exp==='E2'?'實驗二':'實驗一');
 const chooseStage=()=>{
@@ -186,18 +200,13 @@ function load(){
  setStatus('正在載入報名頁面…');
  google.script.run.withSuccessHandler(response=>{
   busy=false;
-  if(!response||response.mode!=='TEST'||response.open!==false||response.consentReady!==false||!response.recruitment||
-    !response.formalReadiness||response.formalReadiness.activationAllowed!==false||
-    !response.pdfFixture||response.pdfFixture.kind!=='SIMULATED_PDF_NOT_REC'){
-    model=null;$('chooseE1').disabled=true;$('chooseE2').disabled=true;
-    setStatus('示範模式未通過安全檢查，已停止操作。',true);return;
+  if(!safePreview(response)){
+    refuseReply('示範模式未通過安全檢查，已停止操作。');return;
   }
   model=response;
   if(!model.applications.some(a=>a.id===selected))selected=null;
   render();
- }).withFailureHandler(e=>{busy=false;model=null;
-  $('chooseE1').disabled=true;$('chooseE2').disabled=true;
-  setStatus('無法載入示範：'+String(e.message||e),true);})
+ }).withFailureHandler(e=>refuseReply('無法載入示範：'+String(e.message||e)))
  .study1UnifiedPreviewGet();
 }
 function issue(action,payload,onSuccess){
@@ -209,6 +218,9 @@ function issue(action,payload,onSuccess){
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
+  if(!safePreview(response)){
+   refuseReply('示範操作回應無法驗證，已停止操作；請重新載入頁面核對。');return;
+  }
   busy=false;model=response;pending=null;
   if(action==='START'&&response.applications.length)selected=response.applications[response.applications.length-1].id;
   render();
