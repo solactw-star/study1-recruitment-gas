@@ -567,3 +567,33 @@ test('All formal data/OTP/booking/consent/notice ports are non-activatable and n
  assert.equal(s.writes,0);
  assert.match(html,/adminE2WeeksJson/);assert.match(html,/formalPortsStatus/);
 });
+
+test('2026 experiment 2 is coming soon for the visitor, and team changes never open formal enrollment',()=>{
+ const s=setup(),before=s.read();
+ assert.equal(before.recruitment.E1.mode,'DEMO_OPEN');
+ assert.equal(before.recruitment.E2.mode,'COMING_SOON');
+ assert.equal(before.recruitment.E2.year,2027);
+ const next=JSON.parse(JSON.stringify(before.recruitment));
+ next.E2.mode='DEMO_OPEN';
+ const changed=s.cmd('ADMIN_RECRUITMENT',{settings:next});
+ assert.equal(changed.recruitment.E2.mode,'DEMO_OPEN');
+ assert.equal(changed.open,false);assert.equal(changed.consentReady,false);
+ assert.equal(changed.formalReadiness.activationAllowed,false);
+ assert.equal(changed.formalPorts.activated,false);
+ assert.equal(changed.policy.consent.E2.approval,'PENDING');
+ const bad=JSON.parse(JSON.stringify(next));bad.E2.year=2026;
+ assert.throws(()=>s.cmd('ADMIN_RECRUITMENT',{settings:bad}),/2027年實驗二不可提前/);
+ bad.E2.year=2027;bad.E2.mode='FORMAL_OPEN';
+ assert.throws(()=>s.cmd('ADMIN_RECRUITMENT',{settings:bad}),/示範開放/);
+ assert.equal(s.read().recruitment.E2.year,2027);
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+});
+test('Legacy fixture receives display settings without changing old test applications on read',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});
+ const fixture=JSON.parse(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'));
+ delete fixture.recruitment;s.p.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(fixture));
+ const prior=s.writes,now=s.read();
+ assert.equal(s.writes,prior);
+ assert.equal(now.recruitment.E2.mode,'COMING_SOON');
+ assert.equal(now.applications[0].id,'SIM-001');
+});

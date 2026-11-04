@@ -9,6 +9,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
  {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'},
  {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
+ {name:'Study1Team',type:'HTML',path:'gas/Study1Team.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
  {name:'BookingCore',type:'SERVER_JS',path:'gas/BookingCore.js'},
  {name:'OtpThrottle',type:'SERVER_JS',path:'gas/OtpThrottle.js'},
@@ -25,6 +26,7 @@ function assertClosedWebsite(source){
   "HtmlService.createHtmlOutputFromFile('AdminConsole')",
   "study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified')",
   "view==='demo'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
+  "view==='team'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
   "HtmlService.createHtmlOutputFromFile('Index')",
   'function getPublicConfig(){return {open:false,consentReady:false',
   'function requestOtp(){return rejectIntake_();}',
@@ -145,7 +147,8 @@ function assertUnifiedFlow(source){
    "study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock)",
    "function study1UnifiedFormalReadiness_(s){",
    "function study1UnifiedPreviewSelfTest(){",
-   "formalReadiness:study1UnifiedFormalReadiness_(s)","study1UnifiedValidateE2Weeks_(s.e2Weeks)"])
+   "formalReadiness:study1UnifiedFormalReadiness_(s)","study1UnifiedValidateE2Weeks_(s.e2Weeks)",
+   "action==='ADMIN_RECRUITMENT'","study1UnifiedValidateRecruitment_(s.recruitment)"])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -158,7 +161,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedCoreAvailability_','study1UnifiedCoreOtpDecision_',
   'study1UnifiedPdfFixture_','study1UnifiedGovernance_',
   'study1UnifiedFormalReadiness_','study1UnifiedPreviewSelfTest',
-  'study1UnifiedE2Weeks_','study1UnifiedValidateE2Weeks_','study1UnifiedFormalPorts_']);
+  'study1UnifiedE2Weeks_','study1UnifiedValidateE2Weeks_','study1UnifiedFormalPorts_',
+  'study1UnifiedRecruitment_','study1UnifiedValidateRecruitment_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -202,6 +206,18 @@ function assertVisitorHtml(html){
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
    throw Error('Visitor demo must remain participant-only, synthetic and without external scripts');
 }
+function assertTeamHtml(html){
+ if(typeof html!=='string'||!html.startsWith('<!doctype html>')||
+    !html.includes('id="saveModes"')||!html.includes('id="modeE1"')||
+    !html.includes('id="modeE2"')||!html.includes('id="saveResearch"')||
+    !html.includes('id="saveSlots"')||!html.includes('id="saveWeeks"')||
+    !html.includes("save('ADMIN_RECRUITMENT'")||
+    !html.includes('study1UnifiedPreviewGet()')||
+    !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
+    !html.includes('正式收件開關保持鎖定')||
+    /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
+  throw Error('Research team UI must remain graphical, approved owner-only and CLOSED');
+}
 function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter){
  core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);assertOtpCore(otpCore);assertBookingCore(bookingCore);
  assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle');
@@ -210,11 +226,14 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  assertFixtureAdapter(fixtureAdapter);
  const visitorHtml=require('node:fs').readFileSync(require('node:path').join(__dirname,'../gas/Study1Visitor.html'),'utf8');
  assertVisitorHtml(visitorHtml);
+ const teamHtml=require('node:fs').readFileSync(require('node:path').join(__dirname,'../gas/Study1Team.html'),'utf8');
+ assertTeamHtml(teamHtml);
  const originals=remote.files,merged=structuredClone(originals);
  const incoming=[{name:'Index',type:'HTML',source:index},{name:'Website',type:'SERVER_JS',source:website},
   {name:'AdminSandbox',type:'SERVER_JS',source:adminScript},{name:'AdminConsole',type:'HTML',source:adminHtml},
   {name:'Study1Flow',type:'SERVER_JS',source:unifiedScript},{name:'Study1Unified',type:'HTML',source:unifiedHtml},
   {name:'Study1Visitor',type:'HTML',source:visitorHtml},
+  {name:'Study1Team',type:'HTML',source:teamHtml},
   {name:'OtpCore',type:'SERVER_JS',source:otpCore},{name:'BookingCore',type:'SERVER_JS',source:bookingCore},
   {name:'OtpThrottle',type:'SERVER_JS',source:otpThrottle},
   {name:'OtpTransaction',type:'SERVER_JS',source:otpTransaction},
@@ -231,4 +250,4 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  if(core.digest(keep(merged))!==core.digest(keep(originals)))throw Error('Unapproved remote GAS source changed');
  return merged;
 }
-module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,assertFixtureAdapter,assertTransactionKernel,assertVisitorHtml,mergeApproved};
+module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,assertFixtureAdapter,assertTransactionKernel,assertVisitorHtml,assertTeamHtml,mergeApproved};
