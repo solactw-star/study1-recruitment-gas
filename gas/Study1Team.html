@@ -117,8 +117,12 @@ function displayWeeks(){
 function render(data){
  if(!data||data.mode!=='TEST'||data.open!==false||data.consentReady!==false||
   !data.formalReadiness||data.formalReadiness.activationAllowed!==false||
-  !data.recruitment||!data.recruitment.E1||!data.recruitment.E2){
-  model=null;setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return;
+  !data.recruitment||!data.recruitment.E1||!data.recruitment.E2||
+  data.recruitment.E1.year!==2026||data.recruitment.E2.year!==2027||
+  !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
+  !Array.isArray(data.slots)||!Array.isArray(data.applications)||
+  !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
+  model=null;setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -139,6 +143,7 @@ function render(data){
  });
  $('bookingSummary').textContent='共有 '+data.applications.length+' 筆虛構申請。正式報名資料未啟用。';
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
+ return true;
 }
 function load(){
  setBusy(true);message('讀取網站設定…');
@@ -149,7 +154,9 @@ function save(action,payload){
  if(busy||!model)return;
  const id='REQ-SIM-TEAM_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
  setBusy(true);message('儲存中，正在檢查時段與版本…');
- google.script.run.withSuccessHandler(data=>{render(data);message('已儲存到本網站示範設定。正式招募仍關閉。');})
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data))message('已儲存到本網站示範設定。正式招募仍關閉。');
+ })
  .withFailureHandler(e=>{setBusy(false);message('未儲存：'+String(e.message||e)+'。請確認欄位或重新載入。',true);})
  .study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
 }
