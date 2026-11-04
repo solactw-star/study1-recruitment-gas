@@ -48,18 +48,20 @@ async function prepare(api,indexSource,websiteSource,adminScript,adminHtml,unifi
  const deployedAdminHtml=deployedContent.files.find(f=>f.name==='AdminConsole'&&f.type==='HTML')?.source;
  const deployedUnified=deployedContent.files.find(f=>f.name==='Study1Flow'&&f.type==='SERVER_JS')?.source;
  const deployedUnifiedHtml=deployedContent.files.find(f=>f.name==='Study1Unified'&&f.type==='HTML')?.source;
+ const visitorHtml=fs.readFileSync(path.join(__dirname,'../gas/Study1Visitor.html'),'utf8');
+ const deployedVisitorHtml=deployedContent.files.find(f=>f.name==='Study1Visitor'&&f.type==='HTML')?.source;
  const deployedOtpCore=deployedContent.files.find(f=>f.name==='OtpCore'&&f.type==='SERVER_JS')?.source;
  const deployedBookingCore=deployedContent.files.find(f=>f.name==='BookingCore'&&f.type==='SERVER_JS')?.source;
  const deployedOtpThrottle=deployedContent.files.find(f=>f.name==='OtpThrottle'&&f.type==='SERVER_JS')?.source;
  const deployedOtpTransaction=deployedContent.files.find(f=>f.name==='OtpTransaction'&&f.type==='SERVER_JS')?.source;
  const deployedBookingHoldTransaction=deployedContent.files.find(f=>f.name==='BookingHoldTransaction'&&f.type==='SERVER_JS')?.source;
  const deployedFixtureAdapter=deployedContent.files.find(f=>f.name==='Study1FixtureAdapter'&&f.type==='SERVER_JS')?.source;
- const deploymentChanged=deployedIndex!==indexSource||deployedWebsite!==websiteSource||deployedAdmin!==adminScript||deployedAdminHtml!==adminHtml||deployedUnified!==unifiedScript||deployedUnifiedHtml!==unifiedHtml||deployedOtpCore!==otpCore||deployedBookingCore!==bookingCore||deployedOtpThrottle!==otpThrottle||deployedOtpTransaction!==otpTransaction||deployedBookingHoldTransaction!==bookingHoldTransaction||deployedFixtureAdapter!==fixtureAdapter;
+ const deploymentChanged=deployedIndex!==indexSource||deployedWebsite!==websiteSource||deployedAdmin!==adminScript||deployedAdminHtml!==adminHtml||deployedUnified!==unifiedScript||deployedUnifiedHtml!==unifiedHtml||deployedVisitorHtml!==visitorHtml||deployedOtpCore!==otpCore||deployedBookingCore!==bookingCore||deployedOtpThrottle!==otpThrottle||deployedOtpTransaction!==otpTransaction||deployedBookingHoldTransaction!==bookingHoldTransaction||deployedFixtureAdapter!==fixtureAdapter;
  if(!permissionMatch&&deploymentChanged)console.log('DEPLOYMENT_ACCESS_PRESERVE: original /exec access will be retained when making an immutable version');
  console.log('CURRENT_DEPLOYED_VERSION:',current.deploymentConfig.versionNumber,'DEPLOYED_INDEX_MATCHES_GITHUB:',!deploymentChanged);
  const snapshot={scriptId:id,triggerSha:process.env.GITHUB_SHA||'',readAt:new Date().toISOString(),
   original:remote,remoteSha256:core.digest(remote.files),desiredSha256:core.digest(updated),
-  indexSha256:core.sha(indexSource),websiteSha256:core.sha(websiteSource),adminScriptSha256:core.sha(adminScript),adminHtmlSha256:core.sha(adminHtml),unifiedScriptSha256:core.sha(unifiedScript),unifiedHtmlSha256:core.sha(unifiedHtml),otpCoreSha256:core.sha(otpCore),bookingCoreSha256:core.sha(bookingCore),otpThrottleSha256:core.sha(otpThrottle),
+  indexSha256:core.sha(indexSource),websiteSha256:core.sha(websiteSource),adminScriptSha256:core.sha(adminScript),adminHtmlSha256:core.sha(adminHtml),unifiedScriptSha256:core.sha(unifiedScript),unifiedHtmlSha256:core.sha(unifiedHtml),visitorHtmlSha256:core.sha(visitorHtml),otpCoreSha256:core.sha(otpCore),bookingCoreSha256:core.sha(bookingCore),otpThrottleSha256:core.sha(otpThrottle),
   otpTransactionSha256:core.sha(otpTransaction),bookingHoldTransactionSha256:core.sha(bookingHoldTransaction),
   fixtureAdapterSha256:core.sha(fixtureAdapter),deployment:dep,deploymentId:dep.deploymentId,
   oldVersion:current.deploymentConfig.versionNumber,oldUrl:old.url,approvedSourceChanged,deploymentChanged,permissionMatch,deployedWebapp:depManifest.webapp};
@@ -79,7 +81,7 @@ function compareNoIndex(a,b){
  return same(omit(a),omit(b));
 }
 function compareUnapproved(a,b){
- const approved=new Set(['Index','Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
+ const approved=new Set(['Index','Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','Study1Visitor','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
  const omit=fs=>fs.filter(x=>!approved.has(x.name)).map(fields);
  return same(omit(a),omit(b));
 }
@@ -95,7 +97,7 @@ async function waitForVersion(api,deploymentId,expected,attempts=25,pause=ms=>ne
  throw Error('Deployment update not visible after repeated readback');
 }
 async function apply(api,indexSource,websiteSource,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter,s){
- ensure(s.scriptId===id&&s.triggerSha===process.env.GITHUB_SHA&&s.indexSha256===core.sha(indexSource)&&s.websiteSha256===core.sha(websiteSource)&&s.adminScriptSha256===core.sha(adminScript)&&s.adminHtmlSha256===core.sha(adminHtml)&&s.unifiedScriptSha256===core.sha(unifiedScript)&&s.unifiedHtmlSha256===core.sha(unifiedHtml)&&s.otpCoreSha256===core.sha(otpCore)&&s.bookingCoreSha256===core.sha(bookingCore)&&
+ ensure(s.scriptId===id&&s.triggerSha===process.env.GITHUB_SHA&&s.indexSha256===core.sha(indexSource)&&s.websiteSha256===core.sha(websiteSource)&&s.adminScriptSha256===core.sha(adminScript)&&s.adminHtmlSha256===core.sha(adminHtml)&&s.unifiedScriptSha256===core.sha(unifiedScript)&&s.unifiedHtmlSha256===core.sha(unifiedHtml)&&s.visitorHtmlSha256===core.sha(fs.readFileSync(path.join(__dirname,'../gas/Study1Visitor.html'),'utf8'))&&s.otpCoreSha256===core.sha(otpCore)&&s.bookingCoreSha256===core.sha(bookingCore)&&
  s.otpThrottleSha256===core.sha(otpThrottle)&&s.otpTransactionSha256===core.sha(otpTransaction)&&
  s.bookingHoldTransactionSha256===core.sha(bookingHoldTransaction)&&
  s.fixtureAdapterSha256===core.sha(fixtureAdapter),'Snapshot mismatch');
