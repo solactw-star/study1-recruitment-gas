@@ -51,6 +51,29 @@ function study1UnifiedValidatePolicy_(v){
  }
  return true;
 }
+/**
+ * Research-team PRESENTATION setting; not an authorization to recruit people.
+ * All /exec formal intake endpoints remain CLOSED regardless of this choice.
+ * E2 is not recruiting in 2026; its announced research year is 2027.
+ */
+function study1UnifiedRecruitment_(){
+ return {E1:{year:2026,mode:'DEMO_OPEN'},E2:{year:2027,mode:'COMING_SOON'}};
+}
+function study1UnifiedValidateRecruitment_(settings){
+ if(!settings||typeof settings!=='object'||Array.isArray(settings)||
+   Object.keys(settings).sort().join(',')!=='E1,E2')
+  throw Error('實驗顯示與開放狀態設定格式錯誤');
+ for(const exp of ['E1','E2']){
+  const entry=settings[exp];
+  if(!entry||typeof entry!=='object'||Array.isArray(entry)||
+     Object.keys(entry).sort().join(',')!=='mode,year'||
+     entry.year!==(exp==='E1'?2026:2027)||
+     !['DEMO_OPEN','COMING_SOON','HIDDEN'].includes(entry.mode))
+   throw Error('實驗顯示狀態必須為示範開放／即將開放／隱藏，2027年實驗二不可提前');
+ }
+ return true;
+}
+
 function study1UnifiedValidateSlots_(slots){
  if(!Array.isArray(slots)||slots.length>8)throw Error('測試時段不得超過八筆');
  const seen=new Set();
@@ -254,6 +277,7 @@ function study1UnifiedInitial_(){
   notice:'所有資料均為虛構測試，不會建立正式報名、寄信或產生有效同意書。',
   emailTemplate:'〔測試通知〕預約狀態變更，正式寄送尚未啟用。'},
   policy:study1UnifiedPolicy_(),research:study1UnifiedResearch_(),
+  recruitment:study1UnifiedRecruitment_(),
   slots:[
    {id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-01-05 10:00',capacity:2},
    {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-01-06 14:00',capacity:2},
@@ -271,6 +295,7 @@ function study1UnifiedRead_(){
  const s=JSON.parse(raw);
  if(s&&!s.policy)s.policy=study1UnifiedPolicy_(); // migrate only owner fixture
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
+ if(s&&!s.recruitment)s.recruitment=study1UnifiedRecruitment_(); // non-writing TEST migration
  if(s&&!s.e2Weeks)s.e2Weeks=study1UnifiedE2Weeks_(); // read-only fixture migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
@@ -292,6 +317,7 @@ function study1UnifiedRead_(){
     s.revision!==s.requests.length)throw Error('統一網站測試資料版本不一致，拒絕操作');
  study1UnifiedValidatePolicy_(s.policy);
  study1UnifiedValidateResearch_(s.research);
+ study1UnifiedValidateRecruitment_(s.recruitment);
  study1UnifiedValidateSlots_(s.slots);
  study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
@@ -416,6 +442,7 @@ function study1UnifiedView_(s){
  const available=new Map(study1UnifiedCoreAvailability_(s,now).map(x=>[x.slotId,x.remaining]));
  return {mode:'TEST',open:false,consentReady:false,formalApproval:'PENDING',
   revision:s.revision,researchSource:s.research.source,researchApproval:s.research.approval,
+  recruitment:JSON.parse(JSON.stringify(s.recruitment)),
   definitions:Object.fromEntries(Object.entries(s.research).filter(([k])=>k==='E1'||k==='E2').map(([k,v])=>
    [k,{...v,recVersion:s.policy.consent[k].version}])),config:s.config,
   policy:s.policy,audit:study1UnifiedAudit_(s),
@@ -446,7 +473,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RESET'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -520,6 +547,12 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     throw Error('測試容量低於有效預約數');
   }
   s.slots=p.slots.map(x=>({id:x.id,experiment:x.experiment,when:x.when,capacity:x.capacity}));return;
+ }
+ if(action==='ADMIN_RECRUITMENT'){
+  if(Object.keys(p).join(',')!=='settings')throw Error('網站實驗顯示設定欄位不合法');
+  study1UnifiedValidateRecruitment_(p.settings);
+  s.recruitment=JSON.parse(JSON.stringify(p.settings));
+  return;
  }
  if(action==='ADMIN_E2_WEEKS'){
   if(Object.keys(p).join(',')!=='weeks')throw Error('實驗二八週測試時程只允許指定週次');
@@ -765,6 +798,7 @@ function study1UnifiedPreviewCommand(command){
   if(next.notifications.length>15)throw Error('測試通知歷程已達上限');
   study1UnifiedValidatePolicy_(next.policy);study1UnifiedValidateResearch_(next.research);
   study1UnifiedValidateSlots_(next.slots);study1UnifiedValidateE2Weeks_(next.e2Weeks);
+  study1UnifiedValidateRecruitment_(next.recruitment);
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);

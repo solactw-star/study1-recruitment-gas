@@ -10,6 +10,8 @@ on:
       - 'gas/Study1Unified.js'
       - 'gas/Study1Unified.html'
       - 'gas/Study1Visitor.html'
+      - 'gas/Study1Team.html'
+      - 'tests/study1-team-ui.test.cjs'
       - 'tests/study1-visitor-demo.test.cjs'
       - 'gas/OtpCore.js'
       - 'gas/BookingCore.js'
@@ -75,6 +77,8 @@ jobs:
           cmp gas/Study1Unified.html "$RUNNER_TEMP/main-unified.html"
           git show origin/main:gas/Study1Visitor.html > "$RUNNER_TEMP/main-visitor.html"
           cmp gas/Study1Visitor.html "$RUNNER_TEMP/main-visitor.html"
+          git show origin/main:gas/Study1Team.html > "$RUNNER_TEMP/main-team.html"
+          cmp gas/Study1Team.html "$RUNNER_TEMP/main-team.html"
           git show origin/main:gas/OtpCore.js > "$RUNNER_TEMP/main-otp.js"
           cmp gas/OtpCore.js "$RUNNER_TEMP/main-otp.js"
           git show origin/main:gas/BookingCore.js > "$RUNNER_TEMP/main-booking.js"
@@ -123,6 +127,8 @@ jobs:
           cmp gas/Study1Unified.html "$RUNNER_TEMP/main-unified-after.html"
           git show origin/main:gas/Study1Visitor.html > "$RUNNER_TEMP/main-visitor-after.html"
           cmp gas/Study1Visitor.html "$RUNNER_TEMP/main-visitor-after.html"
+          git show origin/main:gas/Study1Team.html > "$RUNNER_TEMP/main-team-after.html"
+          cmp gas/Study1Team.html "$RUNNER_TEMP/main-team-after.html"
           git show origin/main:gas/OtpCore.js > "$RUNNER_TEMP/main-otp-after.js"
           cmp gas/OtpCore.js "$RUNNER_TEMP/main-otp-after.js"
           git show origin/main:gas/BookingCore.js > "$RUNNER_TEMP/main-booking-after.js"

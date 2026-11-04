@@ -39,3 +39,12 @@ test('Any external scripts, raw HTML injection, or missing signup flow fail DEMO
  assert.throws(()=>gate.assertVisitorHtml(html.replace('id="otpVerify"','id="missing-otp"')),/Visitor demo/);
  assert.throws(()=>gate.assertVisitorHtml(html+'<div onclick="window.fetch(1)"></div>'),/Visitor demo/);
 });
+
+test('Research-team enrollment presentation settings display E2 2027 as coming soon',()=>{
+ assert.match(html,/model\.recruitment\[exp\]/);
+ assert.match(html,/settings\.mode!=='DEMO_OPEN'/);
+ assert.match(html,/settings\.year/);
+ assert.match(html,/2027/);
+ assert.match(html,/id="visitorHeroTitle"/);
+ assert.match(html,/id="siteNoticeText"/);
+});

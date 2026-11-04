@@ -26,7 +26,7 @@ function remote(){
 }
 test('Current reviewed CLOSED Website source passes strict server gate',()=>{
  assert.doesNotThrow(()=>backend.assertClosedWebsite(website));
- assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','Study1Visitor','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
+ assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','Study1Visitor','Study1Team','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
  assert.doesNotThrow(()=>backend.assertAdminSandbox(adminSource));
  assert.doesNotThrow(()=>backend.assertAdminHtml(adminHtml));
  assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
@@ -88,7 +88,7 @@ test('Admin source guard rejects new functions, live research Sheets calls and a
 });
 test('Only reviewed internal Booking/OTP pure cores are allowed, and fixture-only transaction adapters',()=>{
  const original=remote(),result=backend.mergeApproved(core,original,index,website,adminSource,adminHtml,unified,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter);
- assert.equal(result.length,15);
+ assert.equal(result.length,16);
  assert.deepEqual(result.filter(x=>/^Booking|^Otp/.test(x.name)).map(x=>x.name).sort(),['BookingCore','BookingHoldTransaction','OtpCore','OtpThrottle','OtpTransaction']);
  assert.equal(result.some(x=>x.name==='BookingHoldTransaction'||x.name==='OtpTransaction'),true);
  const withProtected=remote();withProtected.files.push({name:'BookingReadOnlySheet',type:'SERVER_JS',source:'DO NOT TOUCH'});
