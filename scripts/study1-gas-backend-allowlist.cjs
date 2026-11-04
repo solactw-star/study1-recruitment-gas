@@ -203,6 +203,8 @@ function assertVisitorHtml(html){
     !html.includes('study1UnifiedPreviewCommand(envelope)')||
     !html.includes('SIMULATED_SIGN_ONLY')||
     !html.includes('不接受正式報名')||
+    !html.includes('<base target="_top">')||
+    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
    throw Error('Visitor demo must remain participant-only, synthetic and without external scripts');
 }
@@ -215,6 +217,7 @@ function assertTeamHtml(html){
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
     !html.includes('正式收件開關保持鎖定')||
+    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Research team UI must remain graphical, approved owner-only and CLOSED');
 }
