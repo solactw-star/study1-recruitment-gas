@@ -12,6 +12,7 @@ on:
       - 'gas/Study1Visitor.html'
       - 'gas/Study1Team.html'
       - 'tests/study1-team-ui.test.cjs'
+      - 'tests/study1-team-visitor-flow.test.cjs'
       - 'tests/study1-visitor-demo.test.cjs'
       - 'gas/OtpCore.js'
       - 'gas/BookingCore.js'
