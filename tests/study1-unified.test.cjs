@@ -482,7 +482,9 @@ test('Formal readiness is a complete, source-provenance checklist with every rea
  const s=setup(),m=s.read(),r=m.formalReadiness;
  assert.equal(r.mode,'FORMAL_BLOCKED');
  assert.equal(r.activationAllowed,false);assert.equal(r.passed,0);
- assert.equal(r.total,14);assert.equal(r.gates.length,14);
+ assert.equal(r.total,16);assert.equal(r.gates.length,16);
+ assert.equal(r.gates.find(g=>g.id==='E2_EIGHT_WEEK_PLAN_APPROVAL').state,'PENDING');
+ assert.equal(r.gates.find(g=>g.id==='FORMAL_DATA_PORT_AUTHORIZATION').state,'BLOCKED');
  assert.equal(r.gates.find(g=>g.id==='E1_REC_PDF_BYTES').state,'BLOCKED');
  assert.equal(r.gates.find(g=>g.id==='E2_SCREENING_SOURCE').state,'PENDING');
  assert.equal(r.provenance.E1.sourceBytesVerified,false);
@@ -527,4 +529,41 @@ test('Whole-site in-memory acceptance rejects non-owner and OPEN flags',()=>{
   assert.throws(()=>s.ctx.study1UnifiedPreviewSelfTest());
   assert.equal(s.writes,0);assert.equal(s.deletes,0);assert.equal(s.held,false);
  }
+});
+
+
+test('E2 eight-week planning is editable only inside the SAME TEST state with strict chronology',()=>{
+ const s=setup();let m=s.read();
+ assert.equal(m.e2Operations.mode,'TEST_PLANNING');
+ assert.equal(m.e2Operations.plannedWeeks,0);
+ assert.equal(m.e2Operations.weeks.length,8);
+ assert.equal(s.writes,0);
+ const weeks=m.e2Operations.weeks.map((w,i)=>({...w,date:'2027-02-'+String(1+i).padStart(2,'0'),notes:'〔TEST〕行政規劃'}));
+ m=s.cmd('ADMIN_E2_WEEKS',{weeks});
+ assert.equal(m.e2Operations.plannedWeeks,8);assert.equal(m.e2Operations.weeks[7].date,'2027-02-08');
+ assert.equal(m.formalPorts.activated,false);assert.equal(m.formalPorts.ports.every(p=>p.state==='BLOCKED'),true);
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+ const before=s.p.get('STUDY1_UNIFIED_FIXTURE_V1'),revision=s.read().revision;
+ const outOfOrder=weeks.map(x=>({...x}));outOfOrder[4].date='2027-02-01';
+ assert.throws(()=>s.cmd('ADMIN_E2_WEEKS',{weeks:outOfOrder}),/順序重複/);
+ const missing=weeks.slice(1);
+ assert.throws(()=>s.cmd('ADMIN_E2_WEEKS',{weeks:missing}),/完整八週/);
+ const bad=weeks.map(x=>({...x}));bad[1].date='2027-02-30';
+ assert.throws(()=>s.cmd('ADMIN_E2_WEEKS',{weeks:bad}),/日期無效/);
+ assert.equal(s.read().revision,revision);
+ assert.equal(s.p.get('STUDY1_UNIFIED_FIXTURE_V1'),before);
+});
+test('All formal data/OTP/booking/consent/notice ports are non-activatable and no production access exists',()=>{
+ const s=setup(),m=s.read(),p=m.formalPorts;
+ assert.equal(p.mode,'FORMAL_BLOCKED');assert.equal(p.activated,false);
+ for(const expected of ['IDENTITY_VERIFY','OTP_SEND_REAL','BOOKING_RESERVE',
+  'E2_EIGHT_WEEK_OPERATIONS','CONSENT_PDF_READ','CONSENT_SIGN','NOTIFICATION_DISPATCH','SUBJECT_DATA_ACCESS'])
+  assert.equal(p.ports.find(port=>port.name===expected).state,'BLOCKED');
+ assert.equal(p.pdf.sourceBytesVerified,false);assert.equal(p.pdf.signatureEnabled,false);
+ assert.equal(p.notification.realDelivery,false);assert.equal(p.retention.policy,'PENDING');
+ for(const op of ['readParticipant','writeParticipant','requestOtp','verifyOtp','holdSlot',
+  'submitConsent','sendNotification','deleteParticipant'])
+  assert.throws(()=>s.ctx.study1UnifiedProductionAdapter_()[op](),/尚未核准/);
+ assert.equal(s.writes,0);
+ assert.match(html,/adminE2WeeksJson/);assert.match(html,/formalPortsStatus/);
 });
