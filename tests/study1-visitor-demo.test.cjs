@@ -48,3 +48,9 @@ test('Research-team enrollment presentation settings display E2 2027 as coming s
  assert.match(html,/id="visitorHeroTitle"/);
  assert.match(html,/id="siteNoticeText"/);
 });
+
+test('Participant navigation uses the original full /exec URL and GAS iframe-safe link target',()=>{
+ assert.match(html,/<base target="_top">/);
+ assert.match(html,/https:\/\/script\.google\.com\/macros\/s\/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s\/exec/);
+ assert.match(html,/target="_top"/);
+});

@@ -40,7 +40,9 @@ test('Only the authenticated owner can open the visual research-team management 
  assert.match(gate.APPROVED_BACKEND.map(x=>x.name).join(' '),/Study1Team/);
 });
 test('Homepage and visitor demo use one research visual language and homepage links to demo',()=>{
- assert.match(index,/href="\?view=demo"/);
+ assert.match(index,/\/exec\?view=demo/);
+ assert.match(html,/\/exec\?view=demo/);
+ assert.match(visitor,/\/exec" target="_top"/);
  assert.match(visitor,/--ink:#163341;--sea:#1b7d80/);
  assert.match(visitor,/linear-gradient\(115deg,#f0f9f7,#e4f1ed\)/);
  assert.match(index,/2027 年進行，2026 年不招募/);
