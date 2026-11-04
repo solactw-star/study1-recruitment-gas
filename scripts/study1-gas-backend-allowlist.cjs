@@ -8,6 +8,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'AdminConsole',type:'HTML',path:'gas/AdminConsole.html'},
  {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
  {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'},
+ {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
  {name:'BookingCore',type:'SERVER_JS',path:'gas/BookingCore.js'},
  {name:'OtpThrottle',type:'SERVER_JS',path:'gas/OtpThrottle.js'},
@@ -23,6 +24,7 @@ function assertClosedWebsite(source){
   "function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();",
   "HtmlService.createHtmlOutputFromFile('AdminConsole')",
   "study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified')",
+  "view==='demo'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
   "HtmlService.createHtmlOutputFromFile('Index')",
   'function getPublicConfig(){return {open:false,consentReady:false',
   'function requestOtp(){return rejectIntake_();}',
@@ -186,16 +188,33 @@ function assertUnifiedHtml(html){
  if(/<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Unified website has forbidden external or raw HTML operations');
 }
+function assertVisitorHtml(html){
+ if(typeof html!=='string'||!html.startsWith('<!doctype html>')||
+    !html.includes('id="chooseE1"')||!html.includes('id="chooseE2"')||
+    !html.includes('id="screenNext"')||!html.includes('id="otpSend"')||
+    !html.includes('id="otpVerify"')||!html.includes('id="hold"')||
+    !html.includes('id="review"')||!html.includes('id="finish"')||
+    !html.includes('id="receiptId"')||
+    !html.includes('study1UnifiedPreviewGet()')||
+    !html.includes('study1UnifiedPreviewCommand(envelope)')||
+    !html.includes('SIMULATED_SIGN_ONLY')||
+    !html.includes('不接受正式報名')||
+    /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
+   throw Error('Visitor demo must remain participant-only, synthetic and without external scripts');
+}
 function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter){
  core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);assertOtpCore(otpCore);assertBookingCore(bookingCore);
  assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle');
  assertTransactionKernel(otpTransaction,'85e554cab2c6767fd80545b8c6e573c99e750a9e','OtpTransaction');
  assertTransactionKernel(bookingHoldTransaction,'1f12a687625ceb72414227451853a900e3dab692','BookingHoldTransaction');
  assertFixtureAdapter(fixtureAdapter);
+ const visitorHtml=require('node:fs').readFileSync(require('node:path').join(__dirname,'../gas/Study1Visitor.html'),'utf8');
+ assertVisitorHtml(visitorHtml);
  const originals=remote.files,merged=structuredClone(originals);
  const incoming=[{name:'Index',type:'HTML',source:index},{name:'Website',type:'SERVER_JS',source:website},
   {name:'AdminSandbox',type:'SERVER_JS',source:adminScript},{name:'AdminConsole',type:'HTML',source:adminHtml},
   {name:'Study1Flow',type:'SERVER_JS',source:unifiedScript},{name:'Study1Unified',type:'HTML',source:unifiedHtml},
+  {name:'Study1Visitor',type:'HTML',source:visitorHtml},
   {name:'OtpCore',type:'SERVER_JS',source:otpCore},{name:'BookingCore',type:'SERVER_JS',source:bookingCore},
   {name:'OtpThrottle',type:'SERVER_JS',source:otpThrottle},
   {name:'OtpTransaction',type:'SERVER_JS',source:otpTransaction},
@@ -212,4 +231,4 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  if(core.digest(keep(merged))!==core.digest(keep(originals)))throw Error('Unapproved remote GAS source changed');
  return merged;
 }
-module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,assertFixtureAdapter,assertTransactionKernel,mergeApproved};
+module.exports={APPROVED_BACKEND,assertClosedWebsite,assertAdminSandbox,assertAdminHtml,assertUnifiedFlow,assertUnifiedHtml,assertOtpCore,assertBookingCore,assertFixtureAdapter,assertTransactionKernel,assertVisitorHtml,mergeApproved};
