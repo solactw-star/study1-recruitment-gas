@@ -49,6 +49,15 @@ test('Deployment version readback tolerates short-lived previous-version respons
  const result=await sync.waitForVersion(fake,id,3,5,async()=>{});
  assert.equal(reads,3);assert.equal(result.deploymentConfig.versionNumber,3);
 });
+test('Slow GAS deployment propagation is tolerated without a second update call',async()=>{
+ let reads=0,waits=0;
+ const fake={getDeployment:async()=>({deploymentConfig:{versionNumber:++reads<9?45:46}})};
+ const result=await sync.waitForVersion(fake,'original-exec',46,25,async ms=>{
+  waits++;assert.ok(ms>=500&&ms<=2000);
+ });
+ assert.equal(result.deploymentConfig.versionNumber,46);
+ assert.equal(reads,9);assert.equal(waits,8);
+});
 test('Deployment readback rejects unexpected version advancement without overwriting',async()=>{
  const fake={getDeployment:async()=>({deploymentConfig:{versionNumber:5}})};
  await assert.rejects(sync.waitForVersion(fake,'a',3,3,async()=>{}),/Unexpected deployment/);
