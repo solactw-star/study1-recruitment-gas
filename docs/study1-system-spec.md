@@ -375,3 +375,14 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `LAST_VERIFIED_STEP=GitHub main code, CI 483/483, original GAS version 57 and SHA deployment readback`。`GAS_SYNC_VERIFIED=true`；`PRODUCTION_STORAGE_CONNECTED=false`；`CAPACITY_FORMAL_VERIFIED=false`；`SELF_UI_3PASS=NOT_VERIFIED`（無獲授權owner瀏覽器實際操作證據）；`USER_UAT_PASSED=NOT_YET`（依第28節延後、非後續建置阻塞）；`FORMAL_READY=false`。維持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2 2027年前不招募且不自動開放。
 - `NEXT_ACTION`：從最新main讀取正式系統權責與當次REC／核准文件後，先確定正式儲存系統的唯一資料權威、讀寫權限、資料版本與跨表交易需求；**沒有正式資料寫入授權時只能持續完成不接入真人資料的架構／安全模組及其他已授權P1/P2功能**。下輪建議B06人工行政待辦或補完資料保存層的無外部副作用測試；不使用ScriptProperties測試上限作正式規格、不進行未授權部署。
 - `WRITE_OWNER=GitHub main code and existing GAS sync workflow`；`BLOCKERS=REC/data storage authorization, formal capacity, live UI/roles`；`SYNC_STATUS=version57 verified; formal persistent store blocked`。
+
+## 三十二、B06人工行政待辦原網站整合與第58版部署接續（2026-11-05）
+
+- `TASK_DOMAIN=Study1 recruitment website`；正式主規格仍為 `docs/study1-system-spec.md`，B06以第十五節、第28–31節及「第46題最終A：全部待辦人工建立」為依據。**本次只在既有研究團隊頁面與原 GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z` 開發，沒有另設網站、部署或正式研究資料庫。**
+- `COMPLETED`：B06具獨立「人工行政待辦」頁面與首頁未完成／已完成摘要，手動建立、編輯、僅 `OPEN/DONE` 兩種工作狀態、勾選完成、重新開啟、封存／還原封存、關鍵字搜尋、完成及封存狀態篩選、E1/E2範圍篩選；PI/RA負責人與截止日期均可留空；可連到已存在的虛構實驗、參與者、預約及場次。歷程保留每次操作、操作者、原因、時間及完整前後值，不以封存清除歷史。B02／B05執行或異常**不會自動建立待辦**。
+- `STORAGE`：原GAS的owner-only虛構B06資料改用同一ScriptProperties服務內原ID的模組專屬 `STUDY1_B06_TASKS_V1` key、獨立B06修訂版與請求去重、ScriptLock、防競寫及回讀失敗時原值回復，**不消耗B02–B05既有40筆請求上限、不建立平行網站或正式Sheets**。B06稽核紀錄為SHA256串接與最新狀態校驗，僅屬有限儲存區的完整性檢查；交易與筆數仍受Apps Script key和腳本容量限制，非正式永久不可變更稽核庫。此模組不讀寫真人個資、不寄真信、沒有啟動正式PI/RA雙角色帳號。
+- `SOURCE_COMMIT=97f4bfdd121a5a45f753b5e5a3c17d64238b269e`；PR #59已合併 `main`，增量變更 `gas/Study1Unified.js`、`gas/Study1Team.html`、`scripts/study1-gas-backend-allowlist.cjs` 與三個測試檔。最終主分支CI與GAS同步流程**489項全通過、0失敗**。原GAS自動同步run `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42039131465` 回讀 `SYNC_VERIFIED=true`；原部署ID、`/exec`、`MYSELF`保留，**部署第58版**，SHA256 `392cf0917894a1e3e3d2f15f86812c1d172f6e0c95a3d32f8232338840a4e4d2`。
+- `LAST_VERIFIED_STEP`：GitHub main commit、完整CI和原GAS第58版同ID部署SHA／權限回讀。`IMPLEMENTED=true`（原網站B06行政操作及虛構資料）；`GAS_SYNC_VERIFIED=true`；`SELF_UI_3PASS=NOT_VERIFIED`（無授權owner瀏覽器真正三輪UI操作證據）；`USER_UAT_PASSED=NOT_YET`（使用者明確延後，不阻塞其他模組）；`FORMAL_READY=false`。維持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`及E2不自動招募；同步前HEAD manifest所顯示 `ANYONE_ANONYMOUS` 並非有效版本化部署的權限。
+- `BLOCKERS`：真實PI/RA雙角色核准與稽核權限、正式資料庫及容量、保存與刪除政策、真人研究REC同意，以及實際owner瀏覽器操作驗收均未完成；B06目前關聯預約以原虛構申請代碼表示，正式預約獨立ID待核准資料模型再統一。B06的本次完成不代表正式資料接入或既有容量瓶頸全面解決。
+- `NEXT_ACTION`：既有每小時自動續建需先重讀最新main及第28–32節，選下一個不需正式資料授權且可安全實作之P0/P1/P2模組（例如B01首頁統計、B07行政補貼介面或B08通知管理的封閉操作；實際依最新規格依賴排序），或增量改善正式儲存／角色權限之無外部副作用程式。不得自動解除招募、修改正式研究資料或主動要求人工UAT。
+- `WRITE_OWNER=GitHub main + existing original GAS auto-sync workflow`；`SYNC_STATUS=GAS v58 verified; formal research data and real UI blocked`。
