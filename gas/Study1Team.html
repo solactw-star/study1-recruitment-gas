@@ -794,7 +794,7 @@ function profileOpen(id,origin){
  if(!calAllowed()||!model.b04||!model.applications.some(a=>a.id===id)){
   calMsg('參與者資料尚未就緒或沒有檢視權限。',true);return;
  }
- profile.id=id;profile.origin=origin==='calendar'?'calendar':origin==='board'?'board':'list';
+ profile.id=id;profile.origin=origin==='calendar'?'calendar':origin==='board'?'board':origin==='b05'?'b05':'list';
  profile.tab='basic';profile.open=true;
  $('teamMain').classList.add('b04Open');
  $('profileModule').hidden=false;
@@ -803,6 +803,12 @@ function profileOpen(id,origin){
 }
 function profileBack(){
  if(!profile.open)return;
+ if(profile.origin==='b05'){
+  profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');
+  b05.open=true;$('b05Module').hidden=false;$('teamMain').classList.add('b05Open');
+  b05Render();if($('b05Module').scrollIntoView)$('b05Module').scrollIntoView({block:'start'});
+  return;
+ }
  profile.open=false;$('profileModule').hidden=true;
  $('teamMain').classList.remove('b04Open');
  if(profile.origin==='calendar'){
@@ -1150,7 +1156,7 @@ function b05Render(){
   ['已核實出席',people.filter(a=>['PRESENT','LATE'].includes(state(a.id).attendance)).length+'位'],
   ['施測完成（行政標示）',people.filter(a=>state(a.id).progress==='COMPLETE').length+'位'],
   ['待處理紀錄',issues.length+'位（不自動產生待辦）'],
-  ['行政結案','已結案'=== (meta.status==='CLOSED'?'已結案':'未結案')?'已結案':'未結案']]){
+  ['行政結案',meta.status==='CLOSED'?'已結案':'未結案']]){
   const node=calElem('div',undefined);node.append(calElem('strong',k),calElem('p',String(v)));summary.append(node);
  }
  const target=$('b05Participants');target.replaceChildren();
@@ -1176,7 +1182,8 @@ function b05Render(){
   fields.append(attendance.node,progress.node,notes,save);
   const open=calElem('button','查看B04完整資料','secondary');open.type='button';
   open.addEventListener('click',()=>{
-   b05Back();profileOpen(a.id,'calendar');
+   b05.open=false;$('b05Module').hidden=true;$('teamMain').classList.remove('b05Open');
+   profileOpen(a.id,'b05');
   });
   card.append(header,fields,open);target.append(card);
  }
