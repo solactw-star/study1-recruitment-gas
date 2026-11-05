@@ -1341,6 +1341,45 @@ function b06EditTask(t){
  if($('b06Form').scrollIntoView)$('b06Form').scrollIntoView({block:'start'});
 }
 
+
+function b06Send(action,payload,done){
+ if(busy||!model||!model.b06){b06Message('待辦資料或權限尚未就緒。',true);return;}
+ const expectedRevision=model.b06.revision;
+ const requestId='REQ-SIM-B06_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ setBusy(true);b06Message('核對版號並儲存中…',false);
+ google.script.run.withSuccessHandler(answer=>{
+  if(render(answer)){
+   if(done)done();
+   b06Message('操作已儲存並回讀，歷程已更新。',false);
+  }
+ }).withFailureHandler(e=>{
+  setBusy(false);
+  b06Message('儲存未完成：'+String(e.message||e)+
+   '。原資料不會自動清除，請重新讀取後確認。',true);
+ }).study1UnifiedB06Command({action,payload,expectedRevision,requestId});
+}
+function b06Action(t,action){
+ if(busy)return;
+ const names={COMPLETE:'勾選完成',REOPEN:'重新開啟',ARCHIVE:'封存',RESTORE:'還原封存'};
+ if(!names[action])return;
+ if((action==='ARCHIVE'||action==='RESTORE')&&
+  !confirm('確認'+names[action]+'「'+t.title+'」？封存不刪除操作歷程。'))return;
+ const reasons={COMPLETE:'研究人員手動勾選完成',REOPEN:'研究人員手動重新開啟',
+  ARCHIVE:'研究人員手動封存事項',RESTORE:'研究人員手動還原封存'};
+ b06Send(action,{id:t.id,reason:reasons[action]});
+}
+function b06EventText(h){
+ const labels={CREATE:'手動建立',EDIT:'編輯',COMPLETE:'完成',REOPEN:'重新開啟',
+  ARCHIVE:'封存',RESTORE:'還原封存'};
+ const summary=t=>t?t.title+'｜'+(t.status==='OPEN'?'未完成':'已完成')+
+  (t.archived?'／封存':'')+'｜'+t.experiment+
+  '｜關聯 '+(t.relationId||'無')+'｜負責 '+(t.assignee||'未指定')+
+  '｜截止 '+(t.dueDate||'無'):'無';
+ return h.at+'｜'+(labels[h.action]||h.action)+'｜'+h.taskId+
+  '\n操作者：'+h.actor+'；原因：'+h.reason+
+  '\n原值：'+summary(h.before)+'\n新值：'+summary(h.after);
+}
+
 /* B06_CONTINUE */
 $('refresh').addEventListener('click',load);load();
 })();
