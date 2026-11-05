@@ -8,7 +8,9 @@ const path=require('node:path');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
 const zlib=require('node:zlib');
-const source=fs.readFileSync(path.join(__dirname,'../gas/Study1Unified.js'),'utf8');
+const source=['OtpCore.js','BookingCore.js','OtpThrottle.js','OtpTransaction.js',
+ 'BookingHoldTransaction.js','Study1FixtureAdapter.js','AdminSandbox.js','Study1Unified.js']
+ .map(name=>fs.readFileSync(path.join(__dirname,'../gas',name),'utf8')).join('\n');
 function makeBlob(x){
  const data=typeof x==='string'?Buffer.from(x,'utf8'):Buffer.from(x.map(n=>n&255));
  return {getBytes:()=>[...data].map(n=>n>127?n-256:n),
