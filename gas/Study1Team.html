@@ -1293,6 +1293,55 @@ function b05Closure(action){
 }
 b05Init();
 
+/* B06: no automatic todo creation; all changes originate from manual controls. */
+const b06={editing:null,historyId:null};
+function b06Message(s,isError){
+ $('b06Message').textContent=s;
+ $('b06Message').style.color=isError?'#ac3530':'#476f68';
+}
+function b06Choices(preferred){
+ if(!model)return;
+ const kind=$('b06RelationType').value,exp=$('b06Experiment').value;
+ let choices=[['','不關聯']];
+ if(kind==='EXPERIMENT')choices=[['','請選擇實驗'],...['E1','E2']
+  .filter(x=>exp==='ALL'||x===exp).map(x=>[x,x==='E1'?'實驗一':'實驗二'])];
+ else if(kind==='PARTICIPANT'||kind==='BOOKING')
+  choices=[['','請選擇紀錄'],...model.applications
+   .filter(a=>(exp==='ALL'||exp===a.experiment)&&(kind!=='BOOKING'||a.slotId))
+   .map(a=>[a.id,a.id+'｜'+a.experiment+(kind==='BOOKING'?'｜'+a.slotId:'')])];
+ else if(kind==='SESSION')choices=[['','請選擇場次'],...model.slots
+  .filter(x=>exp==='ALL'||exp===x.experiment).map(x=>[x.id,x.id+'｜'+x.when])];
+ const box=$('b06RelationId');box.replaceChildren();
+ for(const [value,label] of choices){
+  const el=document.createElement('option');el.value=value;el.textContent=label;box.append(el);
+ }
+ box.value=choices.some(x=>x[0]===preferred)?preferred:'';
+}
+function b06Reset(){
+ b06.editing=null;$('b06FormHeading').textContent='手動新增待辦';
+ $('b06Save').textContent='手動新增';$('b06CancelEdit').hidden=true;
+ for(const id of ['b06Title','b06Description','b06Assignee','b06DueDate'])$(id).value='';
+ $('b06Experiment').value='ALL';$('b06RelationType').value='NONE';
+ $('b06Reason').value='人工建立行政事項';b06Choices('');
+}
+function b06FormValues(){
+ return {title:$('b06Title').value.trim(),description:$('b06Description').value.trim(),
+  assignee:$('b06Assignee').value,dueDate:$('b06DueDate').value,
+  experiment:$('b06Experiment').value,relationType:$('b06RelationType').value,
+  relationId:$('b06RelationId').value,reason:$('b06Reason').value.trim()};
+}
+function b06EditTask(t){
+ if(t.archived||busy)return;
+ b06.editing=t.id;$('b06FormHeading').textContent='編輯 '+t.id;
+ $('b06Save').textContent='儲存修改';$('b06CancelEdit').hidden=false;
+ for(const [k,v] of [['b06Title',t.title],['b06Description',t.description],
+  ['b06Assignee',t.assignee],['b06DueDate',t.dueDate],['b06Experiment',t.experiment],
+  ['b06RelationType',t.relationType]])$(k).value=v;
+ $('b06Reason').value='人工修正行政事項';b06Choices(t.relationId);
+ if($('b06Form').scrollIntoView)$('b06Form').scrollIntoView({block:'start'});
+}
+
+/* B06_CONTINUE */
 $('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
