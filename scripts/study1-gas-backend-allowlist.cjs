@@ -159,7 +159,15 @@ function assertUnifiedFlow(source){
    "action==='ADMIN_B04_NOTE'","s.b04.notes[p.id]=p.note",
    "s.b04.history.push(","p.reason.trim().length<4",
    "e.actor!=='OWNER'","b04:JSON.parse(JSON.stringify(s.b04",
-   "if(s&&!s.b04)s.b04={notes:{},history:[]}" ])
+   "if(s&&!s.b04)s.b04={notes:{},history:[]}",
+   "action==='ADMIN_B05_CLOSURE'","s.b05.history.push(",
+   "s.b05.closures[slot.id]=","delete s.b05.closures[slot.id]",
+   "s.b02.sessions[slot.id]={...m,status:'CLOSED'}",
+   "s.b05.history=s.b05.history.slice(-32)",
+   "if(s&&!s.b05)s.b05={closures:{},history:[]}",
+   "b05:JSON.parse(JSON.stringify(s.b05",
+   "p.action==='CLOSE'&&issues>0&&p.handoff.trim().length<4",
+   "if(!Number.isFinite(start)||start>now)" ])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
