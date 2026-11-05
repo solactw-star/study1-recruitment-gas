@@ -410,3 +410,29 @@ test('B03 list and kanban share the SAME participants, filters, and return-to-bo
  assert.equal(srv.writes,writes,'B03 viewing, filtering and B04 navigation do not mutate source');
  closed(srv);
 });
+
+
+test('B05 is reachable from existing calendar, shows original session and returns without writes',()=>{
+ const srv=server(),before=srv.writes;
+ const team=page(srv,'team');
+ const findDeep=(root,fn)=>{
+  if(fn(root))return root;
+  for(const child of root.children||[]){const match=findDeep(child,fn);if(match)return match;}
+  return null;
+ };
+ const card=findDeep(team.get('calBoard'),x=>x.dataset&&x.dataset.sessionId==='SIM-SLOT-E1-A');
+ assert.ok(card,'calendar contains original first E1 session');
+ card.handlers.click();
+ const button=findDeep(team.get('calSessionDetail'),x=>x.textContent==='研究現場與結案（B05）');
+ assert.ok(button,'B02 existing session panel has a B05 entry');
+ button.handlers.click();
+ assert.equal(team.get('b05Module').hidden,false);
+ assert.match(team.get('b05Heading').textContent,/SIM-SLOT-E1-A/);
+ assert.equal(team.get('b05Summary').children.length,8);
+ assert.equal(team.get('b05Close').disabled,true,'future session cannot close prematurely');
+ assert.match(team.get('b05Checks').textContent,/不能提前結案/);
+ team.click('b05Back');
+ assert.equal(team.get('b05Module').hidden,true);
+ assert.equal(srv.writes,before,'open and return must not write research data');
+ closed(srv);
+});
