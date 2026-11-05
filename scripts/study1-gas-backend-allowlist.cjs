@@ -155,7 +155,11 @@ function assertUnifiedFlow(source){
    "function study1UnifiedFormalReadiness_(s){",
    "function study1UnifiedPreviewSelfTest(){",
    "formalReadiness:study1UnifiedFormalReadiness_(s)","study1UnifiedValidateE2Weeks_(s.e2Weeks)",
-   "action==='ADMIN_RECRUITMENT'","study1UnifiedValidateRecruitment_(s.recruitment)"])
+   "action==='ADMIN_RECRUITMENT'","study1UnifiedValidateRecruitment_(s.recruitment)",
+   "action==='ADMIN_B04_NOTE'","s.b04.notes[p.id]=p.note",
+   "s.b04.history.push(","p.reason.trim().length<4",
+   "e.actor!=='OWNER'","b04:JSON.parse(JSON.stringify(s.b04",
+   "if(s&&!s.b04)s.b04={notes:{},history:[]}" ])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
