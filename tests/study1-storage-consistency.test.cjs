@@ -95,6 +95,11 @@ test('provider-neutral storage contract keeps monotonic revisions, idempotency a
  const altered=JSON.parse(JSON.stringify(second.state));
  altered.head='bad';
  assert.throws(()=>ctx.study1UnifiedStoreVerify_(altered),/稽核事件數量/);
+ const alteredRow=JSON.parse(JSON.stringify(second.state));
+ alteredRow.records[base.id].status='FORGED';
+ assert.throws(()=>ctx.study1UnifiedStoreVerify_(alteredRow),/雜湊不一致/);
+ assert.throws(()=>ctx.study1UnifiedStoreApply_(alteredRow,{...base,expectedRevision:2,
+  requestId:'REQ-SIM-STORETEST00003'}),/雜湊不一致/);
 });
 test('stable snapshot pagination handles thousands of synthetic records without hard-coded 8 or 40 record limits',()=>{
  const {ctx}=setup(),state=ctx.study1UnifiedStoreInitial_();
