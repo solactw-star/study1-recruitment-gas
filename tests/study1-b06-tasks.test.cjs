@@ -141,3 +141,24 @@ test('B06 permission and consent gate remain fail closed, no formal sources used
  const text=fs.readFileSync(path.join(root,'Study1Unified.js'),'utf8');
  assert.doesNotMatch(text,/\b(?:MailApp|GmailApp|SpreadsheetApp|DriveApp)\s*\./);
 });
+
+
+test('B06 audit requires contiguous before/after values and new request-fingerprint binding',()=>{
+ const s=setup(),first=s.cmd('CREATE',s.fields);
+ const id=first.b06.tasks[0].id;
+ s.cmd('COMPLETE',{id,reason:'研究人員人工完成'});
+ const verified=s.ctx.study1B06Read_();
+ assert.equal(s.ctx.study1B06Verify_(verified),true);
+ assert.ok(/^[a-f0-9]{64}$/.test(verified.audit[1].requestFingerprint));
+ const forged=JSON.parse(JSON.stringify(verified));
+ forged.audit[1].before=forged.audit[1].after;
+ const copy={...forged.audit[1]};delete copy.digest;
+ forged.audit[1].digest=s.ctx.study1UnifiedStoreHash_(copy);
+ forged.head=forged.audit[1].digest;
+ assert.throws(()=>s.ctx.study1B06Verify_(forged),/前後態/);
+ const replay=JSON.parse(JSON.stringify(verified));
+ replay.requests[1].fingerprint='f'.repeat(64);
+ assert.throws(()=>s.ctx.study1B06Verify_(replay),/稽核鏈/);
+ assert.equal(s.data.get('OPEN'),'false');
+ assert.equal(s.data.get('CONSENT_READY'),'false');
+});

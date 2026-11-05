@@ -137,3 +137,43 @@ test('storage contract refuses non-synthetic records, role anomalies, tampered r
  ])assert.throws(()=>ctx.study1UnifiedStoreApply_(s,bad));
  assert.equal(s.revision,0);assert.equal(s.audit.length,0);
 });
+
+
+test('server role gate keeps synthetic owner access and rejects unapproved PI/RA/formal operations',()=>{
+ const x=setup(),ctx=x.ctx;
+ assert.equal(ctx.study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_READ'),true);
+ for(const [role,operation] of [
+  ['PI','SYNTHETIC_READ'],['RA','SYNTHETIC_WRITE'],
+  ['OWNER','FORMAL_READ'],['OWNER','FORMAL_WRITE'],
+  ['AUDITOR','SYNTHETIC_READ'],['OWNER','EXPORT_AUDIT']
+ ])assert.throws(()=>ctx.study1UnifiedRoleAuthorise_(role,operation),/未獲授權/);
+ assert.equal(x.writes,0);
+ assert.equal(x.store.get('OPEN'),'false');
+ assert.equal(x.store.get('CONSENT_READY'),'false');
+});
+
+test('synthetic audit verifies replay fingerprint and prior row digest even after a forged rehash',()=>{
+ const ctx=setup().ctx;
+ const base={action:'UPSERT',actor:'PI',expectedRevision:0,id:'SIM-ROW-9001',
+  reason:'建立虛構紀錄',requestId:'REQ-SIM-STRONGAUDIT0001',
+  value:{id:'SIM-ROW-9001',source:'SYNTHETIC_ONLY',status:'NEW'}};
+ const first=ctx.study1UnifiedStoreApply_(ctx.study1UnifiedStoreInitial_(),base).state;
+ const second=ctx.study1UnifiedStoreApply_(first,{...base,actor:'RA',expectedRevision:1,
+  reason:'人工更正紀錄',requestId:'REQ-SIM-STRONGAUDIT0002',
+  value:{...base.value,status:'REVIEW'}}).state;
+ assert.equal(ctx.study1UnifiedStoreVerify_(second),true);
+ assert.ok(/^[a-f0-9]{64}$/.test(second.audit[1].requestFingerprint));
+ const wrongPrior=JSON.parse(JSON.stringify(second));
+ wrongPrior.audit[1].beforeHash='f'.repeat(64);
+ const priorCopy={...wrongPrior.audit[1]};delete priorCopy.digest;
+ wrongPrior.audit[1].digest=ctx.study1UnifiedStoreHash_(priorCopy);
+ wrongPrior.head=wrongPrior.audit[1].digest;
+ assert.throws(()=>ctx.study1UnifiedStoreVerify_(wrongPrior),/前態/);
+ const wrongReplay=JSON.parse(JSON.stringify(second));
+ wrongReplay.requestIndex['REQ-SIM-STRONGAUDIT0002'].fingerprint='a'.repeat(64);
+ assert.throws(()=>ctx.study1UnifiedStoreVerify_(wrongReplay),/指紋/);
+ const corruptPage=ctx.study1UnifiedStoreInitial_();
+ corruptPage.records['SIM-ROW-9001']={...base.value,source:'UNAPPROVED'};
+ assert.throws(()=>ctx.study1UnifiedStorePage_(corruptPage,{
+  expectedRevision:0,limit:10,after:''}),/虛構資料/);
+});
