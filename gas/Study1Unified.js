@@ -180,6 +180,8 @@ function study1UnifiedStoreApply_(original,command){
   original.revision<0||!original.records||!original.requestIndex||
   !Array.isArray(original.audit)||typeof original.head!=='string')
   throw Error('資料保存契約狀態不合法，拒絕操作');
+ // Validate source audit and current row digests BEFORE applying a new update.
+ study1UnifiedStoreVerify_(original);
  const c=command;
  if(!c||Object.keys(c).sort().join(',')!=='action,actor,expectedRevision,id,reason,requestId,value'||
   c.action!=='UPSERT'||!['PI','RA'].includes(c.actor)||
@@ -215,6 +217,7 @@ function study1UnifiedStoreVerify_(state){
    !Array.isArray(state.audit)||!state.requestIndex||!state.records)
   throw Error('稽核契約格式不合法');
  let previous='GENESIS';
+ const lastDigestById={};
  for(let i=0;i<state.audit.length;i++){
   const entry=state.audit[i],copy={...entry};delete copy.digest;
   if(entry.revision!==i+1||entry.previousHash!==previous||
@@ -223,7 +226,15 @@ function study1UnifiedStoreVerify_(state){
      state.requestIndex[entry.requestId].revision!==entry.revision)
    throw Error('稽核雜湊鏈或版本不一致');
   previous=entry.digest;
+  lastDigestById[entry.id]=entry.afterHash;
  }
+ for(const [id,row] of Object.entries(state.records)){
+  if(row.id!==id||row.source!=='SYNTHETIC_ONLY'||
+     lastDigestById[id]!==study1UnifiedStoreHash_(row))
+   throw Error('目前資料與最後一筆稽核事件的雜湊不一致');
+ }
+ if(Object.keys(lastDigestById).length!==Object.keys(state.records).length)
+  throw Error('稽核事件對應的資料列缺失');
  if(state.revision!==state.audit.length||state.head!==previous||
     Object.keys(state.requestIndex).length!==state.revision)
   throw Error('稽核事件數量、修訂版本或鏈頭不一致');
