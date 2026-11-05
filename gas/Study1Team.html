@@ -989,6 +989,11 @@ function b03Render(){
  }
 }
 function b03Init(){
+ // Explicit neutral defaults avoid treating an uninitialized dropdown as an active filter.
+ $('b03Search').value='';
+ for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
+  $(id).value='ALL';
+ $('b03Sort').value='ID_ASC';
  for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03Sort'])
   $(id).addEventListener('change',b03Render);
  $('b03Search').addEventListener('input',b03Render);
