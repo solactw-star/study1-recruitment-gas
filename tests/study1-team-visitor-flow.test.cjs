@@ -96,6 +96,9 @@ function documentFor(html,kind){
   ids.set(id,node);
  }
  const progress=[...Array(6)].map(()=>element('progress-span','span'));
+ const profileTabs=[...html.matchAll(/<button[^>]*data-b04-tab="([^"]+)"[^>]*>/g)].map(m=>{
+  const node=element('b04-tab-'+m[1],'button');node.dataset.b04Tab=m[1];return node;
+ });
  const get=id=>{const e=ids.get(id);assert.ok(e,'Unknown element '+kind+': '+id);return e;};
  const query=selector=>{
   if(selector==='#slotRows [data-slot-id]')
@@ -104,6 +107,7 @@ function documentFor(html,kind){
    return get('weekRows').children.filter(x=>x.dataset.week);
   if(selector==='.step')return [...ids.values()].filter(x=>x.id.startsWith('step-'));
   if(selector==='#progress span')return progress;
+  if(selector==='[data-b04-tab]')return profileTabs;
   throw Error('Unmocked querySelectorAll '+selector);
  };
  return {ids,get,doc:{getElementById:get,createElement:tag=>element('',tag),
