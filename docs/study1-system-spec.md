@@ -411,3 +411,17 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：經核准的真人研究資料保存提供者／版本與容量、PI／RA正式身分與撤權、存取及稽核權限、REC／有效文件、保存刪除與外部不可變稽核、owner真正瀏覽器操作。合成分頁測試仍非正式容量驗收；目前既有 owner-only 資料上限不能作正式容量承諾。維持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`、實驗二2027年前不招募且屆時不自動開放。
 - `NEXT_ACTION`：先核對當次最新main與部署紀錄，繼續現有原網站可不接觸真人資料的權限邊界、失敗復原、合成資料稽核或P1/P2功能；正式持久化、PI／RA真人授權與對外招募需另行驗證REC及權責，不得自動解除阻擋。不要求使用者本輪人工驗收。
 - `WRITE_OWNER=GitHub existing main + original GAS workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
+
+## 三十五、原網站合成資料快照分頁／競寫安全恢復與原 GAS V61 回讀（2026-11-05）
+
+- `TASK_DOMAIN=Study1 recruitment website`；`SOURCE_MAIN=93b334a6b7add41c8d0ca03b89a2175ce41c56fa`（承接第31–34節與原GAS V60後最新正式來源），在現有正式Repository及原 GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`／原 `/exec` 增量改善；未建立平行網站或持久化資料庫。
+- `COMPLETED`：`gas/Study1Unified.js` 的**僅虛構資料** provider-neutral 分頁契約，在修訂版號之外新增完整排序列 SHA256 `snapshotHash` 綁定；續頁必須提供前頁快照雜湊且游標必須存在，不接受同版號內容漂移、非法游標及非 `SYNTHETIC_ONLY`／未核准資料欄位。每頁上限100；以5,000筆虛構資料完成50頁全量巡覽。這是純記憶體分頁契約，非正式持久化資料庫容量。
+- `COMPLETED`：原 `STUDY1_UNIFIED_FIXTURE_V1` 與 `STUDY1_B06_TASKS_V1` 的單一ScriptProperties key、全域ScriptLock、CAS、請求ID冪等及資料／稽核歷史沿用不變。寫入或回讀失敗時，只有目前屬於本交易候選位元組才允許同鎖恢復原位元組；若觀察到其他寫入者的不符值，**不覆蓋**並回傳狀態不明／競寫阻擋。未與ScriptLock協作的外部寫入仍非真正交易隔離，不能宣稱已消除所有競寫。
+- `TESTS`：涵蓋分頁5000筆／50頁、跨頁順序、非法游標、同版號快照漂移、未授權欄位、純資料契約的版本／重播拒絕、原合成資料寫入前後例外、B06寫後異常與外部競寫模擬、恢復後原值、鎖釋放、超出單一ScriptProperty安全容量即拒絕寫入，以及既有安全與功能回歸。PR #61、GitHub Actions `42050574882` 與合併後 CI `42050759703`：**500 PASS／0 FAIL**。
+- `SOURCE_COMMIT=05c940d941dc32ffab3ea2e338659782eec071dd`，PR #61合併main，改動僅 `gas/Study1Unified.js`、`tests/study1-storage-consistency.test.cjs`、`tests/study1-b06-tasks.test.cjs`、`scripts/study1-gas-backend-allowlist.cjs`。已保留主分支先前V60合成欄位白名單、稽核時間先後順序驗證，未以較舊分支覆蓋。
+- `GAS_SYNC_VERIFIED=true`：原 GAS 同ID同步 run `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42050759783` 完成原資料完整備份，Drive備份ID `12P2jq5DhhD3JY-kdYnf4sGJGgaFEwECc`；遠端原HEAD SHA256 `3abc50614a29537bc91285c980dbe8579f4e0ecdbfa7af5bf81ad507d9b6cbcc`，原部署從V60更新至**V61**，`SYNC_VERIFIED=true`，完整SHA256 `14597565825cb53b7e5ef5e3ebc9495d5c8cfa131f67fe61c5b3f64a148acd85`，原部署ID `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s` 及有效 `MYSELF` 權限保留；原GAS其他檔案依安全同步工作流保留。
+- `SAFETY`：`OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2不自動招募；正式PI／RA真帳號、REC電子同意、正式資料讀寫、OTP／寄信、付款／通知與正式資料匯出一律 `FORMAL_BLOCKED`。本輪無真人資料、正式Sheets、REC或研究規則寫入。
+- `LAST_VERIFIED_STEP=main code merge, 500/500 CI, original GAS V61 /exec SHA256 + permission readback`；`SELF_UI_3PASS=NOT_VERIFIED`；`USER_UAT_PENDING_BY_USER_REQUEST=true`；`PRODUCTION_STORAGE_CONNECTED=false`；`CAPACITY_FORMAL_VERIFIED=false`；`FORMAL_READY=false`。
+- `BLOCKERS`：正式資料provider、核准容量與交易一致性、真正不可改寫的長期稽核／保存刪除政策、PI／RA身份權限與撤權、REC及真實owner瀏覽器操作驗收。
+- `NEXT_ACTION`：下一輪先核對最新main及原GAS版本，選擇無真人資料副作用的儲存／稽核安全測試或已授權模組續建；未獲權責授權，不接正式Sheet、不放行正式持久化或公開招募。
+- `WRITE_OWNER=GitHub main + original GAS same-ID sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; UI_AND_FORMAL_DATA_BLOCKED`。
