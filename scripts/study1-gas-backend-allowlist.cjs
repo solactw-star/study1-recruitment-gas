@@ -177,7 +177,7 @@ function assertUnifiedFlow(source){
    "query.expectedRevision!==state.revision",
    "if(beforeBytes!==initialStored)",
    "study1UnifiedRestoreOwnedWrite_(prop,STUDY1_UNIFIED_FIXTURE_KEY_,beforeBytes,stored)",
-   "throw Error('資料寫入狀態不明且回復失敗",
+   "throw Error('資料寫入狀態不明或發生競寫",
    "const STUDY1_B06_TASK_KEY_='STUDY1_B06_TASKS_V1'",
    "function study1UnifiedB06Command(command)",
    "function study1B06Apply_(state,command,source,now)",
