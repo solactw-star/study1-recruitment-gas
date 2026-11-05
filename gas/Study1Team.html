@@ -569,6 +569,7 @@ function calendarPanel(){
   $('calPersonSummary').textContent='虛構預約 '+slot.id+'｜'+slot.when+
    '｜狀態 '+app.phase+'｜同意僅為測試，無正式效力';
   $('calAttendance').value=a.attendance;$('calProgress').value=a.progress;$('calNote').value=a.note;
+  $('calSavePerson').disabled=busy||calMeta(slot).status!=='OPEN';
   return;
  }
  detail.hidden=false;person.hidden=true;detail.replaceChildren();heading.textContent='B02-A 場次詳細面板';
