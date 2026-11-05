@@ -364,3 +364,14 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：現有 `Study1Unified` 仍使用有限的 ScriptProperties 合成資料，8筆場次、8筆申請、40筆請求及有限歷程為技術限制，**不是正式營運容量**。正式大量資料庫、PI／RA角色、完整稽核、核准施測清單、重新施測規則、本人同意與通知／補貼均須依 REC／資料權責進行授權核驗；不得因已完成行政 UI 認定可施測真人。
 - `NEXT_ACTION`：每小時續建排程先讀最新main與第28–30節，優先增量改善正式級持久化／可擴充容量、角色與行政稽核；可並行評估既有 P1/P2 依賴較低的 B06人工待辦及 V05–V08 參與者預約管理。依最重要安全可行工作交付，不等 B03／B04／B05 人工驗收，也不自行啟動正式研究。
 - `WRITE_OWNER`：網站正式Repository原程式路徑／原 GAS 安全同步工作流程；`SYNC_STATUS`：第56版同步已驗證，人工UI及REC正式啟用尚未驗證。
+
+## 三十一、原網站資料一致性、可擴充儲存契約與稽核建置（2026-11-05）
+
+- `TASK_DOMAIN=Study1 recruitment website`，版本基礎為主規格第28–30節與原正式Repository `solactw-star/study1-recruitment-gas/main`。**唯一既有 GAS Script 與 `/exec` 保留；沒有建立平行網站、資料庫、正式 Sheet 或使用者須操作的測試系統。**
+- `IMPLEMENTED`（原系統現行儲存安全）：在 `gas/Study1Unified.js` 的既有合成資料交易路徑下，維持同一 `STUDY1_UNIFIED_FIXTURE_V1` ScriptProperties key、原有全域 ScriptLock、修訂版本鎖、請求ID重複辨識、gzip及寫後回讀。新增**提交前的意外值漂移偵測**及**寫入／回讀失敗後在同一鎖內嘗試恢復原始位元組並確認回復**；回復不成功時拒絕回報成功並明確標示不可確定的資料狀態。成功路徑不搬遷、不重設原資料；B02–B05共用資料不另存副本。
+- `IMPLEMENTED`（未連接正式資料的可擴充核心契約）：增量加入純資料服務的 `STUDY1_STORAGE_CONTRACT_V1`，具有樂觀版號CAS、請求冪等、以 SHA256 串接的稽核事件與目前資料摘要檢查、衝突拒絕、穩定游標及每頁最多100筆的查詢；使用**1,275筆虛構資料**驗證分頁演算法。此核心不讀寫正式資料、Sheets、Drive、Mail，也沒有啟動真正的服務供應端；SHA鏈屬篡改／一致性檢測，不等於加密簽章或REC核准稽核。
+- **清楚保留容量與正式啟用未完成狀態**：現役 owner-only 合成資料仍受 ScriptProperties 單值容量及原有8場次／8申請／40請求上限拘束。可分頁的程式契約≠已建立正式持久化資料庫；1,275筆純記憶體測試≠可儲存1,275筆正式參與者。尚缺經核准的持久化provider、索引／交易併發、真正可跨期間保存的不可變更稽核、保留刪除政策、PI／RA權限、REC核准與真實owner網頁操作。正式資料服務未核准前保持fail-closed，不新增正式Sheet或真人資料，也不得自行設定正式容量。
+- `SOURCE_COMMIT=e72fe651ad938c6db9978a636c20c7f4b25ad14c`；PR #58 已合併，變更僅 `gas/Study1Unified.js`、`scripts/study1-gas-backend-allowlist.cjs`、`tests/study1-storage-consistency.test.cjs`。GitHub完整回歸與安全檢查 **483 PASS／0 FAIL**；同原GAS自動同步 `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42034448347` 回讀 `SYNC_VERIFIED=true`；原 `/exec` **第57版**；SHA256 `93ad7968e256f0d1ca1ea81301a20e065cdb78fcb50e53f98cd8885fab6c176d`；有效部署權限 `MYSELF` 保留（同步前 HEAD manifest 仍顯示 `ANYONE_ANONYMOUS`，不等於正式部署開放）。
+- `LAST_VERIFIED_STEP=GitHub main code, CI 483/483, original GAS version 57 and SHA deployment readback`。`GAS_SYNC_VERIFIED=true`；`PRODUCTION_STORAGE_CONNECTED=false`；`CAPACITY_FORMAL_VERIFIED=false`；`SELF_UI_3PASS=NOT_VERIFIED`（無獲授權owner瀏覽器實際操作證據）；`USER_UAT_PASSED=NOT_YET`（依第28節延後、非後續建置阻塞）；`FORMAL_READY=false`。維持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2 2027年前不招募且不自動開放。
+- `NEXT_ACTION`：從最新main讀取正式系統權責與當次REC／核准文件後，先確定正式儲存系統的唯一資料權威、讀寫權限、資料版本與跨表交易需求；**沒有正式資料寫入授權時只能持續完成不接入真人資料的架構／安全模組及其他已授權P1/P2功能**。下輪建議B06人工行政待辦或補完資料保存層的無外部副作用測試；不使用ScriptProperties測試上限作正式規格、不進行未授權部署。
+- `WRITE_OWNER=GitHub main code and existing GAS sync workflow`；`BLOCKERS=REC/data storage authorization, formal capacity, live UI/roles`；`SYNC_STATUS=version57 verified; formal persistent store blocked`。
