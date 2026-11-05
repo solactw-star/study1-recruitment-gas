@@ -342,3 +342,14 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 8. **每輪正式接續紀錄**：列出 `TASK_DOMAIN`、最新main commit／blob／GAS版本SHA、已完成內容、CI與真UI狀態、修改清單、`NEXT_ACTION`、`BLOCKERS`、`WRITE_OWNER`、`SYNC_STATUS`；只增量修改需要更新的正式來源或網站專責進度，Context或閱讀副本不可取代GitHub主規格。
 
 **最新接續點**：B02已由使用者驗收通過；B04原GAS第54版已成功同步、473項CI通過，但使用者暫時無法開啟網頁，其UAT尚未執行。下一輪不等待B04驗收，優先核對並接續B03及正式級共用資料／容量相關依賴，擇最可安全完成者直接建置。待使用者主動要求驗收時才整合可點選的人工驗收流程。
+
+## 二十九、B03正式網站整合成果與下一輪接續（2026-11-05）
+
+- `TASK_DOMAIN=Study1 recruitment website`；`MODULE=B03`（參與者名單與流程看板，P1-07）；來源為私人GitHub `solactw-star/study1-recruitment-gas/main`，**沿用原 `gas/Study1Team.html`、`Study1Unified` 資料視圖、原 GAS Script及既有 `/exec`，沒有另建網站或獨立名單資料庫**。
+- `COMPLETED`：在原研究團隊管理頁加入參與者搜尋（代碼／場次）、實驗、資格、行政階段、出席與預約篩選、代碼／預約時間／最近已留存異動排序、表格清單／E1與E2分區行政流程看板。兩視圖使用**同一份**原有應用資料與相同篩選；可從清單或看板進入 B04 完整資料，返回後保留看板視圖與篩選。手機窄畫面具自適應表格／水平捲動看板。
+- `ROLE_SAFETY`：看板階段是可核實的行政／施測進度彙整，不把已預約等同研究完成、不以拖曳直接更動正式研究階段，也不自行新增真人資料、編造REC資格、同意或通知。未解除 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2不自動招募。
+- `SOURCE_COMMIT=700334e51efab36fe27c2bd0460c07f961b807f8`；PR #56 已合併 `main`，改動 `gas/Study1Team.html` 及 `tests/study1-team-visitor-flow.test.cjs`。首次測試發現初始篩選預設值導致空白名單，已最小修正；最終 GitHub Actions `42024306284` **474測試全通過／0失敗**。原 GAS 自動同步執行 `42024537324` 成功，`GAS_DEPLOY_VERSION=55`，`GAS_SHA256=25b12df0df08831bd5f6834df9aad408242091d954fa8100350221b7eb09fdc0`，原部署ID與 `MYSELF` 保留，日誌 `SYNC_VERIFIED=true`。
+- `LAST_VERIFIED_STEP`：GitHub main合併、CI與 GAS 同ID第55版部署回讀；`IMPLEMENTED=true`（原網站 B03 程式及模擬流程），`GAS_SYNC_VERIFIED=true`，`SELF_UI_3PASS=NOT_VERIFIED`（沒有獲授權 owner GAS 真實瀏覽器三輪操作證據），`USER_UAT_PASSED=NOT_YET`（依第28節暫緩、**不得據此中斷建置**），`FORMAL_READY=false`。
+- `BLOCKERS`：原 `Study1Unified` 仍為有限虛構資料與 ScriptProperties 保存機制，既有8筆時段／8筆申請及歷史上限不能作為正式營運容量，PI／RA正式權限、真人資料、有效同意、完整歷史與REC仍須按權責核准；缺 owner 瀏覽器時不能宣稱實際UI驗收。這些阻塞與安全門檻維持，但不阻止其他獲授權的正式系統功能建置。
+- `NEXT_ACTION`：既有每小時建置排程依最新 `main` 讀取規格第28、29節，優先改善共用持久化資料／可擴充容量與 B05場次施測執行、B06人工待辦或其餘符合既定P0/P1/P2依賴的模組；**每輪執行一個安全可完成的實質開發批次**，保留未受影響的B02、B04，不在使用者主動要求前提出人工UAT。
+- `WRITE_OWNER`：網站專責原GitHub／原GAS同步工作流程；`SYNC_STATUS`：第55版同ID同步已驗證，真人UI／正式啟用未驗證。
