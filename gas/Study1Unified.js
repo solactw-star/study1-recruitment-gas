@@ -683,6 +683,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(p.progress)||
    typeof p.note!=='string'||p.note.length>80||/[<>]/.test(p.note))
    throw Error('只能更新有預約關聯的虛構參與者');
+  const target=s.applications.find(a=>a.id===p.id);
+  if(['CLOSED','CANCELLED'].includes(s.b02.sessions[target.slotId]?.status))
+   throw Error('場次已行政結案或取消；須依權責重新開啟後才能更正出席與施測');
   const before=s.b02.attendance[p.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
   s.b02.attendance[p.id]={attendance:p.attendance,progress:p.progress,note:p.note};
   if(before.attendance!==p.attendance||before.progress!==p.progress||before.note!==p.note){
