@@ -614,6 +614,225 @@ function calendarInit(){
 }
 calendarInit();
 
+/* B04 full participant profile is a view in the ORIGINAL Study1 team website.
+ * No real identity data or REC consent is fetched before independent approval.
+ */
+const profile={id:null,origin:'list',tab:'basic',open:false};
+const profileTabs={basic:'基本與聯絡',eligibility:'報名資格',booking:'預約出席',
+ research:'研究執行',consent:'電子同意',notification:'通知文件',
+ admin:'行政紀錄',audit:'操作歷程'};
+const profilePhases={STARTED:'開始報名',INELIGIBLE:'初篩未通過',
+ SCREENED:'初篩通過',OTP_SENT:'模擬驗證待完成',VERIFIED:'模擬驗證完成',
+ HELD:'暫留預約',CONSENTED:'示範同意流程完成',
+ CONFIRMED:'虛構預約成立',CANCELLED:'已取消'};
+function profileApplication(){
+ return model&&model.applications.find(x=>x.id===profile.id);
+}
+function profileSlot(a){
+ return a&&a.slotId?model.slots.find(x=>x.id===a.slotId):null;
+}
+function profileAttend(a){
+ return model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
+}
+function profileTime(t){
+ if(!t)return '未記錄時間';
+ const d=new Date(t);return Number.isNaN(d.getTime())?'未記錄時間':
+  d.toLocaleString('zh-TW',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',
+  day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
+function profileMessage(t,error){
+ $('profileMessage').textContent=t;
+ $('profileMessage').style.color=error?'#ad3e33':'#526d75';
+}
+function profileField(label,value){
+ const node=calElem('div',undefined,'b04Field');
+ node.append(calElem('strong',label),
+  calElem('span',value===undefined||value===null||value===''?'無可驗證紀錄':String(value)));
+ return node;
+}
+function profileFields(target,rows){
+ const grid=calElem('div',undefined,'b04Fields');
+ rows.forEach(([name,value])=>grid.append(profileField(name,value)));
+ target.append(grid);
+}
+function profileNotice(target,message){
+ target.append(calElem('p',message,'b04Warning'));
+}
+function profileEvents(a){
+ const e=[],slot=profileSlot(a),att=profileAttend(a);
+ e.push({at:'',name:'目前報名流程',detail:profilePhases[a.phase]||a.phase});
+ if(a.screeningVersion)e.push({at:'',name:'初篩來源',
+  detail:(a.screeningSource||'來源未記錄')+'｜'+a.screeningVersion});
+ if(slot)e.push({at:'',name:'目前預約時段',
+  detail:slot.id+'｜'+slot.when+'｜'+calStates[calMeta(slot).status]});
+ if(att.attendance!=='PENDING'||att.progress!=='NOT_STARTED')
+  e.push({at:'',name:'目前出席／施測',detail:calPresence[att.attendance]+'｜'+calTesting[att.progress]});
+ if(a.consentReviewedAt)e.push({at:new Date(a.consentReviewedAt).toISOString(),
+  name:'模擬文件檢視',detail:'僅示範，無正式同意效力'});
+ for(const h of model.b04.history.filter(x=>x.id===a.id))
+  e.push({at:h.at,name:h.field==='adminNote'?'行政備註更正':'出席與施測更新',
+   detail:'原值：'+(h.before||'空白')+'\n新值：'+(h.after||'空白')+
+    '\n原因：'+h.reason+'\n操作者：'+h.actor});
+ for(const h of model.b02.history.filter(x=>slot&&x.ids.includes(slot.id)&&x.action!=='ATTEND'))
+  e.push({at:h.at,name:'相關場次操作',detail:slot.id+'｜'+h.action+
+   '；是否影響此人需另行確認'});
+ e.sort((a,b)=>a.at&&b.at?new Date(b.at)-new Date(a.at):a.at?-1:b.at?1:0);
+ return e;
+}
+function profileOpen(id,origin){
+ if(!calAllowed()||!model.b04||!model.applications.some(a=>a.id===id)){
+  calMsg('參與者資料尚未就緒或沒有檢視權限。',true);return;
+ }
+ profile.id=id;profile.origin=origin==='calendar'?'calendar':'list';
+ profile.tab='basic';profile.open=true;
+ $('teamMain').classList.add('b04Open');
+ $('profileModule').hidden=false;
+ profileRender();
+ if($('profileModule').scrollIntoView)$('profileModule').scrollIntoView({block:'start'});
+}
+function profileBack(){
+ if(!profile.open)return;
+ profile.open=false;$('profileModule').hidden=true;
+ $('teamMain').classList.remove('b04Open');
+ if(profile.origin==='calendar'){
+  const a=profileApplication();
+  if(a&&a.slotId)calOpen('PERSON',a.slotId,a.id);
+  if($('calendarModule').scrollIntoView)$('calendarModule').scrollIntoView({block:'start'});
+ }else if($('entries').scrollIntoView)$('entries').scrollIntoView({block:'start'});
+}
+function profileToCalendar(){
+ const a=profileApplication(),slot=profileSlot(a);
+ if(!slot){profileMessage('目前無對應的預約場次，請返回名單。',true);return;}
+ profile.origin='calendar';profileBack();
+ $('calDate').value=slot.when.slice(0,10);calendarRender();
+}
+function profileRender(){
+ if(!profile.open)return;
+ const a=profileApplication();
+ if(!calAllowed()||!model.b04||!a){
+  profileMessage('無法核對B04資料與存取安全狀態，請返回後重新載入。',true);return;
+ }
+ const slot=profileSlot(a),att=profileAttend(a),
+  policy=model.policy.consent[a.experiment],notes=model.b04.notes[a.id]||'';
+ $('profileHeading').textContent=a.id+'｜'+(a.experiment==='E1'?'實驗一':'實驗二');
+ const summary=$('profileSummary');summary.replaceChildren();
+ const future=slot&&calMeta(slot).status==='OPEN'&&
+  Date.parse(slot.when.replace(' ','T')+':00+08:00')>Date.now()&&a.phase!=='CANCELLED';
+ for(const [k,v] of [['參與者代碼',a.id],['實驗',a.experiment],
+  ['資格',a.eligible===true?'模擬初篩通過':a.eligible===false?'模擬初篩未通過':'尚無初篩結果'],
+  ['電子同意',policy.approval==='PENDING'?'REC未核准，未生效':'待查'],
+  ['目前研究流程',profilePhases[a.phase]||a.phase],
+  ['整體施測',calTesting[att.progress]],['出席',calPresence[att.attendance]],
+  ['下一次預約',future?slot.when+'｜'+slot.id:'無已核實的未來預約']])
+  summary.append(profileField(k,v));
+ for(const btn of document.querySelectorAll('[data-b04-tab]'))
+  btn.setAttribute('aria-selected',String(btn.dataset.b04Tab===profile.tab));
+ const body=$('profileTabBody');body.replaceChildren();
+ body.append(calElem('h3',profileTabs[profile.tab]));
+ $('profileNoteForm').hidden=profile.tab!=='admin';
+ $('profileSaveNote').disabled=busy||!model;
+ const fields=rows=>profileFields(body,rows),warn=t=>profileNotice(body,t);
+ switch(profile.tab){
+ case 'basic':
+  fields([['參與者代碼',a.id],['實驗',a.experiment],
+   ['聯絡資料','尚未授權接入正式個資系統，不顯示姓名、電話或電子郵件'],
+   ['報名流程',profilePhases[a.phase]||a.phase]]);
+  warn('個資欄位與存取層必須核對REC及正式資料權限後才可啟用。');break;
+ case 'eligibility':
+  fields([['資格初篩',a.eligible===true?'模擬通過':a.eligible===false?'模擬未通過':'尚未完成'],
+   ['規則來源',a.screeningSource||'未記錄'],['規則版本',a.screeningVersion||'未記錄'],
+   ['人工覆核','無可驗證紀錄'],['補件／更正歷程','無可驗證紀錄']]);
+  warn('原始資格問卷答覆不在這個介面保存或顯示；模擬結果不能視為正式研究資格。');break;
+ case 'booking':
+  fields([['預約ID',a.slotId||'無'],
+   ['預約日期時間',slot?slot.when:'未記錄'],
+   ['場次狀態',slot?calStates[calMeta(slot).status]:'無可驗證場次'],
+   ['預約流程',profilePhases[a.phase]||a.phase],
+   ['出席',calPresence[att.attendance]],['施測',calTesting[att.progress]],
+   ['暫留是否逾期',a.holdExpired?'是':'否／不適用'],
+   ['歷史改期與取消','可參閱右側已留存事件；正式完整歷程尚未接入']]);
+  if(slot){
+   const go=calElem('button','返回行事曆查看此場次','secondary');
+   go.type='button';go.addEventListener('click',profileToCalendar);body.append(go);
+  }break;
+ case 'research':
+  fields([['實驗',model.definitions[a.experiment].label],
+   ['研究流程',profilePhases[a.phase]||a.phase],
+   ['出席狀態',calPresence[att.attendance]],
+   ['施測摘要',calTesting[att.progress]],['場次備註',att.note||'未記錄'],
+   ['正式逐項作業與完成紀錄','尚未授權接入REC核准之正式作業資料']]);
+  warn('不能由出席、部分完成或暫留預約推定正式研究完成；原始實驗數據不允許在此編輯。');break;
+ case 'consent':
+  fields([['REC核准狀態',policy.approval],['待核准版本',policy.version],
+   ['目前模擬版本',a.consentVersion||'未記錄'],
+   ['示範文件檢視',profileTime(a.pdfDemoReviewedAt)],
+   ['版本資訊檢視',profileTime(a.consentReviewedAt)],
+   ['模擬簽署',a.signatureDemo?'僅模擬，非有效同意':'無有效紀錄'],
+   ['簽署副本','尚未授權正式寄送']]);
+  warn('這些資料不能作為有效的電子同意、REC核准或正式寄送證據。');break;
+ case 'notification':
+  const notices=model.notifications.filter(n=>n.id===a.id);
+  fields([['通知機制',model.policy.notification.status],
+   ['目前可見',notices.length+'筆（僅回傳最近6筆，不等於完整歷史）'],
+   ['正式寄送','未啟用']]);
+  for(const n of notices)body.append(calElem('p',n.event+'｜'+n.status+'｜嘗試 '+n.attempts+' 次','b04Field'));
+  if(!notices.length)body.append(calElem('p','目前沒有可核實的通知紀錄。','small'));break;
+ case 'admin':
+  fields([['行政備註',notes||'空白'],
+   ['近期行政更正',model.b04.history.filter(h=>h.id===a.id&&h.field==='adminNote').length+'筆'],
+   ['補貼','正式補貼來源未授權接入，不推定付款狀態']]);
+  $('profileNote').value=notes;$('profileReason').value='';
+  warn('僅能更正非敏感行政備註；必須填原因並留前後值，不能輸入真人個資。');break;
+ case 'audit':
+  fields([['資料版本',model.revision],
+   ['B04近期紀錄',model.b04.history.filter(h=>h.id===a.id).length+'筆'],
+   ['完整正式稽核資料庫','尚未接入，不把有限測試歷史冒充完整正式稽核']]);
+  for(const e of profileEvents(a)){
+   const p=calElem('p',e.name+'｜'+profileTime(e.at)+'\n'+e.detail,'b04Field');
+   p.style.whiteSpace='pre-wrap';body.append(p);
+  }break;
+ }
+ const timeline=$('profileTimeline');timeline.replaceChildren();
+ for(const e of profileEvents(a)){
+  const row=calElem('div',undefined,'b04Event');
+  row.append(calElem('strong',e.name),
+   calElem('span',profileTime(e.at)+'\n'+e.detail));
+  timeline.append(row);
+ }
+}
+function profileInit(){
+ $('profileBack').addEventListener('click',profileBack);
+ $('profileCalendar').addEventListener('click',profileToCalendar);
+ for(const b of document.querySelectorAll('[data-b04-tab]'))
+  b.addEventListener('click',()=>{
+   if(!profile.open)return;
+   profile.tab=b.dataset.b04Tab;profileRender();
+   if($('profileTabBody').focus)$('profileTabBody').focus();
+  });
+ $('profileNoteForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(!profile.open||!calAllowed()||!model.b04||busy)return;
+  const note=$('profileNote').value.trim(),reason=$('profileReason').value.trim();
+  if(reason.length<4||note.length>180||reason.length>120||/[<>]/.test(note+reason)){
+   profileMessage('更正原因至少4字，內容不得有HTML標記。',true);return;
+  }
+  if(note===(model.b04.notes[profile.id]||'')){
+   profileMessage('備註未變更，無需重複記錄。',true);return;
+  }
+  const requestId='REQ-SIM-PROFILE_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+  const version=model.revision;
+  setBusy(true);profileMessage('正在核對版本並儲存更正…',false);
+  google.script.run.withSuccessHandler(data=>{
+   if(render(data))profileMessage('備註已儲存；更正前後值、時間與原因已記錄。',false);
+  }).withFailureHandler(error=>{
+   setBusy(false);$('profileSaveNote').disabled=false;
+   profileMessage('儲存失敗：'+String(error.message||error)+'；資料未更動。',true);
+  }).study1UnifiedPreviewCommand({action:'ADMIN_B04_NOTE',
+   payload:{id:profile.id,note,reason},requestId,expectedRevision:version});
+ });
+}
+profileInit();
+
 $('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
