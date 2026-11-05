@@ -26,6 +26,9 @@ test('B05 closure needs manual reason and unresolved handoff; it never implies s
  assert.equal(state.b05.closures[slot.id].issues,1);
  assert.equal(state.b05.closures[slot.id].handoff,'待補出席並完成施測紀錄');
  assert.equal(state.b05.history.length,1);
+ assert.throws(()=>ctx.study1UnifiedTransition_(state,{action:'ADMIN_B02_ATTEND',
+  payload:{id:state.applications[0].id,attendance:'PRESENT',progress:'COMPLETE',note:''}},
+  Date.parse('2027-01-06T08:00:00Z'),null),/已行政結案/);
  assert.equal(state.b05.history[0].before,'OPEN');
  assert.equal(state.b05.history[0].after,'CLOSED');
  assert.equal(state.b05.history[0].actor,'OWNER');
