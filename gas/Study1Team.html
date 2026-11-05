@@ -356,16 +356,7 @@ function render(data){
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
  displaySlots();displayWeeks();calendarRender();profileRender();
- $('entries').replaceChildren();
- data.applications.forEach(a=>{
-  const item=document.createElement('div');item.className='entry';
-  const h=document.createElement('strong');h.textContent=a.id+' · '+(a.experiment==='E1'?'實驗一':'實驗二');
-  const p=document.createElement('p');p.textContent='進度：'+a.phase+(a.slotId?' · 時段 '+a.slotId:'');
-  const open=document.createElement('button');open.type='button';open.className='secondary';
-  open.textContent='開啟完整資料（B04）';open.addEventListener('click',()=>profileOpen(a.id,'list'));
-  item.append(h,p,open);$('entries').append(item);
- });
- $('bookingSummary').textContent='共有 '+data.applications.length+' 筆虛構申請。正式報名資料未啟用。';
+ b03Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
@@ -742,7 +733,7 @@ function profileOpen(id,origin){
  if(!calAllowed()||!model.b04||!model.applications.some(a=>a.id===id)){
   calMsg('參與者資料尚未就緒或沒有檢視權限。',true);return;
  }
- profile.id=id;profile.origin=origin==='calendar'?'calendar':'list';
+ profile.id=id;profile.origin=origin==='calendar'?'calendar':origin==='board'?'board':'list';
  profile.tab='basic';profile.open=true;
  $('teamMain').classList.add('b04Open');
  $('profileModule').hidden=false;
@@ -757,7 +748,10 @@ function profileBack(){
   const a=profileApplication();
   if(a&&a.slotId)calOpen('PERSON',a.slotId,a.id);
   if($('calendarModule').scrollIntoView)$('calendarModule').scrollIntoView({block:'start'});
- }else if($('entries').scrollIntoView)$('entries').scrollIntoView({block:'start'});
+  }else{
+  const target=profile.origin==='board'?'b03Board':'entries';
+  if($(target).scrollIntoView)$(target).scrollIntoView({block:'start'});
+ }
 }
 function profileToCalendar(){
  const a=profileApplication(),slot=profileSlot(a);
