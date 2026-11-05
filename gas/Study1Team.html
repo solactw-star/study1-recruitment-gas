@@ -1438,7 +1438,29 @@ function b06Render(){
  if(!events.length)history.append(calElem('p','目前無可核實歷程。','small'));
 }
 
-/* B06_CONTINUE */
+
+function b06Init(){
+ for(const id of ['b06Status','b06Archive','b06Scope'])
+  $(id).addEventListener('change',b06Render);
+ $('b06Search').addEventListener('input',b06Render);
+ $('b06RelationType').addEventListener('change',()=>b06Choices(''));
+ $('b06Experiment').addEventListener('change',()=>b06Choices(''));
+ $('b06HistoryAll').addEventListener('click',()=>{b06.historyId=null;b06Render();});
+ $('b06CancelEdit').addEventListener('click',b06Reset);
+ $('b06Form').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(busy||!model||!model.b06)return;
+  const data=b06FormValues();
+  if(data.title.length<2||data.reason.length<4||/[<>]/.test(JSON.stringify(data))){
+   b06Message('名稱至少兩字，原因至少四字，不可填入HTML標記。',true);return;
+  }
+  const id=b06.editing;
+  b06Send(id?'EDIT':'CREATE',id?{id,data}:data,b06Reset);
+ });
+ b06Reset();
+}
+b06Init();
+
 $('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
