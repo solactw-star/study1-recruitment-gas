@@ -316,7 +316,8 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E2-A',experiment:'E2',when:'2027-01-07 10:00',capacity:2},
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
   ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[],
-   b02:{sessions:{},attendance:{},history:[]}};
+   b02:{sessions:{},attendance:{},history:[]},
+    b04:{notes:{},history:[]}};
 }
 function study1UnifiedAssertOwner_(){
  study1AdminOwnerRequired_();
@@ -331,6 +332,7 @@ function study1UnifiedRead_(){
  if(s&&!s.recruitment)s.recruitment=study1UnifiedRecruitment_(); // non-writing TEST migration
  if(s&&!s.e2Weeks)s.e2Weeks=study1UnifiedE2Weeks_(); // read-only fixture migration
  if(s&&!s.b02)s.b02={sessions:{},attendance:{},history:[]}; // non-writing TEST migration
+ if(s&&!s.b04)s.b04={notes:{},history:[]}; // non-writing B04 migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -378,6 +380,19 @@ function study1UnifiedRead_(){
  if(s.b02.history.some(h=>!h||typeof h.at!=='string'||typeof h.action!=='string'||
       !Array.isArray(h.ids)||h.ids.length>8||h.ids.some(x=>typeof x!=='string')))
    throw Error('行事曆操作歷程不合法');
+ if(!s.b04||typeof s.b04!=='object'||Array.isArray(s.b04)||
+    Object.keys(s.b04).sort().join(',')!=='history,notes'||!s.b04.notes||
+    typeof s.b04.notes!=='object'||Array.isArray(s.b04.notes)||
+    !Array.isArray(s.b04.history)||s.b04.history.length>30||
+    Object.entries(s.b04.notes).some(([id,note])=>!/^SIM-[0-9]{3}$/.test(id)||
+      !s.applications.some(a=>a.id===id)||typeof note!=='string'||note.length>180||/[<>]/.test(note))||
+    s.b04.history.some(e=>!e||Object.keys(e).sort().join(',')!=='actor,after,at,before,field,id,reason'||
+      !/^SIM-[0-9]{3}$/.test(e.id)||!s.applications.some(a=>a.id===e.id)||
+      e.actor!=='OWNER'||typeof e.at!=='string'||Number.isNaN(Date.parse(e.at))||
+      !['adminNote','attendanceAndProgress'].includes(e.field)||
+      [e.before,e.after,e.reason].some(v=>typeof v!=='string'||v.length>220||/[<>]/.test(v))||
+      e.reason.length<4))
+   throw Error('B04參與者管理資料或歷程不合法');
  study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
   if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
@@ -508,6 +523,7 @@ function study1UnifiedView_(s){
   pdfFixture:study1UnifiedPdfFixture_(),governance:study1UnifiedGovernance_(s),
   formalReadiness:study1UnifiedFormalReadiness_(s),formalPorts:study1UnifiedFormalPorts_(),
   b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
+  b04:JSON.parse(JSON.stringify(s.b04||{notes:{},history:[]})),
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
    weeks:s.e2Weeks.map(w=>({...w})),plannedWeeks:s.e2Weeks.filter(w=>w.date!==null).length},
@@ -535,7 +551,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -639,9 +655,33 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(p.progress)||
    typeof p.note!=='string'||p.note.length>80||/[<>]/.test(p.note))
    throw Error('只能更新有預約關聯的虛構參與者');
+  const before=s.b02.attendance[p.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
   s.b02.attendance[p.id]={attendance:p.attendance,progress:p.progress,note:p.note};
+  if(before.attendance!==p.attendance||before.progress!==p.progress||before.note!==p.note){
+   s.b04.history.push({id:p.id,field:'attendanceAndProgress',
+     before:before.attendance+' / '+before.progress+(before.note?' / '+before.note:''),
+     after:p.attendance+' / '+p.progress+(p.note?' / '+p.note:''),
+     reason:'B02場次面板更新（未另填更正原因）',actor:'OWNER',at:new Date(now).toISOString()});
+   s.b04.history=s.b04.history.slice(-30);
+  }
   s.b02.history.push({at:new Date(now).toISOString(),action:'ATTEND',ids:[p.id]});
   s.b02.history=s.b02.history.slice(-12);return;
+ }
+
+ if(action==='ADMIN_B04_NOTE'){
+  if(Object.keys(p).sort().join(',')!=='id,note,reason'||
+     !/^SIM-[0-9]{3}$/.test(p.id)||!s.applications.some(a=>a.id===p.id)||
+     typeof p.note!=='string'||p.note.length>180||/[<>]/.test(p.note)||
+     typeof p.reason!=='string'||p.reason.trim().length<4||
+     p.reason.length>120||/[<>]/.test(p.reason))
+   throw Error('B04更正需既有參與者代碼、行政備註及至少四字更正原因');
+  const previous=s.b04.notes[p.id]||'';
+  if(previous===p.note)throw Error('B04行政備註未變更，無需建立更正紀錄');
+  s.b04.notes[p.id]=p.note;
+  s.b04.history.push({id:p.id,field:'adminNote',before:previous,after:p.note,
+    reason:p.reason.trim(),actor:'OWNER',at:new Date(now).toISOString()});
+  s.b04.history=s.b04.history.slice(-30);
+  return;
  }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
