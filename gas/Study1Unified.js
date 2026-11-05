@@ -6,6 +6,38 @@
  * Formal use requires separate approval and a reviewed production adapter.
  */
 const STUDY1_UNIFIED_FIXTURE_KEY_='STUDY1_UNIFIED_FIXTURE_V1';
+
+/**
+ * Retain the same owner-only TEST Script Property and its complete history.
+ * Existing plain JSON is read as-is; large subsequent writes use gzip/base64
+ * in that same single key, avoiding multi-key partial commit or fixture reset.
+ * This byte margin stays below the 9 KB Apps Script per-property quota.
+ */
+const STUDY1_UNIFIED_GZIP_PREFIX_='GZIP1:';
+const STUDY1_UNIFIED_PROPERTY_SAFE_BYTES_=7900;
+function study1UnifiedUtf8Bytes_(raw){
+ return encodeURIComponent(raw).replace(/%[0-9A-F]{2}/gi,'_').length;
+}
+function study1UnifiedStoredDecode_(stored){
+ if(!stored.startsWith(STUDY1_UNIFIED_GZIP_PREFIX_))return stored;
+ const packed=stored.slice(STUDY1_UNIFIED_GZIP_PREFIX_.length);
+ if(!packed||!/^[A-Za-z0-9+/]+={0,2}$/.test(packed))
+  throw Error('虛構測試儲存資料壓縮格式不合法，已拒絕操作');
+ return Utilities.ungzip(Utilities.newBlob(
+  Utilities.base64Decode(packed),'application/gzip','study1-fixture.gz'
+ )).getDataAsString('UTF-8');
+}
+function study1UnifiedStoredEncode_(raw){
+ if(study1UnifiedUtf8Bytes_(raw)<=STUDY1_UNIFIED_PROPERTY_SAFE_BYTES_)return raw;
+ const gzip=Utilities.gzip(Utilities.newBlob(raw,'application/json','study1-fixture.json'));
+ const stored=STUDY1_UNIFIED_GZIP_PREFIX_+Utilities.base64Encode(gzip.getBytes());
+ if(study1UnifiedUtf8Bytes_(stored)>STUDY1_UNIFIED_PROPERTY_SAFE_BYTES_)
+  throw Error('測試資料壓縮後仍超出安全容量，未寫入或清除既有資料');
+ if(study1UnifiedStoredDecode_(stored)!==raw)
+  throw Error('測試資料壓縮回讀檢查失敗，未寫入');
+ return stored;
+}
+
 /* Draft-only policy: editable text and PDF metadata, never approved or signed. */
 function study1UnifiedPolicy_(){
  return {screening:{source:'REC_DRAFT_ONLY',version:'PENDING_SCREENING_APPROVAL',questions:{
@@ -293,7 +325,7 @@ function study1UnifiedAssertOwner_(){
 function study1UnifiedRead_(){
  const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
  if(raw===null)return study1UnifiedInitial_();
- const s=JSON.parse(raw);
+ const s=JSON.parse(study1UnifiedStoredDecode_(raw));
  if(s&&!s.policy)s.policy=study1UnifiedPolicy_(); // migrate only owner fixture
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
  if(s&&!s.recruitment)s.recruitment=study1UnifiedRecruitment_(); // non-writing TEST migration
@@ -937,10 +969,11 @@ function study1UnifiedPreviewCommand(command){
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);
-  if(raw.length>8000)throw Error('測試資料已達 ScriptProperties 容量界線');
+  const stored=study1UnifiedStoredEncode_(raw);
   const prop=PropertiesService.getScriptProperties();
-  prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw);
-  if(prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==raw)
+  prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,stored);
+  const readback=prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+  if(readback!==stored||study1UnifiedStoredDecode_(readback)!==raw)
     throw Error('統一測試流程寫入後回讀失敗');
   return {...study1UnifiedView_(next),deduplicated:false};
  }finally{lock.releaseLock();}
