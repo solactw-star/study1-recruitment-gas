@@ -542,7 +542,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    throw Error('隔離場次欄位不合法');
   const parse=w=>Date.parse(w.replace(' ','T')+':00+08:00');
   const date=parse(p.when);
-  if(!Number.isFinite(date)||new Date(date+28800000).toISOString().slice(0,16)!==p.when.replace(' ','T')||date<=now)
+  if(!Number.isFinite(date)||new Date(date+28800000).toISOString().slice(0,16)!==p.when.replace(' ','T')||
+     (p.operation!=='CANCEL'&&date<=now))
    throw Error('場次日期無效或已經過期');
   const meta=s.b02.sessions,existing=s.slots.find(z=>z.id===p.slotId);
   let ids=[];
@@ -586,6 +587,16 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    }
   }
   study1UnifiedValidateSlots_(s.slots);
+  // One shared TEST calendar must not create overlapping sessions in the same experiment.
+  for(const a of s.slots){
+   if(s.b02.sessions[a.id]?.status==='CANCELLED')continue;
+   const aStart=parse(a.when),aEnd=aStart+(s.b02.sessions[a.id]?.minutes||120)*60000;
+   for(const b of s.slots){
+    if(a.id===b.id||a.experiment!==b.experiment||s.b02.sessions[b.id]?.status==='CANCELLED')continue;
+    const bStart=parse(b.when),bEnd=bStart+(s.b02.sessions[b.id]?.minutes||120)*60000;
+    if(aStart<bEnd&&bStart<aEnd)throw Error('同一實驗存在重疊場次：'+a.id+'／'+b.id);
+   }
+  }
   s.b02.history.push({at:new Date(now).toISOString(),action:p.operation,ids});
   s.b02.history=s.b02.history.slice(-12);return;
  }
