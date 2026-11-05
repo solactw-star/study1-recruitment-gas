@@ -370,3 +370,43 @@ test('B04 complete participant page works through original team GUI and preserve
  assert.equal(reload.get('profileNote').value,'研究助理確認的虛構行政備註');
  closed(srv);
 });
+
+
+test('B03 list and kanban share the SAME participants, filters, and return-to-board position',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E2'});
+ const writes=srv.writes;
+ const team=page(srv,'team');
+ assert.equal(team.get('entries').children.length,2,'initial list is the same application array');
+ assert.match(team.get('bookingSummary').textContent,/顯示 2／共 2 筆/);
+ team.set('b03Experiment','E1');team.change('b03Experiment');
+ assert.equal(team.get('entries').children.length,1);
+ assert.match(team.get('entries').children[0].children[0].textContent,/SIM-001.*實驗一/);
+ team.click('b03BoardMode');
+ assert.equal(team.get('b03Board').hidden,false);
+ assert.equal(team.get('b03ListView').hidden,true);
+ assert.equal(team.get('b03Board').children.length,1,'only E1 board group is shown');
+ const columns=team.get('b03Board').children[0].children.find(x=>x.className==='b03Columns');
+ assert.equal(columns.children.length,6);
+ const card=columns.children[0].children.find(x=>x.dataset.participantId==='SIM-001');
+ assert.ok(card,'the same E1 participant appears in the board');
+ card.handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ team.click('profileBack');
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('b03Board').hidden,false,'board filter and view survive B04 return');
+ assert.equal(team.get('b03Experiment').value,'E1');
+ team.click('b03ListMode');
+ assert.equal(team.get('entries').children.length,1);
+ team.set('b03Search','SIM-999');team.get('b03Search').handlers.input();
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('b03Empty').hidden,false);
+ team.click('b03Clear');
+ assert.equal(team.get('entries').children.length,2);
+ assert.equal(team.get('b03Empty').hidden,true);
+ team.set('b03Sort','ID_DESC');team.change('b03Sort');
+ assert.match(team.get('entries').children[0].children[0].textContent,/SIM-002/);
+ assert.equal(srv.writes,writes,'B03 viewing, filtering and B04 navigation do not mutate source');
+ closed(srv);
+});
