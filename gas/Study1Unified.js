@@ -295,7 +295,7 @@ function study1UnifiedStorePage_(state,query){
    throw Error('資料分頁只接受完整的虛構資料快照');
   if(Object.keys(row).sort().join(',')!=='id,source,status'||
      typeof row.status!=='string'||!/^[A-Z_]{2,32}$/.test(row.status))
-   throw Error('資料分頁含未經核准欄位，拒絕讀取');
+   throw Error('資料分頁包含非已核准欄位，拒絕讀取');
  }
  const snapshotHash=study1UnifiedStoreHash_(
   [state.revision,ids.map(id=>[id,state.records[id]])]);
