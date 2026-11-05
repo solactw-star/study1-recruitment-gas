@@ -174,7 +174,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -411,6 +411,125 @@ function calendarPanel(){
  for(const h of logs.slice(-6).reverse())detail.append(calElem('p',h.at+'｜'+h.action,'calMini'));
  if(!logs.length)detail.append(calElem('p','尚無紀錄。','calMini'));
 }
+
+
+function calNew(day){
+ if(!calAllowed()||busy)return;
+ cal.id=null;cal.person=null;cal.mode='NEW';
+ $('calEditExperiment').disabled=false;$('calEditExperiment').value=$('calExperiment').value==='E2'?'E2':'E1';
+ $('calEditTitle').value='模擬研究時段';
+ $('calEditWhen').value=(day||$('calDate').value)+'T10:00';
+ $('calEditCapacity').value='2';$('calEditMinutes').value='120';
+ $('calEditPlace').value='虛構研究室';$('calRepeat').value='1';$('calRepeat').disabled=false;
+ $('calScope').value='ONE';$('calScope').disabled=true;
+ calendarRender();$('calEditTitle').focus();
+}
+function calEdit(slot){
+ if(!calAllowed()||busy)return;
+ const m=calMeta(slot);cal.id=slot.id;cal.person=null;cal.mode='EDIT';
+ $('calEditExperiment').value=slot.experiment;$('calEditExperiment').disabled=true;
+ $('calEditTitle').value=m.title;$('calEditWhen').value=slot.when.replace(' ','T');
+ $('calEditCapacity').value=String(slot.capacity);$('calEditMinutes').value=String(m.minutes);
+ $('calEditPlace').value=m.place;$('calRepeat').value='1';$('calRepeat').disabled=true;
+ $('calScope').value='ONE';$('calScope').disabled=!m.group;
+ calendarRender();$('calEditTitle').focus();
+}
+function calPayload(operation){
+ return {operation,slotId:cal.id||'',experiment:$('calEditExperiment').value,
+  title:$('calEditTitle').value.trim(),when:$('calEditWhen').value.replace('T',' '),
+  capacity:Number($('calEditCapacity').value),minutes:Number($('calEditMinutes').value),
+  place:$('calEditPlace').value.trim(),repeatCount:Number($('calRepeat').value),
+  scope:$('calScope').value};
+}
+function calImpact(){
+ if(!model||!['NEW','EDIT'].includes(cal.mode))return;
+ const slot=model.slots.find(s=>s.id===cal.id),apps=slot?calApps(slot):[],p=calPayload('UPDATE');
+ const active=apps.filter(a=>['HELD','CONSENTED','CONFIRMED'].includes(a.phase)).length;
+ const lines=[slot?'預約歷史 '+apps.length+' 筆｜有效或待處理 '+active+' 人。':'新增示範場次，不會修改既有預約。'];
+ if(slot&&p.when!==slot.when&&apps.length)lines.push('已有歷史預約，伺服器禁止直接移動此場次。');
+ if(slot&&active>p.capacity)lines.push('新容量小於占用數，系統會拒絕儲存。');
+ const start=Date.parse(p.when.replace(' ','T')+':00+08:00');
+ if(Number.isFinite(start)){
+  const clashes=model.slots.filter(s=>s.id!==cal.id&&s.experiment===p.experiment&&
+   calMeta(s).status==='OPEN'&&start<Date.parse(s.when.replace(' ','T')+':00+08:00')+
+    calMeta(s).minutes*60000&&start+p.minutes*60000>Date.parse(s.when.replace(' ','T')+':00+08:00'));
+  if(clashes.length)lines.push('同實驗時間重疊：'+clashes.map(s=>s.id).join('、')+'。');
+ }
+ lines.push('取消時保留舊紀錄；本測試系統不會自動寄送郵件。');
+ $('calImpact').textContent=lines.join('\n');
+}
+function calCommand(action,payload,after){
+ if(!calAllowed()||busy){calMsg('資料載入中或沒有操作權限。',true);return;}
+ const id='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
+ setBusy(true);calMsg('儲存中，正在核對資料版本…',false);
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data)){if(after)after(data);calendarRender();
+   calMsg('示範資料儲存成功，正式收件仍關閉。',false);}
+ }).withFailureHandler(e=>{
+  setBusy(false);calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
+ }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
+}
+function calCancel(slot){
+ if(!calAllowed()||busy)return;
+ const m=calMeta(slot),count=calApps(slot).filter(a=>a.phase!=='CANCELLED').length;
+ if(!confirm('確認取消此虛構場次？\n'+slot.id+'\n受影響預約 '+count+
+ ' 筆會保留歷史；不會自動寄信。'))return;
+ const payload={operation:'CANCEL',slotId:slot.id,experiment:slot.experiment,
+  title:m.title,when:slot.when,capacity:slot.capacity,minutes:m.minutes,place:m.place,
+  repeatCount:1,scope:'ONE'};
+ calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
+}
+function calShift(amount){
+ let d=$('calDate').value||calToday(),view=$('calView').value;
+ if(view==='month'){const v=calUTC(d);v.setUTCMonth(v.getUTCMonth()+amount);d=calDay(v);}
+ else d=calAdd(d,amount*(view==='week'?7:1));
+ $('calDate').value=d;calendarRender();
+}
+function calendarInit(){
+ $('calNew').addEventListener('click',()=>calNew());
+ $('calPrev').addEventListener('click',()=>calShift(-1));
+ $('calNext').addEventListener('click',()=>calShift(1));
+ $('calToday').addEventListener('click',()=>{$('calDate').value=calToday();calendarRender();});
+ $('calFirst').addEventListener('click',()=>{
+  if(model&&model.slots.length){$('calDate').value=model.slots[0].when.slice(0,10);calendarRender();}
+ });
+ for(const id of ['calDate','calView','calExperiment','calStatus'])
+  $(id).addEventListener('change',calendarRender);
+ $('calSearch').addEventListener('input',calendarRender);
+ $('calResetFilter').addEventListener('click',()=>{
+  $('calExperiment').value='ALL';$('calStatus').value='ALL';$('calSearch').value='';calendarRender();
+ });
+ $('calClose').addEventListener('click',()=>calOpen('CLOSED',null,null));
+ $('calBackSession').addEventListener('click',()=>calOpen('SESSION',cal.id,null));
+ $('calCancelEdit').addEventListener('click',()=>calOpen(cal.id?'SESSION':'CLOSED',cal.id,null));
+ $('calForm').addEventListener('submit',event=>{
+  event.preventDefault();if(!calAllowed()||busy)return;
+  const editing=cal.mode==='EDIT',payload=calPayload(editing?'UPDATE':'CREATE');
+  const start=Date.parse(payload.when.replace(' ','T')+':00+08:00');
+  if(!Number.isFinite(start)||start<=Date.now()){
+   calMsg('請選擇未來且有效的日期時間。',true);return;
+  }
+  if(editing&&model.applications.some(a=>a.slotId===cal.id)&&
+   model.slots.find(s=>s.id===cal.id)?.when!==payload.when){
+   calMsg('已有預約紀錄，不可直接移動場次，請先處理參與者。',true);return;
+  }
+  calCommand('ADMIN_B02_SLOT',payload,data=>{
+   if(!editing){const h=data.b02.history[data.b02.history.length-1];cal.id=h?.ids[0]||null;}
+   cal.mode=cal.id?'SESSION':'CLOSED';
+  });
+ });
+ for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope'])
+  $(id).addEventListener('change',calImpact);
+ $('calSavePerson').addEventListener('click',()=>{
+  if(!cal.person)return;
+  calCommand('ADMIN_B02_ATTEND',{id:cal.person,
+   attendance:$('calAttendance').value,progress:$('calProgress').value,note:$('calNote').value},null);
+ });
+ document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&cal.mode!=='CLOSED')calOpen('CLOSED',null,null);
+ });
+}
+calendarInit();
 
 $('refresh').addEventListener('click',load);load();
 })();
