@@ -71,3 +71,44 @@ test('B01 counts only valid pending attendance and never labels application code
  assert.match(html,/未完成人工待辦/);
  assert.match(html,/正式研究目標與完成率：未核准，不計算/);
 });
+
+test('B01 derived summary reconciles bookings, attendance, progress and anomalies on synthetic snapshots',()=>{
+ const vm=require('node:vm');
+ const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
+ assert.ok(source.startsWith('function b01Clear('),'B01 source extraction must succeed');
+ const nodes={b01Cards:{children:[],replaceChildren(){this.children=[];},append(node){this.children.push(node);}},b01Status:{textContent:''}};
+ const document={createElement(tag){return {tag,textContent:'',children:[],append(...parts){this.children.push(...parts);}};}};
+ const snapshot={
+  mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
+  slots:[{id:'S1',when:'2026-11-06 09:00'},{id:'S2',when:'2026-11-06 10:00'},{id:'S3',when:'2026-11-07 09:00'}],
+  applications:[
+   {id:'A1',experiment:'E1',phase:'CONFIRMED',slotId:'S1'},
+   {id:'A2',experiment:'E1',phase:'CONFIRMED',slotId:'S1'},
+   {id:'A3',experiment:'E2',phase:'CONFIRMED',slotId:'S2'},
+   {id:'A4',experiment:'E1',phase:'CANCELLED',slotId:'S1'},
+   {id:'A5',experiment:'E2',phase:'CONFIRMED',slotId:'MISSING'},
+   {id:'A6',experiment:'E1',phase:'HELD',slotId:'S3'},
+   {id:'A7',experiment:'E2',phase:'NEW',slotId:null}
+  ],
+  b02:{sessions:{S1:{status:'OPEN'},S2:{status:'CANCELLED'},S3:{status:'OPEN'}},
+   attendance:{A1:{attendance:'PRESENT',progress:'COMPLETE'},A2:{attendance:'PENDING',progress:'PARTIAL'},A3:{attendance:'PRESENT',progress:'COMPLETE'}}},
+  b06:{tasks:[{status:'OPEN',archived:false},{status:'DONE',archived:false},{status:'OPEN',archived:true}]}
+ };
+ const context={document,model:snapshot,Date:class extends Date{static now(){return Date.parse('2026-11-06T00:00:00Z');}},Set,$:id=>nodes[id]};
+ vm.createContext(context);vm.runInContext(source+';b01Render();',context);
+ const values=Object.fromEntries(nodes.b01Cards.children.map(card=>[card.children[0].textContent,Number(card.children[1].textContent)]));
+ assert.equal(values['不重複申請代碼'],7);
+ assert.equal(values['預約／申請紀錄'],7);
+ assert.equal(values['今日未取消場次'],1);
+ assert.equal(values['有效預約待確認出席'],2);
+ assert.equal(values['已成立預約紀錄'],2);
+ assert.equal(values['出席已確認紀錄'],1);
+ assert.equal(values['施測進度完成紀錄'],1);
+ assert.equal(values['待釐清的場次關聯'],1);
+ assert.equal(values['已取消場次的有效申請'],1);
+ assert.equal(values['未完成人工待辦'],1);
+ assert.match(nodes.b01Status.textContent,/未核准，不計算/);
+ context.model={...snapshot,open:true};vm.runInContext('b01Render()',context);
+ assert.equal(nodes.b01Cards.children.length,0,'unsafe reload must erase prior summary');
+ assert.match(nodes.b01Status.textContent,/不顯示統計/);
+});
