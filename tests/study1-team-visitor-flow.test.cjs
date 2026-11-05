@@ -422,7 +422,13 @@ test('B05 is reachable from existing calendar, shows original session and return
   return null;
  };
  const card=findDeep(team.get('calBoard'),x=>x.dataset&&x.dataset.sessionId==='SIM-SLOT-E1-A');
- assert.ok(card,'calendar contains original first E1 session');
+ assert.ok(card,JSON.stringify({error:'calendar contains original first E1 session',
+  calendarDate:team.get('calDate').value,view:team.get('calView').value,
+  description:team.get('calDescription').textContent,
+  slots:srv.read().slots.map(s=>({id:s.id,when:s.when})),
+  cells:team.get('calBoard').children.map(c=>({date:c.children?.[0]?.textContent,
+   childCount:c.children?.length,
+   ids:c.children?.map(x=>x.dataset?.sessionId||x.textContent?.slice(0,45))}))}));
  card.handlers.click();
  const button=findDeep(team.get('calSessionDetail'),x=>x.textContent==='研究現場與結案（B05）');
  assert.ok(button,'B02 existing session panel has a B05 entry');
