@@ -93,9 +93,37 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:560px){.b04Fields,.b04Summary{grid-template-columns:1fr}
  .b04Header{position:static}.b04TabBody{padding:12px}}
 
+
+/* B03 participant list and process board: same B04/B02 data, no parallel store. */
+#b03Module{scroll-margin-top:24px}#b03Module [hidden]{display:none!important}
+.b03Tools{display:grid;grid-template-columns:1.5fr repeat(4,minmax(90px,1fr));gap:10px;align-items:end}
+.b03Tools label{font-size:13px;font-weight:700}
+.b03Tools input,.b03Tools select{padding:9px;min-height:44px}
+.b03Mode{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.b03Mode button{margin:0}
+.b03Mode button[aria-pressed="true"]{background:#174f5b;color:#fff}
+.b03Head,.b03List .entry{display:grid;grid-template-columns:1.2fr 1.3fr 1.3fr .9fr 1.2fr 1fr 1fr 1fr;gap:9px;align-items:center}
+.b03Head{padding:10px;background:#ebf4f1;border-radius:10px;font-size:12px;font-weight:750}
+.b03List{display:grid;grid-template-columns:1fr;gap:8px}
+.b03List .entry{padding:11px 10px;border:1px solid #cbdeda;min-width:0}
+.b03List .entry strong{font-size:13px;overflow-wrap:anywhere}
+.b03List .entry p{font-size:12px;margin:0}
+.b03List .entry button{font-size:12px;padding:6px 8px;margin:0;min-height:36px}
+.b03List .entry span{font-size:12px;overflow-wrap:anywhere}
+.b03BoardExperiment{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+.b03BoardExperiment h3{margin:4px 0 10px}
+.b03Columns{display:grid;grid-template-columns:repeat(6,minmax(140px,1fr));gap:8px;overflow-x:auto;scrollbar-width:thin;padding-bottom:8px}
+.b03Column{background:#f2f8f6;border-radius:9px;padding:8px;min-height:95px}
+.b03Column h4{font-size:12px;margin:0 0 8px}
+.b03Person{margin:0 0 8px;padding:9px;width:100%;text-align:left;white-space:pre-line;font-size:12px;line-height:1.45;background:#fff;color:var(--ink);border:1px solid #c9dbd6;border-radius:8px}
+.b03Empty{font-size:12px;color:var(--muted)}
+.b03NoResults{background:#f5faf8;padding:14px;border:1px dashed var(--line);border-radius:9px;font-size:13px}
+@media(max-width:1024px){.b03Head{display:none}.b03List .entry{grid-template-columns:repeat(2,minmax(0,1fr))}.b03Columns{grid-template-columns:repeat(6,minmax(150px,1fr))}}
+@media(max-width:650px){.b03Tools{grid-template-columns:repeat(2,minmax(0,1fr))}.b03List .entry{grid-template-columns:1fr}.b03Columns{grid-template-columns:repeat(6,minmax(180px,1fr))}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#calendarModule">研究行事曆</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -240,9 +268,40 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <section class="panel" aria-labelledby="weeksHeading"><h2 id="weeksHeading">實驗二｜八週營運安排</h2>
 <p class="sub">先規劃日期與備註。正式團課、居家練習、分組及出缺席流程仍以核准的研究文件為準。</p>
 <div id="weekRows"></div><button id="saveWeeks" type="button" disabled>儲存八週規劃</button></section>
-<section class="panel" aria-labelledby="bookingsHeading"><h2 id="bookingsHeading">示範報名紀錄</h2>
-<p class="sub">只顯示虛構申請代碼、實驗與狀態，不顯示或處理真人個資。</p>
-<div id="entries" class="entries"></div><p class="small" id="bookingSummary">資料載入中…</p></section>
+<section class="panel" id="b03Module" aria-labelledby="bookingsHeading">
+ <div class="calTop"><div><span class="tag">B03｜參與者管理</span>
+ <h2 id="bookingsHeading">參與者名單與流程看板</h2>
+ <p class="sub">清單與看板使用同一份資料、同一組篩選及排序。未核准真人資料前，只顯示已存在的虛構紀錄。</p></div></div>
+ <div class="b03Tools">
+  <label for="b03Search">搜尋參與者代碼<input id="b03Search" type="search" maxlength="60" placeholder="輸入SIM代碼或場次代碼"></label>
+  <label for="b03Experiment">實驗<select id="b03Experiment"><option value="ALL">兩者</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <label for="b03Eligibility">資格<select id="b03Eligibility"><option value="ALL">全部</option><option value="PASS">初篩通過</option><option value="FAIL">初篩未通過</option><option value="PENDING">未核定</option></select></label>
+  <label for="b03Stage">行政流程階段<select id="b03Stage"><option value="ALL">全部階段</option>
+   <option value="NEW">進件／驗證</option><option value="HOLD">預約處理</option>
+   <option value="CONFIRMED">預約已成立</option><option value="IN_PROGRESS">施測進行中</option>
+   <option value="TEST_DONE">施測進度完成</option><option value="STOPPED">取消／停止</option></select></label>
+  <label for="b03Attendance">出席<select id="b03Attendance"><option value="ALL">全部</option>
+   <option value="PENDING">待確認</option><option value="PRESENT">已出席</option><option value="LATE">遲到</option><option value="ABSENT">缺席</option></select></label>
+  <label for="b03Booking">預約<select id="b03Booking"><option value="ALL">全部</option>
+   <option value="BOOKED">有關聯場次</option><option value="NONE">尚未預約</option><option value="CANCELLED">已取消</option></select></label>
+  <label for="b03Sort">排序<select id="b03Sort"><option value="ID_ASC">代碼遞增</option>
+   <option value="ID_DESC">代碼遞減</option><option value="BOOKING_ASC">預約時間</option><option value="UPDATED_DESC">最近行政更新</option></select></label>
+ </div>
+ <div class="b03Mode">
+  <button type="button" id="b03ListMode" class="secondary" aria-pressed="true">表格清單</button>
+  <button type="button" id="b03BoardMode" class="secondary" aria-pressed="false">流程看板</button>
+  <button type="button" id="b03Clear" class="secondary">清除篩選</button>
+  <span id="bookingSummary" class="small" role="status" aria-live="polite">資料載入中…</span>
+ </div>
+ <p class="small">看板僅呈現行政／施測進度，不代表研究完成或REC核准；改變研究階段必須遵循正式核准程序，不以拖曳視同完成。</p>
+ <div id="b03ListView">
+  <div class="b03Head" aria-hidden="true"><span>參與者／實驗</span><span>流程階段</span><span>操作</span>
+   <span>資格</span><span>預約時間</span><span>出席</span><span>施測</span><span>最後更新</span></div>
+  <div id="entries" class="entries b03List"></div>
+ </div>
+ <div id="b03Board" hidden aria-label="參與者行政流程看板"></div>
+ <p id="b03Empty" class="b03NoResults" hidden>目前沒有符合搜尋與篩選條件的參與者。</p>
+ </section>
 <section class="panel" aria-labelledby="approvalHeading"><h2 id="approvalHeading">正式上線前需完成</h2>
 <div class="grid"><div><h3>倫理與文件</h3><p>兩實驗 REC 核准 PDF、研究人員簽署版本及電子簽署授權。</p></div>
 <div><h3>安全與服務</h3><p>正式身分驗證、研究團隊角色、預約資料庫、實際通知、保存與撤回政策。</p></div></div>
