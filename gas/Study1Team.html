@@ -372,7 +372,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -414,7 +414,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();calendarRender();profileRender();
+ displaySlots();displayWeeks();calendarRender();profileRender();b05Render();
  b03Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
@@ -1070,6 +1070,165 @@ function b03Init(){
  });
 }
 b03Init();
+
+/* B05 session execution lives inside the same owner-only Study1 team site. */
+const b05={slotId:null,origin:'calendar',open:false};
+function b05Msg(t,err){
+ $('b05Message').textContent=t;
+ $('b05Message').style.color=err?'#a43e35':'#426d66';
+}
+function b05Open(id,origin){
+ if(!calAllowed()||!model.b05||!model.slots.some(x=>x.id===id)){
+  calMsg('B05場次資料未就緒或授權不符，已拒絕開啟。',true);return;
+ }
+ b05.slotId=id;b05.origin=origin==='profile'?'profile':'calendar';b05.open=true;
+ if(profile.open){
+  profile.open=false;$('profileModule').hidden=true;
+  $('teamMain').classList.remove('b04Open');
+ }
+ $('teamMain').classList.add('b05Open');
+ $('b05Module').hidden=false;
+ $('b05Reason').value='';$('b05Handoff').value='';b05Msg('',false);
+ b05Render();
+ if($('b05Module').scrollIntoView)$('b05Module').scrollIntoView({block:'start'});
+}
+function b05Back(){
+ if(!b05.open)return;
+ const old=b05.slotId,source=b05.origin;
+ b05.open=false;$('b05Module').hidden=true;$('teamMain').classList.remove('b05Open');
+ if(source==='profile'&&profile.id&&model.applications.some(a=>a.id===profile.id)){
+  profile.open=true;$('profileModule').hidden=false;$('teamMain').classList.add('b04Open');
+  profileRender();if($('profileModule').scrollIntoView)$('profileModule').scrollIntoView({block:'start'});
+ }else{
+  const slot=model.slots.find(x=>x.id===old);
+  if(slot)$('calDate').value=slot.when.slice(0,10);
+  calOpen('SESSION',old,null);
+  if($('calendarModule').scrollIntoView)$('calendarModule').scrollIntoView({block:'start'});
+ }
+}
+function b05Control(label,values,selected){
+ const wrapper=calElem('label',undefined);
+ wrapper.append(calElem('span',label));
+ const select=document.createElement('select');
+ for(const [id,name] of values){
+  const opt=document.createElement('option');opt.value=id;opt.textContent=name;select.append(opt);
+ }
+ select.value=selected;
+ wrapper.append(select);
+ return {node:wrapper,select};
+}
+function b05Send(action,payload,onComplete){
+ if(!b05.open||!calAllowed()||!model.b05||busy){b05Msg('資料載入中或已停用操作。',true);return;}
+ const expectedRevision=model.revision;
+ const requestId='REQ-SIM-B05_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ setBusy(true);b05Msg('正在核對研究團隊權限及資料版本…',false);
+ google.script.run.withSuccessHandler(answer=>{
+  if(render(answer)){
+   if(onComplete)onComplete();
+   b05Render();b05Msg('已儲存並回讀，共用參與者與場次資料已更新。',false);
+  }
+ }).withFailureHandler(error=>{
+  setBusy(false);b05Render();
+  b05Msg('未儲存：'+String(error.message||error)+'。請檢查後重試。',true);
+ }).study1UnifiedPreviewCommand({action,payload,requestId,expectedRevision});
+}
+function b05Render(){
+ if(!b05.open)return;
+ if(!calAllowed()||!model.b05){b05Msg('B05安全讀取狀態無法核對，已停止操作。',true);return;}
+ const slot=model.slots.find(x=>x.id===b05.slotId);
+ if(!slot){b05Msg('場次已不存在，請返回行事曆。',true);return;}
+ const meta=calMeta(slot);
+ const people=model.applications.filter(a=>a.slotId===slot.id&&a.phase!=='CANCELLED');
+ const state=id=>model.b02.attendance[id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
+ const issues=people.filter(a=>state(a.id).attendance==='PENDING'||state(a.id).progress!=='COMPLETE');
+ const summary=$('b05Summary');summary.replaceChildren();
+ $('b05Heading').textContent='B05｜'+meta.title+'｜'+slot.id;
+ for(const [k,v] of [['實驗與場次',slot.experiment+' · '+slot.id],
+  ['時間與長度',slot.when+' · '+meta.minutes+'分鐘'],
+  ['行政場次狀態',calStates[meta.status]||meta.status],
+  ['已關聯參與者',people.length+'位'],
+  ['已核實出席',people.filter(a=>['PRESENT','LATE'].includes(state(a.id).attendance)).length+'位'],
+  ['施測完成（行政標示）',people.filter(a=>state(a.id).progress==='COMPLETE').length+'位'],
+  ['待處理紀錄',issues.length+'位（不自動產生待辦）'],
+  ['行政結案','已結案'=== (meta.status==='CLOSED'?'已結案':'未結案')?'已結案':'未結案']]){
+  const node=calElem('div',undefined);node.append(calElem('strong',k),calElem('p',String(v)));summary.append(node);
+ }
+ const target=$('b05Participants');target.replaceChildren();
+ $('b05PersonsEmpty').hidden=people.length!==0;
+ for(const a of people){
+  const att=state(a.id),card=calElem('div',undefined,'b05Person');
+  const header=calElem('h4',a.id+'｜'+(profilePhases[a.phase]||a.phase));
+  const fields=calElem('div',undefined,'b05PersonFields');
+  const attendance=b05Control('出席（獨立）',[
+   ['PENDING','待確認'],['PRESENT','已出席'],['LATE','遲到'],['ABSENT','缺席']],att.attendance);
+  const progress=b05Control('施測（獨立）',[
+   ['NOT_STARTED','未開始'],['IN_PROGRESS','進行中'],['PARTIAL','部分完成'],
+   ['COMPLETE','施測進度完成']],att.progress);
+  const notes=calElem('label',undefined);notes.append(calElem('span','行政備註（不含真人資訊）'));
+  const input=document.createElement('input');input.type='text';input.value=att.note;input.maxLength=80;notes.append(input);
+  const save=calElem('button','儲存這位參與者','secondary');save.type='button';
+  save.disabled=busy||meta.status!=='OPEN';
+  save.addEventListener('click',()=>{
+   if(meta.status!=='OPEN'){b05Msg('結案或取消場次須先依程序處理後才能改動出席與施測。',true);return;}
+   b05Send('ADMIN_B02_ATTEND',{id:a.id,attendance:attendance.select.value,
+    progress:progress.select.value,note:input.value.trim()},null);
+  });
+  fields.append(attendance.node,progress.node,notes,save);
+  const open=calElem('button','查看B04完整資料','secondary');open.type='button';
+  open.addEventListener('click',()=>{
+   b05Back();profileOpen(a.id,'calendar');
+  });
+  card.append(header,fields,open);target.append(card);
+ }
+ const closing=model.b05.closures[slot.id],after=Date.parse(slot.when.replace(' ','T')+':00+08:00');
+ const canClose=meta.status==='OPEN'&&Number.isFinite(after)&&after<=Date.now();
+ $('b05Close').disabled=busy||!canClose;
+ $('b05Close').hidden=meta.status==='CLOSED'||meta.status==='CANCELLED';
+ $('b05Reopen').hidden=meta.status!=='CLOSED';
+ $('b05Reopen').disabled=busy||meta.status!=='CLOSED';
+ let msg='自動檢查：關聯參與者 '+people.length+' 位；待確認出席或施測未完成 '+issues.length+' 位。';
+ if(issues.length)msg+=' 如要結案必須記錄後續交接（至少四字），不會自動建待辦。';
+ if(meta.status==='CANCELLED')msg+=' 場次已取消，不得再行政結案。';
+ else if(meta.status==='CLOSED'&&closing)msg+=' 已由OWNER於 '+closing.at+' 人工結案；交接：'+(closing.handoff||'無')+'。';
+ else if(!canClose)msg+=' 場次尚未開始或狀態不適用，不能提前結案。';
+ $('b05Checks').textContent=msg;
+ const history=$('b05History');history.replaceChildren();
+ const logs=model.b05.history.filter(h=>h.slotId===slot.id).slice().reverse();
+ for(const h of logs){
+  const row=calElem('p',h.at+'｜'+(h.action==='CLOSE'?'人工行政結案':'重新開啟')+
+   '\n原狀態 '+h.before+' → '+h.after+'｜待確認 '+h.issues+' 位'+
+   '\n確認原因：'+h.reason+'\n交接：'+(h.handoff||'無')+'\n操作者：'+h.actor);
+  history.append(row);
+ }
+ if(!logs.length)history.append(calElem('p','目前沒有已核實的結案操作紀錄。'));
+}
+function b05Init(){
+ $('b05Back').addEventListener('click',b05Back);
+ $('b05Close').addEventListener('click',()=>b05Closure('CLOSE'));
+ $('b05Reopen').addEventListener('click',()=>b05Closure('REOPEN'));
+}
+function b05Closure(action){
+ if(!b05.open||busy||!model||!model.b05)return;
+ const reason=$('b05Reason').value.trim(),handoff=$('b05Handoff').value.trim();
+ if(reason.length<4||reason.length>120||handoff.length>250||/[<>]/.test(reason+handoff)){
+  b05Msg('請填至少四字的人工確認原因，且勿輸入HTML或真人資料。',true);return;
+ }
+ const slot=model.slots.find(s=>s.id===b05.slotId);
+ if(!slot)return;
+ const unresolved=model.applications.filter(a=>a.slotId===slot.id&&a.phase!=='CANCELLED'&&
+  (!model.b02.attendance[a.id]||model.b02.attendance[a.id].attendance==='PENDING'||
+   model.b02.attendance[a.id].progress!=='COMPLETE'));
+ if(action==='CLOSE'&&unresolved.length&&handoff.length<4){
+  b05Msg('目前仍有 '+unresolved.length+' 位未完成紀錄，請先寫至少四字後續交接內容。',true);return;
+ }
+ if(!confirm((action==='CLOSE'?'確認人工行政結案':'確認重新開啟行政場次')+
+  '？\n場次 '+slot.id+'；未確認／未完成 '+unresolved.length+
+  ' 位。\n不代表研究完成，也不會自動寄信或建立待辦。'))return;
+ b05Send('ADMIN_B05_CLOSURE',{action,slotId:slot.id,reason,handoff},()=>{
+  $('b05Reason').value='';$('b05Handoff').value='';
+ });
+}
+b05Init();
 
 $('refresh').addEventListener('click',load);load();
 })();
