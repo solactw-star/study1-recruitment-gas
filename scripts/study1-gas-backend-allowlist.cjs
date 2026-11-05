@@ -203,7 +203,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedUtf8Bytes_','study1UnifiedStoredDecode_','study1UnifiedStoredEncode_',
   'study1UnifiedStoreReadiness_','study1UnifiedStoreHash_','study1UnifiedStoreInitial_',
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
-  'study1UnifiedRoleAuthorise_',
+  'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
