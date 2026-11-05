@@ -1045,7 +1045,10 @@ function study1UnifiedPreviewCommand(command){
  if(!lock.tryLock(8000))throw Error('其他測試流程正在進行');
  try{
   study1SandboxBookingFlags_();
+  const initialStored=PropertiesService.getScriptProperties().getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
   const s=study1UnifiedRead_();
+  if(PropertiesService.getScriptProperties().getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==initialStored)
+   throw Error('資料讀取期間發生競寫，拒絕操作');
   // Never persist per-question health/screening responses or even fixture OTP.
   // Replay identity stores only a derived test eligibility outcome / OTP match.
   const fingerprint=c.action==='SCREEN'?
@@ -1085,10 +1088,27 @@ function study1UnifiedPreviewCommand(command){
   const raw=JSON.stringify(next);
   const stored=study1UnifiedStoredEncode_(raw);
   const prop=PropertiesService.getScriptProperties();
-  prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,stored);
-  const readback=prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
-  if(readback!==stored||study1UnifiedStoredDecode_(readback)!==raw)
+  const beforeBytes=prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+  if(beforeBytes!==initialStored)
+   throw Error('原始資料在版本鎖內發生非預期變動；已拒絕覆寫');
+  try{
+   prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,stored);
+   const readback=prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+   if(readback!==stored||study1UnifiedStoredDecode_(readback)!==raw)
     throw Error('統一測試流程寫入後回讀失敗');
+  }catch(e){
+   // A failed readback may occur AFTER a successful write. Restore the old
+   // bytes under the same lock; a failed rollback must fail closed.
+   try{
+    if(beforeBytes===null)prop.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+    else prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,beforeBytes);
+    if(prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==beforeBytes)
+     throw Error('原始狀態回讀不一致');
+   }catch(recovery){
+    throw Error('資料寫入狀態不明且回復失敗；已停止後續操作，須由管理者核查');
+   }
+   throw Error('本次寫入未完成；已回復寫入前版本：'+String(e.message||e));
+  }
   return {...study1UnifiedView_(next),deduplicated:false};
  }finally{lock.releaseLock();}
 }
