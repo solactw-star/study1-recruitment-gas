@@ -121,6 +121,28 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:1024px){.b03Head{display:none}.b03List .entry{grid-template-columns:repeat(2,minmax(0,1fr))}.b03Columns{grid-template-columns:repeat(6,minmax(150px,1fr))}}
 @media(max-width:650px){.b03Tools{grid-template-columns:repeat(2,minmax(0,1fr))}.b03List .entry{grid-template-columns:1fr}.b03Columns{grid-template-columns:repeat(6,minmax(180px,1fr))}}
 
+
+/* B05: existing site session execution and separately auditable closure. */
+#teamMain.b05Open>:not(#b05Module){display:none!important}
+#b05Module[hidden],#b05Module [hidden]{display:none!important}
+#b05Module{min-height:70vh;scroll-margin-top:12px}
+.b05Header{position:sticky;top:0;z-index:4;border:1px solid var(--line);border-radius:12px;background:#fff;padding:14px}
+.b05Header button{margin:0}.b05Actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.b05Stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0}
+.b05Stats>div{padding:12px;background:#f2f8f6;border:1px solid var(--line);border-radius:9px;overflow-wrap:anywhere}
+.b05People{display:grid;gap:12px}
+.b05Person{padding:15px;border-radius:12px;border:1px solid var(--line);background:#fff}
+.b05PersonFields{display:grid;grid-template-columns:1fr 1fr 1.5fr auto;gap:10px;align-items:end}
+.b05PersonFields label{font-size:13px;font-weight:650}
+.b05PersonFields select,.b05PersonFields input{padding:8px;margin-top:4px}
+.b05PersonFields button{margin:0;white-space:nowrap}
+.b05Closure{border-radius:12px;padding:16px;border:1px solid #bed8d2;background:#f7fbfa}
+.b05Closure textarea{min-height:85px}.b05History{display:grid;gap:6px}
+.b05History p{border-bottom:1px solid var(--line);font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere;padding:8px}
+@media(max-width:900px){.b05Stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.b05PersonFields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.b05Stats,.b05PersonFields{grid-template-columns:1fr}.b05Header{position:static}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
 <div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
@@ -185,6 +207,43 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p id="calStatusMessage" role="status" aria-live="polite" class="small">目前僅供獲授權的擁有者操作虛構資料。</p>
 </section>
 
+
+
+<section class="panel" id="b05Module" aria-labelledby="b05Heading" hidden>
+ <div class="b05Header">
+  <div class="b05Actions"><button type="button" class="secondary" id="b05Back">〈 返回原場次／參與者資料</button>
+   <span class="tag">B05｜研究現場執行與行政結案</span></div>
+  <h2 id="b05Heading">場次執行</h2>
+  <p class="small">出席、施測與行政結案獨立記錄。正式研究作業必須依有效REC清單執行；本站不編造施測步驟或更改原始研究數據。</p>
+  <div id="b05Summary" class="b05Stats" aria-label="場次摘要"></div>
+ </div>
+ <div class="panel">
+  <h3>逐人出席與施測</h3>
+  <p class="small">與 B02 和 B04 共用狀態，修改後重新載入可核對；缺席不等同施測完成。</p>
+  <div id="b05Participants" class="b05People"></div>
+  <p id="b05PersonsEmpty" class="small" hidden>此場次沒有可核實的參與者預約紀錄。</p>
+ </div>
+ <div class="panel">
+  <h3>核准研究作業清單</h3>
+  <p class="warn">尚未接入經核對的最新有效REC程序及正式逐項施測資料。此區保留正式欄位位置，但不得新增或偽造正式作業、分數或完成紀錄。</p>
+ </div>
+ <div class="panel"><h3>B05-A｜場次行政結案</h3>
+  <div class="b05Closure">
+   <p id="b05Checks" role="status" aria-live="polite"></p>
+   <label class="label" for="b05Reason">人工確認或重開原因（至少四字）</label>
+   <input id="b05Reason" maxlength="120" placeholder="例如：研究人員已確認本場次行政處理完成">
+   <label class="label" for="b05Handoff">未完成事項與交接（仍有缺漏時必填）</label>
+   <textarea id="b05Handoff" maxlength="250" placeholder="記錄後續交接；不自動建立待辦或通知"></textarea>
+   <div class="b05Actions">
+    <button type="button" id="b05Close">人工確認行政結案</button>
+    <button type="button" class="secondary" id="b05Reopen" hidden>重新開啟並記錄原因</button>
+   </div>
+   <p class="small">結案僅代表本次行政處理，非研究完成；取消的場次不可結案，重開也不會自動開放報名。</p>
+  </div>
+  <h3>近期結案及重開歷程</h3><div id="b05History" class="b05History"></div>
+ </div>
+ <p id="b05Message" class="small" role="status" aria-live="polite"></p>
+</section>
 
 <section class="panel" id="profileModule" aria-labelledby="profileHeading" hidden>
  <div class="b04Header">
@@ -523,6 +582,8 @@ function calendarPanel(){
   grid.append(calElem('div',label+'：'+value,'calLine'));
  detail.append(grid);
  const actions=calElem('div',undefined,'calAction');
+ const execute=calElem('button','研究現場與結案（B05）','secondary');execute.type='button';
+ execute.addEventListener('click',()=>b05Open(slot.id,'calendar'));actions.append(execute);
  const edit=calElem('button','編輯場次','secondary');edit.type='button';edit.disabled=meta.status!=='OPEN';
  edit.addEventListener('click',()=>calEdit(slot));actions.append(edit);
  const cancel=calElem('button','取消場次','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
@@ -814,6 +875,8 @@ function profileRender(){
    ['出席狀態',calPresence[att.attendance]],
    ['施測摘要',calTesting[att.progress]],['場次備註',att.note||'未記錄'],
    ['正式逐項作業與完成紀錄','尚未授權接入REC核准之正式作業資料']]);
+  const exec=calElem('button','查看所屬場次執行（B05）','secondary');exec.type='button';exec.disabled=!slot;
+  exec.addEventListener('click',()=>{if(slot)b05Open(slot.id,'profile');});body.append(exec);
   warn('不能由出席、部分完成或暫留預約推定正式研究完成；原始實驗數據不允許在此編輯。');break;
  case 'consent':
   fields([['REC核准狀態',policy.approval],['待核准版本',policy.version],
