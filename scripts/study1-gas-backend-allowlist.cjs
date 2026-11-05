@@ -167,7 +167,17 @@ function assertUnifiedFlow(source){
    "if(s&&!s.b05)s.b05={closures:{},history:[]}",
    "b05:JSON.parse(JSON.stringify(s.b05",
    "p.action==='CLOSE'&&issues>0&&p.handoff.trim().length<4",
-   "if(!Number.isFinite(start)||start>now)" ])
+   "if(!Number.isFinite(start)||start>now)",
+   "function study1UnifiedStoreReadiness_()",
+   "function study1UnifiedStoreApply_(original,command)",
+   "function study1UnifiedStoreVerify_(state)",
+   "function study1UnifiedStorePage_(state,query)",
+   "original.mode!=='SYNTHETIC_CONTRACT_ONLY'",
+   "c.value.source!=='SYNTHETIC_ONLY'",
+   "query.expectedRevision!==state.revision",
+   "if(beforeBytes!==initialStored)",
+   "if(prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==beforeBytes)",
+   "throw Error('資料寫入狀態不明且回復失敗" ])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -182,7 +192,9 @@ function assertUnifiedFlow(source){
   'study1UnifiedFormalReadiness_','study1UnifiedPreviewSelfTest',
   'study1UnifiedE2Weeks_','study1UnifiedValidateE2Weeks_','study1UnifiedFormalPorts_',
   'study1UnifiedRecruitment_','study1UnifiedValidateRecruitment_',
-  'study1UnifiedUtf8Bytes_','study1UnifiedStoredDecode_','study1UnifiedStoredEncode_']);
+  'study1UnifiedUtf8Bytes_','study1UnifiedStoredDecode_','study1UnifiedStoredEncode_',
+  'study1UnifiedStoreReadiness_','study1UnifiedStoreHash_','study1UnifiedStoreInitial_',
+  'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
