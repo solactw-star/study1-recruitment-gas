@@ -53,3 +53,11 @@ test('Team UI rejects network/unsafe scripts or a missing editor',()=>{
  assert.throws(()=>gate.assertTeamHtml(html.replace('id="saveModes"','id="missing"')),/Research team UI/);
  assert.throws(()=>gate.assertTeamHtml(html+'<iframe src="x"></iframe>'),/Research team UI/);
 });
+
+test('B01 clears previously rendered statistics when owner snapshot is rejected or refresh fails',()=>{
+ assert.match(html,/function b01Clear\(reason\)\{\$\('b01Cards'\)\.replaceChildren\(\)/);
+ assert.match(html,/model=null;b01Clear\('管理權限或研究安全設定無法核實/);
+ assert.match(html,/model=null;b01Clear\('資料載入失敗/);
+ assert.match(html,/if\(!safe\)\{b01Clear\('資料或安全設定未核實/);
+ assert.match(html,/model\.open===false&&model\.consentReady===false/);
+});
