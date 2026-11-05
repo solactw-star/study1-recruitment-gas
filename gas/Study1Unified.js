@@ -660,6 +660,24 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    if(next&&study1UnifiedCapacity_(s,old.id,now)>next.capacity)
     throw Error('測試容量低於有效預約數');
   }
+  // Legacy slot editor and B02 graphical calendar must not silently diverge.
+  // Preserve all B02-managed slot IDs and prevent overlaps with their effective durations.
+  for(const old of s.slots){
+   if(s.b02.sessions[old.id]&&!p.slots.some(x=>x.id===old.id))
+    throw Error('已有B02場次資料，不能從舊版時段編輯器直接移除；請用行事曆處理');
+  }
+  for(const a of p.slots){
+   const startA=Date.parse(a.when.replace(' ','T')+':00+08:00');
+   const endA=startA+(s.b02.sessions[a.id]?.minutes||120)*60000;
+   if(s.b02.sessions[a.id]?.status==='CANCELLED')continue;
+   for(const other of p.slots){
+    if(a.id===other.id||a.experiment!==other.experiment||
+       s.b02.sessions[other.id]?.status==='CANCELLED')continue;
+    const startB=Date.parse(other.when.replace(' ','T')+':00+08:00');
+    const endB=startB+(s.b02.sessions[other.id]?.minutes||120)*60000;
+    if(startA<endB&&startB<endA)throw Error('舊版時段設定會造成同實驗場次重疊');
+   }
+  }
   s.slots=p.slots.map(x=>({id:x.id,experiment:x.experiment,when:x.when,capacity:x.capacity}));return;
  }
  if(action==='ADMIN_RECRUITMENT'){
