@@ -502,12 +502,12 @@ function b01Render(){
  const todays=slots.filter(s=>s.when.slice(0,10)===today&&
   model.b02.sessions[s.id]?.status!=='CANCELLED');
  const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN');
- const pending=applications.filter(a=>{const attendance=model.b02.attendance[a.id];return !attendance||attendance.attendance==='PENDING';});
+ const pending=applications.filter(a=>{if(a.phase==='CANCELLED'||!a.slotId)return false;const slot=slots.find(s=>s.id===a.slotId);if(!slot||model.b02.sessions[slot.id]?.status==='CANCELLED')return false;const attendance=model.b02.attendance[a.id];return !attendance||attendance.attendance==='PENDING';});
  const entries=[['不重複申請代碼',unique.size,'申請代碼不代表獨立參與者'],
   ['預約／申請紀錄',applications.length,'不等於獨立參與者人數'],
   ['場次紀錄',slots.length,'含歷史與取消場次'],
   ['今日未取消場次',todays.length,'依臺灣日期'],
-  ['待確認出席',pending.length,'尚未核實，不視為缺席'],
+  ['有效預約待確認出席',pending.length,'排除取消申請、無場次與已取消場次；不視為缺席'],
   ['未完成人工待辦',active.length,'不自動產生事項']];
  for(const [label,value,note] of entries){
   const box=document.createElement('div');box.className='b01Card';
