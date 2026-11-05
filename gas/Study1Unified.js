@@ -373,6 +373,8 @@ function study1B06Verify_(s){
      h.digest!==study1UnifiedStoreHash_(copy)||
      !s.requests[i]||s.requests[i].id!==h.requestId||
      !/^[a-f0-9]{64}$/.test(s.requests[i].fingerprint)||
+     (h.requestFingerprint!==undefined&&
+      h.requestFingerprint!==s.requests[i].fingerprint)||
      !/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(h.requestId))
    throw Error('B06稽核鏈斷裂或紀錄遭修改');
   const beforeHash=h.before===null?null:study1UnifiedStoreHash_(h.before);
@@ -458,7 +460,7 @@ function study1B06Apply_(state,command,source,now){
  }
  s.revision++;
  const h={seq:s.revision,taskId:task.id,action,actor:'OWNER',at,
-  requestId:command.requestId,reason,before:previous,
+  requestId:command.requestId,requestFingerprint:fingerprint,reason,before:previous,
   after:JSON.parse(JSON.stringify(task)),prev:s.head};
  h.digest=study1UnifiedStoreHash_(h);
  s.audit.push(h);s.head=h.digest;
