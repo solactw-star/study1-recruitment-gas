@@ -136,7 +136,14 @@ function assertUnifiedFlow(source){
    "function study1UnifiedAssertOwner_(){","study1AdminOwnerRequired_();",
    "study1SandboxBookingFlags_();","function study1UnifiedPreviewGet(){",
    "function study1UnifiedPreviewCommand(command){","LockService.getScriptLock()",
-   "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,raw)",
+   "prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,stored)",
+   "const STUDY1_UNIFIED_GZIP_PREFIX_='GZIP1:'",
+   "const STUDY1_UNIFIED_PROPERTY_SAFE_BYTES_=7900",
+   "function study1UnifiedStoredDecode_(stored){",
+   "function study1UnifiedStoredEncode_(raw){",
+   "Utilities.gzip(Utilities.newBlob(",
+   "Utilities.ungzip(Utilities.newBlob(",
+   "study1UnifiedStoredDecode_(readback)!==raw",
    "fixture.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_)",
    "c.action==='ADMIN_RESET'","action==='CONSENT_REVIEW'","action==='ADMIN_RESEARCH'",
    "action==='ADMIN_SCREENING'","action==='ADMIN_NOTIFY_ATTEMPT'",
@@ -162,7 +169,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedPdfFixture_','study1UnifiedGovernance_',
   'study1UnifiedFormalReadiness_','study1UnifiedPreviewSelfTest',
   'study1UnifiedE2Weeks_','study1UnifiedValidateE2Weeks_','study1UnifiedFormalPorts_',
-  'study1UnifiedRecruitment_','study1UnifiedValidateRecruitment_']);
+  'study1UnifiedRecruitment_','study1UnifiedValidateRecruitment_',
+  'study1UnifiedUtf8Bytes_','study1UnifiedStoredDecode_','study1UnifiedStoredEncode_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
