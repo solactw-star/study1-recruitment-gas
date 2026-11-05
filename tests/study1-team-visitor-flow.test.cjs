@@ -66,6 +66,7 @@ function server({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open
 function element(id='',tagName='div'){
  return {id,tagName,dataset:{},handlers:{},children:[],value:'',textContent:'',className:'',
   checked:false,disabled:false,hidden:false,href:'',type:'',attributes:{},
+  style:{setProperty(){}},classList:{toggle(){},add(){},remove(){}},focus(){},scrollTop:0,
   addEventListener(type,handler){this.handlers[type]=handler;},
   setAttribute(name,value){this.attributes[name]=value;},
   append(...els){for(const e of els)this.appendChild(e);},
@@ -106,7 +107,7 @@ function documentFor(html,kind){
   throw Error('Unmocked querySelectorAll '+selector);
  };
  return {ids,get,doc:{getElementById:get,createElement:tag=>element('',tag),
-  querySelectorAll:query}};
+  querySelectorAll:query,addEventListener(){}}};
 }
 function page(server,kind){
  const html=kind==='team'?teamHtml:demoHtml;
