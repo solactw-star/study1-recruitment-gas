@@ -42,7 +42,7 @@ test('B04 only saves changed administrative note with a reason; audit retains be
  ctx.study1UnifiedTransition_(state,{action:'ADMIN_B04_NOTE',payload:{id,note:'已更正的虛構備註',reason:'修正日期錯誤'}},now+5000,null);
  assert.equal(state.b04.history.length,2);
  assert.equal(state.b04.history[1].before,'模擬預約行政備註');
- assert.throws(()=>ctx.study1UnifiedTransition_(state,{action:'ADMIN_B04_NOTE',payload:{id,note:'已更正的虛構備註',reason:'未修改'}},now,null),/未變更/);
+ assert.throws(()=>ctx.study1UnifiedTransition_(state,{action:'ADMIN_B04_NOTE',payload:{id,note:'已更正的虛構備註',reason:'內容未變更'}},now,null),/未變更/);
  assert.throws(()=>ctx.study1UnifiedTransition_(state,{action:'ADMIN_B04_NOTE',payload:{id,note:'X',reason:'短'}},now,null),/更正/);
  assert.throws(()=>ctx.study1UnifiedTransition_(state,{action:'ADMIN_B04_NOTE',payload:{id:'SIM-999',note:'X',reason:'此人不存在'}},now,null),/更正/);
  assert.throws(()=>ctx.study1UnifiedTransition_(state,{action:'ADMIN_B04_NOTE',payload:{id,note:'<script>',reason:'原因有效'}},now,null),/更正/);
