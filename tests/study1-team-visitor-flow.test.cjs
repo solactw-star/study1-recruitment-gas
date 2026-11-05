@@ -11,6 +11,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
+const zlib=require('node:zlib');
 const gasDir=path.join(__dirname,'../gas');
 const backendSource=[
  'OtpCore.js','BookingCore.js','OtpThrottle.js','OtpTransaction.js',
@@ -23,7 +24,14 @@ const scriptOf=html=>{
  assert.equal(scripts.length,1,'one inline site script, no network scripts');
  return scripts[0][1];
 };
+const byteBuffer=v=>typeof v==='string'?Buffer.from(v,'utf8'):Buffer.from(v.map(x=>x&255));
+const asBlob=v=>({getBytes:()=>[...byteBuffer(v)].map(x=>x>127?x-256:x),
+ getDataAsString:()=>byteBuffer(v).toString('utf8')});
 const fixtureUtilities={
+ newBlob:v=>asBlob(v),
+ gzip:b=>asBlob(zlib.gzipSync(byteBuffer(b.getBytes()))),
+ ungzip:b=>asBlob(zlib.gunzipSync(byteBuffer(b.getBytes()))),
+ base64Encode:bytes=>byteBuffer(bytes).toString('base64'),
  Charset:{UTF_8:'UTF-8'},DigestAlgorithm:{SHA_256:'SHA_256'},
  base64Decode:b64=>[...Buffer.from(b64,'base64')].map(n=>n>127?n-256:n),
  computeDigest:(algorithm,bytes)=>{
@@ -38,8 +46,8 @@ function server({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open
  let writes=0,lockHeld=false,requests=0;
  const props={
   getProperty:key=>store.has(key)?store.get(key):null,
-  setProperty:(key,value)=>{assert.equal(key,'STUDY1_UNIFIED_FIXTURE_V1');writes++;store.set(key,value);},
-  deleteProperty:key=>{assert.equal(key,'STUDY1_UNIFIED_FIXTURE_V1');store.delete(key);}
+  setProperty:(key,value)=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B06_TASKS_V1'].includes(key));writes++;store.set(key,value);},
+  deleteProperty:key=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B06_TASKS_V1'].includes(key));store.delete(key);}
  };
  const mutex={
   tryLock:()=>{assert.equal(lockHeld,false);lockHeld=true;return true;},
@@ -122,6 +130,10 @@ function page(server,kind){
   withFailureHandler(fn){failure=fn;return this;},
   study1UnifiedPreviewGet(){calls.push('READ');
    try{const view=server.read();success(view);}
+   catch(e){failures.push(String(e.message||e));failure(e);}
+  },
+  study1UnifiedB06Command(c){calls.push('B06_'+c.action);
+   try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB06Command(c))));}
    catch(e){failures.push(String(e.message||e));failure(e);}
   },
   study1UnifiedPreviewCommand(c){calls.push(c.action);
