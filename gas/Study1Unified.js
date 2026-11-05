@@ -283,7 +283,8 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-01-06 14:00',capacity:2},
    {id:'SIM-SLOT-E2-A',experiment:'E2',when:'2027-01-07 10:00',capacity:2},
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
-  ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[]};
+  ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[],
+   b02:{sessions:{},attendance:{},history:[]}};
 }
 function study1UnifiedAssertOwner_(){
  study1AdminOwnerRequired_();
@@ -297,6 +298,7 @@ function study1UnifiedRead_(){
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
  if(s&&!s.recruitment)s.recruitment=study1UnifiedRecruitment_(); // non-writing TEST migration
  if(s&&!s.e2Weeks)s.e2Weeks=study1UnifiedE2Weeks_(); // read-only fixture migration
+ if(s&&!s.b02)s.b02={sessions:{},attendance:{},history:[]}; // non-writing TEST migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -319,6 +321,31 @@ function study1UnifiedRead_(){
  study1UnifiedValidateResearch_(s.research);
  study1UnifiedValidateRecruitment_(s.recruitment);
  study1UnifiedValidateSlots_(s.slots);
+ if(!s.b02||typeof s.b02!=='object'||Array.isArray(s.b02)||
+    Object.keys(s.b02).sort().join(',')!=='attendance,history,sessions'||
+    !s.b02.sessions||!s.b02.attendance||!Array.isArray(s.b02.history)||
+    s.b02.history.length>12)throw Error('行事曆隔離資料格式異常');
+ for(const [id,m] of Object.entries(s.b02.sessions)){
+   if(!/^SIM-SLOT-E[12]-[A-Z]$/.test(id)||!m||
+      Object.keys(m).sort().join(',')!=='group,minutes,place,status,title'||
+      typeof m.title!=='string'||m.title.length>36||/[<>]/.test(m.title)||
+      typeof m.place!=='string'||m.place.length>48||/[<>]/.test(m.place)||
+      !Number.isSafeInteger(m.minutes)||m.minutes<15||m.minutes>480||
+      !['OPEN','CANCELLED','CLOSED'].includes(m.status)||
+      typeof m.group!=='string'||m.group.length>32)
+     throw Error('行事曆場次元資料不合法');
+ }
+ for(const [id,a] of Object.entries(s.b02.attendance)){
+   if(!/^SIM-[0-9]{3}$/.test(id)||!a||
+      Object.keys(a).sort().join(',')!=='attendance,note,progress'||
+      !['PENDING','PRESENT','LATE','ABSENT'].includes(a.attendance)||
+      !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(a.progress)||
+      typeof a.note!=='string'||a.note.length>80||/[<>]/.test(a.note))
+     throw Error('虛構出席／施測資料不合法');
+ }
+ if(s.b02.history.some(h=>!h||typeof h.at!=='string'||typeof h.action!=='string'||
+      !Array.isArray(h.ids)||h.ids.length>8||h.ids.some(x=>typeof x!=='string')))
+   throw Error('行事曆操作歷程不合法');
  study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
   if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
@@ -448,12 +475,15 @@ function study1UnifiedView_(s){
   policy:s.policy,audit:study1UnifiedAudit_(s),
   pdfFixture:study1UnifiedPdfFixture_(),governance:study1UnifiedGovernance_(s),
   formalReadiness:study1UnifiedFormalReadiness_(s),formalPorts:study1UnifiedFormalPorts_(),
+  b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
    weeks:s.e2Weeks.map(w=>({...w})),plannedWeeks:s.e2Weeks.filter(w=>w.date!==null).length},
   slots:s.slots.map(slot=>{
    const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
-   return {...slot,bookable,remaining:bookable?
+   const b02Status=s.b02&&s.b02.sessions[slot.id]&&s.b02.sessions[slot.id].status;
+   return {...slot,bookable:bookable&&b02Status!=='CANCELLED'&&b02Status!=='CLOSED',
+     remaining:bookable&&b02Status!=='CANCELLED'&&b02Status!=='CLOSED'?
     (available.get(slot.id)||0):0};}),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    screeningVersion:a.screeningVersion||null,screeningSource:a.screeningSource||null,
@@ -473,7 +503,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
