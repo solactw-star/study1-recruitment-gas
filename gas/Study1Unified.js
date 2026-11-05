@@ -267,25 +267,46 @@ function study1UnifiedStoreVerify_(state){
   throw Error('稽核事件數量、修訂版本或鏈頭不一致');
  return true;
 }
+/**
+ * Snapshot-based stable pagination for SYNTHETIC records only.
+ * A cursor resumes only the exact record set and byte-equivalent values
+ * from its first page; version alone is not evidence against silent drift.
+ * The digest is an integrity check, NOT an authenticated signature.
+ */
 function study1UnifiedStorePage_(state,query){
  if(!state||state.schema!=='STUDY1_STORAGE_CONTRACT_V1'||
-   state.mode!=='SYNTHETIC_CONTRACT_ONLY'||!query||
-   Object.keys(query).sort().join(',')!=='after,expectedRevision,limit'||
-   query.expectedRevision!==state.revision||!Number.isSafeInteger(query.limit)||
-   query.limit<1||query.limit>100||typeof query.after!=='string'||
-   query.after.length>100||!state.records)
+    state.mode!=='SYNTHETIC_CONTRACT_ONLY'||
+    !Number.isSafeInteger(state.revision)||state.revision<0||
+    !state.records||typeof state.records!=='object'||Array.isArray(state.records)||
+    !query||typeof query!=='object'||Array.isArray(query))
+  throw Error('資料分頁契約或快照狀態不合法');
+ const queryFields=Object.keys(query).sort().join(',');
+ if(!['after,expectedRevision,limit','after,expectedRevision,limit,snapshotHash'].includes(queryFields)||
+    query.expectedRevision!==state.revision||!Number.isSafeInteger(query.limit)||
+    query.limit<1||query.limit>100||typeof query.after!=='string'||
+    query.after.length>100)
   throw Error('資料分頁需要正確的版本、游標及上限');
- const all=Object.keys(state.records).sort().filter(id=>id>query.after);
- const selected=all.slice(0,query.limit);
- for(const id of selected){
-  const item=state.records[id];
-  if(!item||typeof item!=='object'||Array.isArray(item)||
-     Object.keys(item).sort().join(',')!=='id,source,status'||
-     !/^[A-Z_]{2,32}$/.test(item.status)||
-     item.id!==id||item.source!=='SYNTHETIC_ONLY')
-   throw Error('資料分頁僅允許已核准欄位的虛構資料');
+ const ids=Object.keys(state.records).sort();
+ for(const id of ids){
+  const row=state.records[id];
+  if(!/^SIM-[A-Z0-9-]{4,64}$/.test(id)||
+     !row||typeof row!=='object'||Array.isArray(row)||
+     row.id!==id||row.source!=='SYNTHETIC_ONLY')
+   throw Error('資料分頁只接受完整的虛構資料快照');
+  if(Object.keys(row).sort().join(',')!=='id,source,status'||
+     typeof row.status!=='string'||!/^[A-Z_]{2,32}$/.test(row.status))
+   throw Error('資料分頁包含非已核准欄位，拒絕讀取');
  }
- return {revision:state.revision,
+ const snapshotHash=study1UnifiedStoreHash_(
+  [state.revision,ids.map(id=>[id,state.records[id]])]);
+ if(query.after){
+  if(!ids.includes(query.after)||query.snapshotHash!==snapshotHash)
+   throw Error('資料分頁快照已漂移或游標失效，請從第一頁重讀');
+ }else if('snapshotHash' in query&&query.snapshotHash!==snapshotHash){
+  throw Error('資料分頁快照已變更');
+ }
+ const all=ids.filter(id=>id>query.after),selected=all.slice(0,query.limit);
+ return {revision:state.revision,snapshotHash,
   items:selected.map(id=>JSON.parse(JSON.stringify(state.records[id]))),
   nextAfter:all.length>selected.length?selected[selected.length-1]:null};
 }
@@ -481,6 +502,22 @@ function study1B06Apply_(state,command,source,now){
  study1B06Verify_(s);
  return {state:s,deduplicated:false};
 }
+/**
+ * Restore only a byte-exact value written by this transaction, under ScriptLock.
+ * If a noncooperating writer changed the property, DO NOT erase their bytes.
+ * ScriptLock does not give isolation against writers ignoring that lock.
+ */
+function study1UnifiedRestoreOwnedWrite_(props,key,before,attempted){
+ const observed=props.getProperty(key);
+ if(observed===before)return true;
+ if(observed!==attempted)
+  throw Error('資料遭非本次寫入者變更，禁止覆蓋恢復');
+ if(before===null)props.deleteProperty(key);
+ else props.setProperty(key,before);
+ if(props.getProperty(key)!==before)
+  throw Error('原始資料恢復後回讀失敗');
+ return true;
+}
 /* The only B06 entrypoint; available to the SAME authorized GAS owner only. */
 function study1UnifiedB06Command(command){
  study1UnifiedAssertOwner_();
@@ -505,12 +542,9 @@ function study1UnifiedB06Command(command){
     throw Error('B06寫後回讀失敗');
   }catch(error){
    try{
-    if(initial===null)props.deleteProperty(STUDY1_B06_TASK_KEY_);
-    else props.setProperty(STUDY1_B06_TASK_KEY_,initial);
-    if(props.getProperty(STUDY1_B06_TASK_KEY_)!==initial)
-     throw Error('B06原始資料未恢復');
-   }catch(recover){throw Error('B06資料寫入狀態不明；請由管理者核對');}
-   throw Error('B06儲存未完成，已恢復原資料：'+String(error.message||error));
+    study1UnifiedRestoreOwnedWrite_(props,STUDY1_B06_TASK_KEY_,initial,packed);
+   }catch(recover){throw Error('B06資料寫入狀態不明或發生競寫；請由管理者核對');}
+   throw Error('B06儲存未完成，已恢復原資料（或資料未變更）：'+String(error.message||error));
   }
   return {...study1UnifiedView_(study1UnifiedRead_()),deduplicated:false};
  }finally{lock.releaseLock();}
@@ -1475,17 +1509,13 @@ function study1UnifiedPreviewCommand(command){
    if(readback!==stored||study1UnifiedStoredDecode_(readback)!==raw)
     throw Error('統一測試流程寫入後回讀失敗');
   }catch(e){
-   // A failed readback may occur AFTER a successful write. Restore the old
-   // bytes under the same lock; a failed rollback must fail closed.
+   // Do not overwrite a noncooperating writer's bytes during recovery.
    try{
-    if(beforeBytes===null)prop.deleteProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
-    else prop.setProperty(STUDY1_UNIFIED_FIXTURE_KEY_,beforeBytes);
-    if(prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==beforeBytes)
-     throw Error('原始狀態回讀不一致');
+    study1UnifiedRestoreOwnedWrite_(prop,STUDY1_UNIFIED_FIXTURE_KEY_,beforeBytes,stored);
    }catch(recovery){
-    throw Error('資料寫入狀態不明且回復失敗；已停止後續操作，須由管理者核查');
+    throw Error('資料寫入狀態不明或發生競寫；已停止後續操作，須由管理者核查');
    }
-   throw Error('本次寫入未完成；已回復寫入前版本：'+String(e.message||e));
+   throw Error('本次寫入未完成；已回復寫入前版本（或資料未變更）：'+String(e.message||e));
   }
   return {...study1UnifiedView_(next),deduplicated:false};
  }finally{lock.releaseLock();}

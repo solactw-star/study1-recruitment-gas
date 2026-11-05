@@ -10,10 +10,14 @@ const byteArray=v=>[...v].map(x=>x>127?x-256:x);
 const buff=v=>typeof v==='string'?Buffer.from(v,'utf8'):Buffer.from(v.map(x=>x&255));
 const blob=v=>({getBytes:()=>byteArray(buff(v)),getDataAsString:()=>buff(v).toString('utf8')});
 function setup({active='solac.tw@gmail.com',consent='false'}={}){
- const data=new Map([['OPEN','false'],['CONSENT_READY',consent]]);let writes=0,locked=false,inject=false,corrupt=false;
+ const data=new Map([['OPEN','false'],['CONSENT_READY',consent]]);let writes=0,locked=false,inject=false,corrupt=false,
+ foreign=false,foreignReadback=false,throwAfter=false;
  const props={
   getProperty:k=>{
    if(k==='STUDY1_B06_TASKS_V1'&&corrupt){corrupt=false;return 'CORRUPTED_ONCE';}
+   if(k==='STUDY1_B06_TASKS_V1'&&foreignReadback){
+    foreignReadback=false;data.set(k,'OTHER_WRITER_B06_BYTES');return 'OTHER_WRITER_B06_BYTES';
+   }
    return data.has(k)?data.get(k):null;
   },
   setProperty:(k,v)=>{
@@ -21,6 +25,8 @@ function setup({active='solac.tw@gmail.com',consent='false'}={}){
    assert.ok(Buffer.byteLength(v,'utf8')<9000);
    data.set(k,v);writes++;
    if(inject){inject=false;corrupt=true;}
+   if(foreign){foreign=false;foreignReadback=true;}
+   if(throwAfter){throwAfter=false;throw Error('SIM_B06_POST_WRITE');}
   },
   deleteProperty:k=>data.delete(k)
  };
@@ -51,7 +57,9 @@ function setup({active='solac.tw@gmail.com',consent='false'}={}){
  }));
  const fields={title:'整理虛構場次行政文件',description:'只使用虛構資料',assignee:'',
   dueDate:'',experiment:'ALL',relationType:'NONE',relationId:'',reason:'人工建立行政事項'};
- return {ctx,data,get,cmd,fields,inject:()=>{inject=true;},get writes(){return writes},get locked(){return locked}};
+ return {ctx,data,get,cmd,fields,inject:()=>{inject=true;},
+  injectForeign:()=>{foreign=true;},injectPostWrite:()=>{throwAfter=true;},
+  get writes(){return writes},get locked(){return locked}};
 }
 test('B06 manual creation, completion, reopening, editing and archive restore share one owner site and retain audit',()=>{
  const s=setup(),before=s.get();assert.equal(before.b06.tasks.length,0);
@@ -159,6 +167,46 @@ test('B06 audit requires contiguous before/after values and new request-fingerpr
  const replay=JSON.parse(JSON.stringify(verified));
  replay.requests[1].fingerprint='f'.repeat(64);
  assert.throws(()=>s.ctx.study1B06Verify_(replay),/稽核鏈/);
+ assert.equal(s.data.get('OPEN'),'false');
+ assert.equal(s.data.get('CONSENT_READY'),'false');
+});
+
+
+test('B06 recoverable failure after committed write restores exact old bytes and revision',()=>{
+ const s=setup();
+ s.cmd('CREATE',s.fields);
+ const before=s.data.get('STUDY1_B06_TASKS_V1'),writes=s.writes;
+ s.injectPostWrite();
+ assert.throws(()=>s.cmd('CREATE',{...s.fields,title:'虛構例外寫入'}),/已恢復原資料/);
+ assert.equal(s.data.get('STUDY1_B06_TASKS_V1'),before);
+ assert.equal(s.writes,writes+2);
+ assert.equal(s.get().b06.revision,1);
+ assert.equal(s.locked,false);
+});
+
+test('B06 failed readback with external competing bytes preserves the foreign update and fails closed',()=>{
+ const s=setup();
+ s.cmd('CREATE',s.fields);
+ const writes=s.writes;
+ s.injectForeign();
+ assert.throws(()=>s.cmd('CREATE',{...s.fields,title:'虛構外部競寫'}),/狀態不明|競寫/);
+ assert.equal(s.data.get('STUDY1_B06_TASKS_V1'),'OTHER_WRITER_B06_BYTES');
+ assert.equal(s.writes,writes+1,'no rollback may clobber external bytes');
+ assert.equal(s.locked,false);
+ assert.equal(s.data.get('OPEN'),'false');
+ assert.equal(s.data.get('CONSENT_READY'),'false');
+});
+
+test('per-property safe capacity rejects oversized incompressible synthetic data before any write',()=>{
+ const s=setup(),beforeWrites=s.writes;
+ const synthetic=Array.from({length:600},(_,i)=>
+  crypto.createHash('sha256').update('SIM-CAPACITY-'+i).digest('hex')).join('');
+ const full=JSON.stringify({source:'SYNTHETIC_ONLY',payload:synthetic});
+ assert.ok(Buffer.byteLength(full,'utf8')>7900);
+ assert.throws(()=>s.ctx.study1UnifiedStoredEncode_(full),/容量/);
+ assert.equal(s.writes,beforeWrites);
+ assert.equal(s.data.has('STUDY1_UNIFIED_FIXTURE_V1'),false);
+ assert.equal(s.data.has('STUDY1_B06_TASKS_V1'),false);
  assert.equal(s.data.get('OPEN'),'false');
  assert.equal(s.data.get('CONSENT_READY'),'false');
 });

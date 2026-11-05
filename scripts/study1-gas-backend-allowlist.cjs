@@ -176,8 +176,8 @@ function assertUnifiedFlow(source){
    "c.value.source!=='SYNTHETIC_ONLY'",
    "query.expectedRevision!==state.revision",
    "if(beforeBytes!==initialStored)",
-   "if(prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==beforeBytes)",
-   "throw Error('資料寫入狀態不明且回復失敗",
+   "study1UnifiedRestoreOwnedWrite_(prop,STUDY1_UNIFIED_FIXTURE_KEY_,beforeBytes,stored)",
+   "throw Error('資料寫入狀態不明或發生競寫",
    "const STUDY1_B06_TASK_KEY_='STUDY1_B06_TASKS_V1'",
    "function study1UnifiedB06Command(command)",
    "function study1B06Apply_(state,command,source,now)",
@@ -203,7 +203,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedUtf8Bytes_','study1UnifiedStoredDecode_','study1UnifiedStoredEncode_',
   'study1UnifiedStoreReadiness_','study1UnifiedStoreHash_','study1UnifiedStoreInitial_',
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
-  'study1UnifiedRoleAuthorise_',
+  'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
