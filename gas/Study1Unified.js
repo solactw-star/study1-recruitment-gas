@@ -317,7 +317,7 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
   ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[],
    b02:{sessions:{},attendance:{},history:[]},
-    b04:{notes:{},history:[]}};
+    b04:{notes:{},history:[]},b05:{closures:{},history:[]}};
 }
 function study1UnifiedAssertOwner_(){
  study1AdminOwnerRequired_();
@@ -333,6 +333,7 @@ function study1UnifiedRead_(){
  if(s&&!s.e2Weeks)s.e2Weeks=study1UnifiedE2Weeks_(); // read-only fixture migration
  if(s&&!s.b02)s.b02={sessions:{},attendance:{},history:[]}; // non-writing TEST migration
  if(s&&!s.b04)s.b04={notes:{},history:[]}; // non-writing B04 migration
+ if(s&&!s.b05)s.b05={closures:{},history:[]}; // non-writing B05 migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -393,6 +394,32 @@ function study1UnifiedRead_(){
       [e.before,e.after,e.reason].some(v=>typeof v!=='string'||v.length>220||/[<>]/.test(v))||
       e.reason.length<4))
    throw Error('B04參與者管理資料或歷程不合法');
+
+ if(!s.b05||typeof s.b05!=='object'||Array.isArray(s.b05)||
+    Object.keys(s.b05).sort().join(',')!=='closures,history'||
+    !s.b05.closures||typeof s.b05.closures!=='object'||Array.isArray(s.b05.closures)||
+    !Array.isArray(s.b05.history)||s.b05.history.length>32)
+  throw Error('B05場次結案紀錄格式不合法');
+ for(const [id,x] of Object.entries(s.b05.closures)){
+  if(!/^SIM-SLOT-E[12]-[A-Z]$/.test(id)||!s.slots.some(a=>a.id===id)||
+     !x||Object.keys(x).sort().join(',')!=='actor,at,handoff,issues,reason'||
+     x.actor!=='OWNER'||typeof x.at!=='string'||Number.isNaN(Date.parse(x.at))||
+     !Number.isSafeInteger(x.issues)||x.issues<0||x.issues>8||
+     typeof x.handoff!=='string'||x.handoff.length>250||/[<>]/.test(x.handoff)||
+     typeof x.reason!=='string'||x.reason.length<4||x.reason.length>120||/[<>]/.test(x.reason)||
+     s.b02.sessions[id]?.status!=='CLOSED')
+   throw Error('B05結案狀態與原場次不一致');
+ }
+ if(s.b05.history.some(h=>!h||Object.keys(h).sort().join(',')!=='action,actor,after,at,before,handoff,issues,reason,slotId'||
+    !['CLOSE','REOPEN'].includes(h.action)||h.actor!=='OWNER'||
+    !/^SIM-SLOT-E[12]-[A-Z]$/.test(h.slotId)||!s.slots.some(a=>a.id===h.slotId)||
+    !['OPEN','CLOSED'].includes(h.before)||!['OPEN','CLOSED'].includes(h.after)||
+    typeof h.at!=='string'||Number.isNaN(Date.parse(h.at))||
+    !Number.isSafeInteger(h.issues)||h.issues<0||h.issues>8||
+    typeof h.reason!=='string'||h.reason.length<4||h.reason.length>120||/[<>]/.test(h.reason)||
+    typeof h.handoff!=='string'||h.handoff.length>250||/[<>]/.test(h.handoff)))
+  throw Error('B05近期結案操作歷程不合法');
+
  study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
   if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
@@ -524,6 +551,7 @@ function study1UnifiedView_(s){
   formalReadiness:study1UnifiedFormalReadiness_(s),formalPorts:study1UnifiedFormalPorts_(),
   b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
   b04:JSON.parse(JSON.stringify(s.b04||{notes:{},history:[]})),
+  b05:JSON.parse(JSON.stringify(s.b05||{closures:{},history:[]})),
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
    weeks:s.e2Weeks.map(w=>({...w})),plannedWeeks:s.e2Weeks.filter(w=>w.date!==null).length},
@@ -551,7 +579,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -655,6 +683,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(p.progress)||
    typeof p.note!=='string'||p.note.length>80||/[<>]/.test(p.note))
    throw Error('只能更新有預約關聯的虛構參與者');
+  const target=s.applications.find(a=>a.id===p.id);
+  if(['CLOSED','CANCELLED'].includes(s.b02.sessions[target.slotId]?.status))
+   throw Error('場次已行政結案或取消；須依權責重新開啟後才能更正出席與施測');
   const before=s.b02.attendance[p.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
   s.b02.attendance[p.id]={attendance:p.attendance,progress:p.progress,note:p.note};
   if(before.attendance!==p.attendance||before.progress!==p.progress||before.note!==p.note){
@@ -666,6 +697,49 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   }
   s.b02.history.push({at:new Date(now).toISOString(),action:'ATTEND',ids:[p.id]});
   s.b02.history=s.b02.history.slice(-12);return;
+ }
+
+
+ if(action==='ADMIN_B05_CLOSURE'){
+  if(Object.keys(p).sort().join(',')!=='action,handoff,reason,slotId'||
+     !['CLOSE','REOPEN'].includes(p.action)||typeof p.slotId!=='string'||
+     !/^SIM-SLOT-E[12]-[A-Z]$/.test(p.slotId)||
+     typeof p.reason!=='string'||p.reason.trim().length<4||p.reason.length>120||/[<>]/.test(p.reason)||
+     typeof p.handoff!=='string'||p.handoff.length>250||/[<>]/.test(p.handoff))
+   throw Error('B05結案／重開須指定場次與至少四字的人工確認原因');
+  const slot=s.slots.find(x=>x.id===p.slotId);
+  if(!slot)throw Error('B05場次不存在');
+  const before=s.b02.sessions[slot.id]?.status||'OPEN';
+  if(p.action==='CLOSE'&&before!=='OPEN')throw Error('場次已結案或已取消');
+  if(p.action==='REOPEN'&&before!=='CLOSED')throw Error('只有已行政結案場次可重新開啟');
+  if(p.action==='CLOSE'){
+   const start=Date.parse(slot.when.replace(' ','T')+':00+08:00');
+   if(!Number.isFinite(start)||start>now)throw Error('尚未開始的場次不能提前行政結案');
+  }
+  const people=s.applications.filter(a=>a.slotId===slot.id&&a.phase!=='CANCELLED');
+  const issues=people.filter(a=>{
+   const t=s.b02.attendance[a.id];
+   return !t||t.attendance==='PENDING'||t.progress!=='COMPLETE';
+  }).length;
+  if(p.action==='CLOSE'&&issues>0&&p.handoff.trim().length<4)
+   throw Error('仍有待確認出席或未完成施測，需填後續交接紀錄才可人工結案');
+  const at=new Date(now).toISOString();
+  if(p.action==='CLOSE'){
+   const m=s.b02.sessions[slot.id]||{title:'研究場次',place:'',minutes:120,group:'',status:'OPEN'};
+   s.b02.sessions[slot.id]={...m,status:'CLOSED'};
+   s.b05.closures[slot.id]={actor:'OWNER',at,reason:p.reason.trim(),
+     handoff:p.handoff.trim(),issues};
+  }else{
+   s.b02.sessions[slot.id]={...s.b02.sessions[slot.id],status:'OPEN'};
+   delete s.b05.closures[slot.id];
+  }
+  s.b05.history.push({action:p.action,actor:'OWNER',at,slotId:slot.id,
+   before,after:p.action==='CLOSE'?'CLOSED':'OPEN',
+   issues,reason:p.reason.trim(),handoff:p.handoff.trim()});
+  s.b05.history=s.b05.history.slice(-32);
+  s.b02.history.push({action:p.action==='CLOSE'?'ADMIN_CLOSE':'ADMIN_REOPEN',at,ids:[slot.id]});
+  s.b02.history=s.b02.history.slice(-12);
+  return;
  }
 
  if(action==='ADMIN_B04_NOTE'){
