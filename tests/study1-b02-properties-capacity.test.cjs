@@ -46,6 +46,8 @@ function setup(){
  const lock={tryLock:()=>{assert.equal(locked,false);locked=true;return true},
   releaseLock:()=>{assert.equal(locked,true);locked=false;}};
  const ctx=vm.createContext({
+  Session:{getActiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'}),
+   getEffectiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'})},
   PropertiesService:{getScriptProperties:()=>api},
   LockService:{getScriptLock:()=>lock},
   study1AdminOwnerRequired_:()=>{},
