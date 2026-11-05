@@ -886,6 +886,123 @@ function profileInit(){
 }
 profileInit();
 
+/* B03: one participant source, two views, shared filters; no independent store. */
+const b03={mode:'list'};
+const b03Buckets=[
+ ['NEW','進件／資格與驗證'],['HOLD','預約處理'],
+ ['CONFIRMED','預約已成立／待施測'],['IN_PROGRESS','施測進行中'],
+ ['TEST_DONE','施測進度完成（非研究結案）'],['STOPPED','取消／未通過']
+];
+function b03Category(a){
+ const t=model.b02.attendance[a.id]?.progress||'NOT_STARTED';
+ if(['CANCELLED','INELIGIBLE'].includes(a.phase))return 'STOPPED';
+ if(t==='COMPLETE')return 'TEST_DONE';
+ if(['IN_PROGRESS','PARTIAL'].includes(t))return 'IN_PROGRESS';
+ if(a.phase==='CONFIRMED')return 'CONFIRMED';
+ if(['HELD','CONSENTED'].includes(a.phase))return 'HOLD';
+ return 'NEW';
+}
+function b03Latest(a){
+ const events=model.b04.history.filter(x=>x.id===a.id).concat(
+  model.b02.history.filter(x=>x.action==='ATTEND'&&x.ids.includes(a.id)));
+ const dates=events.map(x=>x.at).filter(Boolean).sort();
+ return dates.length?dates[dates.length-1]:'';
+}
+function b03Rows(){
+ if(!model||!model.b02||!model.b04)return [];
+ const q=$('b03Search').value.trim().toLowerCase(),
+  exp=$('b03Experiment').value,elig=$('b03Eligibility').value,
+  stage=$('b03Stage').value,att=$('b03Attendance').value,
+  booking=$('b03Booking').value,order=$('b03Sort').value;
+ const result=model.applications.filter(a=>{
+  const attendance=model.b02.attendance[a.id]?.attendance||'PENDING';
+  const eligible=a.eligible===true?'PASS':a.eligible===false?'FAIL':'PENDING';
+  if(q&&![a.id,a.experiment,a.slotId||''].join(' ').toLowerCase().includes(q))return false;
+  if(exp!=='ALL'&&a.experiment!==exp)return false;
+  if(elig!=='ALL'&&eligible!==elig)return false;
+  if(stage!=='ALL'&&b03Category(a)!==stage)return false;
+  if(att!=='ALL'&&attendance!==att)return false;
+  if(booking==='BOOKED'&&(!a.slotId||a.phase==='CANCELLED'))return false;
+  if(booking==='NONE'&&a.slotId)return false;
+  if(booking==='CANCELLED'&&a.phase!=='CANCELLED')return false;
+  return true;
+ });
+ return result.sort((a,b)=>{
+  const when=x=>model.slots.find(s=>s.id===x.slotId)?.when||'9999-12-31 23:59';
+  if(order==='ID_DESC')return b.id.localeCompare(a.id);
+  if(order==='BOOKING_ASC')return when(a).localeCompare(when(b))||a.id.localeCompare(b.id);
+  if(order==='UPDATED_DESC')return b03Latest(b).localeCompare(b03Latest(a))||a.id.localeCompare(b.id);
+  return a.id.localeCompare(b.id);
+ });
+}
+function b03Render(){
+ if(!model||!model.b02||!model.b04)return;
+ const rows=b03Rows(),list=$('entries'),board=$('b03Board');
+ list.replaceChildren();board.replaceChildren();
+ $('b03ListView').hidden=b03.mode!=='list';
+ board.hidden=b03.mode!=='board';
+ $('b03ListMode').setAttribute('aria-pressed',String(b03.mode==='list'));
+ $('b03BoardMode').setAttribute('aria-pressed',String(b03.mode==='board'));
+ $('b03Empty').hidden=rows.length!==0;
+ $('bookingSummary').textContent='顯示 '+rows.length+'／共 '+model.applications.length+
+  ' 筆｜僅呈現目前可核實資料，正式真人資料尚未啟用';
+ for(const a of rows){
+  const slot=model.slots.find(x=>x.id===a.slotId),
+   ap=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+  const item=calElem('div',undefined,'entry');
+  item.dataset.participantId=a.id;
+  const header=calElem('strong',a.id+' · '+(a.experiment==='E1'?'實驗一':'實驗二'));
+  const desc=calElem('p','進度：'+a.phase+(a.slotId?' · 時段 '+a.slotId:''));
+  const detail=calElem('button','開啟完整資料（B04）','secondary');
+  detail.type='button';detail.addEventListener('click',()=>profileOpen(a.id,'list'));
+  item.append(header,desc,detail);
+  for(const label of [
+   '資格：'+(a.eligible===true?'模擬通過':a.eligible===false?'模擬未通過':'未核實'),
+   '預約：'+(slot?slot.when:'未記錄'),
+   '出席：'+(calPresence[ap.attendance]||'待確認'),
+   '施測：'+(calTesting[ap.progress]||'未開始'),
+   '最近更新：'+(b03Latest(a)||'未記錄')])item.append(calElem('span',label));
+  list.append(item);
+ }
+ for(const exp of ['E1','E2']){
+  if($('b03Experiment').value!=='ALL'&&$('b03Experiment').value!==exp)continue;
+  const group=calElem('section',undefined,'b03BoardExperiment');
+  group.append(calElem('h3',exp==='E1'?'實驗一｜行政流程':'實驗二｜行政流程'));
+  const columns=calElem('div',undefined,'b03Columns');
+  for(const [key,label] of b03Buckets){
+   const col=calElem('div',undefined,'b03Column');
+   const matches=rows.filter(a=>a.experiment===exp&&b03Category(a)===key);
+   col.append(calElem('h4',label+'（'+matches.length+'）'));
+   for(const a of matches){
+    const status=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+    const button=calElem('button',a.id+'\n'+(profilePhases[a.phase]||a.phase)+
+     '\n出席 '+(calPresence[status.attendance]||'待確認')+
+     '｜施測 '+(calTesting[status.progress]||'未開始'),'b03Person');
+    button.type='button';button.dataset.participantId=a.id;
+    button.addEventListener('click',()=>profileOpen(a.id,'board'));
+    col.append(button);
+   }
+   if(!matches.length)col.append(calElem('span','目前無符合紀錄','b03Empty'));
+   columns.append(col);
+  }
+  group.append(columns);board.append(group);
+ }
+}
+function b03Init(){
+ for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03Sort'])
+  $(id).addEventListener('change',b03Render);
+ $('b03Search').addEventListener('input',b03Render);
+ $('b03ListMode').addEventListener('click',()=>{b03.mode='list';b03Render();});
+ $('b03BoardMode').addEventListener('click',()=>{b03.mode='board';b03Render();});
+ $('b03Clear').addEventListener('click',()=>{
+  $('b03Search').value='';
+  for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
+   $(id).value='ALL';
+  $('b03Sort').value='ID_ASC';b03Render();
+ });
+}
+b03Init();
+
 $('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
