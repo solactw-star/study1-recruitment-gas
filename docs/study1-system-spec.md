@@ -398,3 +398,16 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：PI／RA核准身分與撤權機制、正式持久化provider／容量／保存刪除規則、不可變稽核保管、真人資料與正式 REC 授權、獨立UI操作驗收。未授權項目持續阻擋，不主動要求使用者立即驗收。
 - `NEXT_ACTION`：先重讀最新 main 與本節接續，選取無真人資料副作用的正式保存／稽核安全測試或其他已授權功能增量建置；若要接正式資料／真PI-RA帳號須先取得權責與授權，不可自行解除安全限制。
 - `WRITE_OWNER=GitHub main + existing original GAS auto-sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
+
+## 三十四、合成儲存欄位安全與稽核時間序／原 GAS V60 同ID回讀（2026-11-05）
+
+- `TASK_DOMAIN=Study1 recruitment website`，依正式規格第31–33節的未完成安全工作，從 `main=4a848371006aea2958c6ae5fcc171e5d23aff29b` 開始，僅增量修改既有正式Repository `solactw-star/study1-recruitment-gas` 的合成資料儲存契約與測試。沒有建立其他網站／資料庫，沒有讀寫真人研究資料或正式Sheet。
+- `COMPLETED`（資料保存防護）：`gas/Study1Unified.js` 的尚未接正式provider之 `STUDY1_STORAGE_CONTRACT_V1`，在虛構紀錄新增、既有資料核驗及分頁讀取時，僅接受 `id,source,status` 三欄，並限制 `status` 為大寫測試狀態代碼；僅帶 `source=SYNTHETIC_ONLY` 不能讓額外email／phone／contact等欄位通過。新增契約交易結果的寫出前整體稽核驗證；不更動既有 ScriptProperties 或 B02–B06 資料格式。
+- `COMPLETED`（操作稽核）：核驗事件序列的ISO時間不可倒退；即使單獨重新計算變造事件SHA256，也不能讓倒退時間通過。原有請求指紋、前後列摘要、版本鏈及B06歷史相容性保留。此為**純合成資料的一致性檢查，不是外部永久不可竄改稽核庫或加密簽章**。
+- `ROLE_SAFETY`：原GAS仍只允許已驗證owner進入虛構測試資料路徑；PI／RA在純資料契約的actor欄是測試標籤，**不是正式身分**。真實PI／RA授權、撤權、審計匯出、正式資料存取仍拒絕，`FORMAL_BLOCKED`。沒有新增任何PI／RA真人帳號。
+- `SOURCE_PR=62`（已合併）; `SOURCE_COMMIT=677a5eae2fdcc20a9012fe7bc5ee85ab1f0c9406`；僅變更 `gas/Study1Unified.js`、`tests/study1-storage-consistency.test.cjs`。PR CI `42049271368` 與main CI `42049473603` 均成功；完整回歸測試 `494 PASS/0 FAIL`。
+- `GAS_SYNC_VERIFIED=true`：同一原GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`、同一原版本化 `/exec` 部署。GitHub原有自動同步run `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42049473642` 成功，預寫入完整備份 Drive ID `19fyfquzCake1wAnzbeZ7VimEvVaZ3W4Z`；原遠端HEAD SHA256 `14fe7133b0f9960153bf6d606160f869291013ceb0babd039fe8f5154fd3e550`。更新後原 `/exec` 第**60版**，完整回讀 `SYNC_VERIFIED=true`，SHA256 `3abc50614a29537bc91285c980dbe8579f4e0ecdbfa7af5bf81ad507d9b6cbcc`，有效權限 `MYSELF` 保留；遠端未部署HEAD中的 `ANYONE_ANONYMOUS` 不可等同實際版本化部署授權。
+- `LAST_VERIFIED_STEP=GitHub main code, 494/494 CI, GAS V60 same-ID SHA256 and MYSELF readback`。獨立狀態：`MAIN_SYNC_VERIFIED=true`、`GAS_SYNC_VERIFIED=true`、`PRODUCTION_STORAGE_CONNECTED=false`、`CAPACITY_FORMAL_VERIFIED=false`、`SELF_UI_3PASS=NOT_VERIFIED`、`USER_UAT_PASSED=NOT_YET`（使用者要求暫不要求人工驗收）、`FORMAL_READY=false`。
+- `BLOCKERS`：經核准的真人研究資料保存提供者／版本與容量、PI／RA正式身分與撤權、存取及稽核權限、REC／有效文件、保存刪除與外部不可變稽核、owner真正瀏覽器操作。合成分頁測試仍非正式容量驗收；目前既有 owner-only 資料上限不能作正式容量承諾。維持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`、實驗二2027年前不招募且屆時不自動開放。
+- `NEXT_ACTION`：先核對當次最新main與部署紀錄，繼續現有原網站可不接觸真人資料的權限邊界、失敗復原、合成資料稽核或P1/P2功能；正式持久化、PI／RA真人授權與對外招募需另行驗證REC及權責，不得自動解除阻擋。不要求使用者本輪人工驗收。
+- `WRITE_OWNER=GitHub existing main + original GAS workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。

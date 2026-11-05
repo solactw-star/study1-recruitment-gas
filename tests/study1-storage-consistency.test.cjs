@@ -193,6 +193,39 @@ test('synthetic audit verifies replay fingerprint and prior row digest even afte
   expectedRevision:0,limit:10,after:''}),/虛構資料/);
 });
 
+test('synthetic storage refuses arbitrary identity fields and malformed rows',()=>{
+ const {ctx}=setup(),initial=ctx.study1UnifiedStoreInitial_();
+ const base={action:'UPSERT',actor:'RA',expectedRevision:0,id:'SIM-ROW-FIELDS',
+  reason:'虛構資料測試',requestId:'REQ-SIM-FIELDS00000001',
+  value:{id:'SIM-ROW-FIELDS',source:'SYNTHETIC_ONLY',status:'PENDING'}};
+ for(const value of [
+  {...base.value,email:'participant@example.invalid'},
+  {...base.value,phone:'0999999999'},
+  {...base.value,status:{text:'PENDING'}},
+  {...base.value,contact:{email:'participant@example.invalid'}}
+ ])assert.throws(()=>ctx.study1UnifiedStoreApply_(initial,{...base,value}),/虛構版本化更新/);
+ const good=ctx.study1UnifiedStoreApply_(initial,base).state;
+ assert.equal(ctx.study1UnifiedStoreVerify_(good),true);
+ good.records[base.id].email='participant@example.invalid';
+ assert.throws(()=>ctx.study1UnifiedStoreVerify_(good),/雜湊不一致/);
+ const page=ctx.study1UnifiedStoreInitial_();
+ page.records[base.id]={...base.value,email:'participant@example.invalid'};
+ assert.throws(()=>ctx.study1UnifiedStorePage_(page,{expectedRevision:0,limit:10,after:''}),/已核准欄位/);
+});
+test('synthetic audit rejects backdated entries despite recomputed SHA chain',()=>{
+ const {ctx}=setup(),base={action:'UPSERT',actor:'PI',expectedRevision:0,id:'SIM-ROW-TIME',
+  reason:'首次虛構登錄',requestId:'REQ-SIM-TIME00000001',
+  value:{id:'SIM-ROW-TIME',source:'SYNTHETIC_ONLY',status:'NEW'}};
+ const one=ctx.study1UnifiedStoreApply_(ctx.study1UnifiedStoreInitial_(),base).state;
+ const two=ctx.study1UnifiedStoreApply_(one,{...base,actor:'RA',expectedRevision:1,
+  reason:'後續虛構更正',requestId:'REQ-SIM-TIME00000002',
+  value:{...base.value,status:'REVIEW'}}).state;
+ assert.equal(ctx.study1UnifiedStoreVerify_(two),true);
+ two.audit[1].at=new Date(Date.parse(two.audit[0].at)-1000).toISOString();
+ const payload={...two.audit[1]};delete payload.digest;
+ two.audit[1].digest=ctx.study1UnifiedStoreHash_(payload);two.head=two.audit[1].digest;
+ assert.throws(()=>ctx.study1UnifiedStoreVerify_(two),/時間順序倒退/);
+});
 
 test('snapshot pagination rejects silent same-revision drift, invented cursors and late unapproved records',()=>{
  const ctx=setup().ctx,state=ctx.study1UnifiedStoreInitial_();

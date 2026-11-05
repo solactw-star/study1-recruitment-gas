@@ -188,6 +188,10 @@ function study1UnifiedStoreApply_(original,command){
   !/^SIM-[A-Z0-9-]{4,64}$/.test(c.id)||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(c.requestId)||
   typeof c.reason!=='string'||c.reason.trim().length<4||c.reason.length>120||
   !c.value||typeof c.value!=='object'||Array.isArray(c.value)||
+  // An unconnected contract must not ingest arbitrary contact/identity fields.
+  // The marker SYNTHETIC_ONLY alone is not a sufficient data boundary.
+  Object.keys(c.value).sort().join(',')!=='id,source,status'||
+  !/^[A-Z_]{2,32}$/.test(c.value.status)||
   c.value.id!==c.id||c.value.source!=='SYNTHETIC_ONLY'||
   JSON.stringify(c.value).length>2400||/[<>]/.test(JSON.stringify(c.value)))
   throw Error('資料保存契約只允許具原因的虛構版本化更新');
@@ -211,13 +215,14 @@ function study1UnifiedStoreApply_(original,command){
  entry.digest=study1UnifiedStoreHash_(entry);
  next.audit.push(entry);next.head=entry.digest;
  next.requestIndex[c.requestId]={revision:next.revision,fingerprint};
+ study1UnifiedStoreVerify_(next); // reject inconsistent append before return
  return {state:next,deduplicated:false};
 }
 function study1UnifiedStoreVerify_(state){
  if(!state||state.schema!=='STUDY1_STORAGE_CONTRACT_V1'||state.mode!=='SYNTHETIC_CONTRACT_ONLY'||
    !Array.isArray(state.audit)||!state.requestIndex||!state.records)
   throw Error('稽核契約格式不合法');
- let previous='GENESIS';
+ let previous='GENESIS',previousAt='';
  const lastDigestById={};
  for(let i=0;i<state.audit.length;i++){
   const entry=state.audit[i];
@@ -242,11 +247,16 @@ function study1UnifiedStoreVerify_(state){
   const prior=Object.prototype.hasOwnProperty.call(lastDigestById,entry.id)?
    lastDigestById[entry.id]:null;
   if(entry.beforeHash!==prior)throw Error('稽核前態雜湊與前一版本不一致');
+  if(entry.at<previousAt)throw Error('稽核事件時間順序倒退，拒絕資料');
+  previousAt=entry.at;
   previous=entry.digest;
   lastDigestById[entry.id]=entry.afterHash;
  }
  for(const [id,row] of Object.entries(state.records)){
-  if(row.id!==id||row.source!=='SYNTHETIC_ONLY'||
+  if(!row||typeof row!=='object'||Array.isArray(row)||
+     Object.keys(row).sort().join(',')!=='id,source,status'||
+     !/^[A-Z_]{2,32}$/.test(row.status)||
+     row.id!==id||row.source!=='SYNTHETIC_ONLY'||
      lastDigestById[id]!==study1UnifiedStoreHash_(row))
    throw Error('目前資料與最後一筆稽核事件的雜湊不一致');
  }
