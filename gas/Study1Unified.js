@@ -206,7 +206,8 @@ function study1UnifiedStoreApply_(original,command){
   actor:c.actor,action:c.action,id:c.id,reason:c.reason.trim(),
   beforeHash:old?study1UnifiedStoreHash_(old):null,
   afterHash:study1UnifiedStoreHash_(c.value),
-  previousHash:next.head,requestId:c.requestId};
+  previousHash:next.head,requestId:c.requestId,
+  requestFingerprint:fingerprint};
  entry.digest=study1UnifiedStoreHash_(entry);
  next.audit.push(entry);next.head=entry.digest;
  next.requestIndex[c.requestId]={revision:next.revision,fingerprint};
@@ -219,12 +220,28 @@ function study1UnifiedStoreVerify_(state){
  let previous='GENESIS';
  const lastDigestById={};
  for(let i=0;i<state.audit.length;i++){
-  const entry=state.audit[i],copy={...entry};delete copy.digest;
+  const entry=state.audit[i];
+  if(!entry||typeof entry!=='object')throw Error('稽核事件格式不合法');
+  const copy={...entry};delete copy.digest;
+  const request=state.requestIndex[entry.requestId];
   if(entry.revision!==i+1||entry.previousHash!==previous||
-     entry.digest!==study1UnifiedStoreHash_(copy)||
-     !state.requestIndex[entry.requestId]||
-     state.requestIndex[entry.requestId].revision!==entry.revision)
-   throw Error('稽核雜湊鏈或版本不一致');
+     !['PI','RA'].includes(entry.actor)||entry.action!=='UPSERT'||
+     !/^SIM-[A-Z0-9-]{4,64}$/.test(entry.id)||
+     !/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(entry.requestId)||
+     typeof entry.reason!=='string'||entry.reason.trim().length<4||
+     entry.reason.length>120||/[<>]/.test(entry.reason)||
+     typeof entry.at!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(entry.at)||
+     Number.isNaN(Date.parse(entry.at))||
+     !/^[a-f0-9]{64}$/.test(entry.afterHash)||
+     (entry.beforeHash!==null&&!/^[a-f0-9]{64}$/.test(entry.beforeHash))||
+     !/^[a-f0-9]{64}$/.test(entry.requestFingerprint)||
+     !request||request.revision!==entry.revision||
+     request.fingerprint!==entry.requestFingerprint||
+     entry.digest!==study1UnifiedStoreHash_(copy))
+   throw Error('稽核雜湊鏈、請求指紋或版本不一致');
+  const prior=Object.prototype.hasOwnProperty.call(lastDigestById,entry.id)?
+   lastDigestById[entry.id]:null;
+  if(entry.beforeHash!==prior)throw Error('稽核前態雜湊與前一版本不一致');
   previous=entry.digest;
   lastDigestById[entry.id]=entry.afterHash;
  }
@@ -250,6 +267,11 @@ function study1UnifiedStorePage_(state,query){
   throw Error('資料分頁需要正確的版本、游標及上限');
  const all=Object.keys(state.records).sort().filter(id=>id>query.after);
  const selected=all.slice(0,query.limit);
+ for(const id of selected){
+  const item=state.records[id];
+  if(!item||item.id!==id||item.source!=='SYNTHETIC_ONLY')
+   throw Error('資料分頁僅允許已標記的虛構資料');
+ }
  return {revision:state.revision,
   items:selected.map(id=>JSON.parse(JSON.stringify(state.records[id]))),
   nextAfter:all.length>selected.length?selected[selected.length-1]:null};
@@ -336,8 +358,11 @@ function study1B06Verify_(s){
   ids.add(t.id);
  }
  let prev='GENESIS';
+ const lastTaskState=new Map();
  for(let i=0;i<s.audit.length;i++){
-  const h=s.audit[i],copy={...h};delete copy.digest;
+  const h=s.audit[i];
+  if(!h||typeof h!=='object')throw Error('B06稽核事件格式不合法');
+  const copy={...h};delete copy.digest;
   if(!h||h.seq!==i+1||h.prev!==prev||h.actor!=='OWNER'||
      !['CREATE','EDIT','COMPLETE','REOPEN','ARCHIVE','RESTORE'].includes(h.action)||
      !/^SIM-TASK-\d{6}$/.test(h.taskId)||typeof h.reason!=='string'||
@@ -346,9 +371,15 @@ function study1B06Verify_(s){
      !h.after||h.after.id!==h.taskId||
      (h.before!==null&&h.before.id!==h.taskId)||
      h.digest!==study1UnifiedStoreHash_(copy)||
-     !s.requests[i]||s.requests[i].id!==h.requestId)
+     !s.requests[i]||s.requests[i].id!==h.requestId||
+     !/^[a-f0-9]{64}$/.test(s.requests[i].fingerprint)||
+     !/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(h.requestId))
    throw Error('B06稽核鏈斷裂或紀錄遭修改');
+  const beforeHash=h.before===null?null:study1UnifiedStoreHash_(h.before);
+  const earlier=lastTaskState.has(h.taskId)?lastTaskState.get(h.taskId):null;
+  if(beforeHash!==earlier)throw Error('B06稽核前後態不連續');
   reqIds.add(h.requestId);latest.set(h.taskId,study1UnifiedStoreHash_(h.after));
+  lastTaskState.set(h.taskId,study1UnifiedStoreHash_(h.after));
   prev=h.digest;
  }
  if(prev!==s.head||ids.size!==latest.size||
@@ -640,9 +671,19 @@ function study1UnifiedInitial_(){
    b02:{sessions:{},attendance:{},history:[]},
     b04:{notes:{},history:[]},b05:{closures:{},history:[]}};
 }
-function study1UnifiedAssertOwner_(){
+/** Server-side role boundary for the existing OWNER-only synthetic routes.
+ * Synthetic PI/RA audit labels never authenticate a user or grant a role.
+ * Future PI/RA and all formal-data capabilities remain blocked until approved.
+ */
+function study1UnifiedRoleAuthorise_(role,operation){
+ if(role!=='OWNER'||!['SYNTHETIC_READ','SYNTHETIC_WRITE'].includes(operation))
+  throw Error('正式PI／RA角色或操作未獲授權，拒絕執行');
  study1AdminOwnerRequired_();
  study1SandboxBookingFlags_();
+ return true;
+}
+function study1UnifiedAssertOwner_(){
+ study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_WRITE');
 }
 function study1UnifiedRead_(){
  const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
