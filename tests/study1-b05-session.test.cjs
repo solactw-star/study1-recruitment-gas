@@ -37,7 +37,7 @@ test('B05 closure needs manual reason and unresolved handoff; it never implies s
  close(ctx,state,slot.id,'REOPEN','研究人員重新核對','補正原行政結案說明');
  assert.equal(state.b02.sessions[slot.id].status,'OPEN');
  assert.equal(state.b05.closures[slot.id],undefined);
- assert.deepEqual(state.b05.history.map(x=>x.action),['CLOSE','REOPEN']);
+ assert.deepEqual(Array.from(state.b05.history,x=>x.action),['CLOSE','REOPEN']);
  assert.equal(state.b05.history[1].before,'CLOSED');
  assert.equal(state.b02.history.at(-1).action,'ADMIN_REOPEN');
  assert.equal(state.recruitment.E2.mode,'COMING_SOON');
