@@ -496,13 +496,13 @@ function b01Render(){
   model.b02.sessions&&model.b02.attendance&&model.b06&&Array.isArray(model.b06.tasks);
  if(!safe){$('b01Status').textContent='資料或安全設定未核實；不顯示統計。';return;}
  const applications=model.applications,slots=model.slots;
- const unique=new Set(applications.map(a=>a.id));
+ const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
  const today=new Date(Date.now()+28800000).toISOString().slice(0,10);
  const todays=slots.filter(s=>s.when.slice(0,10)===today&&
   model.b02.sessions[s.id]?.status!=='CANCELLED');
  const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN');
- const pending=applications.filter(a=>model.b02.attendance[a.id]?.attendance==='PENDING');
- const entries=[['參與者代碼數',unique.size,'依虛構申請代碼去重'],
+ const pending=applications.filter(a=>{const attendance=model.b02.attendance[a.id];return !attendance||attendance.attendance==='PENDING';});
+ const entries=[['不重複申請代碼',unique.size,'申請代碼不代表獨立參與者'],
   ['預約／申請紀錄',applications.length,'不等於獨立參與者人數'],
   ['場次紀錄',slots.length,'含歷史與取消場次'],
   ['今日未取消場次',todays.length,'依臺灣日期'],
