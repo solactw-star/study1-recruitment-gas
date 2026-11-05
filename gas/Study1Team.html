@@ -254,7 +254,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -296,13 +296,15 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();calendarRender();
+ displaySlots();displayWeeks();calendarRender();profileRender();
  $('entries').replaceChildren();
  data.applications.forEach(a=>{
   const item=document.createElement('div');item.className='entry';
   const h=document.createElement('strong');h.textContent=a.id+' · '+(a.experiment==='E1'?'實驗一':'實驗二');
   const p=document.createElement('p');p.textContent='進度：'+a.phase+(a.slotId?' · 時段 '+a.slotId:'');
-  item.append(h,p);$('entries').append(item);
+  const open=document.createElement('button');open.type='button';open.className='secondary';
+  open.textContent='開啟完整資料（B04）';open.addEventListener('click',()=>profileOpen(a.id,'list'));
+  item.append(h,p,open);$('entries').append(item);
  });
  $('bookingSummary').textContent='共有 '+data.applications.length+' 筆虛構申請。正式報名資料未啟用。';
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
@@ -600,6 +602,7 @@ function calendarInit(){
  });
  for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope'])
   $(id).addEventListener('change',calImpact);
+ $('calFullProfile').addEventListener('click',()=>{if(cal.person)profileOpen(cal.person,'calendar');});
  $('calSavePerson').addEventListener('click',()=>{
   if(!cal.person)return;
   calCommand('ADMIN_B02_ATTEND',{id:cal.person,
