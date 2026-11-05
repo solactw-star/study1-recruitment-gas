@@ -174,7 +174,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -216,7 +216,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();
+ displaySlots();displayWeeks();calendarRender();
  $('entries').replaceChildren();
  data.applications.forEach(a=>{
   const item=document.createElement('div');item.className='entry';
@@ -288,6 +288,130 @@ $('saveWeeks').addEventListener('click',()=>{
  }));
  save('ADMIN_E2_WEEKS',{weeks});
 });
+
+/* B02 integrated calendar: all data comes from the existing unified TEST fixture. */
+const cal={id:null,person:null,mode:'CLOSED',initialized:false};
+const calStates={OPEN:'開放',CANCELLED:'已取消',CLOSED:'已結案'};
+const calPresence={PENDING:'待確認',PRESENT:'已出席',LATE:'遲到',ABSENT:'缺席'};
+const calTesting={NOT_STARTED:'未開始',IN_PROGRESS:'進行中',PARTIAL:'部分完成',COMPLETE:'已完成'};
+function calUTC(d){return new Date(d+'T00:00:00Z');}
+function calDay(d){return d.toISOString().slice(0,10);}
+function calAdd(d,n){return calDay(new Date(calUTC(d).getTime()+n*86400000));}
+function calToday(){return calDay(new Date(Date.now()+28800000));}
+function calElem(tag,t,cl){const n=document.createElement(tag);if(t!==undefined)n.textContent=t;if(cl)n.className=cl;return n;}
+function calAllowed(){return model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
+ model.formalReadiness&&model.formalReadiness.activationAllowed===false&&model.b02&&Array.isArray(model.slots);}
+function calMsg(t,error){$('calStatusMessage').textContent=t;$('calStatusMessage').style.color=error?'#a62d25':'#526d75';}
+function calMeta(slot){return model.b02.sessions[slot.id]||{
+ title:slot.experiment==='E1'?'模擬記憶研究':'模擬團體活動',place:'虛構研究室',
+ minutes:120,status:'OPEN',group:''};}
+function calApps(slot){return model.applications.filter(a=>a.slotId===slot.id);}
+function calRange(){
+ const d=$('calDate').value||calToday(),view=$('calView').value;
+ if(view==='day')return [d];
+ const start=view==='month'?d.slice(0,7)+'-01':d;
+ const monday=calAdd(start,-((calUTC(start).getUTCDay()+6)%7));
+ const length=view==='month'?42:7;return Array.from({length},(_,i)=>calAdd(monday,i));
+}
+function calOpen(mode,id,person){
+ cal.mode=mode;cal.id=id===undefined?cal.id:id;cal.person=person||null;
+ calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
+}
+function calendarRender(){
+ if(!calAllowed()){$('calDescription').textContent='載入虛構資料中；尚不能操作。';return;}
+ if(!cal.initialized){
+  cal.initialized=true;
+  const first=model.slots.find(s=>s.when.slice(0,10)>=calToday())||model.slots[0];
+  $('calDate').value=first?first.when.slice(0,10):calToday();
+ }
+ const days=calRange(),el=$('calBoard');el.replaceChildren();
+ el.style.setProperty('--day-count',days.length===1?'1':'7');
+ const exp=$('calExperiment').value,state=$('calStatus').value,q=$('calSearch').value.trim().toLowerCase();
+ let total=0;
+ for(const date of days){
+  const cell=calElem('div',undefined,'calDay');
+  cell.append(calElem('strong',date+'（'+['日','一','二','三','四','五','六'][calUTC(date).getUTCDay()]+'）'));
+  const found=model.slots.filter(s=>{
+   const m=calMeta(s);
+   return s.when.startsWith(date)&&(exp==='ALL'||exp===s.experiment)&&
+    (state==='ALL'||state===m.status)&&
+    (!q||[s.id,s.experiment,m.title,m.place].join(' ').toLowerCase().includes(q));
+  }).sort((a,b)=>a.when.localeCompare(b.when));
+  for(const slot of found){
+   const m=calMeta(slot),occupied=calApps(slot).filter(a=>a.phase==='CONFIRMED'||
+    ['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil>Date.now()).length;
+   const b=calElem('button',slot.when.slice(11)+'｜'+m.title+'\n'+slot.experiment+' · '+
+    calStates[m.status]+'\n占用 '+occupied+'/'+slot.capacity+'｜剩餘 '+Math.max(0,slot.capacity-occupied),'calCard');
+   b.type='button';b.style.whiteSpace='pre-line';b.dataset.sessionId=slot.id;
+   b.setAttribute('aria-pressed',String(slot.id===cal.id&&cal.mode!=='CLOSED'));
+   b.addEventListener('click',()=>calOpen('SESSION',slot.id,null));cell.append(b);total++;
+  }
+  if($('calView').value!=='month'){
+   const add=calElem('button','＋新增','calAdd');add.type='button';
+   add.addEventListener('click',()=>calNew(date));cell.append(add);
+  }
+  if(!found.length)cell.append(calElem('span','無符合場次','calEmpty'));
+  el.append(cell);
+ }
+ $('calDescription').textContent=total+' 個符合條件的虛構場次｜'+days[0]+
+  (days.length>1?' ～ '+days[days.length-1]:'')+'｜本測試資料上限8個時段';
+ calendarPanel();
+}
+function calendarPanel(){
+ const frame=$('calFrame'),detail=$('calSessionDetail'),person=$('calPersonDetail'),
+ form=$('calForm'),heading=$('calAsideTitle');
+ frame.classList.toggle('detail',cal.mode!=='CLOSED');
+ if(cal.mode==='CLOSED'){form.hidden=true;person.hidden=true;detail.hidden=false;return;}
+ if(cal.mode==='NEW'||cal.mode==='EDIT'){
+  form.hidden=false;detail.hidden=true;person.hidden=true;heading.textContent='B02-A 場次編輯';
+  calImpact();return;
+ }
+ const slot=model.slots.find(s=>s.id===cal.id);
+ if(!slot){cal.mode='CLOSED';frame.classList.remove('detail');return;}
+ form.hidden=true;
+ if(cal.mode==='PERSON'){
+  detail.hidden=true;person.hidden=false;heading.textContent='B02-B 參與者快速面板';
+  const app=model.applications.find(a=>a.id===cal.person);
+  if(!app){calOpen('SESSION',cal.id,null);return;}
+  const a=model.b02.attendance[app.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
+  $('calPersonTitle').textContent=app.id+' · '+slot.experiment;
+  $('calPersonSummary').textContent='虛構預約 '+slot.id+'｜'+slot.when+
+   '｜狀態 '+app.phase+'｜同意僅為測試，無正式效力';
+  $('calAttendance').value=a.attendance;$('calProgress').value=a.progress;$('calNote').value=a.note;
+  return;
+ }
+ detail.hidden=false;person.hidden=true;detail.replaceChildren();heading.textContent='B02-A 場次詳細面板';
+ const meta=calMeta(slot),apps=calApps(slot),occupied=apps.filter(a=>a.phase==='CONFIRMED'||
+  ['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil>Date.now()).length;
+ detail.append(calElem('h3',meta.title),calElem('span',calStates[meta.status],'tag'));
+ const grid=calElem('div',undefined,'calInfo');
+ for(const [label,value] of [['場次',slot.id],['實驗',slot.experiment],['時間',slot.when],
+  ['長度',meta.minutes+'分鐘'],['地點',meta.place||'未填'],['容量',slot.capacity],
+  ['占用',occupied],['剩餘',Math.max(0,slot.capacity-occupied)]])
+  grid.append(calElem('div',label+'：'+value,'calLine'));
+ detail.append(grid);
+ const actions=calElem('div',undefined,'calAction');
+ const edit=calElem('button','編輯場次','secondary');edit.type='button';edit.disabled=meta.status!=='OPEN';
+ edit.addEventListener('click',()=>calEdit(slot));actions.append(edit);
+ const cancel=calElem('button','取消場次','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
+ cancel.addEventListener('click',()=>calCancel(slot));actions.append(cancel);detail.append(actions);
+ detail.append(calElem('h3','本場次虛構參與者（'+apps.length+'）'));
+ for(const a of apps){
+  const state=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+  const b=calElem('button',a.id+'｜'+a.phase+'\n出席：'+calPresence[state.attendance]+
+   '｜施測：'+calTesting[state.progress],'calPerson');
+  b.type='button';b.style.whiteSpace='pre-line';
+  b.addEventListener('click',()=>calOpen('PERSON',slot.id,a.id));detail.append(b);
+ }
+ if(!apps.length)detail.append(calElem('p','尚無虛構預約，測試申請可由原有示範流程建立。','calMini'));
+ if(meta.status==='CANCELLED'&&occupied>0)
+  detail.append(calElem('p','場次已取消；'+occupied+'筆有效預約待人工處理，未寄送任何通知。','calWarning'));
+ detail.append(calElem('h3','操作歷程'));
+ const logs=model.b02.history.filter(h=>h.ids.includes(slot.id));
+ for(const h of logs.slice(-6).reverse())detail.append(calElem('p',h.at+'｜'+h.action,'calMini'));
+ if(!logs.length)detail.append(calElem('p','尚無紀錄。','calMini'));
+}
+
 $('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
