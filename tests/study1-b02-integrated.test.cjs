@@ -85,3 +85,13 @@ test('B02 cancellation retains slot and booking history while rejecting a re-ope
  assert.throws(()=>run('ADMIN_B02_SLOT',{...cancel,operation:'UPDATE'}),/已取消場次/);
  assert.match(server,/CANCELLED','CLOSED'.*s\.b02\.sessions/);
 });
+
+test('B02 rejects same-experiment overlapping sessions and preserves closed TEST flags',()=>{
+ const {state,run,shape}=env();
+ run('ADMIN_B02_SLOT',{...shape,repeatCount:1});
+ assert.throws(()=>run('ADMIN_B02_SLOT',{...shape,repeatCount:1,title:'重疊測試時段'}),/重疊場次/);
+ assert.equal(state.recruitment.E2.year,2027);
+ assert.equal(state.recruitment.E2.mode,'COMING_SOON');
+ assert.equal(state.policy.consent.E1.approval,'PENDING');
+ assert.equal(state.policy.consent.E2.approval,'PENDING');
+});
