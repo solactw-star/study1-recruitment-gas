@@ -297,8 +297,9 @@ function study1B06Fields_(p,source){
  if(kind==='PARTICIPANT'||kind==='BOOKING'){
   const a=refs.applications.find(v=>v.id===relationId);
   if(!a||!/^SIM-\d{3}$/.test(relationId)||
-    ![a.experiment,'ALL'].includes(experiment)||
     (kind==='BOOKING'&&!a.slotId))throw Error('待辦關聯的虛構參與者或預約不存在');
+  if(![a.experiment,'ALL'].includes(experiment))
+   throw Error('待辦關聯的實驗別與虛構參與者不一致');
  }
  if(kind==='SESSION'){
   const slot=refs.slots.find(v=>v.id===relationId);
