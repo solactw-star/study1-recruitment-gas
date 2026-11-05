@@ -415,6 +415,7 @@ test('B03 list and kanban share the SAME participants, filters, and return-to-bo
 test('B05 is reachable from existing calendar, shows original session and returns without writes',()=>{
  const srv=server(),before=srv.writes;
  const team=page(srv,'team');
+ team.set('calExperiment','ALL');team.set('calStatus','ALL');team.set('calSearch','');
  team.set('calView','day');team.set('calDate','2027-01-05');team.change('calDate');
  const findDeep=(root,fn)=>{
   if(fn(root))return root;
