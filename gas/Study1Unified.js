@@ -527,6 +527,79 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     consentReviewedVersion:null,consentReviewedSha256:null,
     pdfDemoReviewedAt:null,pdfDemoSha256:null,signatureDemo:false});return;
  }
+
+ if(action==='ADMIN_B02_SLOT'){
+  const keys='capacity,experiment,minutes,operation,place,repeatCount,scope,slotId,title,when';
+  if(Object.keys(p).sort().join(',')!==keys||
+    !['CREATE','UPDATE','CANCEL'].includes(p.operation)||!['E1','E2'].includes(p.experiment)||
+    typeof p.title!=='string'||p.title.trim().length<2||p.title.length>36||/[<>]/.test(p.title)||
+    typeof p.place!=='string'||p.place.length>48||/[<>]/.test(p.place)||
+    !Number.isSafeInteger(p.capacity)||p.capacity<1||p.capacity>20||
+    !Number.isSafeInteger(p.minutes)||p.minutes<15||p.minutes>480||
+    !Number.isSafeInteger(p.repeatCount)||p.repeatCount<1||p.repeatCount>4||
+    !['ONE','FUTURE','SERIES'].includes(p.scope)||
+    typeof p.when!=='string'||!/^20\d\d-(0[1-9]|1[0-2])-([0-2]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/.test(p.when))
+   throw Error('隔離場次欄位不合法');
+  const parse=w=>Date.parse(w.replace(' ','T')+':00+08:00');
+  const date=parse(p.when);
+  if(!Number.isFinite(date)||new Date(date+28800000).toISOString().slice(0,16)!==p.when.replace(' ','T')||date<=now)
+   throw Error('場次日期無效或已經過期');
+  const meta=s.b02.sessions,existing=s.slots.find(z=>z.id===p.slotId);
+  let ids=[];
+  if(p.operation==='CREATE'){
+   if(p.slotId!==''||p.scope!=='ONE'||s.slots.length+p.repeatCount>8)
+    throw Error('測試最多八個時段，新增不得指定舊時段ID');
+   const available='ABCDEFGH'.split('').map(x=>'SIM-SLOT-'+p.experiment+'-'+x)
+    .filter(id=>!s.slots.some(z=>z.id===id));
+   if(available.length<p.repeatCount)throw Error('可用時段編號不足');
+   const group=p.repeatCount>1?'SIM-G-'+String(now).slice(-10):'';
+   for(let i=0;i<p.repeatCount;i++){
+    const id=available[i],when=new Date(date+i*7*86400000+28800000).toISOString().slice(0,16).replace('T',' ');
+    s.slots.push({id,experiment:p.experiment,when,capacity:p.capacity});
+    meta[id]={title:p.title,place:p.place,minutes:p.minutes,status:'OPEN',group};ids.push(id);
+   }
+  }else{
+   if(!existing||existing.experiment!==p.experiment)throw Error('場次不存在或實驗別不一致');
+   const group=meta[p.slotId]?.group||'';
+   ids=(p.scope==='ONE'||!group)?[p.slotId]:s.slots.filter(z=>
+    z.experiment===p.experiment&&meta[z.id]?.group===group&&
+    (p.scope==='SERIES'||parse(z.when)>=parse(existing.when))).map(z=>z.id);
+   if(p.operation==='UPDATE'){
+    if(p.scope!=='ONE'&&p.when!==existing.when)throw Error('批次操作不得移動歷史預約時間');
+    for(const id of ids){
+     const slot=s.slots.find(z=>z.id===id),oldMeta=meta[id];
+     if(oldMeta?.status==='CANCELLED')throw Error('已取消場次不能直接再開放');
+     if(study1UnifiedCapacity_(s,id,now)>p.capacity)throw Error('新容量低於已占用名額');
+     if(id===p.slotId&&slot.when!==p.when&&s.applications.some(a=>a.slotId===id))
+      throw Error('已有預約歷史，須先逐人處理，禁止靜默改期');
+     if(id===p.slotId)slot.when=p.when;
+     slot.capacity=p.capacity;
+     meta[id]={title:p.title,place:p.place,minutes:p.minutes,status:oldMeta?.status||'OPEN',group};
+    }
+   }else{
+    for(const id of ids){
+     const oldMeta=meta[id];
+     if(oldMeta?.status==='CLOSED')throw Error('已結案場次不可取消');
+     meta[id]={title:oldMeta?.title||p.title,place:oldMeta?.place||p.place,
+      minutes:oldMeta?.minutes||p.minutes,status:'CANCELLED',group};
+    }
+   }
+  }
+  study1UnifiedValidateSlots_(s.slots);
+  s.b02.history.push({at:new Date(now).toISOString(),action:p.operation,ids});
+  s.b02.history=s.b02.history.slice(-12);return;
+ }
+ if(action==='ADMIN_B02_ATTEND'){
+  if(Object.keys(p).sort().join(',')!=='attendance,id,note,progress'||
+   !/^SIM-[0-9]{3}$/.test(p.id)||!s.applications.some(a=>a.id===p.id&&a.slotId)||
+   !['PENDING','PRESENT','LATE','ABSENT'].includes(p.attendance)||
+   !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(p.progress)||
+   typeof p.note!=='string'||p.note.length>80||/[<>]/.test(p.note))
+   throw Error('只能更新有預約關聯的虛構參與者');
+  s.b02.attendance[p.id]={attendance:p.attendance,progress:p.progress,note:p.note};
+  s.b02.history.push({at:new Date(now).toISOString(),action:'ATTEND',ids:[p.id]});
+  s.b02.history=s.b02.history.slice(-12);return;
+ }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
     ['title','notice','emailTemplate'].some(k=>typeof p[k]!=='string'||p[k].length>500||
@@ -641,6 +714,7 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
   if(!slot||(slot.id===a.slotId&&!expiredHold)||
      Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
+     ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
      !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0)))
     throw Error('測試時段不存在、重複、已開始或已額滿');
   if(action==='HOLD')study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock);
@@ -686,7 +760,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   a.phase='CONSENTED';a.consentVersion=p.version;a.signatureDemo=true;return;
  }
  if(action==='CONFIRM'){
-  if(a.phase!=='CONSENTED'||a.holdUntil<=now||Object.keys(p).join(',')!=='id')
+  if(a.phase!=='CONSENTED'||a.holdUntil<=now||
+     ['CANCELLED','CLOSED'].includes(s.b02.sessions[a.slotId]?.status)||
+     Object.keys(p).join(',')!=='id')
     throw Error('簽署測試或暫留期限未確認');
   a.phase='CONFIRMED';a.holdUntil=null;
   study1UnifiedNotify_(s,a,'CONFIRM');return;
