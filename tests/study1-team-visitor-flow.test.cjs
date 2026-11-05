@@ -329,3 +329,44 @@ test('B02 team GUI creates and persists a synthetic session through the shared R
  assert.equal(srv.read().open,false);
  assert.equal(srv.read().consentReady,false);
 });
+
+
+test('B04 complete participant page works through original team GUI and preserves corrected note after reload',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});
+ const team=page(srv,'team');
+ const entry=team.get('entries').children[0];
+ assert.ok(entry);
+ const profileBtn=entry.children.find(x=>x.textContent==='開啟完整資料（B04）');
+ assert.ok(profileBtn);
+ profileBtn.handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ assert.match(team.get('profileHeading').textContent,/SIM-001.*實驗一/);
+ assert.equal(team.get('profileSummary').children.length,8);
+ const tabs=[...team.context.document.querySelectorAll('[data-b04-tab]')];
+ assert.equal(tabs.length,8);
+ const admin=tabs.find(x=>x.dataset.b04Tab==='admin');
+ admin.handlers.click();
+ assert.equal(team.get('profileNoteForm').hidden,false);
+ team.set('profileNote','研究助理確認的虛構行政備註');
+ team.set('profileReason','修正先前記載內容');
+ const form=team.get('profileNoteForm');
+ assert.equal(typeof form.handlers.submit,'function');
+ form.handlers.submit({preventDefault(){}});
+ assert.equal(team.failures.length,0);
+ assert.ok(team.calls.includes('ADMIN_B04_NOTE'));
+ assert.equal(srv.read().b04.notes['SIM-001'],'研究助理確認的虛構行政備註');
+ assert.equal(srv.read().b04.history[0].actor,'OWNER');
+ assert.equal(srv.read().open,false);
+ const audit=tabs.find(x=>x.dataset.b04Tab==='audit');
+ audit.handlers.click();
+ assert.match(team.get('profileTabBody').children[0].textContent,/操作歷程/);
+ team.click('profileBack');
+ assert.equal(team.get('profileModule').hidden,true);
+ const reload=page(srv,'team');
+ reload.get('entries').children[0].children.find(x=>x.textContent==='開啟完整資料（B04）').handlers.click();
+ const latest=[...reload.context.document.querySelectorAll('[data-b04-tab]')].find(x=>x.dataset.b04Tab==='admin');
+ latest.handlers.click();
+ assert.equal(reload.get('profileNote').value,'研究助理確認的虛構行政備註');
+ closed(srv);
+});
