@@ -1380,6 +1380,64 @@ function b06EventText(h){
   '\n原值：'+summary(h.before)+'\n新值：'+summary(h.after);
 }
 
+
+function b06Render(){
+ if(!model)return;
+ if(!model.b06||model.b06.formalPersistence!==false||
+   !Array.isArray(model.b06.tasks)||!Array.isArray(model.b06.audit)){
+  $('b06Overview').textContent='B06安全資料未就緒';
+  $('b06Save').disabled=true;b06Message('B06權限或資料格式無法核對，已停用操作。',true);
+  return;
+ }
+ const all=model.b06.tasks,unarchived=all.filter(t=>!t.archived),
+  opened=unarchived.filter(t=>t.status==='OPEN');
+ $('b06Overview').textContent='人工待辦：未完成 '+opened.length+
+  ' 件｜已完成 '+(unarchived.length-opened.length)+
+  ' 件｜已封存 '+(all.length-unarchived.length)+' 件';
+ const query=$('b06Search').value.trim().toLowerCase(),
+  status=$('b06Status').value||'ALL',archived=$('b06Archive').value||'ACTIVE',
+  exp=$('b06Scope').value||'ALL';
+ const visible=all.filter(t=>
+  (status==='ALL'||t.status===status)&&
+  (archived==='ALL'||(archived==='ARCHIVED'?t.archived:!t.archived))&&
+  (exp==='ALL'||t.experiment===exp||t.experiment==='ALL')&&
+  (!query||[t.id,t.title,t.description,t.relationId].join(' ').toLowerCase().includes(query))
+ ).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
+ $('b06Count').textContent='顯示 '+visible.length+'／共 '+all.length+
+  ' 件人工待辦｜待辦修訂版 '+model.b06.revision;
+ $('b06Empty').hidden=visible.length!==0;
+ const target=$('b06List');target.replaceChildren();
+ for(const t of visible){
+  const box=calElem('article',undefined,'b06Task');box.dataset.taskId=t.id;
+  box.append(calElem('strong',t.title+'｜'+t.id));
+  const tags=calElem('div');
+  for(const label of [t.status==='OPEN'?'未完成':'已完成',t.archived?'已封存':'使用中',
+    t.experiment,'負責：'+(t.assignee||'未指定'),'截止：'+(t.dueDate||'未指定')])
+   tags.append(calElem('span',label,'b06Tag'));
+  box.append(tags,calElem('p',t.description||'無補充說明'),
+   calElem('p','關聯：'+t.relationType+'／'+(t.relationId||'無'),'small'));
+  const actionBox=calElem('div',undefined,'b06Actions');
+  const add=(title,fn)=>{
+   const b=calElem('button',title,'secondary');b.type='button';b.disabled=busy;
+   b.addEventListener('click',fn);actionBox.append(b);
+  };
+  if(!t.archived){
+   add('編輯',()=>b06EditTask(t));
+   add(t.status==='OPEN'?'勾選完成':'重新開啟',
+     ()=>b06Action(t,t.status==='OPEN'?'COMPLETE':'REOPEN'));
+   add('封存',()=>b06Action(t,'ARCHIVE'));
+  }else add('還原封存',()=>b06Action(t,'RESTORE'));
+  add('查看歷程',()=>{b06.historyId=t.id;b06Render();
+   if($('b06History').scrollIntoView)$('b06History').scrollIntoView({block:'start'});});
+  box.append(actionBox);target.append(box);
+ }
+ const history=$('b06History');history.replaceChildren();
+ const events=model.b06.audit.filter(e=>!b06.historyId||e.taskId===b06.historyId);
+ $('b06HistoryScope').textContent=b06.historyId?'待辦 '+b06.historyId:'全部待辦';
+ for(const h of events.slice().reverse())history.append(calElem('div',b06EventText(h),'b06Event'));
+ if(!events.length)history.append(calElem('p','目前無可核實歷程。','small'));
+}
+
 /* B06_CONTINUE */
 $('refresh').addEventListener('click',load);load();
 })();
