@@ -386,3 +386,15 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：真實PI/RA雙角色核准與稽核權限、正式資料庫及容量、保存與刪除政策、真人研究REC同意，以及實際owner瀏覽器操作驗收均未完成；B06目前關聯預約以原虛構申請代碼表示，正式預約獨立ID待核准資料模型再統一。B06的本次完成不代表正式資料接入或既有容量瓶頸全面解決。
 - `NEXT_ACTION`：既有每小時自動續建需先重讀最新main及第28–32節，選下一個不需正式資料授權且可安全實作之P0/P1/P2模組（例如B01首頁統計、B07行政補貼介面或B08通知管理的封閉操作；實際依最新規格依賴排序），或增量改善正式儲存／角色權限之無外部副作用程式。不得自動解除招募、修改正式研究資料或主動要求人工UAT。
 - `WRITE_OWNER=GitHub main + existing original GAS auto-sync workflow`；`SYNC_STATUS=GAS v58 verified; formal research data and real UI blocked`。
+
+## 三十三、資料保存稽核與 PI／RA 未授權角色防護（2026-11-05）
+
+- `TASK_DOMAIN=Study1 recruitment website`；本次由最新 `main=2bc9ae47270a46ccafa7e41800013193815d751e` 起查，直接加固唯一原正式Repository、原 GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z` 和既有 `/exec`，不建立平行系統。
+- `COMPLETED`（僅合成資料與授權邊界）：`gas/Study1Unified.js` 的 provider-neutral 虛構資料儲存契約稽核新增請求指紋綁定、每筆 UPSERT 之前態雜湊連續性、角色標籤／事件形狀／時間戳檢驗，虛構分頁拒絕未標記的非合成資料。既有 B06 待辦新增事件稽核請求指紋，回讀檢核前後值連續性；保留舊 B06 事件格式的相容讀取，不清除已有歷程。
+- `ROLE_SAFETY`：新增伺服器端 owner-only synthetic role guard，原 Apps Script active/effective owner 驗證與 `OPEN=false`、`CONSENT_READY=false` 检查仍必須通過。純測試資料中的 `actor=PI/RA` 僅為合成標籤，不是登入身分，不發給PI／RA帳號與正式讀寫權限；正式權限、個資、通知及儲存 provider 維持 `FORMAL_BLOCKED`。有效部署權限 `MYSELF`，E2不自動招募。
+- `SOURCE_COMMIT=8b5784b9a674108c2654a98a3b810b620217473d`；PR #60 合併 main，修改四檔：`gas/Study1Unified.js`、`scripts/study1-gas-backend-allowlist.cjs`、`tests/study1-storage-consistency.test.cjs`、`tests/study1-b06-tasks.test.cjs`。測試共 **492 PASS／0 FAIL**；PR CI `42047146069`、main CI `42047325911`。
+- `GAS_SYNC_VERIFIED=true`：原 GAS 同ID安全同步 run `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42047326011` 成功，寫入前完整備份 Drive ID `1p8VSV0e6p7k8FhSIxeZg30giuHjr-z8M`，原 remote HEAD SHA256 `392cf0917894a1e3e3d2f15f86812c1d172f6e0c95a3d32f8232338840a4e4d2`，原 `/exec` 更新至**版本59**，完整回讀 `SYNC_VERIFIED=true`，SHA256 `14fe7133b0f9960153bf6d606160f869291013ceb0babd039fe8f5154fd3e550`，原部署 ID 與 `MYSELF` 保留。前置 HEAD manifest 的 `ANYONE_ANONYMOUS` 並非有效版本化部署的權限。
+- `LAST_VERIFIED_STEP=main commit, 492/492 CI, original GAS V59 SHA256 and MYSELF deployment readback`。`SELF_UI_3PASS=NOT_VERIFIED`（尚無 owner 真正瀏覽器操作）、`USER_UAT_PENDING_BY_USER_REQUEST=true`、`PRODUCTION_STORAGE_CONNECTED=false`、`FORMAL_READY=false`；不可拿合成稽核 SHA 鏈當作永久不可竄改外部稽核，亦不可拿純分頁契約當作實際正式容量。
+- `BLOCKERS`：PI／RA核准身分與撤權機制、正式持久化provider／容量／保存刪除規則、不可變稽核保管、真人資料與正式 REC 授權、獨立UI操作驗收。未授權項目持續阻擋，不主動要求使用者立即驗收。
+- `NEXT_ACTION`：先重讀最新 main 與本節接續，選取無真人資料副作用的正式保存／稽核安全測試或其他已授權功能增量建置；若要接正式資料／真PI-RA帳號須先取得權責與授權，不可自行解除安全限制。
+- `WRITE_OWNER=GitHub main + existing original GAS auto-sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
