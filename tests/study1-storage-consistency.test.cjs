@@ -14,18 +14,25 @@ const shaBytes=bytes=>[...crypto.createHash('sha256')
  .map(x=>x>127?x-256:x);
 function setup(){
  const store=new Map([['OPEN','false'],['CONSENT_READY','false']]);
- let writeCount=0,held=false,damageOneReadback=false,injectFault=false;
+ let writeCount=0,held=false,damageOneReadback=false,injectFault=false,
+  injectForeign=false,foreignReadback=false,throwAfterWrite=false,throwBeforeWrite=false;
  const props={
   getProperty:k=>{
    if(k==='STUDY1_UNIFIED_FIXTURE_V1'&&damageOneReadback){
     damageOneReadback=false;return 'UNVERIFIED_DATA';
    }
+   if(k==='STUDY1_UNIFIED_FIXTURE_V1'&&foreignReadback){
+    foreignReadback=false;store.set(k,'OTHER_WRITER_BYTES');return 'OTHER_WRITER_BYTES';
+   }
    return store.has(k)?store.get(k):null;
   },
   setProperty:(k,v)=>{
    assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1','unapproved property key write');
+   if(throwBeforeWrite){throwBeforeWrite=false;throw Error('SIM_WRITE_BEFORE');}
    store.set(k,v);writeCount++;
    if(injectFault){injectFault=false;damageOneReadback=true;}
+   if(injectForeign){injectForeign=false;foreignReadback=true;}
+   if(throwAfterWrite){throwAfterWrite=false;throw Error('SIM_WRITE_AFTER');}
   },
   deleteProperty:k=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');store.delete(k);}
  };
@@ -44,6 +51,9 @@ function setup(){
  });
  vm.runInContext(code,ctx,{timeout:3000});
  return {ctx,store,armFault(){injectFault=true;},
+  armDrift(){injectForeign=true;},
+  armThrowAfter(){throwAfterWrite=true;},
+  armThrowBefore(){throwBeforeWrite=true;},
   get held(){return held},get writes(){return writeCount}};
 }
 test('current original site uses revision lock; a corrupted post-write readback restores prior bytes and revision',()=>{
@@ -107,9 +117,14 @@ test('stable snapshot pagination handles thousands of synthetic records without 
   const id='SIM-ROW-'+String(i).padStart(5,'0');
   state.records[id]={id,source:'SYNTHETIC_ONLY',status:'STAGED'};
  }
- let after='',count=0,pages=0;
+ let after='',count=0,pages=0,snapshotHash=null;
  do{
-  const page=ctx.study1UnifiedStorePage_(state,{expectedRevision:0,limit:75,after});
+  const q={expectedRevision:0,limit:75,after};
+  if(after)q.snapshotHash=snapshotHash;
+  const page=ctx.study1UnifiedStorePage_(state,q);
+  assert.ok(/^[a-f0-9]{64}$/.test(page.snapshotHash));
+  if(snapshotHash)assert.equal(page.snapshotHash,snapshotHash);
+  snapshotHash=page.snapshotHash;
   count+=page.items.length;pages++;after=page.nextAfter||'';
   if(!page.nextAfter)break;
  }while(pages<30);
@@ -176,4 +191,73 @@ test('synthetic audit verifies replay fingerprint and prior row digest even afte
  corruptPage.records['SIM-ROW-9001']={...base.value,source:'UNAPPROVED'};
  assert.throws(()=>ctx.study1UnifiedStorePage_(corruptPage,{
   expectedRevision:0,limit:10,after:''}),/虛構資料/);
+});
+
+
+test('snapshot pagination rejects silent same-revision drift, invented cursors and late unapproved records',()=>{
+ const ctx=setup().ctx,state=ctx.study1UnifiedStoreInitial_();
+ for(let i=0;i<5000;i++){
+  const id='SIM-SCALE-'+String(i).padStart(5,'0');
+  state.records[id]={id,source:'SYNTHETIC_ONLY',status:'PENDING'};
+ }
+ let after='',hash=null,count=0,pages=0,previous='';
+ do{
+  const q={expectedRevision:0,limit:100,after};
+  if(after)q.snapshotHash=hash;
+  const page=ctx.study1UnifiedStorePage_(state,q);
+  if(hash)assert.equal(page.snapshotHash,hash);
+  hash=page.snapshotHash;
+  for(const item of page.items){
+   assert.ok(item.id>previous,'page order must be strictly increasing');
+   previous=item.id;
+  }
+  count+=page.items.length;pages++;after=page.nextAfter||'';
+  if(!page.nextAfter)break;
+ }while(pages<55);
+ assert.equal(count,5000);assert.equal(pages,50);
+ assert.throws(()=>ctx.study1UnifiedStorePage_(state,{
+  expectedRevision:0,limit:100,after:'SIM-SCALE-DOES-NOT-EXIST',snapshotHash:hash}),/游標/);
+ const first=ctx.study1UnifiedStorePage_(state,{expectedRevision:0,limit:100,after:''});
+ const cursor=first.nextAfter;
+ state.records['SIM-SCALE-04999'].status='CHANGED_WITHOUT_REVISION';
+ assert.throws(()=>ctx.study1UnifiedStorePage_(state,{
+  expectedRevision:0,limit:100,after:cursor,snapshotHash:first.snapshotHash}),/漂移/);
+ state.records['SIM-SCALE-04999'].status='PENDING';
+ state.records['SIM-SCALE-04999'].source='UNAPPROVED';
+ assert.throws(()=>ctx.study1UnifiedStorePage_(state,{
+  expectedRevision:0,limit:100,after:''}),/虛構資料/);
+});
+
+test('original fixture rollback never overwrites an uncoordinated writer after failed readback',()=>{
+ const x=setup(),{ctx,store}=x;
+ ctx.study1UnifiedPreviewCommand({action:'START',payload:{experiment:'E1'},
+  expectedRevision:0,requestId:'REQ-SIM-DIRTYBASE000001'});
+ const before=x.writes;
+ x.armDrift();
+ assert.throws(()=>ctx.study1UnifiedPreviewCommand({action:'START',payload:{experiment:'E1'},
+  expectedRevision:1,requestId:'REQ-SIM-DIRTYRACE000001'}),/狀態不明|競寫/);
+ assert.equal(store.get('STUDY1_UNIFIED_FIXTURE_V1'),'OTHER_WRITER_BYTES');
+ assert.equal(x.writes,before+1,'cannot restore over foreign writer');
+ assert.equal(x.held,false);
+ assert.equal(store.get('OPEN'),'false');
+ assert.equal(store.get('CONSENT_READY'),'false');
+});
+
+test('original fixture failures before/after a property write never invent success or lose prior bytes',()=>{
+ const x=setup(),ctx=x.ctx;
+ ctx.study1UnifiedPreviewCommand({action:'START',payload:{experiment:'E1'},
+  expectedRevision:0,requestId:'REQ-SIM-RESTOREBASE0001'});
+ const before=x.store.get('STUDY1_UNIFIED_FIXTURE_V1'),writes=x.writes;
+ x.armThrowBefore();
+ assert.throws(()=>ctx.study1UnifiedPreviewCommand({action:'START',payload:{experiment:'E1'},
+  expectedRevision:1,requestId:'REQ-SIM-RESTOREBEFORE01'}),/已回復寫入前版本/);
+ assert.equal(x.store.get('STUDY1_UNIFIED_FIXTURE_V1'),before);
+ assert.equal(x.writes,writes,'pre-write exception must not create a restoration write');
+ x.armThrowAfter();
+ assert.throws(()=>ctx.study1UnifiedPreviewCommand({action:'START',payload:{experiment:'E1'},
+  expectedRevision:1,requestId:'REQ-SIM-RESTOREAFTER001'}),/已回復寫入前版本/);
+ assert.equal(x.store.get('STUDY1_UNIFIED_FIXTURE_V1'),before);
+ assert.equal(x.writes,writes+2,'post-write exception must restore exactly once');
+ assert.equal(ctx.study1UnifiedPreviewGet().revision,1);
+ assert.equal(x.held,false);
 });
