@@ -255,6 +255,220 @@ function study1UnifiedStorePage_(state,query){
   nextAfter:all.length>selected.length?selected[selected.length-1]:null};
 }
 
+
+/**
+ * B06 owner-only administrative todos in the ORIGINAL Study1 GAS deployment.
+ * Separate bounded ScriptProperties key avoids consuming B02-B05's legacy 40
+ * transaction slots. It is NOT a separate website or an approved real-data DB.
+ */
+const STUDY1_B06_TASK_KEY_='STUDY1_B06_TASKS_V1';
+function study1B06Initial_(){
+ return {schema:'STUDY1_B06_V1',revision:0,next:1,
+  tasks:[],audit:[],requests:[],head:'GENESIS'};
+}
+function study1B06Text_(value,min,max){
+ if(typeof value!=='string'||value.trim().length<min||value.length>max||
+    /[<>]/.test(value)||/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value))
+  throw Error('待辦欄位長度或格式不合法');
+ return value.trim();
+}
+function study1B06Fields_(p,source){
+ const keys='assignee,description,dueDate,experiment,reason,relationId,relationType,title';
+ if(!p||Object.keys(p).sort().join(',')!==keys)
+  throw Error('待辦欄位不完整');
+ const title=study1B06Text_(p.title,2,90),
+  description=study1B06Text_(p.description,0,350),
+  assignee=p.assignee,dueDate=p.dueDate,
+  experiment=p.experiment,kind=p.relationType,
+  relationId=p.relationId,
+  reason=study1B06Text_(p.reason,4,120);
+ if(!['','PI','RA'].includes(assignee)||
+   !['ALL','E1','E2'].includes(experiment)||
+   !['NONE','EXPERIMENT','PARTICIPANT','BOOKING','SESSION'].includes(kind)||
+   typeof dueDate!=='string'||(dueDate!==''&&
+     (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)||
+      Number.isNaN(Date.parse(dueDate+'T00:00:00Z'))||
+      new Date(dueDate+'T00:00:00Z').toISOString().slice(0,10)!==dueDate)))
+  throw Error('待辦實驗、負責人、關聯或日期格式不合法');
+ const refs=source||study1UnifiedInitial_();
+ if(kind==='NONE'&&relationId!=='')throw Error('無關聯待辦不得指定參照');
+ if(kind==='EXPERIMENT'&&(!['E1','E2'].includes(relationId)||
+    ![relationId,'ALL'].includes(experiment)))throw Error('實驗關聯不一致');
+ if(kind==='PARTICIPANT'||kind==='BOOKING'){
+  const a=refs.applications.find(v=>v.id===relationId);
+  if(!a||!/^SIM-\d{3}$/.test(relationId)||
+    ![a.experiment,'ALL'].includes(experiment)||
+    (kind==='BOOKING'&&!a.slotId))throw Error('待辦關聯的虛構參與者或預約不存在');
+ }
+ if(kind==='SESSION'){
+  const slot=refs.slots.find(v=>v.id===relationId);
+  if(!slot||![slot.experiment,'ALL'].includes(experiment))
+   throw Error('待辦關聯場次不存在或實驗別不一致');
+ }
+ return {title,description,assignee,dueDate,experiment,
+  relationType:kind,relationId,reason};
+}
+function study1B06Verify_(s){
+ if(!s||s.schema!=='STUDY1_B06_V1'||
+  !Number.isSafeInteger(s.revision)||s.revision<0||
+  !Number.isSafeInteger(s.next)||s.next<1||
+  !Array.isArray(s.tasks)||!Array.isArray(s.audit)||
+  !Array.isArray(s.requests)||typeof s.head!=='string'||
+  s.revision!==s.audit.length||s.revision!==s.requests.length||
+  s.revision>200||s.tasks.length>100)
+  throw Error('B06待辦儲存版本或格式不一致');
+ const ids=new Set(),latest=new Map(),reqIds=new Set();
+ for(const t of s.tasks){
+  if(!t||Object.keys(t).sort().join(',')!==
+   'archived,assignee,createdAt,description,dueDate,experiment,id,relationId,relationType,status,title,updatedAt'||
+    !/^SIM-TASK-\d{6}$/.test(t.id)||ids.has(t.id)||
+    !['OPEN','DONE'].includes(t.status)||typeof t.archived!=='boolean'||
+    !['','PI','RA'].includes(t.assignee)||
+    !['ALL','E1','E2'].includes(t.experiment)||
+    !['NONE','EXPERIMENT','PARTICIPANT','BOOKING','SESSION'].includes(t.relationType)||
+    typeof t.relationId!=='string'||t.relationId.length>30||
+    typeof t.title!=='string'||t.title.length>90||
+    typeof t.description!=='string'||t.description.length>350||
+    typeof t.dueDate!=='string'||t.dueDate.length>10||
+    Number.isNaN(Date.parse(t.createdAt))||Number.isNaN(Date.parse(t.updatedAt)))
+   throw Error('B06待辦紀錄不合法');
+  ids.add(t.id);
+ }
+ let prev='GENESIS';
+ for(let i=0;i<s.audit.length;i++){
+  const h=s.audit[i],copy={...h};delete copy.digest;
+  if(!h||h.seq!==i+1||h.prev!==prev||h.actor!=='OWNER'||
+     !['CREATE','EDIT','COMPLETE','REOPEN','ARCHIVE','RESTORE'].includes(h.action)||
+     !/^SIM-TASK-\d{6}$/.test(h.taskId)||typeof h.reason!=='string'||
+     h.reason.length<4||Number.isNaN(Date.parse(h.at))||
+     typeof h.requestId!=='string'||reqIds.has(h.requestId)||
+     !h.after||h.after.id!==h.taskId||
+     (h.before!==null&&h.before.id!==h.taskId)||
+     h.digest!==study1UnifiedStoreHash_(copy)||
+     !s.requests[i]||s.requests[i].id!==h.requestId)
+   throw Error('B06稽核鏈斷裂或紀錄遭修改');
+  reqIds.add(h.requestId);latest.set(h.taskId,study1UnifiedStoreHash_(h.after));
+  prev=h.digest;
+ }
+ if(prev!==s.head||ids.size!==latest.size||
+   s.tasks.some(t=>latest.get(t.id)!==study1UnifiedStoreHash_(t))||
+   s.requests.some(r=>!r||typeof r.fingerprint!=='string'||
+    !/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(r.id)))
+  throw Error('B06目前待辦與稽核最後狀態不一致');
+ return true;
+}
+function study1B06Read_(){
+ const stored=PropertiesService.getScriptProperties().getProperty(STUDY1_B06_TASK_KEY_);
+ if(stored===null)return study1B06Initial_();
+ const state=JSON.parse(study1UnifiedStoredDecode_(stored));
+ study1B06Verify_(state);
+ return state;
+}
+function study1B06Apply_(state,command,source,now){
+ study1B06Verify_(state);
+ if(!command||Object.keys(command).sort().join(',')!=='action,expectedRevision,payload,requestId'||
+   !['CREATE','EDIT','COMPLETE','REOPEN','ARCHIVE','RESTORE'].includes(command.action)||
+   !/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
+   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload))
+  throw Error('B06人工指令格式不合法');
+ const fingerprint=study1UnifiedStoreHash_([command.action,command.payload]);
+ const match=state.requests.find(r=>r.id===command.requestId);
+ if(match){
+  if(match.fingerprint!==fingerprint)throw Error('同一B06請求識別碼對應不同操作');
+  return {state,deduplicated:true};
+ }
+ if(command.expectedRevision!==state.revision)
+  throw Error('B06版本已變更，請重讀後再操作');
+ if(state.revision>=200)throw Error('B06隔離儲存交易上限，未修改既有資料');
+ const s=JSON.parse(JSON.stringify(state));
+ const action=command.action,p=command.payload;
+ let task,previous=null,reason;
+ const at=new Date(now).toISOString();
+ if(action==='CREATE'||action==='EDIT'){
+  const payload=action==='EDIT'?p.data:p;
+  if(action==='EDIT'&&Object.keys(p).sort().join(',')!=='data,id')
+   throw Error('B06編輯格式不合法');
+  const fields=study1B06Fields_(payload,source);
+  reason=fields.reason;
+  if(action==='CREATE'){
+   if(s.tasks.length>=100)throw Error('B06隔離儲存筆數上限，未更動資料');
+   task={id:'SIM-TASK-'+String(s.next++).padStart(6,'0'),
+    ...fields,createdAt:at,updatedAt:at,status:'OPEN',archived:false};
+   delete task.reason;s.tasks.push(task);
+  }else{
+   task=s.tasks.find(t=>t.id===p.id);
+   if(!task||task.archived)throw Error('待辦不存在或已封存，不可編輯');
+   previous=JSON.parse(JSON.stringify(task));
+   Object.assign(task,fields,{updatedAt:at});delete task.reason;
+   if(JSON.stringify(previous)===JSON.stringify(task))throw Error('待辦資料未變更');
+  }
+ }else{
+  if(Object.keys(p).sort().join(',')!=='id,reason')
+   throw Error('B06狀態操作缺少原因或待辦代碼');
+  reason=study1B06Text_(p.reason,4,120);
+  task=s.tasks.find(t=>t.id===p.id);
+  if(!task)throw Error('指定的人工待辦不存在');
+  previous=JSON.parse(JSON.stringify(task));
+  if(action==='COMPLETE'){
+   if(task.archived||task.status!=='OPEN')throw Error('僅未封存且未完成的待辦可勾選完成');
+   task.status='DONE';
+  }else if(action==='REOPEN'){
+   if(task.archived||task.status!=='DONE')throw Error('僅未封存且已完成的待辦可重新開啟');
+   task.status='OPEN';
+  }else if(action==='ARCHIVE'){
+   if(task.archived)throw Error('此待辦已封存');
+   task.archived=true;
+  }else if(action==='RESTORE'){
+   if(!task.archived)throw Error('此待辦尚未封存');
+   task.archived=false;
+  }
+  task.updatedAt=at;
+ }
+ s.revision++;
+ const h={seq:s.revision,taskId:task.id,action,actor:'OWNER',at,
+  requestId:command.requestId,reason,before:previous,
+  after:JSON.parse(JSON.stringify(task)),prev:s.head};
+ h.digest=study1UnifiedStoreHash_(h);
+ s.audit.push(h);s.head=h.digest;
+ s.requests.push({id:command.requestId,fingerprint});
+ study1B06Verify_(s);
+ return {state:s,deduplicated:false};
+}
+/* The only B06 entrypoint; available to the SAME authorized GAS owner only. */
+function study1UnifiedB06Command(command){
+ study1UnifiedAssertOwner_();
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(8000))throw Error('其他研究管理操作進行中，請重新載入');
+ try{
+  study1SandboxBookingFlags_();
+  const props=PropertiesService.getScriptProperties();
+  const initial=props.getProperty(STUDY1_B06_TASK_KEY_);
+  const state=study1B06Read_();
+  if(props.getProperty(STUDY1_B06_TASK_KEY_)!==initial)
+   throw Error('B06資料讀取時發生競寫');
+  const applied=study1B06Apply_(state,command,study1UnifiedRead_(),Date.now());
+  if(applied.deduplicated)return {...study1UnifiedView_(study1UnifiedRead_()),deduplicated:true};
+  const raw=JSON.stringify(applied.state),packed=study1UnifiedStoredEncode_(raw);
+  if(props.getProperty(STUDY1_B06_TASK_KEY_)!==initial)
+   throw Error('B06資料已被其他寫入者更新，拒絕覆寫');
+  try{
+   props.setProperty(STUDY1_B06_TASK_KEY_,packed);
+   const check=props.getProperty(STUDY1_B06_TASK_KEY_);
+   if(check!==packed||study1UnifiedStoredDecode_(check)!==raw)
+    throw Error('B06寫後回讀失敗');
+  }catch(error){
+   try{
+    if(initial===null)props.deleteProperty(STUDY1_B06_TASK_KEY_);
+    else props.setProperty(STUDY1_B06_TASK_KEY_,initial);
+    if(props.getProperty(STUDY1_B06_TASK_KEY_)!==initial)
+     throw Error('B06原始資料未恢復');
+   }catch(recover){throw Error('B06資料寫入狀態不明；請由管理者核對');}
+   throw Error('B06儲存未完成，已恢復原資料：'+String(error.message||error));
+  }
+  return {...study1UnifiedView_(study1UnifiedRead_()),deduplicated:false};
+ }finally{lock.releaseLock();}
+}
+
 /**
  * Byte-verified one-page synthetic PDF. It is NOT an REC consent document.
  * The actual approved REC PDF bytes are absent and remain inaccessible.
@@ -658,6 +872,7 @@ function study1UnifiedView_(s){
   b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
   b04:JSON.parse(JSON.stringify(s.b04||{notes:{},history:[]})),
   b05:JSON.parse(JSON.stringify(s.b05||{closures:{},history:[]})),
+  b06:{...study1B06Read_(),formalPersistence:false},
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
    weeks:s.e2Weeks.map(w=>({...w})),plannedWeeks:s.e2Weeks.filter(w=>w.date!==null).length},
