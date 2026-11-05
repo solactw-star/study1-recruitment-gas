@@ -61,3 +61,13 @@ test('B01 clears previously rendered statistics when owner snapshot is rejected 
  assert.match(html,/if\(!safe\)\{b01Clear\('資料或安全設定未核實/);
  assert.match(html,/model\.open===false&&model\.consentReady===false/);
 });
+
+test('B01 counts only valid pending attendance and never labels application codes as people',()=>{
+ assert.match(html,/const unique=new Set\(applications\.map\(a=>a\.id\)\.filter\(id=>typeof id==='string'&&id\.length>0\)\)/);
+ assert.match(html,/申請代碼不代表獨立參與者/);
+ assert.match(html,/if\(a\.phase==='CANCELLED'\|\|!a\.slotId\)return false/);
+ assert.match(html,/if\(!slot\|\|model\.b02\.sessions\[slot\.id\]\?\.status==='CANCELLED'\)return false/);
+ assert.match(html,/return !attendance\|\|attendance\.attendance==='PENDING'/);
+ assert.match(html,/未完成人工待辦/);
+ assert.match(html,/正式研究目標與完成率：未核准，不計算/);
+});
