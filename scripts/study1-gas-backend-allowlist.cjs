@@ -177,7 +177,15 @@ function assertUnifiedFlow(source){
    "query.expectedRevision!==state.revision",
    "if(beforeBytes!==initialStored)",
    "if(prop.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==beforeBytes)",
-   "throw Error('資料寫入狀態不明且回復失敗" ])
+   "throw Error('資料寫入狀態不明且回復失敗",
+   "const STUDY1_B06_TASK_KEY_='STUDY1_B06_TASKS_V1'",
+   "function study1UnifiedB06Command(command)",
+   "function study1B06Apply_(state,command,source,now)",
+   "function study1B06Verify_(s)",
+   "props.setProperty(STUDY1_B06_TASK_KEY_,packed)",
+   "if(props.getProperty(STUDY1_B06_TASK_KEY_)!==initial)",
+   "study1UnifiedAssertOwner_();","study1SandboxBookingFlags_();",
+   "b06:{...study1B06Read_(),formalPersistence:false}" ])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -194,7 +202,9 @@ function assertUnifiedFlow(source){
   'study1UnifiedRecruitment_','study1UnifiedValidateRecruitment_',
   'study1UnifiedUtf8Bytes_','study1UnifiedStoredDecode_','study1UnifiedStoredEncode_',
   'study1UnifiedStoreReadiness_','study1UnifiedStoreHash_','study1UnifiedStoreInitial_',
-  'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_']);
+  'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
+  'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
+  'study1B06Read_','study1B06Apply_','study1UnifiedB06Command']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -246,6 +256,8 @@ function assertTeamHtml(html){
     !html.includes('id="modeE2"')||!html.includes('id="saveResearch"')||
     !html.includes('id="saveSlots"')||!html.includes('id="saveWeeks"')||
     !html.includes("save('ADMIN_RECRUITMENT'")||
+    !html.includes('id="b06Module"')||!html.includes('id="b06Form"')||
+    !html.includes('id="b06History"')||!html.includes('study1UnifiedB06Command(')||
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
     !html.includes('正式收件開關保持鎖定')||

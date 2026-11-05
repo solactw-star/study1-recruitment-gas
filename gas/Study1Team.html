@@ -143,14 +143,33 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b05PersonFields{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.b05Stats,.b05PersonFields{grid-template-columns:1fr}.b05Header{position:static}}
 
+
+/* B06 manual admin task manager in original owner-only team site */
+#b06Module{scroll-margin-top:24px}#b06Module [hidden]{display:none!important}
+.b06Tools{display:grid;grid-template-columns:1.5fr repeat(3,1fr);gap:10px}
+.b06Tools label,.b06Fields label{font-size:13px;font-weight:700}
+.b06Form{padding:16px;background:#f5faf8;border:1px solid var(--line);border-radius:12px;margin:16px 0}
+.b06Fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.b06Wide{grid-column:span 3}
+.b06Actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.b06Actions button{margin:3px 0;min-height:38px;padding:7px 12px;font-size:13px}
+.b06Items{display:grid;gap:10px;margin:14px 0}
+.b06Task{padding:14px;background:#fff;border:1px solid var(--line);border-radius:12px;overflow-wrap:anywhere}
+.b06Task p{margin:5px 0;font-size:13px;white-space:pre-wrap}
+.b06Tag{display:inline-block;background:#e2f0eb;padding:3px 9px;border-radius:16px;font-size:12px;margin:2px 6px 2px 0}
+.b06Audit{display:grid;gap:8px;max-height:350px;overflow:auto}
+.b06Event{border-left:3px solid #8fb7b1;background:#f6faf8;padding:9px;font-size:12px;white-space:pre-wrap}
+@media(max-width:900px){.b06Tools,.b06Fields{grid-template-columns:repeat(2,minmax(0,1fr))}.b06Wide{grid-column:span 2}}
+@media(max-width:550px){.b06Tools,.b06Fields{grid-template-columns:1fr}.b06Wide{grid-column:span 1}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
 <div class="warn"><strong>正式研究招募仍關閉</strong><p>這裡只管理虛構示範資料；變更「可體驗報名」不代表開放真人招募。實驗二預計 2027 年進行，2026 年不招募。REC 核准、研究團隊角色權限及正式個資服務仍須另行驗證。</p></div>
-<p id="status" role="status" aria-live="polite">正在核對研究團隊管理權限…</p><button class="secondary" id="refresh" type="button">重新載入設定</button></div>
+<p id="b06Overview" class="small" aria-live="polite">人工待辦：載入中…</p><p id="status" role="status" aria-live="polite">正在核對研究團隊管理權限…</p><button class="secondary" id="refresh" type="button">重新載入設定</button></div>
 
 <section class="panel" id="calendarModule" aria-labelledby="calHeading">
  <div class="calTop"><div><span class="tag">B02 · 隔離測試</span><h2 id="calHeading">整合式研究行事曆</h2>
@@ -361,6 +380,42 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div id="b03Board" hidden aria-label="參與者行政流程看板"></div>
  <p id="b03Empty" class="b03NoResults" hidden>目前沒有符合搜尋與篩選條件的參與者。</p>
  </section>
+
+<section class="panel" id="b06Module" aria-labelledby="b06Heading">
+ <span class="tag">B06｜人工行政待辦</span><h2 id="b06Heading">共用待辦管理</h2>
+ <p class="sub">所有事項由研究人員手動新增，不由其他模組自動產生。只分未完成／已完成；封存獨立紀錄，保留操作前後值。</p>
+ <div class="b06Tools">
+  <label for="b06Search">搜尋<input id="b06Search" type="search" placeholder="標題、備註或代碼"></label>
+  <label for="b06Status">完成狀態<select id="b06Status"><option value="ALL">全部</option><option value="OPEN">未完成</option><option value="DONE">已完成</option></select></label>
+  <label for="b06Archive">封存狀態<select id="b06Archive"><option value="ACTIVE">未封存</option><option value="ARCHIVED">已封存</option><option value="ALL">全部</option></select></label>
+  <label for="b06Scope">實驗<select id="b06Scope"><option value="ALL">全部</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+ </div>
+ <p id="b06Count" class="small" role="status" aria-live="polite">資料載入中…</p>
+ <form id="b06Form" class="b06Form">
+  <h3 id="b06FormHeading">手動新增待辦</h3>
+  <div class="b06Fields">
+   <label for="b06Title" class="b06Wide">事項名稱（必填）<input id="b06Title" type="text" maxlength="90" required placeholder="例如：確認場次行政文件"></label>
+   <label for="b06Description" class="b06Wide">備註（可選）<textarea id="b06Description" maxlength="350" placeholder="僅填必要虛構行政內容，不填真人個資"></textarea></label>
+   <label for="b06Assignee">負責人（可不指定）<select id="b06Assignee"><option value="">未指定</option><option value="PI">PI</option><option value="RA">RA</option></select></label>
+   <label for="b06DueDate">截止日期（可留空）<input id="b06DueDate" type="date"></label>
+   <label for="b06Experiment">實驗範圍<select id="b06Experiment"><option value="ALL">共通</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+   <label for="b06RelationType">關聯類型<select id="b06RelationType"><option value="NONE">無</option><option value="EXPERIMENT">實驗</option><option value="PARTICIPANT">參與者</option><option value="BOOKING">預約</option><option value="SESSION">場次</option></select></label>
+   <label for="b06RelationId" class="b06Wide">關聯紀錄<select id="b06RelationId"><option value="">不關聯</option></select></label>
+   <label for="b06Reason" class="b06Wide">人工操作原因（至少四字）<input id="b06Reason" maxlength="120" required value="人工建立行政事項"></label>
+  </div>
+  <div class="b06Actions"><button type="submit" id="b06Save">手動新增</button>
+   <button type="button" class="secondary" id="b06CancelEdit" hidden>取消編輯</button></div>
+ </form>
+ <div id="b06List" class="b06Items"></div>
+ <p id="b06Empty" class="small" hidden>目前沒有符合條件的待辦。</p>
+ <h3>操作歷程（含封存）</h3>
+ <div class="b06Actions"><button type="button" class="secondary" id="b06HistoryAll">顯示全部歷程</button>
+  <span id="b06HistoryScope" class="small">全部待辦</span></div>
+ <div id="b06History" class="b06Audit" aria-label="待辦更動前後值、原因及操作時間"></div>
+ <p id="b06Message" class="small" role="status" aria-live="polite"></p>
+ <p class="small">目前原 GAS owner 僅管理虛構資料；PI／RA正式帳號、真人個資及大量持久化資料庫尚待正式授權。封存不刪除紀錄、不自動寄信。</p>
+</section>
+
 <section class="panel" aria-labelledby="approvalHeading"><h2 id="approvalHeading">正式上線前需完成</h2>
 <div class="grid"><div><h3>倫理與文件</h3><p>兩實驗 REC 核准 PDF、研究人員簽署版本及電子簽署授權。</p></div>
 <div><h3>安全與服務</h3><p>正式身分驗證、研究團隊角色、預約資料庫、實際通知、保存與撤回政策。</p></div></div>
@@ -372,7 +427,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen','b06Save'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -415,7 +470,7 @@ function render(data){
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
  displaySlots();displayWeeks();calendarRender();profileRender();b05Render();
- b03Render();
+ b03Render();b06Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
@@ -1237,6 +1292,174 @@ function b05Closure(action){
  });
 }
 b05Init();
+
+/* B06: no automatic todo creation; all changes originate from manual controls. */
+const b06={editing:null,historyId:null};
+function b06Message(s,isError){
+ $('b06Message').textContent=s;
+ $('b06Message').style.color=isError?'#ac3530':'#476f68';
+}
+function b06Choices(preferred){
+ if(!model)return;
+ const kind=$('b06RelationType').value,exp=$('b06Experiment').value;
+ let choices=[['','不關聯']];
+ if(kind==='EXPERIMENT')choices=[['','請選擇實驗'],...['E1','E2']
+  .filter(x=>exp==='ALL'||x===exp).map(x=>[x,x==='E1'?'實驗一':'實驗二'])];
+ else if(kind==='PARTICIPANT'||kind==='BOOKING')
+  choices=[['','請選擇紀錄'],...model.applications
+   .filter(a=>(exp==='ALL'||exp===a.experiment)&&(kind!=='BOOKING'||a.slotId))
+   .map(a=>[a.id,a.id+'｜'+a.experiment+(kind==='BOOKING'?'｜'+a.slotId:'')])];
+ else if(kind==='SESSION')choices=[['','請選擇場次'],...model.slots
+  .filter(x=>exp==='ALL'||exp===x.experiment).map(x=>[x.id,x.id+'｜'+x.when])];
+ const box=$('b06RelationId');box.replaceChildren();
+ for(const [value,label] of choices){
+  const el=document.createElement('option');el.value=value;el.textContent=label;box.append(el);
+ }
+ box.value=choices.some(x=>x[0]===preferred)?preferred:'';
+}
+function b06Reset(){
+ b06.editing=null;$('b06FormHeading').textContent='手動新增待辦';
+ $('b06Save').textContent='手動新增';$('b06CancelEdit').hidden=true;
+ for(const id of ['b06Title','b06Description','b06Assignee','b06DueDate'])$(id).value='';
+ $('b06Experiment').value='ALL';$('b06RelationType').value='NONE';
+ $('b06Reason').value='人工建立行政事項';b06Choices('');
+}
+function b06FormValues(){
+ return {title:$('b06Title').value.trim(),description:$('b06Description').value.trim(),
+  assignee:$('b06Assignee').value,dueDate:$('b06DueDate').value,
+  experiment:$('b06Experiment').value,relationType:$('b06RelationType').value,
+  relationId:$('b06RelationId').value,reason:$('b06Reason').value.trim()};
+}
+function b06EditTask(t){
+ if(t.archived||busy)return;
+ b06.editing=t.id;$('b06FormHeading').textContent='編輯 '+t.id;
+ $('b06Save').textContent='儲存修改';$('b06CancelEdit').hidden=false;
+ for(const [k,v] of [['b06Title',t.title],['b06Description',t.description],
+  ['b06Assignee',t.assignee],['b06DueDate',t.dueDate],['b06Experiment',t.experiment],
+  ['b06RelationType',t.relationType]])$(k).value=v;
+ $('b06Reason').value='人工修正行政事項';b06Choices(t.relationId);
+ if($('b06Form').scrollIntoView)$('b06Form').scrollIntoView({block:'start'});
+}
+
+
+function b06Send(action,payload,done){
+ if(busy||!model||!model.b06){b06Message('待辦資料或權限尚未就緒。',true);return;}
+ const expectedRevision=model.b06.revision;
+ const requestId='REQ-SIM-B06_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ setBusy(true);b06Message('核對版號並儲存中…',false);
+ google.script.run.withSuccessHandler(answer=>{
+  if(render(answer)){
+   if(done)done();
+   b06Message('操作已儲存並回讀，歷程已更新。',false);
+  }
+ }).withFailureHandler(e=>{
+  setBusy(false);
+  b06Message('儲存未完成：'+String(e.message||e)+
+   '。原資料不會自動清除，請重新讀取後確認。',true);
+ }).study1UnifiedB06Command({action,payload,expectedRevision,requestId});
+}
+function b06Action(t,action){
+ if(busy)return;
+ const names={COMPLETE:'勾選完成',REOPEN:'重新開啟',ARCHIVE:'封存',RESTORE:'還原封存'};
+ if(!names[action])return;
+ if((action==='ARCHIVE'||action==='RESTORE')&&
+  !confirm('確認'+names[action]+'「'+t.title+'」？封存不刪除操作歷程。'))return;
+ const reasons={COMPLETE:'研究人員手動勾選完成',REOPEN:'研究人員手動重新開啟',
+  ARCHIVE:'研究人員手動封存事項',RESTORE:'研究人員手動還原封存'};
+ b06Send(action,{id:t.id,reason:reasons[action]});
+}
+function b06EventText(h){
+ const labels={CREATE:'手動建立',EDIT:'編輯',COMPLETE:'完成',REOPEN:'重新開啟',
+  ARCHIVE:'封存',RESTORE:'還原封存'};
+ const summary=t=>t?t.title+'｜'+(t.status==='OPEN'?'未完成':'已完成')+
+  (t.archived?'／封存':'')+'｜'+t.experiment+
+  '｜關聯 '+(t.relationId||'無')+'｜負責 '+(t.assignee||'未指定')+
+  '｜截止 '+(t.dueDate||'無'):'無';
+ return h.at+'｜'+(labels[h.action]||h.action)+'｜'+h.taskId+
+  '\n操作者：'+h.actor+'；原因：'+h.reason+
+  '\n原值：'+summary(h.before)+'\n新值：'+summary(h.after);
+}
+
+
+function b06Render(){
+ if(!model)return;
+ if(!model.b06||model.b06.formalPersistence!==false||
+   !Array.isArray(model.b06.tasks)||!Array.isArray(model.b06.audit)){
+  $('b06Overview').textContent='B06安全資料未就緒';
+  $('b06Save').disabled=true;b06Message('B06權限或資料格式無法核對，已停用操作。',true);
+  return;
+ }
+ const all=model.b06.tasks,unarchived=all.filter(t=>!t.archived),
+  opened=unarchived.filter(t=>t.status==='OPEN');
+ $('b06Overview').textContent='人工待辦：未完成 '+opened.length+
+  ' 件｜已完成 '+(unarchived.length-opened.length)+
+  ' 件｜已封存 '+(all.length-unarchived.length)+' 件';
+ const query=$('b06Search').value.trim().toLowerCase(),
+  status=$('b06Status').value||'ALL',archived=$('b06Archive').value||'ACTIVE',
+  exp=$('b06Scope').value||'ALL';
+ const visible=all.filter(t=>
+  (status==='ALL'||t.status===status)&&
+  (archived==='ALL'||(archived==='ARCHIVED'?t.archived:!t.archived))&&
+  (exp==='ALL'||t.experiment===exp||t.experiment==='ALL')&&
+  (!query||[t.id,t.title,t.description,t.relationId].join(' ').toLowerCase().includes(query))
+ ).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
+ $('b06Count').textContent='顯示 '+visible.length+'／共 '+all.length+
+  ' 件人工待辦｜待辦修訂版 '+model.b06.revision;
+ $('b06Empty').hidden=visible.length!==0;
+ const target=$('b06List');target.replaceChildren();
+ for(const t of visible){
+  const box=calElem('article',undefined,'b06Task');box.dataset.taskId=t.id;
+  box.append(calElem('strong',t.title+'｜'+t.id));
+  const tags=calElem('div');
+  for(const label of [t.status==='OPEN'?'未完成':'已完成',t.archived?'已封存':'使用中',
+    t.experiment,'負責：'+(t.assignee||'未指定'),'截止：'+(t.dueDate||'未指定')])
+   tags.append(calElem('span',label,'b06Tag'));
+  box.append(tags,calElem('p',t.description||'無補充說明'),
+   calElem('p','關聯：'+t.relationType+'／'+(t.relationId||'無'),'small'));
+  const actionBox=calElem('div',undefined,'b06Actions');
+  const add=(title,fn)=>{
+   const b=calElem('button',title,'secondary');b.type='button';b.disabled=busy;
+   b.addEventListener('click',fn);actionBox.append(b);
+  };
+  if(!t.archived){
+   add('編輯',()=>b06EditTask(t));
+   add(t.status==='OPEN'?'勾選完成':'重新開啟',
+     ()=>b06Action(t,t.status==='OPEN'?'COMPLETE':'REOPEN'));
+   add('封存',()=>b06Action(t,'ARCHIVE'));
+  }else add('還原封存',()=>b06Action(t,'RESTORE'));
+  add('查看歷程',()=>{b06.historyId=t.id;b06Render();
+   if($('b06History').scrollIntoView)$('b06History').scrollIntoView({block:'start'});});
+  box.append(actionBox);target.append(box);
+ }
+ const history=$('b06History');history.replaceChildren();
+ const events=model.b06.audit.filter(e=>!b06.historyId||e.taskId===b06.historyId);
+ $('b06HistoryScope').textContent=b06.historyId?'待辦 '+b06.historyId:'全部待辦';
+ for(const h of events.slice().reverse())history.append(calElem('div',b06EventText(h),'b06Event'));
+ if(!events.length)history.append(calElem('p','目前無可核實歷程。','small'));
+}
+
+
+function b06Init(){
+ for(const id of ['b06Status','b06Archive','b06Scope'])
+  $(id).addEventListener('change',b06Render);
+ $('b06Search').addEventListener('input',b06Render);
+ $('b06RelationType').addEventListener('change',()=>b06Choices(''));
+ $('b06Experiment').addEventListener('change',()=>b06Choices(''));
+ $('b06HistoryAll').addEventListener('click',()=>{b06.historyId=null;b06Render();});
+ $('b06CancelEdit').addEventListener('click',b06Reset);
+ $('b06Form').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(busy||!model||!model.b06)return;
+  const data=b06FormValues();
+  if(data.title.length<2||data.reason.length<4||/[<>]/.test(Object.values(data).join(' '))){
+   b06Message('名稱至少兩字，原因至少四字，不可填入HTML標記。',true);return;
+  }
+  const id=b06.editing;
+  b06Send(id?'EDIT':'CREATE',id?{id,data}:data,b06Reset);
+ });
+ b06Reset();
+}
+b06Init();
 
 $('refresh').addEventListener('click',load);load();
 })();
