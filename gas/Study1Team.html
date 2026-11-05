@@ -471,7 +471,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
+  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -488,13 +488,14 @@ function render(data){
  return true;
 }
 
+function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
  const safe=model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
   model.formalReadiness&&model.formalReadiness.activationAllowed===false&&
   Array.isArray(model.slots)&&Array.isArray(model.applications)&&model.b02&&
   model.b02.sessions&&model.b02.attendance&&model.b06&&Array.isArray(model.b06.tasks);
- if(!safe){$('b01Status').textContent='資料或安全設定未核實；不顯示統計。';return;}
+ if(!safe){b01Clear('資料或安全設定未核實；不顯示統計。');return;}
  const applications=model.applications,slots=model.slots;
  const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
  const today=new Date(Date.now()+28800000).toISOString().slice(0,10);
@@ -520,7 +521,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
