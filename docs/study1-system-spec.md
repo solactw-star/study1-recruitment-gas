@@ -353,3 +353,14 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：原 `Study1Unified` 仍為有限虛構資料與 ScriptProperties 保存機制，既有8筆時段／8筆申請及歷史上限不能作為正式營運容量，PI／RA正式權限、真人資料、有效同意、完整歷史與REC仍須按權責核准；缺 owner 瀏覽器時不能宣稱實際UI驗收。這些阻塞與安全門檻維持，但不阻止其他獲授權的正式系統功能建置。
 - `NEXT_ACTION`：既有每小時建置排程依最新 `main` 讀取規格第28、29節，優先改善共用持久化資料／可擴充容量與 B05場次施測執行、B06人工待辦或其餘符合既定P0/P1/P2依賴的模組；**每輪執行一個安全可完成的實質開發批次**，保留未受影響的B02、B04，不在使用者主動要求前提出人工UAT。
 - `WRITE_OWNER`：網站專責原GitHub／原GAS同步工作流程；`SYNC_STATUS`：第55版同ID同步已驗證，真人UI／正式啟用未驗證。
+
+## 三十、B05研究現場執行及B05-A行政結案（2026-11-05 接續點）
+
+- `TASK_DOMAIN=Study1 recruitment website`、`MODULE=B05/B05-A`，正式工作來源仍是私人 `solactw-star/study1-recruitment-gas/main`、原GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z` 及原 `/exec`。沒有建立第二套網站／部署。
+- `COMPLETED`：在既有 `gas/Study1Team.html` 中加入 B05 場次現場執行頁，可由 B02 行事曆場次與 B04 研究執行分頁進出，保留來源返回；顯示場次摘要、參與者、出席及施測統計，透過原 `ADMIN_B02_ATTEND` 分別儲存逐人出席／施測及行政備註，與 B02/B04 共用資料，不建立重複名單。B05-A 顯示未記錄出席／未完成施測之待處理數、交接欄、人工結案與重新開啟。未解事項須填交接才能結案，未開始場次不得提前結案，取消／已結案場次不得重複結案；重開須有原因，保留操作時間、OWNER、原狀態、新狀態及交接歷程。結案不代表研究完成，也不自動建立行政待辦／通知。
+- `SAFETY`：結案／取消場次的出席及施測更新由前後端雙重阻擋；若需更正，須先經授權重新開啟並留下歷程。正式實驗逐項作業、分數及原始資料在未核對最新有效 REC 程序前只顯示未授權接入，不擅自新增正式程序或填入假資料。未修改正式研究 Sheets、REC、RIF FAST/QC/MASTER。持續 `OPEN=false`、`CONSENT_READY=false`、原 `/exec` `MYSELF`、E2不自動招募。
+- `SOURCE_COMMIT=b95d171705a6578d5b876b5012fc33efcf042614`，PR #57 已合併main；涉及 `gas/Study1Unified.js`、`gas/Study1Team.html`、安全白名單及相關測試。最終 GitHub CI **479 PASS／0 FAIL**；GAS同ID自動同步 `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42031085979` 回讀 `SYNC_VERIFIED=true`、原 `/exec` **版本56**、SHA256 `f73b92363941c09e8271c2de4f03f7e0608dad2d745c8ba2a10e9a8801d138b7`、正式部署存取權限 `MYSELF` 保留。同步前 HEAD manifest 出現 `ANYONE_ANONYMOUS`，不可與有效版本化部署的 `MYSELF` 混淆。
+- `LAST_VERIFIED_STEP`：main來源、479項回歸測試及GAS同ID第56版部署回讀。`IMPLEMENTED=true`（B05行政介面及具體安全操作）；`GAS_SYNC_VERIFIED=true`；`SELF_UI_3PASS=NOT_VERIFIED`（owner權限的真正三輪瀏覽器操作未執行）；`USER_UAT_PASSED=NOT_YET`（依使用者決策延後，不停工）；`FORMAL_READY=false`。
+- `BLOCKERS`：現有 `Study1Unified` 仍使用有限的 ScriptProperties 合成資料，8筆場次、8筆申請、40筆請求及有限歷程為技術限制，**不是正式營運容量**。正式大量資料庫、PI／RA角色、完整稽核、核准施測清單、重新施測規則、本人同意與通知／補貼均須依 REC／資料權責進行授權核驗；不得因已完成行政 UI 認定可施測真人。
+- `NEXT_ACTION`：每小時續建排程先讀最新main與第28–30節，優先增量改善正式級持久化／可擴充容量、角色與行政稽核；可並行評估既有 P1/P2 依賴較低的 B06人工待辦及 V05–V08 參與者預約管理。依最重要安全可行工作交付，不等 B03／B04／B05 人工驗收，也不自行啟動正式研究。
+- `WRITE_OWNER`：網站正式Repository原程式路徑／原 GAS 安全同步工作流程；`SYNC_STATUS`：第56版同步已驗證，人工UI及REC正式啟用尚未驗證。
