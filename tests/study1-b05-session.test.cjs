@@ -80,7 +80,7 @@ test('B05 original team page has reachable session execution, status controls an
  assert.match(team,/b05Open\(slot\.id,'profile'\)/);
  assert.match(team,/b05Send\('ADMIN_B02_ATTEND'/);
  assert.match(team,/b05Send\('ADMIN_B05_CLOSURE'/);
- assert.match(team,/不會自動建立待辦/);
+ assert.match(team,/不自動建立待辦/);
  assert.doesNotMatch(team,/\.innerHTML\s*=|<iframe|<script[^>]+src=|\blocalStorage\b|\bfetch\s*\(/i);
  const script=[...team.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)];
  assert.equal(script.length,1);
