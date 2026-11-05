@@ -163,9 +163,10 @@ function page(server,kind){
 const closed=server=>{
  assert.equal(server.store.get('OPEN'),'false');
  assert.equal(server.store.get('CONSENT_READY'),'false');
- assert.deepEqual([...server.store.keys()].sort(),
-   server.store.has('STUDY1_UNIFIED_FIXTURE_V1')?
-    ['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']:['CONSENT_READY','OPEN']);
+ const expected=['CONSENT_READY','OPEN'];
+ if(server.store.has('STUDY1_UNIFIED_FIXTURE_V1'))expected.push('STUDY1_UNIFIED_FIXTURE_V1');
+ if(server.store.has('STUDY1_B06_TASKS_V1'))expected.push('STUDY1_B06_TASKS_V1');
+ assert.deepEqual([...server.store.keys()].sort(),expected.sort());
  assert.equal(server.held,false);
  const view=server.read();
  assert.equal(view.open,false);assert.equal(view.consentReady,false);
@@ -454,5 +455,60 @@ test('B05 is reachable from existing calendar, shows original session and return
  team.click('b05Back');
  assert.equal(team.get('b05Module').hidden,true);
  assert.equal(srv.writes,before,'open and return must not write research data');
+ closed(srv);
+});
+
+
+test('B06 original team GUI manually creates, completes, reopens, edits, archives and restores after reload',()=>{
+ const srv=server(),before=srv.writes;
+ const team=page(srv,'team');
+ assert.match(team.get('b06Overview').textContent,/未完成 0/);
+ assert.equal(srv.store.has('STUDY1_B06_TASKS_V1'),false,'GET does not write fixture');
+ team.set('b06Title','人工整理虛構文件');
+ team.set('b06Description','研究行政手動測試，不輸入真人資訊');
+ team.set('b06Reason','人工建立行政事項');
+ team.get('b06Form').handlers.submit({preventDefault(){}});
+ assert.equal(team.failures.length,0);
+ assert.ok(team.calls.includes('B06_CREATE'));
+ let tasks=srv.read().b06.tasks;
+ assert.equal(tasks.length,1);assert.equal(tasks[0].title,'人工整理虛構文件');
+ assert.equal(tasks[0].status,'OPEN');
+ assert.match(team.get('b06Overview').textContent,/未完成 1/);
+ assert.equal(team.get('b06List').children.length,1);
+ const actions=()=>team.get('b06List').children[0].children
+   .find(el=>el.className==='b06Actions').children;
+ const clickAction=label=>{
+  const b=actions().find(x=>x.textContent===label);
+  assert.ok(b,'B06 action missing '+label);
+  b.handlers.click();
+ };
+ clickAction('勾選完成');
+ assert.equal(srv.read().b06.tasks[0].status,'DONE');
+ clickAction('重新開啟');
+ assert.equal(srv.read().b06.tasks[0].status,'OPEN');
+ clickAction('編輯');
+ assert.equal(team.get('b06FormHeading').textContent,'編輯 SIM-TASK-000001');
+ team.set('b06Title','更新後的虛構文件');
+ team.set('b06Reason','研究助理修正欄位');
+ team.get('b06Form').handlers.submit({preventDefault(){}});
+ assert.equal(srv.read().b06.tasks[0].title,'更新後的虛構文件');
+ clickAction('封存');
+ assert.equal(srv.read().b06.tasks[0].archived,true);
+ assert.equal(team.get('b06List').children.length,0,'archive hidden in active filter');
+ team.set('b06Archive','ARCHIVED');team.change('b06Archive');
+ assert.equal(team.get('b06List').children.length,1);
+ clickAction('還原封存');
+ assert.equal(srv.read().b06.tasks[0].archived,false);
+ assert.equal(team.get('b06List').children.length,0,'restored item hidden from archived-only filter');
+ team.set('b06Archive','ACTIVE');team.change('b06Archive');
+ clickAction('查看歷程');
+ assert.equal(team.get('b06History').children.length,6);
+ assert.match(team.get('b06History').children[0].textContent,/還原封存/);
+ const reloaded=page(srv,'team');
+ assert.equal(reloaded.get('b06List').children.length,1);
+ assert.match(reloaded.get('b06List').children[0].children[0].textContent,/更新後的虛構文件/);
+ assert.equal(reloaded.get('b06Overview').textContent.includes('未完成 1'),true);
+ assert.ok(srv.writes>=before+6);
+ assert.equal(srv.read().revision,0,'B06 never changes old B02-B05 shared revision');
  closed(srv);
 });
