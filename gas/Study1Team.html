@@ -56,10 +56,47 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:900px){.calTools{grid-template-columns:repeat(3,minmax(0,1fr))}.calFrame,.calFrame.detail{grid-template-columns:1fr}.calAside{position:static}}
 @media(max-width:640px){.calTools{grid-template-columns:repeat(2,minmax(0,1fr))}.calDays{display:block}.calDay{border:0;border-bottom:1px solid var(--line);min-height:60px}.calDay:last-child{border-bottom:0}.calFrame.detail #calAside{position:fixed;inset:0;z-index:20;border-radius:0;overflow:auto;padding:20px;max-height:100dvh}.calInfo{grid-template-columns:1fr}}
 
+
+/* B04 full participant profile inside the SAME official Study1 team site. */
+#teamMain.b04Open>:not(#profileModule){display:none!important}
+#profileModule[hidden],#profileModule [hidden]{display:none!important}
+#profileModule{min-height:75vh;scroll-margin-top:12px}
+.b04Header{position:sticky;top:0;z-index:4;background:#fff;border:1px solid var(--line);
+ border-radius:14px;padding:14px;margin-bottom:14px;box-shadow:0 3px 12px #203b4717}
+.b04HeaderActions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.b04HeaderActions button{margin:0}
+.b04Summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:12px 0}
+.b04Summary .calLine{font-size:14px;white-space:normal;overflow-wrap:anywhere}
+.b04Layout{display:grid;grid-template-columns:minmax(0,1fr) 270px;gap:14px;align-items:start}
+.b04Tabs{display:flex;gap:6px;overflow-x:auto;padding:5px 1px 12px;scrollbar-width:thin}
+.b04Tabs button{min-width:max-content;margin:0;padding:8px 11px;font-size:13px}
+.b04Tabs button[aria-selected="true"]{background:#194d5b;color:#fff}
+.b04TabBody{background:#fff;border:1px solid var(--line);border-radius:13px;padding:20px;min-height:270px}
+.b04Fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.b04Field{border:1px solid var(--line);background:#f9fcfb;border-radius:10px;padding:12px;
+ overflow-wrap:anywhere;font-size:14px}
+.b04Field strong{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+.b04Timeline{border:1px solid var(--line);background:#f8fbfa;border-radius:13px;
+ padding:15px;max-height:64vh;overflow:auto}
+.b04Event{padding:10px 0 10px 15px;border-left:2px solid #98c0b9;position:relative;
+ font-size:12px;overflow-wrap:anywhere}
+.b04Event:before{content:'';position:absolute;left:-5px;top:14px;width:8px;height:8px;
+ border-radius:50%;background:#387b77}
+.b04Event strong{display:block;font-size:13px}
+.b04Event span{display:block;color:var(--muted);white-space:pre-line}
+.b04Warning{background:#fff7e9;border:1px solid #dfc99e;border-radius:10px;padding:12px;
+ font-size:13px;line-height:1.6}
+#profileNoteForm{padding-top:12px}#profileNoteForm textarea{min-height:100px}
+#profileSaveNote{width:auto}
+@media(max-width:870px){.b04Layout{grid-template-columns:1fr}.b04Timeline{max-height:340px}
+ .b04Summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.b04Fields,.b04Summary{grid-template-columns:1fr}
+ .b04Header{position:static}.b04TabBody{padding:12px}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
 <div><a href="#calendarModule">研究行事曆</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
-<main class="shell">
+<main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
 <div class="warn"><strong>正式研究招募仍關閉</strong><p>這裡只管理虛構示範資料；變更「可體驗報名」不代表開放真人招募。實驗二預計 2027 年進行，2026 年不招募。REC 核准、研究團隊角色權限及正式個資服務仍須另行驗證。</p></div>
@@ -97,7 +134,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
     <label class="label" for="calProgress">施測狀態（與出席獨立）</label>
     <select id="calProgress"><option value="NOT_STARTED">未開始</option><option value="IN_PROGRESS">進行中</option><option value="PARTIAL">部分完成</option><option value="COMPLETE">已完成</option></select>
     <label class="label" for="calNote">本次虛構行政備註</label><textarea id="calNote" maxlength="80"></textarea>
-    <div class="calAction"><button type="button" id="calSavePerson">儲存出席與施測</button></div>
+    <div class="calAction"><button type="button" id="calSavePerson">儲存出席與施測</button>
+    <button type="button" class="secondary" id="calFullProfile">查看完整資料（B04）</button></div>
     <p class="calWarning">不自動推定缺席者可重新施測；不可覆寫原始研究資料。</p>
    </div>
    <form id="calForm" hidden>
@@ -117,6 +155,48 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   </aside>
  </div>
  <p id="calStatusMessage" role="status" aria-live="polite" class="small">目前僅供獲授權的擁有者操作虛構資料。</p>
+</section>
+
+
+<section class="panel" id="profileModule" aria-labelledby="profileHeading" hidden>
+ <div class="b04Header">
+  <div class="b04HeaderActions">
+   <button type="button" class="secondary" id="profileBack">〈 返回原畫面</button>
+   <button type="button" class="secondary" id="profileCalendar">查看預約場次</button>
+   <span class="tag">B04｜參與者完整資料</span>
+  </div>
+  <h2 id="profileHeading">參與者完整資料</h2>
+  <p class="small">研究管理的正式介面，未啟用正式真人資料。只顯示已存在的虛構紀錄；REC未核准的資料不推定完成。</p>
+  <div class="b04Summary" id="profileSummary" aria-label="參與者固定摘要"></div>
+ </div>
+ <nav class="b04Tabs" id="profileTabs" aria-label="B04資料分頁">
+  <button class="secondary" type="button" data-b04-tab="basic" role="tab" aria-selected="true">基本與聯絡</button>
+  <button class="secondary" type="button" data-b04-tab="eligibility" role="tab">報名資格</button>
+  <button class="secondary" type="button" data-b04-tab="booking" role="tab">預約出席</button>
+  <button class="secondary" type="button" data-b04-tab="research" role="tab">研究執行</button>
+  <button class="secondary" type="button" data-b04-tab="consent" role="tab">電子同意</button>
+  <button class="secondary" type="button" data-b04-tab="notification" role="tab">通知文件</button>
+  <button class="secondary" type="button" data-b04-tab="admin" role="tab">行政紀錄</button>
+  <button class="secondary" type="button" data-b04-tab="audit" role="tab">操作歷程</button>
+ </nav>
+ <div class="b04Layout">
+  <div>
+   <div class="b04TabBody" id="profileTabBody" role="tabpanel" tabindex="0" aria-live="polite"></div>
+   <form id="profileNoteForm" hidden>
+    <label class="label" for="profileNote">本次行政備註（可更正）</label>
+    <textarea id="profileNote" maxlength="180" placeholder="只記錄必要的虛構行政資料，不輸入姓名、電話或敏感資料。"></textarea>
+    <label class="label" for="profileReason">更正原因（必填至少4字）</label>
+    <input type="text" id="profileReason" maxlength="120" minlength="4" required placeholder="例如：修正先前輸入錯誤">
+    <div class="calAction"><button type="submit" id="profileSaveNote" disabled>儲存更正並保留前後值</button></div>
+   </form>
+   <p id="profileMessage" role="status" aria-live="polite" class="small"></p>
+  </div>
+  <aside class="b04Timeline" aria-label="參與者研究與操作時間軸">
+   <h3>研究與操作時間軸</h3>
+   <p class="calMini">僅顯示來源可核實的時間；舊資料未記錄時間者不會自行填補。</p>
+   <div id="profileTimeline"></div>
+  </aside>
+ </div>
 </section>
 
 <section class="panel" aria-labelledby="expHeading"><h2 id="expHeading">各實驗的顯示與報名狀態</h2>
