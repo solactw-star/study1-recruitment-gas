@@ -66,6 +66,7 @@ function server({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open
 function element(id='',tagName='div'){
  return {id,tagName,dataset:{},handlers:{},children:[],value:'',textContent:'',className:'',
   checked:false,disabled:false,hidden:false,href:'',type:'',attributes:{},
+  style:{setProperty(){}},classList:{toggle(){},add(){},remove(){}},focus(){},scrollTop:0,
   addEventListener(type,handler){this.handlers[type]=handler;},
   setAttribute(name,value){this.attributes[name]=value;},
   append(...els){for(const e of els)this.appendChild(e);},
@@ -106,7 +107,7 @@ function documentFor(html,kind){
   throw Error('Unmocked querySelectorAll '+selector);
  };
  return {ids,get,doc:{getElementById:get,createElement:tag=>element('',tag),
-  querySelectorAll:query}};
+  querySelectorAll:query,addEventListener(){}}};
 }
 function page(server,kind){
  const html=kind==='team'?teamHtml:demoHtml;
@@ -301,4 +302,26 @@ test('Malformed visitor action success stops the synthetic flow and never enable
  assert.equal(visitor.get('chooseE2').disabled,true);
  assert.equal(s.writes,before);
  closed(s);
+});
+
+
+test('B02 team GUI creates and persists a synthetic session through the shared RPC, then reloads it',()=>{
+ const srv=server(),team=page(srv,'team');
+ team.click('calNew');
+ team.set('calEditTitle','模擬完整行事曆測試');
+ team.set('calEditWhen','2028-02-21T10:00');
+ team.set('calEditCapacity','3');
+ team.set('calEditMinutes','90');
+ team.set('calEditPlace','虛構研究教室');
+ team.set('calRepeat','1');
+ const form=team.get('calForm');
+ assert.equal(typeof form.handlers.submit,'function');
+ form.handlers.submit({preventDefault(){}});
+ assert.ok(team.calls.includes('ADMIN_B02_SLOT'));
+ assert.equal(srv.read().slots.some(s=>s.when==='2028-02-21 10:00'&&s.capacity===3),true);
+ assert.equal(srv.read().b02.history.at(-1).action,'CREATE');
+ const reload=page(srv,'team');
+ assert.equal(reload.get('calDescription').textContent.includes('個符合條件的虛構場次'),true);
+ assert.equal(srv.read().open,false);
+ assert.equal(srv.read().consentReady,false);
 });

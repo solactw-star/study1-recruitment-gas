@@ -283,7 +283,8 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-01-06 14:00',capacity:2},
    {id:'SIM-SLOT-E2-A',experiment:'E2',when:'2027-01-07 10:00',capacity:2},
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
-  ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[]};
+  ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[],
+   b02:{sessions:{},attendance:{},history:[]}};
 }
 function study1UnifiedAssertOwner_(){
  study1AdminOwnerRequired_();
@@ -297,6 +298,7 @@ function study1UnifiedRead_(){
  if(s&&!s.research)s.research=study1UnifiedResearch_(); // legacy owner-only fixture, no write on read
  if(s&&!s.recruitment)s.recruitment=study1UnifiedRecruitment_(); // non-writing TEST migration
  if(s&&!s.e2Weeks)s.e2Weeks=study1UnifiedE2Weeks_(); // read-only fixture migration
+ if(s&&!s.b02)s.b02={sessions:{},attendance:{},history:[]}; // non-writing TEST migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -319,6 +321,31 @@ function study1UnifiedRead_(){
  study1UnifiedValidateResearch_(s.research);
  study1UnifiedValidateRecruitment_(s.recruitment);
  study1UnifiedValidateSlots_(s.slots);
+ if(!s.b02||typeof s.b02!=='object'||Array.isArray(s.b02)||
+    Object.keys(s.b02).sort().join(',')!=='attendance,history,sessions'||
+    !s.b02.sessions||!s.b02.attendance||!Array.isArray(s.b02.history)||
+    s.b02.history.length>12)throw Error('行事曆隔離資料格式異常');
+ for(const [id,m] of Object.entries(s.b02.sessions)){
+   if(!/^SIM-SLOT-E[12]-[A-Z]$/.test(id)||!m||
+      Object.keys(m).sort().join(',')!=='group,minutes,place,status,title'||
+      typeof m.title!=='string'||m.title.length>36||/[<>]/.test(m.title)||
+      typeof m.place!=='string'||m.place.length>48||/[<>]/.test(m.place)||
+      !Number.isSafeInteger(m.minutes)||m.minutes<15||m.minutes>480||
+      !['OPEN','CANCELLED','CLOSED'].includes(m.status)||
+      typeof m.group!=='string'||m.group.length>32)
+     throw Error('行事曆場次元資料不合法');
+ }
+ for(const [id,a] of Object.entries(s.b02.attendance)){
+   if(!/^SIM-[0-9]{3}$/.test(id)||!a||
+      Object.keys(a).sort().join(',')!=='attendance,note,progress'||
+      !['PENDING','PRESENT','LATE','ABSENT'].includes(a.attendance)||
+      !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(a.progress)||
+      typeof a.note!=='string'||a.note.length>80||/[<>]/.test(a.note))
+     throw Error('虛構出席／施測資料不合法');
+ }
+ if(s.b02.history.some(h=>!h||typeof h.at!=='string'||typeof h.action!=='string'||
+      !Array.isArray(h.ids)||h.ids.length>8||h.ids.some(x=>typeof x!=='string')))
+   throw Error('行事曆操作歷程不合法');
  study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
   if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
@@ -448,12 +475,15 @@ function study1UnifiedView_(s){
   policy:s.policy,audit:study1UnifiedAudit_(s),
   pdfFixture:study1UnifiedPdfFixture_(),governance:study1UnifiedGovernance_(s),
   formalReadiness:study1UnifiedFormalReadiness_(s),formalPorts:study1UnifiedFormalPorts_(),
+  b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
    weeks:s.e2Weeks.map(w=>({...w})),plannedWeeks:s.e2Weeks.filter(w=>w.date!==null).length},
   slots:s.slots.map(slot=>{
    const bookable=Date.parse(slot.when.replace(' ','T')+':00+08:00')>now;
-   return {...slot,bookable,remaining:bookable?
+   const b02Status=s.b02&&s.b02.sessions[slot.id]&&s.b02.sessions[slot.id].status;
+   return {...slot,bookable:bookable&&b02Status!=='CANCELLED'&&b02Status!=='CLOSED',
+     remaining:bookable&&b02Status!=='CANCELLED'&&b02Status!=='CLOSED'?
     (available.get(slot.id)||0):0};}),
   applications:s.applications.map(a=>({id:a.id,experiment:a.experiment,phase:a.phase,eligible:a.eligible,
    screeningVersion:a.screeningVersion||null,screeningSource:a.screeningSource||null,
@@ -473,7 +503,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -496,6 +526,90 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     consentVersion:null,consentSha256:null,consentReviewedAt:null,
     consentReviewedVersion:null,consentReviewedSha256:null,
     pdfDemoReviewedAt:null,pdfDemoSha256:null,signatureDemo:false});return;
+ }
+
+ if(action==='ADMIN_B02_SLOT'){
+  const keys='capacity,experiment,minutes,operation,place,repeatCount,scope,slotId,title,when';
+  if(Object.keys(p).sort().join(',')!==keys||
+    !['CREATE','UPDATE','CANCEL'].includes(p.operation)||!['E1','E2'].includes(p.experiment)||
+    typeof p.title!=='string'||p.title.trim().length<2||p.title.length>36||/[<>]/.test(p.title)||
+    typeof p.place!=='string'||p.place.length>48||/[<>]/.test(p.place)||
+    !Number.isSafeInteger(p.capacity)||p.capacity<1||p.capacity>20||
+    !Number.isSafeInteger(p.minutes)||p.minutes<15||p.minutes>480||
+    !Number.isSafeInteger(p.repeatCount)||p.repeatCount<1||p.repeatCount>4||
+    !['ONE','FUTURE','SERIES'].includes(p.scope)||
+    typeof p.when!=='string'||!/^20\d\d-(0[1-9]|1[0-2])-([0-2]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/.test(p.when))
+   throw Error('隔離場次欄位不合法');
+  const parse=w=>Date.parse(w.replace(' ','T')+':00+08:00');
+  const date=parse(p.when);
+  if(!Number.isFinite(date)||new Date(date+28800000).toISOString().slice(0,16)!==p.when.replace(' ','T')||
+     (p.operation!=='CANCEL'&&date<=now))
+   throw Error('場次日期無效或已經過期');
+  const meta=s.b02.sessions,existing=s.slots.find(z=>z.id===p.slotId);
+  let ids=[];
+  if(p.operation==='CREATE'){
+   if(p.slotId!==''||p.scope!=='ONE'||s.slots.length+p.repeatCount>8)
+    throw Error('測試最多八個時段，新增不得指定舊時段ID');
+   const available='ABCDEFGH'.split('').map(x=>'SIM-SLOT-'+p.experiment+'-'+x)
+    .filter(id=>!s.slots.some(z=>z.id===id));
+   if(available.length<p.repeatCount)throw Error('可用時段編號不足');
+   const group=p.repeatCount>1?'SIM-G-'+String(now).slice(-10):'';
+   for(let i=0;i<p.repeatCount;i++){
+    const id=available[i],when=new Date(date+i*7*86400000+28800000).toISOString().slice(0,16).replace('T',' ');
+    s.slots.push({id,experiment:p.experiment,when,capacity:p.capacity});
+    meta[id]={title:p.title,place:p.place,minutes:p.minutes,status:'OPEN',group};ids.push(id);
+   }
+  }else{
+   if(!existing||existing.experiment!==p.experiment)throw Error('場次不存在或實驗別不一致');
+   const group=meta[p.slotId]?.group||'';
+   ids=(p.scope==='ONE'||!group)?[p.slotId]:s.slots.filter(z=>
+    z.experiment===p.experiment&&meta[z.id]?.group===group&&
+    (p.scope==='SERIES'||parse(z.when)>=parse(existing.when))).map(z=>z.id);
+   if(p.operation==='UPDATE'){
+    if(p.scope!=='ONE'&&p.when!==existing.when)throw Error('批次操作不得移動歷史預約時間');
+    for(const id of ids){
+     const slot=s.slots.find(z=>z.id===id),oldMeta=meta[id];
+     if(oldMeta?.status==='CANCELLED')throw Error('已取消場次不能直接再開放');
+     if(study1UnifiedCapacity_(s,id,now)>p.capacity)throw Error('新容量低於已占用名額');
+     if(id===p.slotId&&slot.when!==p.when&&s.applications.some(a=>a.slotId===id))
+      throw Error('已有預約歷史，須先逐人處理，禁止靜默改期');
+     if(id===p.slotId)slot.when=p.when;
+     slot.capacity=p.capacity;
+     meta[id]={title:p.title,place:p.place,minutes:p.minutes,status:oldMeta?.status||'OPEN',group};
+    }
+   }else{
+    for(const id of ids){
+     const oldMeta=meta[id];
+     if(oldMeta?.status==='CLOSED')throw Error('已結案場次不可取消');
+     meta[id]={title:oldMeta?.title||p.title,place:oldMeta?.place||p.place,
+      minutes:oldMeta?.minutes||p.minutes,status:'CANCELLED',group};
+    }
+   }
+  }
+  study1UnifiedValidateSlots_(s.slots);
+  // One shared TEST calendar must not create overlapping sessions in the same experiment.
+  for(const a of s.slots){
+   if(s.b02.sessions[a.id]?.status==='CANCELLED')continue;
+   const aStart=parse(a.when),aEnd=aStart+(s.b02.sessions[a.id]?.minutes||120)*60000;
+   for(const b of s.slots){
+    if(a.id===b.id||a.experiment!==b.experiment||s.b02.sessions[b.id]?.status==='CANCELLED')continue;
+    const bStart=parse(b.when),bEnd=bStart+(s.b02.sessions[b.id]?.minutes||120)*60000;
+    if(aStart<bEnd&&bStart<aEnd)throw Error('同一實驗存在重疊場次：'+a.id+'／'+b.id);
+   }
+  }
+  s.b02.history.push({at:new Date(now).toISOString(),action:p.operation,ids});
+  s.b02.history=s.b02.history.slice(-12);return;
+ }
+ if(action==='ADMIN_B02_ATTEND'){
+  if(Object.keys(p).sort().join(',')!=='attendance,id,note,progress'||
+   !/^SIM-[0-9]{3}$/.test(p.id)||!s.applications.some(a=>a.id===p.id&&a.slotId)||
+   !['PENDING','PRESENT','LATE','ABSENT'].includes(p.attendance)||
+   !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(p.progress)||
+   typeof p.note!=='string'||p.note.length>80||/[<>]/.test(p.note))
+   throw Error('只能更新有預約關聯的虛構參與者');
+  s.b02.attendance[p.id]={attendance:p.attendance,progress:p.progress,note:p.note};
+  s.b02.history.push({at:new Date(now).toISOString(),action:'ATTEND',ids:[p.id]});
+  s.b02.history=s.b02.history.slice(-12);return;
  }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
@@ -545,6 +659,24 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     throw Error('已有歷史預約的時段不得刪除或變更日期／實驗');
    if(next&&study1UnifiedCapacity_(s,old.id,now)>next.capacity)
     throw Error('測試容量低於有效預約數');
+  }
+  // Legacy slot editor and B02 graphical calendar must not silently diverge.
+  // Preserve all B02-managed slot IDs and prevent overlaps with their effective durations.
+  for(const old of s.slots){
+   if(s.b02.sessions[old.id]&&!p.slots.some(x=>x.id===old.id))
+    throw Error('已有B02場次資料，不能從舊版時段編輯器直接移除；請用行事曆處理');
+  }
+  for(const a of p.slots){
+   const startA=Date.parse(a.when.replace(' ','T')+':00+08:00');
+   const endA=startA+(s.b02.sessions[a.id]?.minutes||120)*60000;
+   if(s.b02.sessions[a.id]?.status==='CANCELLED')continue;
+   for(const other of p.slots){
+    if(a.id===other.id||a.experiment!==other.experiment||
+       s.b02.sessions[other.id]?.status==='CANCELLED')continue;
+    const startB=Date.parse(other.when.replace(' ','T')+':00+08:00');
+    const endB=startB+(s.b02.sessions[other.id]?.minutes||120)*60000;
+    if(startA<endB&&startB<endA)throw Error('舊版時段設定會造成同實驗場次重疊');
+   }
   }
   s.slots=p.slots.map(x=>({id:x.id,experiment:x.experiment,when:x.when,capacity:x.capacity}));return;
  }
@@ -611,6 +743,7 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
   if(!slot||(slot.id===a.slotId&&!expiredHold)||
      Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
+     ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
      !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0)))
     throw Error('測試時段不存在、重複、已開始或已額滿');
   if(action==='HOLD')study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock);
@@ -656,7 +789,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   a.phase='CONSENTED';a.consentVersion=p.version;a.signatureDemo=true;return;
  }
  if(action==='CONFIRM'){
-  if(a.phase!=='CONSENTED'||a.holdUntil<=now||Object.keys(p).join(',')!=='id')
+  if(a.phase!=='CONSENTED'||a.holdUntil<=now||
+     ['CANCELLED','CLOSED'].includes(s.b02.sessions[a.slotId]?.status)||
+     Object.keys(p).join(',')!=='id')
     throw Error('簽署測試或暫留期限未確認');
   a.phase='CONFIRMED';a.holdUntil=null;
   study1UnifiedNotify_(s,a,'CONFIRM');return;

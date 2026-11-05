@@ -28,14 +28,97 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .entry{background:#f3f8f6;padding:14px 16px;border-radius:12px;border:1px solid var(--line)}
 :focus-visible{outline:3px solid #a57833;outline-offset:3px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}.gridtable{grid-template-columns:1fr 1fr}.week{grid-template-columns:1fr}.shell,nav{padding:16px}}
+
+/* B02 integrated management module: same owner-only TEST site, no external data. */
+#calendarModule{scroll-margin-top:24px}#calendarModule [hidden]{display:none!important}
+.calTop{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.calTools{display:grid;grid-template-columns:auto auto auto minmax(145px,1fr) minmax(105px,1fr) minmax(120px,1fr) auto;gap:8px;align-items:end}
+.calTools label{font-size:13px;font-weight:750}.calTools input,.calTools select{padding:9px;min-height:44px}
+.calTools button,.calAction button{margin:0;padding:9px 12px}
+.calFrame{display:grid;grid-template-columns:minmax(0,1fr) minmax(290px,350px);gap:14px;margin-top:14px;align-items:start}
+.calFrame:not(.detail){grid-template-columns:1fr}.calFrame:not(.detail) #calAside{display:none}
+.calDays{display:grid;grid-template-columns:repeat(var(--day-count,7),minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.calDay{border-right:1px solid var(--line);min-height:175px;min-width:0;padding:8px;display:flex;flex-direction:column;gap:8px}
+.calDay:last-child{border-right:0}.calDay>strong{font-size:13px}.calEmpty{font-size:12px;color:var(--muted)}
+.calCard,.calAdd{display:block;text-align:left;padding:8px;width:100%;font-size:12px;line-height:1.5;min-height:35px;margin:0;border-radius:8px}
+.calCard{background:#e9f4f1;color:var(--ink);border:1px solid #b6d2cf}
+.calCard[aria-pressed="true"]{outline:3px solid #215e6b}
+.calCard[disabled]{opacity:.7}.calAdd{background:#f7faf9;border:1px dashed #91b5b0;color:#23655d}
+.calAside{border:1px solid #bdd3d0;background:#fcfefd;border-radius:13px;padding:16px;position:sticky;top:12px}
+.calAside input,.calAside select,.calAside textarea{padding:8px;min-height:42px}
+.calAside h3{margin:8px 0}.calAction{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.calInfo{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0}
+.calLine{padding:8px;background:#f0f7f5;border-radius:9px;font-size:13px}
+.calPeople{display:grid;gap:7px;margin-top:10px}.calPerson{background:#e9f4f1;color:#163341;border:1px solid #bed7d2;text-align:left;margin:0;font-size:13px;padding:9px}
+.calWarning{padding:10px;border:1px solid #d9be86;border-radius:8px;background:#fff6e9;color:#634b23;font-size:13px;white-space:pre-wrap}
+.calDanger{color:#ab302e!important;background:#fdf0ee!important;border:1px solid #e8bbb5!important}
+.calMini{font-size:12px;color:var(--muted);line-height:1.5}.calAside .label{margin:6px 0 3px}
+@media(max-width:900px){.calTools{grid-template-columns:repeat(3,minmax(0,1fr))}.calFrame,.calFrame.detail{grid-template-columns:1fr}.calAside{position:static}}
+@media(max-width:640px){.calTools{grid-template-columns:repeat(2,minmax(0,1fr))}.calDays{display:block}.calDay{border:0;border-bottom:1px solid var(--line);min-height:60px}.calDay:last-child{border-bottom:0}.calFrame.detail #calAside{position:fixed;inset:0;z-index:20;border-radius:0;overflow:auto;padding:20px;max-height:100dvh}.calInfo{grid-template-columns:1fr}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#calendarModule">研究行事曆</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
 <div class="warn"><strong>正式研究招募仍關閉</strong><p>這裡只管理虛構示範資料；變更「可體驗報名」不代表開放真人招募。實驗二預計 2027 年進行，2026 年不招募。REC 核准、研究團隊角色權限及正式個資服務仍須另行驗證。</p></div>
 <p id="status" role="status" aria-live="polite">正在核對研究團隊管理權限…</p><button class="secondary" id="refresh" type="button">重新載入設定</button></div>
+
+<section class="panel" id="calendarModule" aria-labelledby="calHeading">
+ <div class="calTop"><div><span class="tag">B02 · 隔離測試</span><h2 id="calHeading">整合式研究行事曆</h2>
+ <p class="sub">日／週／月、場次及參與者快速面板。僅虛構資料，與本頁示範時段共用資料來源。</p></div>
+ <button type="button" class="secondary" id="calNew" disabled>＋新增測試場次</button></div>
+ <div class="calTools">
+  <button type="button" class="secondary" id="calPrev" aria-label="前一期" disabled>〈</button>
+  <button type="button" class="secondary" id="calToday" disabled>今天</button>
+  <button type="button" class="secondary" id="calNext" aria-label="後一期" disabled>〉</button>
+  <label for="calDate">日期<input id="calDate" type="date"></label>
+  <label for="calView">檢視<select id="calView"><option value="week">週</option><option value="day">日</option><option value="month">月</option></select></label>
+  <label for="calExperiment">實驗範圍<select id="calExperiment"><option value="ALL">兩者</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <button type="button" class="secondary" id="calFirst">第一個時段</button>
+ </div>
+ <div class="calTools" style="margin-top:10px">
+  <label for="calStatus">場次狀態<select id="calStatus"><option value="ALL">全部</option><option value="OPEN">開放</option><option value="CANCELLED">已取消</option><option value="CLOSED">已結案</option></select></label>
+  <label for="calSearch">搜尋<input id="calSearch" placeholder="場次、活動、代碼" maxlength="50"></label>
+  <button id="calResetFilter" type="button" class="secondary">清除篩選</button>
+ </div>
+ <p class="small" id="calDescription" aria-live="polite">正在載入隔離場次…</p>
+ <div id="calFrame" class="calFrame">
+  <div id="calBoard" class="calDays" aria-label="行事曆場次"></div>
+  <aside id="calAside" class="calAside" aria-label="場次與參與者面板" aria-live="polite">
+   <div class="calTop"><h3 id="calAsideTitle">場次詳情</h3><button type="button" id="calClose" class="secondary">關閉</button></div>
+   <div id="calSessionDetail"></div>
+   <div id="calPersonDetail" hidden>
+    <div class="calTop"><h3 id="calPersonTitle">參與者快速面板</h3><button class="secondary" type="button" id="calBackSession">返回場次</button></div>
+    <p id="calPersonSummary" class="small"></p>
+    <label class="label" for="calAttendance">出席狀態</label>
+    <select id="calAttendance"><option value="PENDING">待確認</option><option value="PRESENT">已出席</option><option value="LATE">遲到</option><option value="ABSENT">缺席</option></select>
+    <label class="label" for="calProgress">施測狀態（與出席獨立）</label>
+    <select id="calProgress"><option value="NOT_STARTED">未開始</option><option value="IN_PROGRESS">進行中</option><option value="PARTIAL">部分完成</option><option value="COMPLETE">已完成</option></select>
+    <label class="label" for="calNote">本次虛構行政備註</label><textarea id="calNote" maxlength="80"></textarea>
+    <div class="calAction"><button type="button" id="calSavePerson">儲存出席與施測</button></div>
+    <p class="calWarning">不自動推定缺席者可重新施測；不可覆寫原始研究資料。</p>
+   </div>
+   <form id="calForm" hidden>
+    <h3 id="calFormTitle">新增場次</h3>
+    <label class="label" for="calEditExperiment">所屬實驗</label>
+    <select id="calEditExperiment"><option value="E1">實驗一</option><option value="E2">實驗二</option></select>
+    <label class="label" for="calEditTitle">活動名稱（虛構）</label><input id="calEditTitle" maxlength="36" required>
+    <label class="label" for="calEditWhen">日期與開始時間</label><input id="calEditWhen" type="datetime-local" required>
+    <label class="label" for="calEditMinutes">預計分鐘</label><input id="calEditMinutes" type="number" min="15" max="480" value="120" required>
+    <label class="label" for="calEditCapacity">容量（1至20）</label><input id="calEditCapacity" type="number" min="1" max="20" value="2" required>
+    <label class="label" for="calEditPlace">地點（虛構）</label><input id="calEditPlace" maxlength="48" placeholder="模擬研究室">
+    <label class="label" for="calRepeat">新增時每週重複次數</label><select id="calRepeat"><option value="1">只新增一次</option><option value="2">連續兩週</option><option value="3">連續三週</option><option value="4">連續四週</option></select>
+    <label class="label" for="calScope">編輯既有系列的範圍</label><select id="calScope"><option value="ONE">僅這一次</option><option value="FUTURE">這次及未來</option><option value="SERIES">整個系列</option></select>
+    <p id="calImpact" class="calWarning">提交前會顯示受影響名單與容量檢查。</p>
+    <div class="calAction"><button type="submit" id="calSaveSession">確認並儲存</button><button type="button" id="calCancelEdit" class="secondary">返回場次</button></div>
+   </form>
+  </aside>
+ </div>
+ <p id="calStatusMessage" role="status" aria-live="polite" class="small">目前僅供獲授權的擁有者操作虛構資料。</p>
+</section>
+
 <section class="panel" aria-labelledby="expHeading"><h2 id="expHeading">各實驗的顯示與報名狀態</h2>
 <p class="sub">研究團隊可隨時調整示範網站顯示方式；正式報名不會因此開啟。</p>
 <div class="grid">
@@ -91,7 +174,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -133,7 +216,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();
+ displaySlots();displayWeeks();calendarRender();
  $('entries').replaceChildren();
  data.applications.forEach(a=>{
   const item=document.createElement('div');item.className='entry';
@@ -205,6 +288,249 @@ $('saveWeeks').addEventListener('click',()=>{
  }));
  save('ADMIN_E2_WEEKS',{weeks});
 });
+
+/* B02 integrated calendar: all data comes from the existing unified TEST fixture. */
+const cal={id:null,person:null,mode:'CLOSED',initialized:false};
+const calStates={OPEN:'開放',CANCELLED:'已取消',CLOSED:'已結案'};
+const calPresence={PENDING:'待確認',PRESENT:'已出席',LATE:'遲到',ABSENT:'缺席'};
+const calTesting={NOT_STARTED:'未開始',IN_PROGRESS:'進行中',PARTIAL:'部分完成',COMPLETE:'已完成'};
+function calUTC(d){return new Date(d+'T00:00:00Z');}
+function calDay(d){return d.toISOString().slice(0,10);}
+function calAdd(d,n){return calDay(new Date(calUTC(d).getTime()+n*86400000));}
+function calToday(){return calDay(new Date(Date.now()+28800000));}
+function calElem(tag,t,cl){const n=document.createElement(tag);if(t!==undefined)n.textContent=t;if(cl)n.className=cl;return n;}
+function calAllowed(){return model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
+ model.formalReadiness&&model.formalReadiness.activationAllowed===false&&model.b02&&Array.isArray(model.slots);}
+function calMsg(t,error){$('calStatusMessage').textContent=t;$('calStatusMessage').style.color=error?'#a62d25':'#526d75';}
+function calMeta(slot){return model.b02.sessions[slot.id]||{
+ title:slot.experiment==='E1'?'模擬記憶研究':'模擬團體活動',place:'虛構研究室',
+ minutes:120,status:'OPEN',group:''};}
+function calApps(slot){return model.applications.filter(a=>a.slotId===slot.id);}
+function calRange(){
+ const d=$('calDate').value||calToday(),view=$('calView').value;
+ if(view==='day')return [d];
+ const start=view==='month'?d.slice(0,7)+'-01':d;
+ const monday=calAdd(start,-((calUTC(start).getUTCDay()+6)%7));
+ const length=view==='month'?42:7;return Array.from({length},(_,i)=>calAdd(monday,i));
+}
+function calOpen(mode,id,person){
+ cal.mode=mode;cal.id=id===undefined?cal.id:id;cal.person=person||null;
+ calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
+}
+function calendarRender(){
+ if(!calAllowed()){$('calDescription').textContent='載入虛構資料中；尚不能操作。';return;}
+ if(!cal.initialized){
+  cal.initialized=true;
+  const first=model.slots.find(s=>s.when.slice(0,10)>=calToday())||model.slots[0];
+  $('calDate').value=first?first.when.slice(0,10):calToday();
+ }
+ const days=calRange(),el=$('calBoard');el.replaceChildren();
+ el.style.setProperty('--day-count',days.length===1?'1':'7');
+ const exp=$('calExperiment').value,state=$('calStatus').value,q=$('calSearch').value.trim().toLowerCase();
+ let total=0;
+ for(const date of days){
+  const cell=calElem('div',undefined,'calDay');
+  cell.append(calElem('strong',date+'（'+['日','一','二','三','四','五','六'][calUTC(date).getUTCDay()]+'）'));
+  const found=model.slots.filter(s=>{
+   const m=calMeta(s);
+   return s.when.startsWith(date)&&(exp==='ALL'||exp===s.experiment)&&
+    (state==='ALL'||state===m.status)&&
+    (!q||[s.id,s.experiment,m.title,m.place].join(' ').toLowerCase().includes(q));
+  }).sort((a,b)=>a.when.localeCompare(b.when));
+  for(const slot of found){
+   const m=calMeta(slot),occupied=calApps(slot).filter(a=>a.phase==='CONFIRMED'||
+    ['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil>Date.now()).length;
+   const b=calElem('button',slot.when.slice(11)+'｜'+m.title+'\n'+slot.experiment+' · '+
+    calStates[m.status]+'\n占用 '+occupied+'/'+slot.capacity+'｜剩餘 '+Math.max(0,slot.capacity-occupied),'calCard');
+   b.type='button';b.style.whiteSpace='pre-line';b.dataset.sessionId=slot.id;
+   b.setAttribute('aria-pressed',String(slot.id===cal.id&&cal.mode!=='CLOSED'));
+   b.addEventListener('click',()=>calOpen('SESSION',slot.id,null));cell.append(b);total++;
+  }
+  if($('calView').value!=='month'){
+   const add=calElem('button','＋新增','calAdd');add.type='button';
+   add.addEventListener('click',()=>calNew(date));cell.append(add);
+  }
+  if(!found.length)cell.append(calElem('span','無符合場次','calEmpty'));
+  el.append(cell);
+ }
+ $('calDescription').textContent=total+' 個符合條件的虛構場次｜'+days[0]+
+  (days.length>1?' ～ '+days[days.length-1]:'')+'｜本測試資料上限8個時段';
+ calendarPanel();
+}
+function calendarPanel(){
+ const frame=$('calFrame'),detail=$('calSessionDetail'),person=$('calPersonDetail'),
+ form=$('calForm'),heading=$('calAsideTitle');
+ frame.classList.toggle('detail',cal.mode!=='CLOSED');
+ if(cal.mode==='CLOSED'){form.hidden=true;person.hidden=true;detail.hidden=false;return;}
+ if(cal.mode==='NEW'||cal.mode==='EDIT'){
+  form.hidden=false;detail.hidden=true;person.hidden=true;heading.textContent='B02-A 場次編輯';
+  calImpact();return;
+ }
+ const slot=model.slots.find(s=>s.id===cal.id);
+ if(!slot){cal.mode='CLOSED';frame.classList.remove('detail');return;}
+ form.hidden=true;
+ if(cal.mode==='PERSON'){
+  detail.hidden=true;person.hidden=false;heading.textContent='B02-B 參與者快速面板';
+  const app=model.applications.find(a=>a.id===cal.person);
+  if(!app){calOpen('SESSION',cal.id,null);return;}
+  const a=model.b02.attendance[app.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
+  $('calPersonTitle').textContent=app.id+' · '+slot.experiment;
+  $('calPersonSummary').textContent='虛構預約 '+slot.id+'｜'+slot.when+
+   '｜狀態 '+app.phase+'｜同意僅為測試，無正式效力';
+  $('calAttendance').value=a.attendance;$('calProgress').value=a.progress;$('calNote').value=a.note;
+  return;
+ }
+ detail.hidden=false;person.hidden=true;detail.replaceChildren();heading.textContent='B02-A 場次詳細面板';
+ const meta=calMeta(slot),apps=calApps(slot),occupied=apps.filter(a=>a.phase==='CONFIRMED'||
+  ['HELD','CONSENTED'].includes(a.phase)&&a.holdUntil>Date.now()).length;
+ detail.append(calElem('h3',meta.title),calElem('span',calStates[meta.status],'tag'));
+ const grid=calElem('div',undefined,'calInfo');
+ for(const [label,value] of [['場次',slot.id],['實驗',slot.experiment],['時間',slot.when],
+  ['長度',meta.minutes+'分鐘'],['地點',meta.place||'未填'],['容量',slot.capacity],
+  ['占用',occupied],['剩餘',Math.max(0,slot.capacity-occupied)]])
+  grid.append(calElem('div',label+'：'+value,'calLine'));
+ detail.append(grid);
+ const actions=calElem('div',undefined,'calAction');
+ const edit=calElem('button','編輯場次','secondary');edit.type='button';edit.disabled=meta.status!=='OPEN';
+ edit.addEventListener('click',()=>calEdit(slot));actions.append(edit);
+ const cancel=calElem('button','取消場次','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
+ cancel.addEventListener('click',()=>calCancel(slot));actions.append(cancel);detail.append(actions);
+ detail.append(calElem('h3','本場次虛構參與者（'+apps.length+'）'));
+ for(const a of apps){
+  const state=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+  const b=calElem('button',a.id+'｜'+a.phase+'\n出席：'+calPresence[state.attendance]+
+   '｜施測：'+calTesting[state.progress],'calPerson');
+  b.type='button';b.style.whiteSpace='pre-line';
+  b.addEventListener('click',()=>calOpen('PERSON',slot.id,a.id));detail.append(b);
+ }
+ if(!apps.length)detail.append(calElem('p','尚無虛構預約，測試申請可由原有示範流程建立。','calMini'));
+ if(meta.status==='CANCELLED'&&occupied>0)
+  detail.append(calElem('p','場次已取消；'+occupied+'筆有效預約待人工處理，未寄送任何通知。','calWarning'));
+ detail.append(calElem('h3','操作歷程'));
+ const logs=model.b02.history.filter(h=>h.ids.includes(slot.id));
+ for(const h of logs.slice(-6).reverse())detail.append(calElem('p',h.at+'｜'+h.action,'calMini'));
+ if(!logs.length)detail.append(calElem('p','尚無紀錄。','calMini'));
+}
+
+
+function calNew(day){
+ if(!calAllowed()||busy)return;
+ cal.id=null;cal.person=null;cal.mode='NEW';
+ $('calEditExperiment').disabled=false;$('calEditExperiment').value=$('calExperiment').value==='E2'?'E2':'E1';
+ $('calEditTitle').value='模擬研究時段';
+ $('calEditWhen').value=(day||$('calDate').value)+'T10:00';
+ $('calEditCapacity').value='2';$('calEditMinutes').value='120';
+ $('calEditPlace').value='虛構研究室';$('calRepeat').value='1';$('calRepeat').disabled=false;
+ $('calScope').value='ONE';$('calScope').disabled=true;
+ calendarRender();$('calEditTitle').focus();
+}
+function calEdit(slot){
+ if(!calAllowed()||busy)return;
+ const m=calMeta(slot);cal.id=slot.id;cal.person=null;cal.mode='EDIT';
+ $('calEditExperiment').value=slot.experiment;$('calEditExperiment').disabled=true;
+ $('calEditTitle').value=m.title;$('calEditWhen').value=slot.when.replace(' ','T');
+ $('calEditCapacity').value=String(slot.capacity);$('calEditMinutes').value=String(m.minutes);
+ $('calEditPlace').value=m.place;$('calRepeat').value='1';$('calRepeat').disabled=true;
+ $('calScope').value='ONE';$('calScope').disabled=!m.group;
+ calendarRender();$('calEditTitle').focus();
+}
+function calPayload(operation){
+ return {operation,slotId:cal.id||'',experiment:$('calEditExperiment').value,
+  title:$('calEditTitle').value.trim(),when:$('calEditWhen').value.replace('T',' '),
+  capacity:Number($('calEditCapacity').value),minutes:Number($('calEditMinutes').value),
+  place:$('calEditPlace').value.trim(),repeatCount:Number($('calRepeat').value),
+  scope:$('calScope').value};
+}
+function calImpact(){
+ if(!model||!['NEW','EDIT'].includes(cal.mode))return;
+ const slot=model.slots.find(s=>s.id===cal.id),apps=slot?calApps(slot):[],p=calPayload('UPDATE');
+ const active=apps.filter(a=>['HELD','CONSENTED','CONFIRMED'].includes(a.phase)).length;
+ const lines=[slot?'預約歷史 '+apps.length+' 筆｜有效或待處理 '+active+' 人。':'新增示範場次，不會修改既有預約。'];
+ if(slot&&p.when!==slot.when&&apps.length)lines.push('已有歷史預約，伺服器禁止直接移動此場次。');
+ if(slot&&active>p.capacity)lines.push('新容量小於占用數，系統會拒絕儲存。');
+ const start=Date.parse(p.when.replace(' ','T')+':00+08:00');
+ if(Number.isFinite(start)){
+  const clashes=model.slots.filter(s=>s.id!==cal.id&&s.experiment===p.experiment&&
+   calMeta(s).status==='OPEN'&&start<Date.parse(s.when.replace(' ','T')+':00+08:00')+
+    calMeta(s).minutes*60000&&start+p.minutes*60000>Date.parse(s.when.replace(' ','T')+':00+08:00'));
+  if(clashes.length)lines.push('同實驗時間重疊：'+clashes.map(s=>s.id).join('、')+'。');
+ }
+ lines.push('取消時保留舊紀錄；本測試系統不會自動寄送郵件。');
+ $('calImpact').textContent=lines.join('\n');
+}
+function calCommand(action,payload,after){
+ if(!calAllowed()||busy){calMsg('資料載入中或沒有操作權限。',true);return;}
+ const id='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
+ setBusy(true);calMsg('儲存中，正在核對資料版本…',false);
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data)){if(after)after(data);calendarRender();
+   calMsg('示範資料儲存成功，正式收件仍關閉。',false);}
+ }).withFailureHandler(e=>{
+  setBusy(false);calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
+ }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
+}
+function calCancel(slot){
+ if(!calAllowed()||busy)return;
+ const m=calMeta(slot),count=calApps(slot).filter(a=>a.phase!=='CANCELLED').length;
+ if(!confirm('確認取消此虛構場次？\n'+slot.id+'\n受影響預約 '+count+
+ ' 筆會保留歷史；不會自動寄信。'))return;
+ const payload={operation:'CANCEL',slotId:slot.id,experiment:slot.experiment,
+  title:m.title,when:slot.when,capacity:slot.capacity,minutes:m.minutes,place:m.place,
+  repeatCount:1,scope:'ONE'};
+ calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
+}
+function calShift(amount){
+ let d=$('calDate').value||calToday(),view=$('calView').value;
+ if(view==='month'){const v=calUTC(d);v.setUTCMonth(v.getUTCMonth()+amount);d=calDay(v);}
+ else d=calAdd(d,amount*(view==='week'?7:1));
+ $('calDate').value=d;calendarRender();
+}
+function calendarInit(){
+ $('calNew').addEventListener('click',()=>calNew());
+ $('calPrev').addEventListener('click',()=>calShift(-1));
+ $('calNext').addEventListener('click',()=>calShift(1));
+ $('calToday').addEventListener('click',()=>{$('calDate').value=calToday();calendarRender();});
+ $('calFirst').addEventListener('click',()=>{
+  if(model&&model.slots.length){$('calDate').value=model.slots[0].when.slice(0,10);calendarRender();}
+ });
+ for(const id of ['calDate','calView','calExperiment','calStatus'])
+  $(id).addEventListener('change',calendarRender);
+ $('calSearch').addEventListener('input',calendarRender);
+ $('calResetFilter').addEventListener('click',()=>{
+  $('calExperiment').value='ALL';$('calStatus').value='ALL';$('calSearch').value='';calendarRender();
+ });
+ $('calClose').addEventListener('click',()=>calOpen('CLOSED',null,null));
+ $('calBackSession').addEventListener('click',()=>calOpen('SESSION',cal.id,null));
+ $('calCancelEdit').addEventListener('click',()=>calOpen(cal.id?'SESSION':'CLOSED',cal.id,null));
+ $('calForm').addEventListener('submit',event=>{
+  event.preventDefault();if(!calAllowed()||busy)return;
+  const editing=cal.mode==='EDIT',payload=calPayload(editing?'UPDATE':'CREATE');
+  const start=Date.parse(payload.when.replace(' ','T')+':00+08:00');
+  if(!Number.isFinite(start)||start<=Date.now()){
+   calMsg('請選擇未來且有效的日期時間。',true);return;
+  }
+  if(editing&&model.applications.some(a=>a.slotId===cal.id)&&
+   model.slots.find(s=>s.id===cal.id)?.when!==payload.when){
+   calMsg('已有預約紀錄，不可直接移動場次，請先處理參與者。',true);return;
+  }
+  calCommand('ADMIN_B02_SLOT',payload,data=>{
+   if(!editing){const h=data.b02.history[data.b02.history.length-1];cal.id=h?.ids[0]||null;}
+   cal.mode=cal.id?'SESSION':'CLOSED';
+  });
+ });
+ for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope'])
+  $(id).addEventListener('change',calImpact);
+ $('calSavePerson').addEventListener('click',()=>{
+  if(!cal.person)return;
+  calCommand('ADMIN_B02_ATTEND',{id:cal.person,
+   attendance:$('calAttendance').value,progress:$('calProgress').value,note:$('calNote').value},null);
+ });
+ document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&cal.mode!=='CLOSED')calOpen('CLOSED',null,null);
+ });
+}
+calendarInit();
+
 $('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
