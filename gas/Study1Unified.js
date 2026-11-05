@@ -149,6 +149,101 @@ function study1UnifiedProductionAdapter_(){
   exportAudit:deny,deleteParticipant:deny});
 }
 
+
+/**
+ * Versioned, provider-neutral data contract for the FUTURE approved storage port.
+ * It never calls Sheets, Drive, properties, email, or the existing fixture.
+ * All records are explicitly synthetic. An approved persistent adapter and
+ * REC/role controls must be supplied independently before real use.
+ */
+function study1UnifiedStoreReadiness_(){
+ return Object.freeze({schema:'STUDY1_STORAGE_CONTRACT_V1',
+  contractTestable:true,providerConnected:false,persistent:false,
+  formalReads:false,formalWrites:false,authorization:'REC_AND_DATA_APPROVAL_REQUIRED',
+  requirements:['ATOMIC_RECORD_AND_AUDIT','MONOTONIC_REVISION_CAS',
+   'IDEMPOTENT_REQUESTS','IMMUTABLE_AUDIT_STREAM','CURSOR_PAGINATION',
+   'ROLE_SCOPED_ACCESS','RETENTION_AND_ERASURE_POLICY']});
+}
+function study1UnifiedStoreHash_(value){
+ const text=typeof value==='string'?value:JSON.stringify(value);
+ const bytes=Utilities.newBlob(text,'text/plain','study1-hash-input').getBytes();
+ return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
+  .map(b=>(b<0?b+256:b).toString(16).padStart(2,'0')).join('');
+}
+function study1UnifiedStoreInitial_(){
+ return {schema:'STUDY1_STORAGE_CONTRACT_V1',mode:'SYNTHETIC_CONTRACT_ONLY',
+  revision:0,records:{},requestIndex:{},audit:[],head:'GENESIS'};
+}
+function study1UnifiedStoreApply_(original,command){
+ if(!original||original.schema!=='STUDY1_STORAGE_CONTRACT_V1'||
+  original.mode!=='SYNTHETIC_CONTRACT_ONLY'||!Number.isSafeInteger(original.revision)||
+  original.revision<0||!original.records||!original.requestIndex||
+  !Array.isArray(original.audit)||typeof original.head!=='string')
+  throw Error('資料保存契約狀態不合法，拒絕操作');
+ const c=command;
+ if(!c||Object.keys(c).sort().join(',')!=='action,actor,expectedRevision,id,reason,requestId,value'||
+  c.action!=='UPSERT'||!['PI','RA'].includes(c.actor)||
+  !/^SIM-[A-Z0-9-]{4,64}$/.test(c.id)||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(c.requestId)||
+  typeof c.reason!=='string'||c.reason.trim().length<4||c.reason.length>120||
+  !c.value||typeof c.value!=='object'||Array.isArray(c.value)||
+  c.value.id!==c.id||c.value.source!=='SYNTHETIC_ONLY'||
+  JSON.stringify(c.value).length>2400||/[<>]/.test(JSON.stringify(c.value)))
+  throw Error('資料保存契約只允許具原因的虛構版本化更新');
+ const fingerprint=study1UnifiedStoreHash_([c.action,c.id,c.value,c.reason.trim(),c.actor]);
+ const previous=original.requestIndex[c.requestId];
+ if(previous){
+  if(previous.fingerprint!==fingerprint)throw Error('重複請求代碼對應不同內容');
+  return {state:original,deduplicated:true};
+ }
+ if(c.expectedRevision!==original.revision)throw Error('資料版本衝突，請重讀後重新提交');
+ if(!Number.isSafeInteger(original.revision+1))throw Error('版本計數已達上限');
+ const next=JSON.parse(JSON.stringify(original)),old=next.records[c.id]||null;
+ next.records[c.id]=JSON.parse(JSON.stringify(c.value));
+ next.revision++;
+ const entry={revision:next.revision,at:new Date().toISOString(),
+  actor:c.actor,action:c.action,id:c.id,reason:c.reason.trim(),
+  beforeHash:old?study1UnifiedStoreHash_(old):null,
+  afterHash:study1UnifiedStoreHash_(c.value),
+  previousHash:next.head,requestId:c.requestId};
+ entry.digest=study1UnifiedStoreHash_(entry);
+ next.audit.push(entry);next.head=entry.digest;
+ next.requestIndex[c.requestId]={revision:next.revision,fingerprint};
+ return {state:next,deduplicated:false};
+}
+function study1UnifiedStoreVerify_(state){
+ if(!state||state.schema!=='STUDY1_STORAGE_CONTRACT_V1'||state.mode!=='SYNTHETIC_CONTRACT_ONLY'||
+   !Array.isArray(state.audit)||!state.requestIndex||!state.records)
+  throw Error('稽核契約格式不合法');
+ let previous='GENESIS';
+ for(let i=0;i<state.audit.length;i++){
+  const entry=state.audit[i],copy={...entry};delete copy.digest;
+  if(entry.revision!==i+1||entry.previousHash!==previous||
+     entry.digest!==study1UnifiedStoreHash_(copy)||
+     !state.requestIndex[entry.requestId]||
+     state.requestIndex[entry.requestId].revision!==entry.revision)
+   throw Error('稽核雜湊鏈或版本不一致');
+  previous=entry.digest;
+ }
+ if(state.revision!==state.audit.length||state.head!==previous||
+    Object.keys(state.requestIndex).length!==state.revision)
+  throw Error('稽核事件數量、修訂版本或鏈頭不一致');
+ return true;
+}
+function study1UnifiedStorePage_(state,query){
+ if(!state||state.schema!=='STUDY1_STORAGE_CONTRACT_V1'||
+   state.mode!=='SYNTHETIC_CONTRACT_ONLY'||!query||
+   Object.keys(query).sort().join(',')!=='after,expectedRevision,limit'||
+   query.expectedRevision!==state.revision||!Number.isSafeInteger(query.limit)||
+   query.limit<1||query.limit>100||typeof query.after!=='string'||
+   query.after.length>100||!state.records)
+  throw Error('資料分頁需要正確的版本、游標及上限');
+ const all=Object.keys(state.records).sort().filter(id=>id>query.after);
+ const selected=all.slice(0,query.limit);
+ return {revision:state.revision,
+  items:selected.map(id=>JSON.parse(JSON.stringify(state.records[id]))),
+  nextAfter:all.length>selected.length?selected[selected.length-1]:null};
+}
+
 /**
  * Byte-verified one-page synthetic PDF. It is NOT an REC consent document.
  * The actual approved REC PDF bytes are absent and remain inaccessible.
