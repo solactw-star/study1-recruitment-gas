@@ -1083,9 +1083,17 @@ function study1UnifiedB07Apply_(s,p,now){
   b.history.push({id,action:'CREATE',actor:'OWNER',at,before:null,
    after:{status:p.status,notes:p.notes},reason:p.reason.trim()});
  }else{
-  /* B07_CORRECTION_SLOT */
+  const r=b.records.find(x=>x.id===p.id);
+  if(!r)throw Error('B07更正紀錄不存在');
+  const before={status:r.status,notes:r.notes};
+  if(before.status===p.status&&before.notes===p.notes)
+   throw Error('B07沒有實質變更，拒絕重複操作');
+  r.status=p.status;r.notes=p.notes;r.updatedAt=at;
+  b.history.push({id:r.id,action:'CORRECT',actor:'OWNER',at,before,
+   after:{status:r.status,notes:r.notes},reason:p.reason.trim()});
  }
- /* B07_POST_SLOT */
+ if(b.history.length>24){b.history.shift();b.historyDropped++;}
+ study1UnifiedB07Validate_(b,s.applications);
 }
 function study1UnifiedInitial_(){
  return {schemaVersion:1,revision:0,config:{
