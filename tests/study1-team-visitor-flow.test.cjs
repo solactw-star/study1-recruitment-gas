@@ -910,3 +910,148 @@ test('B11 denied recovery read after CAS error clears B01 and B09 and disables t
  srv.ctx.study1UnifiedPreviewCommand=command;
  closed(srv);
 });
+
+test('B11 global owner view inherits E1/E2/ALL across B01 B02 B03 B06 B08 B09 with no RPC or mutation',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E2'});
+ // Populate existing synthetic fixture in memory; no new provider or storage key.
+ const source=srv.ctx.study1UnifiedRead_();
+ source.notifications=[
+  {id:'SIM-001',event:'CONFIRM',text:'E1虛構通知（僅預覽，未寄送）',status:'SIM_PENDING',attempts:0,lastError:null},
+  {id:'SIM-002',event:'CONFIRM',text:'E2虛構通知（僅預覽，未寄送）',status:'SIM_FAILED',attempts:1,lastError:'SIMULATED_FAILURE'}
+ ];
+ srv.store.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(source));
+ const team=page(srv,'team');
+ const addTask=(name,exp)=>{
+  team.set('b06Title',name);team.set('b06Experiment',exp);
+  team.set('b06Reason','人工測試建立任務');
+  team.get('b06Form').handlers.submit({preventDefault(){}});
+  assert.equal(team.failures.length,0);
+ };
+ addTask('實驗一虛構工作','E1');
+ addTask('實驗二虛構工作','E2');
+ addTask('兩個實驗共用工作','ALL');
+ team.set('calView','day');team.change('calView');
+ team.set('calDate','2027-01-05');team.change('calDate');
+ assert.equal(team.get('adminScopeGlobal').value,'ALL');
+ assert.deepEqual(['B01','B02','B03','B06','B08','B09'].map(m=>
+  team.get('adminScope'+m).value),Array(6).fill('INHERIT'));
+ assert.equal(team.get('entries').children.length,2);
+ assert.equal(team.get('b06List').children.length,3);
+ assert.equal(team.get('b08List').children.length,2);
+ assert.equal(team.get('b09ByExperiment').children.length,2);
+ const before=srv.writes,oldRevision=srv.read().revision;
+ team.set('adminScopeGlobal','E1');team.change('adminScopeGlobal');
+ assert.equal(team.get('b01Cards').children[0].children[1].textContent,'1');
+ assert.equal(team.get('entries').children.length,1);
+ assert.match(team.get('entries').children[0].children[0].textContent,/實驗一/);
+ assert.equal(team.get('b06List').children.length,2,'shared ALL task appears under E1');
+ assert.equal(team.get('b06History').children.length,2,'only E1 and shared task history');
+ assert.equal(team.get('b08List').children.length,1);
+ assert.match(team.get('b08List').children[0].children[0].textContent,/E1/);
+ assert.equal(team.get('b09ByExperiment').children.length,1);
+ assert.equal(team.get('b09ByExperiment').children[0].children[0].textContent,'E1');
+ assert.match(team.get('calDescription').textContent,/1 個符合條件/);
+ assert.match(team.get('adminScopeHintB03').textContent,/繼承全域 → E1/);
+ team.set('adminScopeGlobal','E2');team.change('adminScopeGlobal');
+ assert.equal(team.get('b01Cards').children[0].children[1].textContent,'1');
+ assert.equal(team.get('entries').children.length,1);
+ assert.match(team.get('entries').children[0].children[0].textContent,/實驗二/);
+ assert.equal(team.get('b06List').children.length,2);
+ assert.equal(team.get('b08List').children.length,1);
+ assert.match(team.get('b08List').children[0].children[0].textContent,/E2/);
+ assert.equal(team.get('b09ByExperiment').children[0].children[0].textContent,'E2');
+ assert.match(team.get('calDescription').textContent,/0 個符合條件/,'day E1 date cannot display E2 session');
+ team.set('calDate','2027-01-07');team.change('calDate');
+ assert.match(team.get('calDescription').textContent,/1 個符合條件/);
+ assert.equal(srv.writes,before,'scope switches and ALL six module recomputations are read-only');
+ assert.equal(srv.read().revision,oldRevision,'no CAS revision or synthetic research state changes');
+ assert.equal(srv.store.has('STUDY1_B11_SCOPE_V1'),false);
+ assert.equal(srv.store.get('OPEN'),'false');
+ assert.equal(srv.store.get('CONSENT_READY'),'false');
+ closed(srv);
+});
+test('B11 per-module scope override isolates other panels, local filters and reload persistence',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});srv.command('START',{experiment:'E2'});
+ const team=page(srv,'team'),before=srv.writes;
+ team.set('adminScopeGlobal','E1');team.change('adminScopeGlobal');
+ assert.equal(team.get('entries').children.length,1);
+ team.set('adminScopeB03','E2');team.change('adminScopeB03');
+ assert.equal(team.get('entries').children.length,1);
+ assert.match(team.get('entries').children[0].children[0].textContent,/實驗二/);
+ assert.equal(team.get('b01Cards').children[0].children[1].textContent,'1','B01 still inherits global E1');
+ team.set('adminScopeB09','E2');team.change('adminScopeB09');
+ assert.equal(team.get('b09ByExperiment').children.length,1);
+ assert.equal(team.get('b09ByExperiment').children[0].children[0].textContent,'E2');
+ assert.equal(team.get('b09Scope').value,'ALL','reset local legacy report filter on scope changes');
+ team.set('adminScopeB01','ALL');team.change('adminScopeB01');
+ assert.equal(team.get('b01Cards').children[0].children[1].textContent,'2','B01 temporary override ALL');
+ assert.match(team.get('adminScopeHintB01').textContent,/臨時覆寫 → ALL/);
+ team.set('adminScopeB03','INHERIT');team.change('adminScopeB03');
+ assert.match(team.get('entries').children[0].children[0].textContent,/實驗一/);
+ team.click('refresh');
+ assert.equal(team.get('adminScopeGlobal').value,'E1','same browser-page refresh retains temporary display choice');
+ assert.equal(team.get('adminScopeB01').value,'ALL');
+ assert.equal(team.get('adminScopeB09').value,'E2');
+ assert.equal(team.get('b09ByExperiment').children[0].children[0].textContent,'E2');
+ assert.equal(team.get('b01Cards').children[0].children[1].textContent,'2');
+ const newPage=page(srv,'team');
+ assert.equal(newPage.get('adminScopeGlobal').value,'ALL','new browser page does not inherit private session');
+ assert.equal(newPage.get('adminScopeB01').value,'INHERIT');
+ assert.equal(newPage.get('b09ByExperiment').children.length,2);
+ assert.equal(newPage.get('entries').children.length,2);
+ assert.equal(srv.writes,before,'no scope persisted in data or browser storage');
+ const visitor=page(srv,'visitor');
+ assert.equal(visitor.get('chooseE1').disabled,false);
+ assert.equal(visitor.get('chooseE2').disabled,true);
+ assert.equal(srv.read().recruitment.E1.mode,'DEMO_OPEN');
+ assert.equal(srv.read().recruitment.E2.mode,'COMING_SOON');
+ closed(srv);
+});
+test('B11 invalid scope and owner reread denial clear all six displayed panels without writing',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const team=page(srv,'team'),before=srv.writes;
+ assert.ok(team.get('b01Cards').children.length);
+ assert.ok(team.get('calBoard').children.length);
+ assert.equal(team.get('entries').children.length,1);
+ team.set('adminScopeB03','DANGEROUS_VALUE');team.change('adminScopeB03');
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b09Metrics').children.length,0);
+ for(const id of ['calBoard','entries','b03Board','b06List','b06History','b08List'])
+  assert.equal(team.get(id).children.length,0,id+' stale data erased');
+ assert.equal(team.get('saveModes').disabled,true,'malformed local filter fail-closes all operations');
+ assert.equal(srv.writes,before);
+ // Restoring a valid scope requires a fresh owner-verified read.
+ team.set('adminScopeB03','INHERIT');team.click('refresh');
+ assert.ok(team.get('b01Cards').children.length);
+ assert.equal(team.get('entries').children.length,1);
+ const saved=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner revoked for synthetic session');};
+ team.click('refresh');
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.equal(team.get('calBoard').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('b06List').children.length,0);
+ assert.equal(team.get('b08List').children.length,0);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=saved;
+ closed(srv);
+});
+test('B11 forbidden owner and OPEN/CONSENT flags keep all six scoped panels empty',()=>{
+ for(const options of [
+  {active:'unauthorized@example.invalid'},
+  {effective:'unauthorized@example.invalid'},
+  {open:'true'},{consent:'true'}
+ ]){
+  const srv=server(options),team=page(srv,'team');
+  assert.ok(team.failures.length>0);
+  for(const id of ['b01Cards','b09Metrics','calBoard','entries','b03Board',
+   'b06List','b06History','b08List'])assert.equal(team.get(id).children.length,0,id);
+  assert.equal(team.get('saveModes').disabled,true);
+  assert.equal(srv.writes,0);
+  assert.equal(srv.store.has('STUDY1_B11_SCOPE_V1'),false);
+ }
+});
