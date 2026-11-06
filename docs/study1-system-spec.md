@@ -425,3 +425,16 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：正式資料provider、核准容量與交易一致性、真正不可改寫的長期稽核／保存刪除政策、PI／RA身份權限與撤權、REC及真實owner瀏覽器操作驗收。
 - `NEXT_ACTION`：下一輪先核對最新main及原GAS版本，選擇無真人資料副作用的儲存／稽核安全測試或已授權模組續建；未獲權責授權，不接正式Sheet、不放行正式持久化或公開招募。
 - `WRITE_OWNER=GitHub main + original GAS same-ID sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; UI_AND_FORMAL_DATA_BLOCKED`。
+
+## 三十六、B06稽核事件回放與原GAS備份綁定／原 GAS V62 同ID核實（2026-11-06）
+
+- `TASK_DOMAIN=Study1 recruitment website`；本輪核對 `main=0514045a6c2cf03295b8a5894ec8ddb4a248357c` 與主規格第31–35節，僅修改現有私人GitHub正式Repository與原GAS安全同步流程，未建立平行網站／資料庫／部署。相鄰B01 PR #63 仍為獨立未合併工作；本輪不改其HTML與測試檔。
+- `COMPLETED`（合成資料狀態／稽核）：既有 `gas/Study1Unified.js` 的B06核驗增加完整歷程事件轉移安全檢查：`CREATE/EDIT/COMPLETE/REOPEN/ARCHIVE/RESTORE` 的前後狀態及合法操作、每筆歷史快照欄位、`SIM-TASK` 建立序號與 `next` 計數一致、事件時間順序、建立時間及更新時間。模擬主機時鐘倒退時，B06新增操作時間釘住上一事件時點，避免產生倒退的合法寫入。原有 ScriptLock、預寫入版號、冪等請求、同鎖恢復、原值原位元組與不覆蓋非協作競寫者安全行為維持，`STUDY1_B06_TASKS_V1` 與 `STUDY1_UNIFIED_FIXTURE_V1` 原key不變。
+- `COMPLETED`（GAS程式備份一致性）：原既有 `scripts/study1-gas-auto-index.cjs` 在 `prepare` 和 `apply` 增設 `assertBackupBinding`：備份對應的完整GAS `original.files` 必須與準備時記錄的 `remoteSha256` 相符；已建立的私人Drive備份SHA256必須等於**本輪預寫入快照原文（不含後加backup指標）**之SHA256，且部署ID／前版本要相同。即使另一輪Drive備份本身SHA有效，也不得冒用為當輪備份繼續覆寫。這是**GAS原始碼及部署狀態備份驗證，不是正式研究資料、參與者個資、Sheet或災難復原備份驗證**。
+- `TESTS`：新增合成資料測試，涵蓋B06計數器漂移、非法歷史欄位、偽造狀態轉移、事件倒退但重新計算鏈結SHA、主機時鐘倒退；以及GAS前置備份對錯誤HEAD內容、錯誤備份SHA、錯誤部署版本的拒絕。PR #64 CI `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42187372326`、合併後 main CI `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42187530049` 均完成，`504 PASS/0 FAIL`。沒有用CI取代真實瀏覽器驗收。
+- `SOURCE_COMMIT=1569697d7f487c2a67cb8794713670b6f5f8c025`；PR #64 已合併main；僅變更 `gas/Study1Unified.js`、`scripts/study1-gas-auto-index.cjs`、`tests/study1-b06-tasks.test.cjs`、`tests/study1-gas-auto-index.test.cjs`。沒有修改B01 PR #63、REC、實驗研究材料、真人資料或任何正式Sheet。
+- `GAS_SYNC_VERIFIED=true`：既有同ID自動同步run `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42187529754` 完整成功，私人828 Drive預寫入程式快照備份ID `1HpPsyZOnYVH3dB_hp_em9rMgyGkLm8ZK`，原GAS遠端HEAD SHA256 `14597565825cb53b7e5ef5e3ebc9495d5c8cfa131f67fe61c5b3f64a148acd85`，更新後HEAD及原 `/exec` **V62** SHA256 `35029993f95a876240e0ff0b59eafc1e3d539710e81706867ed16a5ef4acc82d`；`SYNC_VERIFIED=true`，原Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`、原部署ID `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s` 與有效權限 `MYSELF` 保留。原未部署HEAD manifest之 `ANYONE_ANONYMOUS` 不等於正式版本化 `/exec` 開放。
+- `LAST_VERIFIED_STEP=main code/CI 504 of 504 and original GAS V62 exact-ID SHA and MYSELF readback`；`MAIN_SYNC_VERIFIED=true`（程式），`GAS_SYNC_VERIFIED=true`（同ID遠端），`SELF_UI_3PASS=NOT_VERIFIED`，`USER_UAT_PENDING_BY_USER_REQUEST=true`，`PRODUCTION_STORAGE_CONNECTED=false`，`FORMAL_READY=false`。本輪沒有真人網站操作驗收或正式研究啟用授權，故不要求使用者驗收，也不宣稱介面完成。
+- `BLOCKERS`：仍缺正式資料provider與容量、跨多key真正原子交易／一致性、經核准的參與者資料備份與恢復、不可改寫的長期稽核、REC與身分權限／撤權、保存刪除規範。當次程式碼稽核SHA鏈是**一致性偵測而非可信外部簽章**；不因此放行正式PI／RA權限、正式Sheet或寄信。
+- `NEXT_ACTION`：按最新main核對其他PR與競寫，續做未授權資料無外部副作用的安全驗證與原網站模組；如要正式資料備份／真PI／RA權限，先取得REC及資料治理核准。維持 `OPEN=false`、`CONSENT_READY=false`、有效部署 `MYSELF`、E2於2027年前不招募且不自動開放。
+- `WRITE_OWNER=original GitHub main + same-ID GAS safe auto-sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
