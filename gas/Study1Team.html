@@ -987,6 +987,51 @@ function b11Preview_(){
   b11Controls_();
  }catch(e){b11Status_('拒絕B11草稿：'+String(e.message||e),true);b11Controls_();}
 }
+function b11ResponseMatches_(data,command){
+ const staged=command.payload,scope=staged.scope;
+ if(!data||data.mode!=='TEST'||data.open!==false||
+    data.consentReady!==false||data.formalReadiness?.activationAllowed!==false||
+    data.formalPorts?.activated!==false||
+    !Number.isSafeInteger(data.revision)||
+    data.revision!==command.expectedRevision+1||
+    !data.recruitment||!data.config)return false;
+ for(const exp of ['E1','E2']){
+  const expected=Object.prototype.hasOwnProperty.call(staged.modes,exp)?
+   staged.modes[exp]:model.recruitment[exp].mode;
+  if(!data.recruitment[exp]||data.recruitment[exp].mode!==expected||
+     data.recruitment[exp].year!==(exp==='E1'?2026:2027))return false;
+ }
+ const site=staged.site===null?model.config:staged.site;
+ if(['title','notice','emailTemplate'].some(k=>data.config[k]!==site[k]))
+  return false;
+ return true;
+}
+function b11Recover_(reason){
+ // Do not infer that a rejected RPC did not commit: always query the
+ // canonical owner-locked TEST view, never re-submit an old CAS command.
+ b11.mustReload=true;
+ b11Clear_('B11提交結果未核實：'+reason+'。正在重新讀取原GAS設定。');
+ setBusy(true);b11Controls_();
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data)){
+   b11Clear_('原GAS已重新讀取最新設定；舊預覽與修改草稿已捨棄。');
+   b11Status_('B11無法確認上次提交：'+reason+
+    '。已回讀最新OWNER-only TEST來源，請核對設定並重新預覽；不會自動重送。',true);
+   message('設定結果未確認；已回讀原GAS最新版，請重新比較後提交。',true);
+  }else{
+   b11.mustReload=true;b11Controls_();
+   b11Status_('B11原GAS重新讀取的安全門檻不符，操作保持鎖定。',true);
+  }
+ }).withFailureHandler(error=>{
+  model=null;b11.mustReload=true;
+  b11Clear_('B11提交結果未確認，原GAS重新讀取失敗：'+String(error.message||error));
+  b01Clear('授權快照失效，研究總覽已清空');
+  b09Clear_('授權快照失效，統計報表已清空');
+  setBusy(true);b11Controls_();
+  b11Status_('無法安全回復B11設定，已停止操作。請重新載入核對權限。',true);
+  message('設定未確認，資料重新讀取也失敗，管理操作保持鎖定。',true);
+ }).study1UnifiedPreviewGet();
+}
 function b11Apply_(){
  if(!b11.preview||busy||b11.mustReload||!b11Safe_())return;
  let current;
@@ -1002,13 +1047,15 @@ function b11Apply_(){
  setBusy(true);b11Controls_();
  b11Status_('使用原GAS同一資料版本鎖一次儲存TEST設定；不執行正式發布。');
  google.script.run.withSuccessHandler(data=>{
+  if(!b11ResponseMatches_(data,command)){
+   b11Recover_('伺服器回應的版本或設定值與已確認草稿不符');
+   return;
+  }
   if(render(data))b11Status_('已在原網站回讀虛構設定新版本 '+data.revision+
    '；正式招募、電子同意及正式內容發布仍關閉。');
+  else b11Recover_('回應未通過原網站全部安全檢查');
  }).withFailureHandler(error=>{
-  setBusy(false);b11.mustReload=true;
-  b11Clear_('版本衝突或寫入未完成：'+String(error.message||error)+
-   '。必須按「重新載入設定」，不能重用舊預覽。');
-  b11Controls_();
+  b11Recover_('版本競寫／提交失敗：'+String(error.message||error));
  }).study1UnifiedPreviewCommand(command);
 }
 $('b11Preview').addEventListener('click',b11Preview_);

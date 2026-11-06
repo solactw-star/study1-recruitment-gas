@@ -843,9 +843,11 @@ test('B11 staging invalidation, no-op, stale second tab and denied refresh fail 
  b.click('b11Apply');
  assert.ok(b.failures.some(e=>/版本已變更/.test(e)));
  assert.equal(b.get('b11Apply').disabled,true);
- assert.equal(b.get('b11Preview').disabled,true,'stale conflict forces new owner read');
- assert.match(b.get('b11Status').textContent,/必須按.*重新載入設定/);
+ assert.equal(b.get('b11Preview').disabled,false,'stale conflict automatically rereads the current owner snapshot');
+ assert.match(b.get('b11Status').textContent,/已回讀最新OWNER-only TEST來源/);
  assert.equal(b.get('b11Diff').children.length,0);
+ assert.equal(b.get('b11ModeE1').value,'HIDDEN');
+ assert.equal(b.get('b11ModeE2').value,'COMING_SOON');
  assert.equal(srv.writes,written,'second tab never overwrites first');
  b.click('refresh');
  assert.equal(b.get('b11Preview').disabled,false);
@@ -858,5 +860,53 @@ test('B11 staging invalidation, no-op, stale second tab and denied refresh fail 
  assert.match(b.get('b11Status').textContent,/已清空/);
  assert.equal(srv.writes,written);
  srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
+
+
+test('B11 rejects forged success response, then rereads current scoped TEST model without false save',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ const original=srv.ctx.study1UnifiedPreviewCommand;
+ team.set('b11Scope','E1');team.change('b11Scope');
+ team.set('b11ModeE1','HIDDEN');team.change('b11ModeE1');
+ team.click('b11Preview');
+ const originalRevision=srv.read().revision;
+ assert.equal(team.get('b11Apply').disabled,false);
+ srv.ctx.study1UnifiedPreviewCommand=()=>({
+  ...srv.read(),revision:originalRevision+1,
+  recruitment:{E1:{year:2026,mode:'DEMO_OPEN'},E2:{year:2027,mode:'COMING_SOON'}}
+ });
+ team.click('b11Apply');
+ assert.equal(srv.writes,before,'forged success must never create a synthetic transaction');
+ assert.equal(srv.read().revision,originalRevision);
+ assert.equal(srv.read().recruitment.E1.mode,'DEMO_OPEN');
+ assert.equal(team.get('b11ModeE1').value,'DEMO_OPEN','re-read replaces the unsaved draft');
+ assert.equal(team.get('b11Apply').disabled,true);
+ assert.equal(team.get('b11Preview').disabled,false);
+ assert.match(team.get('b11Status').textContent,/伺服器回應的版本或設定值與已確認草稿不符/);
+ assert.match(team.get('b11Status').textContent,/已回讀最新OWNER-only TEST來源/);
+ assert.doesNotMatch(team.get('b11Status').textContent,/已在原網站回讀虛構設定新版本/);
+ srv.ctx.study1UnifiedPreviewCommand=original;
+ closed(srv);
+});
+
+test('B11 denied recovery read after CAS error clears B01 and B09 and disables the editor',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ const command=srv.ctx.study1UnifiedPreviewCommand,read=srv.ctx.study1UnifiedPreviewGet;
+ team.set('b11ModeE1','COMING_SOON');team.change('b11ModeE1');
+ team.click('b11Preview');
+ assert.equal(team.get('b11Apply').disabled,false);
+ srv.ctx.study1UnifiedPreviewCommand=()=>{throw Error('test concurrent write rejected');};
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner source rejected');};
+ team.click('b11Apply');
+ assert.equal(srv.writes,before);
+ assert.equal(team.get('b11Preview').disabled,true);
+ assert.equal(team.get('b11Apply').disabled,true);
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.match(team.get('b11Status').textContent,/無法安全回復B11設定/);
+ assert.match(team.get('status').textContent,/管理操作保持鎖定/);
+ srv.ctx.study1UnifiedPreviewGet=read;
+ srv.ctx.study1UnifiedPreviewCommand=command;
  closed(srv);
 });
