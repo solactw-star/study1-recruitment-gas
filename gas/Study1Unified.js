@@ -6,6 +6,13 @@
  * Formal use requires separate approval and a reviewed production adapter.
  */
 const STUDY1_UNIFIED_FIXTURE_KEY_='STUDY1_UNIFIED_FIXTURE_V1';
+/* B01 preferences are OWNER-only non-sensitive layout IDs, not test research
+ * transactions. A distinct single property prevents exhausting fixture CAS. */
+const STUDY1_B01_LAYOUT_KEY_='STUDY1_B01_OWNER_LAYOUT_V1';
+const STUDY1_B01_LAYOUT_IDS_=['APPLICATION_CODES','APPLICATION_RECORDS',
+ 'SESSION_RECORDS','TODAY_SESSIONS','ATTENDANCE_PENDING','OPEN_TASKS',
+ 'E1_ACTIVE','E2_ACTIVE','CONFIRMED','ATTENDANCE_MARKED',
+ 'PROGRESS_COMPLETE','MISSING_SLOT','CANCELLED_SLOT_ACTIVE'];
 
 /**
  * Retain the same owner-only TEST Script Property and its complete history.
@@ -557,6 +564,110 @@ function study1UnifiedRestoreOwnedWrite_(props,key,before,attempted){
   throw Error('原始資料恢復後回讀失敗');
  return true;
 }
+
+/* B01: strictly non-sensitive OWNER-only preference; no subject IDs, amounts,
+ * analytics, names, roles, formal permissions or payments. */
+function study1B01LayoutInitial_(){
+ return {schema:'STUDY1_B01_LAYOUT_V1',revision:0,
+  order:STUDY1_B01_LAYOUT_IDS_.slice(),hidden:[],
+  lastRequestId:'',fingerprint:''};
+}
+function study1B01LayoutVerify_(s){
+ const ids=STUDY1_B01_LAYOUT_IDS_;
+ if(!s||typeof s!=='object'||Array.isArray(s)||
+  Object.keys(s).sort().join(',')!=='fingerprint,hidden,lastRequestId,order,revision,schema'||
+  s.schema!=='STUDY1_B01_LAYOUT_V1'||!Number.isSafeInteger(s.revision)||s.revision<0||
+  !Array.isArray(s.order)||s.order.length!==13||
+  new Set(s.order).size!==13||s.order.some(id=>!ids.includes(id))||
+  !Array.isArray(s.hidden)||s.hidden.length>13||
+  new Set(s.hidden).size!==s.hidden.length||
+  s.hidden.some((id,i)=>!ids.includes(id)||(i>0&&ids.indexOf(id)<=ids.indexOf(s.hidden[i-1])))||
+  typeof s.lastRequestId!=='string'||typeof s.fingerprint!=='string'||
+  (s.revision===0&&(s.lastRequestId!==''||s.fingerprint!==''))||
+  (s.revision>0&&(!/^REQ-SIM-B01_[A-Za-z0-9_-]{8,48}$/.test(s.lastRequestId)||
+   s.fingerprint!==JSON.stringify([s.order,s.hidden]))))
+  throw Error('B01偏好來源版本、欄位或固定卡片識別碼不合法');
+ return true;
+}
+function study1B01LayoutRead_(){
+ const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_B01_LAYOUT_KEY_);
+ const state=raw===null?study1B01LayoutInitial_():JSON.parse(raw);
+ study1B01LayoutVerify_(state);return state;
+}
+function study1B01LayoutView_(state,deduplicated){
+ return {mode:'TEST_LAYOUT_ONLY',revision:state.revision,
+  order:state.order.slice(),hidden:state.hidden.slice(),
+  deduplicated:deduplicated===true};
+}
+/** GET under original GAS OWNER identity, CLOSED flags and ScriptLock. */
+function study1UnifiedB01LayoutGet(){
+ study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_READ');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(8000))throw Error('B01偏好讀取鎖定中');
+ try{
+  study1SandboxBookingFlags_();
+  const props=PropertiesService.getScriptProperties();
+  const before=props.getProperty(STUDY1_B01_LAYOUT_KEY_);
+  const state=study1B01LayoutRead_();
+  if(props.getProperty(STUDY1_B01_LAYOUT_KEY_)!==before)
+   throw Error('B01偏好讀取發生競寫，拒絕回傳');
+  return study1B01LayoutView_(state,false);
+ }finally{lock.releaseLock();}
+}
+/** SAVE requires an explicit expectedRevision and a single request identity. */
+function study1UnifiedB01LayoutSave(command){
+ study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_WRITE');
+ if(!command||typeof command!=='object'||Array.isArray(command)||
+  Object.keys(command).sort().join(',')!=='expectedRevision,hidden,order,requestId'||
+  !Number.isSafeInteger(command.expectedRevision)||command.expectedRevision<0||
+  !/^REQ-SIM-B01_[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
+  !Array.isArray(command.order)||!Array.isArray(command.hidden))
+  throw Error('B01僅允許不含個資的排序與顯示偏好');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(8000))throw Error('B01偏好有其他管理操作，請重新載入');
+ try{
+  study1SandboxBookingFlags_();
+  const props=PropertiesService.getScriptProperties();
+  const before=props.getProperty(STUDY1_B01_LAYOUT_KEY_);
+  const state=study1B01LayoutRead_();
+  if(props.getProperty(STUDY1_B01_LAYOUT_KEY_)!==before)
+   throw Error('B01偏好讀取期間發生競寫');
+  const fingerprint=JSON.stringify([command.order,command.hidden]);
+  if(state.lastRequestId===command.requestId){
+   if(fingerprint!==state.fingerprint)throw Error('B01相同請求識別碼不可換操作');
+   return study1B01LayoutView_(state,true);
+  }
+  if(state.revision!==command.expectedRevision)
+   throw Error('B01偏好版本已變更，請回讀後重新修改');
+  const next={schema:'STUDY1_B01_LAYOUT_V1',revision:state.revision+1,
+   order:command.order.slice(),hidden:command.hidden.slice(),
+   lastRequestId:command.requestId,fingerprint};
+  study1B01LayoutVerify_(next);
+  if(state.order.join('|')===next.order.join('|')&&
+     state.hidden.join('|')===next.hidden.join('|'))
+   throw Error('B01偏好沒有修改，不新增重複寫入');
+  const raw=JSON.stringify(next);
+  if(study1UnifiedUtf8Bytes_(raw)>2000)
+   throw Error('B01偏好超過非敏感欄位安全容量');
+  if(props.getProperty(STUDY1_B01_LAYOUT_KEY_)!==before)
+   throw Error('B01偏好競寫，不覆寫其他管理頁');
+  try{
+   props.setProperty(STUDY1_B01_LAYOUT_KEY_,raw);
+   if(props.getProperty(STUDY1_B01_LAYOUT_KEY_)!==raw)
+    throw Error('B01偏好寫入回讀不一致');
+   const verified=study1B01LayoutRead_();
+   if(verified.revision!==next.revision||verified.fingerprint!==next.fingerprint)
+    throw Error('B01偏好寫後內容不一致');
+  }catch(error){
+   try{
+    study1UnifiedRestoreOwnedWrite_(props,STUDY1_B01_LAYOUT_KEY_,before,raw);
+   }catch(recovery){throw Error('B01偏好寫入狀態不明或競寫，已鎖定操作');}
+   throw Error('B01偏好未完成寫入，已安全恢復：'+String(error.message||error));
+  }
+  return study1B01LayoutView_(next,false);
+ }finally{lock.releaseLock();}
+}
+
 /* The only B06 entrypoint; available to the SAME authorized GAS owner only. */
 function study1UnifiedB06Command(command){
  study1UnifiedAssertOwner_();
