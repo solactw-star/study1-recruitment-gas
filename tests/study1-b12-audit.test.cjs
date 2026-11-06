@@ -246,3 +246,105 @@ test('B12 UI newest/oldest ordering uses independent snapshot-bound cursors and 
  assert.match(ui,/sort:\$\('b12Sort'\)\.value/);
  assert.match(ui,/\['b12ModuleFilter','b12Result','b12Limit','b12Sort'\]/);
 });
+
+test('B12 B02 event-only audit is visible with honest metadata and matching B04/B05 mirrors',()=>{
+ const ctx=setup().ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ const at1='2026-11-06T08:00:00.000Z',at2='2026-11-06T08:01:00.000Z';
+ f.b02.history.push({at:at1,action:'ATTEND',ids:['SIM-001']});
+ f.b04.history.push({at:at1,id:'SIM-001',field:'attendanceAndProgress',
+  actor:'OWNER',before:'PENDING / NOT_STARTED',after:'PRESENT / COMPLETE',
+  reason:'B02場次面板更新（未另填更正原因）'});
+ f.b02.attendance['SIM-001']={attendance:'PRESENT',progress:'COMPLETE',note:''};
+ f.b02.history.push({at:at2,action:'ADMIN_CLOSE',ids:['SIM-SLOT-E1-A']});
+ f.b05.history.push({at:at2,action:'CLOSE',actor:'OWNER',
+  slotId:'SIM-SLOT-E1-A',before:'OPEN',after:'CLOSED',issues:0,
+  reason:'人工完成虛構場次',handoff:''});
+ f.b02.sessions['SIM-SLOT-E1-A']={title:'虛構研究場次',place:'',
+  minutes:60,group:'',status:'CLOSED'};
+ const raw=JSON.stringify(f),page=ctx.study1B12AuditPage_(f,b,query(f,b));
+ assert.equal(page.total,4);
+ assert.equal(page.coverage.scope,'BOUNDED_SYNTHETIC_SNAPSHOT');
+ assert.equal(page.coverage.complete,false);
+ assert.equal(page.coverage.sources.find(s=>s.module==='B02').retained,2);
+ assert.equal(page.coverage.crossChecks.b02B05Matched,1);
+ assert.equal(page.coverage.crossChecks.b02B05NoMirror,0);
+ assert.equal(page.coverage.crossChecks.b05B02NoMirror,0);
+ assert.equal(page.coverage.crossChecks.b04AttendanceB02NoMirror,0);
+ assert.equal(page.coverage.crossChecks.b02AttendanceNotProvable,0);
+ assert.equal(page.coverage.warnings.some(w=>w.code==='MIRROR_NOT_FOUND'),false);
+ const b02=page.items.filter(e=>e.module==='B02');
+ assert.equal(b02.length,2);
+ assert.ok(b02.every(e=>e.provenance==='BOUNDED_EVENT_ONLY'&&e.before===null));
+ assert.deepEqual(JSON.parse(JSON.stringify(b02[0].after)),{affectedIds:['SIM-001']});
+ assert.match(b02[0].reason,/無前後值可供重建/);
+ assert.equal(JSON.stringify(f),raw,'B12 cross-module query cannot mutate sources');
+});
+
+test('B12 blocks contradictory B02/B05 mirrored action even when both source histories look valid alone',()=>{
+ const ctx=setup().ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ const at='2026-11-06T08:00:00.000Z';
+ f.b02.history.push({at,action:'ADMIN_REOPEN',ids:['SIM-SLOT-E1-A']});
+ f.b05.history.push({at,action:'CLOSE',actor:'OWNER',
+  slotId:'SIM-SLOT-E1-A',before:'OPEN',after:'CLOSED',issues:0,
+  reason:'人工確認虛構結案',handoff:''});
+ f.b02.sessions['SIM-SLOT-E1-A']={title:'虛構場次',place:'',
+  minutes:60,group:'',status:'CLOSED'};
+ assert.throws(()=>ctx.study1B12AuditPage_(f,b,query(f,b)),/互相矛盾/);
+});
+
+test('B12 warns but does not invent missing mirror when bounded B02 history is at cap',()=>{
+ const ctx=setup().ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ for(let i=0;i<12;i++)f.b02.history.push({
+  at:new Date(Date.UTC(2026,10,6,8,i,0)).toISOString(),
+  action:'UPDATE',ids:['SIM-SLOT-E1-A']});
+ f.b05.history.push({action:'CLOSE',actor:'OWNER',at:'2026-11-06T07:00:00.000Z',
+  slotId:'SIM-SLOT-E1-A',before:'OPEN',after:'CLOSED',issues:0,
+  reason:'人工確認虛構結案',handoff:''});
+ f.b02.sessions['SIM-SLOT-E1-A']={title:'虛構場次',place:'',
+  minutes:60,group:'',status:'CLOSED'};
+ const first=ctx.study1B12AuditPage_(f,b,query(f,b,{limit:4,module:'B02'}));
+ assert.equal(first.total,12);
+ assert.equal(first.coverage.crossChecks.b05B02NoMirror,1);
+ assert.ok(first.coverage.warnings.some(w=>w.code==='B02_CAP'));
+ assert.ok(first.coverage.warnings.some(w=>w.code==='MIRROR_NOT_FOUND'));
+ assert.match(first.coverage.warnings.find(w=>w.code==='MIRROR_NOT_FOUND').text,/不能直接認定遺失/);
+ const newer=JSON.parse(JSON.stringify(f));
+ newer.b02.history[11].action='CANCEL'; // no revision change; same number of events
+ assert.throws(()=>ctx.study1B12AuditPage_(newer,b,query(newer,b,{
+  limit:4,module:'B02',after:first.nextAfter,snapshotHash:first.snapshotHash})),/快照/);
+});
+
+test('B12 distinguishes unpaired B04 attendance and unchanged B02 attendance from proven loss',()=>{
+ const ctx=setup().ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ f.b04.history.push({id:'SIM-001',field:'attendanceAndProgress',
+  before:'PENDING / NOT_STARTED',after:'PRESENT / COMPLETE',
+  actor:'OWNER',at:'2026-11-06T08:00:00.000Z',reason:'人工更正虛構出席'});
+ f.b02.attendance['SIM-001']={attendance:'PRESENT',progress:'COMPLETE',note:''};
+ f.b02.history.push({at:'2026-11-06T08:10:00.000Z',
+  action:'ATTEND',ids:['SIM-002']});
+ const page=ctx.study1B12AuditPage_(f,b,query(f,b));
+ assert.equal(page.coverage.crossChecks.b04AttendanceB02NoMirror,1);
+ assert.equal(page.coverage.crossChecks.b02AttendanceNotProvable,1);
+ assert.ok(page.coverage.warnings.some(w=>w.code==='ATTEND_NO_CHANGE_UNPROVABLE'));
+ assert.ok(page.coverage.warnings.some(w=>w.code==='MIRROR_NOT_FOUND'));
+ assert.ok(page.items.every(e=>e.result==='SUCCESS'));
+});
+
+test('B12 fails closed on forged B02 codes/dates and never enables a formal export',()=>{
+ const x=setup(),ctx=x.ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ for(const record of [
+  {at:'2026-11-06T08:00:00.000Z',action:'CREATE',ids:['NOT_SIM']},
+  {at:'invalid',action:'ATTEND',ids:['SIM-001']},
+  {at:'2026-11-06T08:00:00.000Z',action:'FAKE_COMMIT',ids:['SIM-001']}
+ ]){
+  f.b02.history=[record];
+  assert.throws(()=>ctx.study1B12AuditPage_(f,b,query(f,b)),/B12行事曆/);
+ }
+ assert.equal(x.writes,0);
+ assert.throws(()=>ctx.study1UnifiedB12Export_(),/未獲授權/);
+ const html=fs.readFileSync(path.join(root,'Study1Team.html'),'utf8');
+ assert.match(html,/<option value="B02">B02 行事曆<\/option>/);
+ assert.match(html,/id="b12Coverage"/);
+ assert.match(html,/coverage\.warnings\.map/);
+ assert.doesNotMatch(html,/id="b12Export"/);
+});
