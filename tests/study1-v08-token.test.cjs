@@ -47,3 +47,56 @@ test('no public activation or runtime routes',()=>{
  assert.match(source,/STUDY1_V08_ENABLED_ = false/);
  assert.doesNotMatch(source,/function\s+(?:doGet|doPost|study1UnifiedPreviewCommand)\s*\(/);
 });
+
+const atomic=vm.runInContext('study1V08ConsumeAtomic_',ctx);
+function storeAdapter(options={}) {
+ let current={...rec};
+ let writes=0;
+ const adapter={
+  hash,equalDigest,
+  withExclusiveLock:fn=>fn(),
+  read:()=>options.badReadback && writes ? null : {...current},
+  compareAndSwap:(_id,expected,next)=>{
+   if(options.conflict || current.revision!==expected) return false;
+   current={...next};writes++;
+   if(options.throwAfterWrite) throw Error('transport lost');
+   return true;
+  }
+ };
+ return {adapter,get:()=>({...current}),writes:()=>writes};
+}
+test('atomic synthetic consumption commits once and readback confirms',()=>{
+ const s=storeAdapter();
+ assert.equal(atomic(input,1999,s.adapter).ok,true);
+ assert.equal(s.get().status,'CONSUMED');
+ assert.equal(atomic(input,1999,s.adapter).ok,false);
+ assert.equal(s.writes(),1);
+});
+test('atomic adapter rejects missing lock and CAS without writes',()=>{
+ const s=storeAdapter();
+ delete s.adapter.withExclusiveLock;
+ assert.equal(atomic(input,1999,s.adapter).reason,'ADAPTER_UNAVAILABLE');
+ assert.equal(s.writes(),0);
+});
+test('atomic CAS conflict does not consume or retry',()=>{
+ const s=storeAdapter({conflict:true});
+ assert.equal(atomic(input,1999,s.adapter).reason,'CONFLICT_OR_UNKNOWN');
+ assert.equal(s.get().status,'ISSUED');
+ assert.equal(s.writes(),0);
+});
+test('atomic ambiguous after-write failure is UNKNOWN and never retries',()=>{
+ const s=storeAdapter({throwAfterWrite:true});
+ assert.equal(atomic(input,1999,s.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(s.get().status,'CONSUMED');
+ assert.equal(s.writes(),1);
+});
+test('atomic missing readback never acknowledges success',()=>{
+ const s=storeAdapter({badReadback:true});
+ assert.equal(atomic(input,1999,s.adapter).reason,'UNKNOWN_READBACK');
+ assert.equal(s.writes(),1);
+});
+test('atomic expired capability fails before CAS',()=>{
+ const s=storeAdapter();
+ assert.equal(atomic(input,2000,s.adapter).ok,false);
+ assert.equal(s.writes(),0);
+});
