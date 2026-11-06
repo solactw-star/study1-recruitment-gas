@@ -280,6 +280,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div id="b01LayoutControls" aria-label="資訊卡可見性與排序操作"></div>
 </details>
 <div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
+ <p id="b01B07Consistency" class="small" role="status" aria-live="polite">B07逐階段待核：尚未核實。</p>
  <div class="b01Links"><a href="#calendarModule">查看研究行事曆</a><a href="#b03Module">查看參與者名單</a><a href="#b06Module">查看人工待辦</a></div>
 </section>
 
@@ -295,6 +296,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  </div>
  <div class="b06Actions"><button type="button" id="b09Apply" class="secondary">重新計算</button><button type="button" id="b09Reset" class="secondary">清除篩選</button><span id="b09Status" role="status" aria-live="polite" class="small">尚未核對虛構資料。</span></div>
  <div id="b09Metrics" class="b09Metrics" aria-label="統計數值、分子、分母與排除條件"></div>
+ <p id="b09B07Consistency" class="small" role="status" aria-live="polite">B07逐階段待核：尚未核實。</p>
  <h3>依實驗統計（不重複虛構申請代碼）</h3>
  <div class="b09TableWrap"><table class="b09Table"><thead><tr><th scope="col">實驗</th><th scope="col">申請代碼／全期</th><th scope="col">初篩通過／已評估</th><th scope="col">未取消且具場次關聯／期間</th><th scope="col">預約成立／期間</th><th scope="col">出席／期間</th><th scope="col">施測行政完成／期間</th></tr></thead><tbody id="b09ByExperiment"></tbody></table></div>
  <h3>按場次日期分布（不是報名日期趨勢）</h3>
@@ -652,11 +654,11 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 
 <section class="panel" id="b12Module" aria-labelledby="b12Heading">
  <span class="tag">B12｜原網站唯讀稽核</span><h2 id="b12Heading">虛構資料操作歷程與異常狀態</h2>
- <p class="sub">僅原 GAS owner 可以查詢。B02只保留動作、時間與虛構代碼；B04／B05為有限前後值歷程；B06的SHA256鏈可驗證。跨來源對照找不到事件可能只是截斷，不可推定遭刪除。B08顯示虛構通知失敗<strong>現況</strong>，並非歷史事件。沒有正式稽核匯出或永久不可改寫庫。</p>
+ <p class="sub">僅原 GAS owner 可以查詢。B02只保留動作、時間與虛構代碼；B04／B05／B07逐階段更正為有限前後值歷程；B06的SHA256鏈可驗證。跨來源對照找不到事件可能只是截斷，不可推定遭刪除。B08顯示虛構通知失敗<strong>現況</strong>，並非歷史事件。沒有正式稽核匯出或永久不可改寫庫。</p>
  <div class="b12Tools">
   <label for="b12Search">關鍵字<input type="search" id="b12Search" maxlength="60" placeholder="代碼、動作或原因"></label>
   <label for="b12Sort">時間排序<select id="b12Sort"><option value="DESC">最新在前</option><option value="ASC">最早在前</option></select></label>
-  <label for="b12ModuleFilter">模組<select id="b12ModuleFilter"><option value="ALL">全部</option><option value="B02">B02 行事曆</option><option value="B06">B06 待辦</option><option value="B04">B04 管理</option><option value="B05">B05 場次</option><option value="B08">B08 虛構失敗</option></select></label>
+  <label for="b12ModuleFilter">模組<select id="b12ModuleFilter"><option value="ALL">全部</option><option value="B02">B02 行事曆</option><option value="B06">B06 待辦</option><option value="B04">B04 管理</option><option value="B05">B05 場次</option><option value="B07">B07 逐階段待核</option><option value="B08">B08 虛構失敗</option></select></label>
   <label for="b12Result">結果<select id="b12Result"><option value="ALL">全部</option><option value="SUCCESS">成功</option><option value="SIM_FAILED_SNAPSHOT">虛構失敗狀態</option></select></label>
   <label for="b12Limit">每頁筆數<select id="b12Limit"><option value="10">10</option><option value="20">20</option><option value="30">30</option></select></label>
  </div>
@@ -889,6 +891,8 @@ function b09Compute_(data,scope,phase,start,end){
    !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(n.status))
    throw Error('B09通知來源無法核實');
  }
+ const b07Summary=b07SummaryVerified_(data);
+ const b07Pending=scope==='ALL'?b07Summary.total:b07Summary.byExperiment[scope];
  const exps=scope==='ALL'?['E1','E2']:[scope];
  const byExperiment=[];
  const trend=new Map();
@@ -942,7 +946,7 @@ function b09Compute_(data,scope,phase,start,end){
   absent:sum('absent'),activeTasks,failedNotifications,
   // Existing summary B01's all-time record count must stay consistent.
   allTimeApplicationCodes:new Set(relevantApps.map(a=>a.id)).size,
-  scope,phase,start,end};
+  b07Pending,scope,phase,start,end};
 }
 function b09Visualize_(rows){
  const panel=$('b09Visual');panel.replaceChildren();
@@ -975,6 +979,7 @@ function b09Rate_(numerator,denominator){
   (numerator*100/denominator).toFixed(1)+'%）':'—（分母0，不計比例）';
 }
 function b09Clear_(msg){
+ $('b09B07Consistency').textContent='B07來源或數量未核實，不顯示逐階段待核統計。';
  $('b09Metrics').replaceChildren();$('b09ByExperiment').replaceChildren();
  $('b09Trend').replaceChildren();$('b09Visual').replaceChildren();
  $('b09Status').textContent=msg;
@@ -1009,6 +1014,8 @@ function b09Render(){
    ['目前未完成人工待辦',result.activeTasks,'B06現況；不受場次日期與申請階段限制'],
    ['目前虛構通知失敗',result.failedNotifications,'B08現況；不受場次日期與申請階段限制']
   ];
+  $('b09B07Consistency').textContent='B07純TEST逐階段一致性通過｜'+result.scope+'｜'+
+    b07CountText_(result.b07Pending)+'｜全期目前代碼的階段分類；不受場次日期及申請階段篩選；不是補貼核准或付款。';
   for(const [label,value,note] of items){
    const card=calElem('div',undefined,'b09Metric');
    card.append(calElem('span',label),calElem('strong',String(value)),
@@ -1518,11 +1525,11 @@ function b07Clear_(text){
  $('b07ItemRows').replaceChildren();$('b07ItemHistory').replaceChildren();
  $('b07Status').textContent=text;
 }
-function b07Valid_(){
- const b=model?.b07,apps=model?.applications;
- if(!(model&&model.mode==='TEST'&&model.open===false&&
-   model.consentReady===false&&model.formalReadiness?.activationAllowed===false&&
-   model.formalPorts?.activated===false&&Array.isArray(apps)&&
+function b07Valid_(data=model){
+ const b=data?.b07,apps=data?.applications;
+ if(!(data&&data.mode==='TEST'&&data.open===false&&
+   data.consentReady===false&&data.formalReadiness?.activationAllowed===false&&
+   data.formalPorts?.activated===false&&Array.isArray(apps)&&
    new Set(apps.map(a=>a?.id)).size===apps.length&&
    b&&typeof b==='object'&&!Array.isArray(b)&&
    Object.keys(b).sort().join(',')==='history,itemHistory,itemReviews,reviews'&&
@@ -1568,10 +1575,43 @@ function b07Valid_(){
   if(b.itemReviews[key]?.status!==h.to||b.itemReviews[key]?.at!==h.at)return false;
  return true;
 }
+/* Independently check B07 pending SIM classifications against original GAS. */
+function b07SummaryVerified_(data){
+ if(!b07Valid_(data)||!data.b07Summary)throw Error('B07待核來源無法核實');
+ const zero=()=>({total:0,unrecorded:0,sourcePending:0,documentsPending:0,piReviewPending:0});
+ const byExperiment={E1:zero(),E2:zero()};
+ const byStage={SINGLE_SESSION:zero(),PRETEST:zero(),INTERVENTION_8W:zero(),POSTTEST:zero()};
+ const fields={UNRECORDED:'unrecorded',SOURCE_PENDING:'sourcePending',
+  DOCUMENTS_PENDING:'documentsPending',PI_REVIEW_PENDING:'piReviewPending'};
+ for(const a of data.applications){
+  if(!a||!/^SIM-[0-9]{3}$/.test(a.id)||!b07Stages[a.experiment])
+   throw Error('B07待核項目申請來源不一致');
+  for(const stage of b07Stages[a.experiment]){
+   const field=fields[data.b07.itemReviews[a.id+':'+stage]?.status||'UNRECORDED'];
+   if(!field)throw Error('B07待核項目狀態不合法');
+   for(const count of [byExperiment[a.experiment],byStage[stage]]){count.total++;count[field]++;}
+  }
+ }
+ const total=zero();
+ for(const exp of ['E1','E2'])
+  for(const field of Object.keys(total))total[field]+=byExperiment[exp][field];
+ const summary={mode:'SYNTHETIC_PENDING_ONLY',approved:false,payment:false,
+  total,byExperiment,byStage,historyRetained:data.b07.itemHistory.length,historyLimit:32};
+ if(JSON.stringify(summary)!==JSON.stringify(data.b07Summary))
+  throw Error('B07原GAS與管理頁逐階段計數不一致，拒絕展示');
+ return summary;
+}
+function b07CountText_(count){
+ return '項目'+count.total+'｜來源待核'+count.sourcePending+
+  '｜文件待核'+count.documentsPending+'｜待PI查核'+count.piReviewPending+
+  '｜尚未記錄'+count.unrecorded;
+}
 function b07Render_(){
  const filter=$('b07Experiment');
  if(!['ALL','E1','E2'].includes(filter.value))filter.value='ALL';
- if(!b07Valid_()){b07Clear_('B07來源或正式研究安全條件無法核實，已拒絕顯示與操作。');return;}
+ try{b07SummaryVerified_(model);}catch(error){
+  b07Clear_('B07來源與逐階段統計不一致，已拒絕顯示與操作：'+String(error.message||error));return;
+ }
  const global=$('adminScopeGlobal').value;
  if(!['ALL','E1','E2'].includes(global)){
   b07Clear_('B07後台全域範圍不合法，已清空虛構行政準備資料。');return;
