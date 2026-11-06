@@ -497,7 +497,7 @@ function b01Render(){
   model.b02.sessions&&typeof model.b02.sessions==='object'&&!Array.isArray(model.b02.sessions)&&
   model.b02.attendance&&typeof model.b02.attendance==='object'&&!Array.isArray(model.b02.attendance)&&
   model.b06&&Array.isArray(model.b06.tasks)&&
-  model.slots.every(s=>s&&typeof s.id==='string'&&s.id.length>0&&typeof s.when==='string'&&/^\d{4}-\d{2}-\d{2} /.test(s.when)&&!Number.isNaN(Date.parse(s.when.replace(' ','T')+'+08:00'))&&new Date(s.when.replace(' ','T')+'+08:00').toISOString().slice(0,10)===s.when.slice(0,10))&&
+  model.slots.every(s=>s&&typeof s.id==='string'&&s.id.length>0&&typeof s.when==='string'&&/^\d{4}-\d{2}-\d{2} /.test(s.when)&&!Number.isNaN(Date.parse(s.when.replace(' ','T')+'+08:00'))&&new Date(Date.UTC(Number(s.when.slice(0,4)),Number(s.when.slice(5,7))-1,Number(s.when.slice(8,10)))).toISOString().slice(0,10)===s.when.slice(0,10))&&
   new Set(model.slots.map(s=>s.id)).size===model.slots.length&&
   new Set(model.applications.map(a=>a&&a.id)).size===model.applications.length&&
   model.applications.every(a=>a&&typeof a.id==='string'&&typeof a.phase==='string')&&
