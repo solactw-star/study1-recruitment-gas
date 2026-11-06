@@ -547,6 +547,9 @@ function study1UnifiedB06Command(command){
    throw Error('B06儲存未完成，已恢復原資料（或資料未變更）：'+String(error.message||error));
   }
   return {...study1UnifiedView_(study1UnifiedRead_()),deduplicated:false};
+ }catch(error){
+  study1B12FailureDiagnostic_('B06',error);
+  throw error;
  }finally{lock.releaseLock();}
 }
 
@@ -1690,5 +1693,8 @@ function study1UnifiedPreviewCommand(command){
    throw Error('本次寫入未完成；已回復寫入前版本（或資料未變更）：'+String(e.message||e));
   }
   return {...study1UnifiedView_(next),deduplicated:false};
+ }catch(error){
+  study1B12FailureDiagnostic_('UNIFIED',error);
+  throw error;
  }finally{lock.releaseLock();}
 }
