@@ -525,3 +525,17 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：經核准的正式資料provider／容量及完整跨期註冊時間、真人身分唯一鍵、候補來源、研究目標與正式階段完成定義、CSV/XLSX匯出與角色授權、不可改寫稽核、有效REC及真正owner瀏覽器UI操作。未獲正式研究權責與核准不可將TEST報表升級為真人統計。
 - `NEXT_ACTION`：先重新核實最新GitHub main、PR、工作流、原部署與競寫，接續未涉及真人資料的B11設定預覽或其他P1/P2功能；如擴充B09，先補來源可證實的階段分類、經核准的正式資料日期與分母，再處理真正報名趨勢與匯出。維持既有每小時排程職責，不新增平行任務或要求使用者立即人工驗收。
 - `WRITE_OWNER=GitHub main + original GAS safe-sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
+
+## 四十三、B09場次日期視覺比較與原GAS V69同ID回讀（2026-11-06）
+
+- `TASK_DOMAIN=Study1 recruitment website / B09 synthetic trends`。依當次GitHub最新main `5ed6f4bc9a81e93691cc6e3c6a6b0b3a2e6fb3e5`、原正式規格第31–42節及並行PR核實：B09主模組已由另一輪PR #71合併main且原GAS V68同ID同步成功，因此本輪未再複製B09統計或建立平行系統。僅在原有 B09 增加同一組安全快照的可視化分布，保留第42節全部指標定義、分母與限制。
+- `COMPLETED`：原 `gas/Study1Team.html` B09日期分布表下方新增**按臺灣場次日期的橫條比較圖**，直接使用原 `b09Compute_(model,scope,phase,start,end)` 已驗證的 `result.trend`，每個日期以三筆有明確文字標籤的原生DOM橫條表示「未取消場次」「有效關聯虛構申請代碼」「施測行政進度完成」。條長依**所顯示日期數值中的最大筆數**相對縮放，文字直接保留原筆數，不是正式研究目標或完成率；資料缺乏可核實場次日期時顯示缺資料，而不是推斷沒有申請或補0。B01與B09沿用同一 OWNER-only TEST 快照，沒有新增任何GAS RPC、ScriptProperties key、歷史日期來源、統計表或下載匯出。
+- `FAIL_CLOSED`：B09來源驗證失敗、起迄日期格式不合法或反向、撤銷授權/讀取失敗時，除原統計卡片與兩張表以外，**新增圖像也會立即清空**，不保留過期成功圖表。圖表使用`textContent`及DOM建立、數值與日期均來自原B09經驗證資料，橫條設`aria-hidden`而完整數值可供輔助技術讀取；不新增外部圖表程式庫、外連、傳輸或副作用。
+- `SOURCE_PR=72`（已合併）／`SOURCE_COMMIT=9d00bd5f84b1862ddf4ab3ad774e3da10f7a6b61`。變更僅原 `gas/Study1Team.html`、既有 `tests/study1-team-visitor-flow.test.cjs`；保留B01／B02–B06／B08／B12原功能，沒有修改B01過期草稿PR #63或任何正式研究資料。
+- `TESTS`：新增兩項同一原GAS狀態機的瀏覽器形狀模擬測試，核對場次日期、三種原來源計數、有數字的無障礙文字、橫條範圍、不發任何寫入RPC、不新增資料key；空日期範圍顯示證據不足、非法日期及owner讀取失敗清除圖表。PR #72 CI `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42203343617`、合併後main CI `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42203466407` 均成功，**533 PASS／0 FAIL**。這是自動化測試，不代表實際owner瀏覽器三輪UAT完成。
+- `GAS_SYNC_VERIFIED=true`：沿用原安全流程 `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42203466414`，先備份原GAS完整程式及版本化部署快照至私人Drive ID `1XYzO3HxLr8PwToOFg5nBkEkymIohTwx0`；更新前原遠端完整HEAD SHA256 `20c24bf4c5a426920faa0f19fe9835f9c11fdbdb9c81446fa325d22658c32883`，更新後HEAD SHA256 `250da7c29286753ef11434466736e84e4501e29336271269db54a49ee10c300c`。同一原GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`、同一 `/exec` deployment ID `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s`，版本**V68→V69**、`DEPLOYMENT_AFTER_UPDATE=69`、`SYNC_VERIFIED=true`。有效版本化部署權限仍為`MYSELF`，原HEAD未部署manifest顯示`ANYONE_ANONYMOUS`不是公開`/exec`的證據。此Drive備份是程式及部署快照**不是研究資料備份**。
+- `SAFETY`：維持`OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2在2027年前不招募且屆時不自動開放；未開放正式統計目標、正式研究完成率、註冊時間趨勢、真實參與者身份去重、CSV/XLSX或其他正式匯出、真人資料、REC、Sheet、Gmail、PI／RA真正帳號與撤權及正式部署對外收件。
+- `LAST_VERIFIED_STEP=PR #72 merge; main CI 533/533; same original GAS V69 HEAD/deployment SHA + MYSELF full readback`。獨立驗證狀態：`MAIN_SYNC_VERIFIED=true`、`GAS_SYNC_VERIFIED=true`、`B09_SYNTHETIC_TREND_VISUAL_IMPLEMENTED=true`、`SELF_UI_3PASS=NOT_VERIFIED`、`PRODUCTION_STORAGE_CONNECTED=false`、`FORMAL_READY=false`。
+- `BLOCKERS`：尚無合法的報名時間或跨期個人記錄、研究目標/正式完成定義、核准真人資料provider、PI／RA正式授權與撤權、正式匯出、原研究網站實際owner三輪瀏覽器驗收。圖像使用合成TEST資料，不得被當作實驗二已開放或招募成果。
+- `NEXT_ACTION`：下輪先讀最新GitHub main、PR、排程與原部署狀態，再處理B11純合成系統設定預覽、B09更多可信來源健全性測試或其他不需REC正式資料授權的核心缺口。不直接合併舊B01草稿，禁止未授權真人資料或正式匯出，不要求使用者此輪驗收。
+- `WRITE_OWNER=GitHub main + original GAS same-ID safe-sync`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
