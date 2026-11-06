@@ -1023,7 +1023,8 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
   ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[],
    b02:{sessions:{},attendance:{},history:[]},
-    b04:{notes:{},history:[]},b05:{closures:{},history:[]}};
+    b04:{notes:{},history:[]},b05:{closures:{},history:[]},
+   b07:study1UnifiedB07Initial_()};
 }
 /** Server-side role boundary for the existing OWNER-only synthetic routes.
  * Synthetic PI/RA audit labels never authenticate a user or grant a role.
@@ -1050,6 +1051,7 @@ function study1UnifiedRead_(){
  if(s&&!s.b02)s.b02={sessions:{},attendance:{},history:[]}; // non-writing TEST migration
  if(s&&!s.b04)s.b04={notes:{},history:[]}; // non-writing B04 migration
  if(s&&!s.b05)s.b05={closures:{},history:[]}; // non-writing B05 migration
+ if(s&&!s.b07)s.b07=study1UnifiedB07Initial_(); // non-writing B07 TEST migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -1268,6 +1270,9 @@ function study1UnifiedView_(s){
   b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
   b04:JSON.parse(JSON.stringify(s.b04||{notes:{},history:[]})),
   b05:JSON.parse(JSON.stringify(s.b05||{closures:{},history:[]})),
+  b07:{...JSON.parse(JSON.stringify(s.b07||study1UnifiedB07Initial_())),
+   formalAmountsVerified:false,payoutEnabled:false,receiptConnected:false,formalApproval:'PENDING',
+   historyImmutable:false},
   b06:{...study1B06Read_(),formalPersistence:false},
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
@@ -1296,7 +1301,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_B07_RECORD','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
