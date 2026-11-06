@@ -139,7 +139,7 @@ test('B01 rejects malformed cross-module snapshots without showing stale cards',
 
 test('B01 accepts valid Taiwan morning sessions without UTC date rollover',()=>{
  const vm=require('node:vm');
- const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\\nfunction load(){',html.indexOf('function b01Clear(')));
+ const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
  const cards={children:[],replaceChildren(){this.children=[];},append(n){this.children.push(n);}};
  const status={textContent:''};
  const snapshot={mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
