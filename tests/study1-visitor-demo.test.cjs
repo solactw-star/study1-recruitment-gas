@@ -229,3 +229,20 @@ test('V05 month picker reads same synthetic snapshot, filters dates and clears o
  assert.equal(ids.get('v05Dates').children.length,0);
  assert.match(ids.get('v05Status').textContent,/拒絕選擇/);
 });
+
+test('V07 exposes only safe synthetic booking-result uncertainty, GET rescan and no automatic command replay',()=>{
+ for(const id of ['v07Result','v07Rescan'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/function v07Readback_\(afterFailure,detail\)/);
+ assert.match(html,/function v07SafeRead_\(response,last\)/);
+ assert.match(html,/function v07ConfirmResponse_\(action,payload,response,priorRevision\)/);
+ assert.match(html,/v07\.blocked=true/);
+ assert.match(html,/v07Readback_\(true,detail\)/);
+ assert.match(html,/study1UnifiedPreviewGet\(\)/);
+ assert.match(html,/重新核對原GAS狀態（不重送）/);
+ assert.match(html,/結果未知/);
+ assert.match(html,/時段已滿或失效/);
+ assert.match(html,/資格不符/);
+ assert.match(html,/不能單憑回讀/);
+ assert.doesNotMatch(html,/\b(?:localStorage|sessionStorage|fetch|XMLHttpRequest)\b/);
+});
