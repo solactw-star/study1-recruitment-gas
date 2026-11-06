@@ -1,7 +1,14 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const crypto=require('node:crypto');
+const crypto=require('node:crypto'),zlib=require('node:zlib');
+const toBuffer=v=>typeof v==='string'?Buffer.from(v,'utf8'):Buffer.from(v.map(n=>n&255));
+const newBlob=v=>({getBytes:()=>[...toBuffer(v)].map(n=>n>127?n-256:n),
+ getDataAsString:()=>toBuffer(v).toString('utf8')});
 const fixtureUtilities={
+ newBlob:v=>newBlob(v),
+ gzip:b=>newBlob(zlib.gzipSync(toBuffer(b.getBytes()))),
+ ungzip:b=>newBlob(zlib.gunzipSync(toBuffer(b.getBytes()))),
+ base64Encode:bytes=>toBuffer(bytes).toString('base64'),
  Charset:{UTF_8:'UTF-8'},
  DigestAlgorithm:{SHA_256:'SHA_256'},
  base64Decode:b64=>[...Buffer.from(b64,'base64')].map(b=>b>127?b-256:b),
