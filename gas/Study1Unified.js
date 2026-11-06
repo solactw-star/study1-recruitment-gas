@@ -1118,6 +1118,7 @@ function study1UnifiedRead_(){
  study1UnifiedValidatePolicy_(s.policy);
  study1UnifiedValidateResearch_(s.research);
  study1UnifiedValidateRecruitment_(s.recruitment);
+ study1UnifiedB07Validate_(s.b07,s.applications);
  study1UnifiedValidateSlots_(s.slots);
  if(!s.b02||typeof s.b02!=='object'||Array.isArray(s.b02)||
     Object.keys(s.b02).sort().join(',')!=='attendance,history,sessions'||
@@ -1887,6 +1888,7 @@ function study1UnifiedPreviewCommand(command){
   study1UnifiedValidatePolicy_(next.policy);study1UnifiedValidateResearch_(next.research);
   study1UnifiedValidateSlots_(next.slots);study1UnifiedValidateE2Weeks_(next.e2Weeks);
   study1UnifiedValidateRecruitment_(next.recruitment);
+  study1UnifiedB07Validate_(next.b07,next.applications);
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);
