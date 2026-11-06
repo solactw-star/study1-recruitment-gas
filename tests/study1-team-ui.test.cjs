@@ -9,6 +9,12 @@ const visitor=fs.readFileSync(path.join(dir,'Study1Visitor.html'),'utf8');
 const index=fs.readFileSync(path.join(dir,'Index.html'),'utf8');
 const sync=fs.readFileSync(path.join(__dirname,'../scripts/study1-gas-auto-index.cjs'),'utf8');
 const flow=fs.readFileSync(path.join(__dirname,'../.github/workflows/study1-gas-auto-index.yml'),'utf8');
+// Isolated B01 legacy-KPI tests stub the new independently-tested B07 contract;
+// real owner-view integration and malicious-summary rejection are tested in
+// study1-team-visitor-flow.test.cjs, never in this isolated KPI harness.
+const b07Indicator={textContent:''};
+const b07Mock=()=>({total:{total:0},byExperiment:{E1:{total:0},E2:{total:0}}});
+const b07CountMock=()=>'';
 test('Research team gets GUI forms for experiment state, copy, slots, weeks and summaries, not raw JSON',()=>{
  assert.doesNotThrow(()=>gate.assertTeamHtml(html));
  for(const id of ['modeE1','modeE2','saveModes','saveSite','saveResearch','saveSlots','saveWeeks','slotRows','weekRows','entries'])
@@ -75,7 +81,7 @@ test('B01 derived summary reconciles bookings, attendance, progress and anomalie
  const vm=require('node:vm');
  const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
  assert.ok(source.startsWith('function b01Clear('),'B01 source extraction must succeed');
- const nodes={b01Cards:{children:[],replaceChildren(){this.children=[];},append(node){this.children.push(node);}},b01Status:{textContent:''}};
+ const nodes={b01Cards:{children:[],replaceChildren(){this.children=[];},append(node){this.children.push(node);}},b01Status:{textContent:''},b01B07Consistency:{textContent:''}};
  const document={createElement(tag){return {tag,textContent:'',children:[],append(...parts){this.children.push(...parts);}};}};
  const snapshot={
   mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
@@ -93,7 +99,7 @@ test('B01 derived summary reconciles bookings, attendance, progress and anomalie
    attendance:{A1:{attendance:'PRESENT',progress:'COMPLETE'},A2:{attendance:'PENDING',progress:'PARTIAL'},A3:{attendance:'PRESENT',progress:'COMPLETE'}}},
   b06:{tasks:[{status:'OPEN',archived:false},{status:'DONE',archived:false},{status:'OPEN',archived:true}]}
  };
- const context={document,model:snapshot,Date:class extends Date{static now(){return Date.parse('2026-11-06T00:00:00Z');}},Set,$:id=>nodes[id]};
+ const context={document,model:snapshot,Date:class extends Date{static now(){return Date.parse('2026-11-06T00:00:00Z');}},Set,$:id=>nodes[id],b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock};
  vm.createContext(context);vm.runInContext(source+';b01Render();',context);
  const values=Object.fromEntries(nodes.b01Cards.children.map(card=>[card.children[0].textContent,Number(card.children[1].textContent)]));
  assert.equal(values['不重複申請代碼'],7);
@@ -121,7 +127,7 @@ test('B01 rejects malformed cross-module snapshots without showing stale cards',
  const context={model:{mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
   slots:[{id:'S1',when:null}],applications:[{id:'A1',phase:'CONFIRMED'}],
   b02:{sessions:{},attendance:{}},b06:{tasks:[]}},
-  $:id=>id==='b01Cards'?cards:status,Date,Set,document:{createElement(){throw Error('unsafe render');}}};
+  $:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,document:{createElement(){throw Error('unsafe render');}}};
  vm.createContext(context);
  assert.doesNotThrow(()=>vm.runInContext(source+';b01Render();',context));
  assert.equal(cards.children.length,0);
@@ -144,7 +150,7 @@ test('B01 accepts valid Taiwan morning sessions without UTC date rollover',()=>{
  const snapshot={mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
   slots:[{id:'S1',when:'2026-11-06 00:30'},{id:'S2',when:'2026-11-06 07:30'}],
   applications:[],b02:{sessions:{},attendance:{}},b06:{tasks:[]}};
- const context={model:snapshot,$:id=>id==='b01Cards'?cards:status,Date,Set,
+ const context={model:snapshot,$:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,
   document:{createElement(tag){return {tag,textContent:'',children:[],append(...items){this.children.push(...items);}};}}};
  vm.createContext(context);
  assert.doesNotThrow(()=>vm.runInContext(source+';b01Render();',context));
@@ -161,7 +167,7 @@ test('B01 refuses duplicate identifiers and impossible Taiwan dates rather than 
   slots:[{id:'S1',when:'2026-11-06 09:00'}],
   applications:[{id:'A1',phase:'CONFIRMED',slotId:'S1'}],
   b02:{sessions:{S1:{status:'OPEN'}},attendance:{}},b06:{tasks:[]}};
- const context={model:snapshot,$:id=>id==='b01Cards'?cards:status,Date,Set,
+ const context={model:snapshot,$:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,
   document:{createElement(){return {append(){},textContent:''};}}};
  vm.createContext(context);
  for(const changed of [

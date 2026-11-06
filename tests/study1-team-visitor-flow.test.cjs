@@ -132,6 +132,10 @@ function page(server,kind){
    try{const view=server.read();success(view);}
    catch(e){failures.push(String(e.message||e));failure(e);}
   },
+  study1UnifiedB12AuditPage(q){calls.push('B12_READ');
+   try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB12AuditPage(q))));}
+   catch(e){failures.push(String(e.message||e));failure(e);}
+  },
   study1UnifiedB06Command(c){calls.push('B06_'+c.action);
    try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB06Command(c))));}
    catch(e){failures.push(String(e.message||e));failure(e);}
@@ -1456,5 +1460,43 @@ test('B07 forged cross-experiment stage or owner read failure removes all stage 
  assert.equal(team.get('b07ItemRows').children.length,0);
  assert.equal(team.get('saveModes').disabled,true);
  assert.equal(srv.writes,writes);
+ srv.ctx.study1UnifiedPreviewGet=orig;closed(srv);
+});
+
+test('B07 B01 B09 B12 TEST status reconciliation, scopes and forged-count rejection',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});srv.command('START',{experiment:'E2'});
+ const writes=srv.writes,team=page(srv,'team');
+ assert.equal(team.get('b01Cards').children.length,13);
+ assert.match(team.get('b01B07Consistency').textContent,/項目4.*尚未記錄4/);
+ assert.match(team.get('b09B07Consistency').textContent,/項目4.*尚未記錄4/);
+ const fields=team.get('b07ItemRows').children[1].children[1];
+ fields.children[0].children[0].value='PI_REVIEW_PENDING';
+ fields.children[0].children[0].handlers.change();
+ fields.children[1].children[0].value='PI_REVIEW_REQUEST';
+ fields.children[2].handlers.click();
+ assert.equal(srv.writes,writes+1);
+ assert.match(team.get('b01B07Consistency').textContent,/待PI查核1.*尚未記錄3/);
+ assert.match(team.get('b09B07Consistency').textContent,/待PI查核1.*尚未記錄3/);
+ team.set('adminScopeB01','E1');team.change('adminScopeB01');
+ assert.match(team.get('b01B07Consistency').textContent,/項目1.*尚未記錄1/);
+ team.set('adminScopeB09','E2');team.change('adminScopeB09');
+ assert.match(team.get('b09B07Consistency').textContent,/項目3.*待PI查核1.*尚未記錄2/);
+ team.set('b12ModuleFilter','B07');team.set('b12Result','ALL');
+ team.set('b12Limit','10');team.set('b12Sort','DESC');
+ team.click('b12SearchButton');
+ assert.equal(team.get('b12List').children.length,1);
+ assert.match(team.get('b12Coverage').textContent,/B07.*1／最多32筆/);
+ assert.match(team.get('b12Coverage').textContent,/項目4.*待PI查核1/);
+ assert.equal(srv.writes,writes+1,'cross-module reads do not write');
+ const orig=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{
+  const d=orig();d.b07Summary.total.piReviewPending+=1;return d;
+ };
+ team.click('refresh');
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.equal(team.get('b07ItemRows').children.length,0);
+ assert.match(team.get('b01B07Consistency').textContent,/未核實/);
+ assert.equal(srv.writes,writes+1);
  srv.ctx.study1UnifiedPreviewGet=orig;closed(srv);
 });

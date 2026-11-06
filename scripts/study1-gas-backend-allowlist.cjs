@@ -162,7 +162,7 @@ function assertUnifiedFlow(source){
    "if(s&&!s.b04)s.b04={notes:{},history:[]}",
    "action==='ADMIN_B05_CLOSURE'","s.b05.history.push(",
    "action==='ADMIN_B07_REVIEW'","action==='ADMIN_B07_ITEM_REVIEW'",
-    "study1B07Verify_(s)","STUDY1_B07_STAGES_", "s.b07.itemReviews[key]=",
+    "study1B07Verify_(s)","study1B07PendingSummary_(s)","STUDY1_B07_STAGES_", "s.b07.itemReviews[key]=",
     "s.b07.itemHistory.push(",
    "s.b07.reviews[p.id]=","s.b07.history.push(",
    "if(s&&!s.b07)s.b07=study1B07Initial_()",
@@ -224,7 +224,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
   'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1UnifiedB11FormalPublish_',
-  'study1B07Initial_','study1B07Verify_',
+  'study1B07Initial_','study1B07Verify_','study1B07PendingSummary_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
   'study1B12AuditBuild_','study1B12AuditPage_',
@@ -303,7 +303,11 @@ function assertTeamHtml(html){
     !html.includes('後台研究範圍不合法')||
     !html.includes('id="b07Module"')||!html.includes('id="b07Rows"')||
     !html.includes('id="b07History"')||!html.includes('id="b07Experiment"')||
-    !html.includes("function b07Valid_()")||
+    !html.includes("function b07Valid_(data=model)")||
+    !html.includes("function b07SummaryVerified_(data)")||
+    !html.includes('id="b01B07Consistency"')||
+    !html.includes('id="b09B07Consistency"')||
+    !html.includes('<option value="B07">B07 逐階段待核</option>')||
     !html.includes("function b07Save_(id,status,reason)")||
     !html.includes("action:'ADMIN_B07_REVIEW'")||
      !html.includes('id="b07ItemRows"')||
