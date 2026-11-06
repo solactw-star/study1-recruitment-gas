@@ -426,6 +426,92 @@ function render(){
  if(!busy)setStatus(a.phase==='CONFIRMED'?'示範報名已完成，您可以測試改期或取消。':'您目前操作的是虛構資料報名示範。');
  if(v07.blocked)v07Lock_();
 }
+/* V07: a failed booking write is UNKNOWN, not necessarily uncommitted.
+ * Only the existing OWNER-only TEST view can establish the current phase.
+ * Never automatically replay a write or invent a manual-review approval. */
+function v07Lock_(){
+ for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
+  'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
+  'newStart','slot','v05Prev','v05Next'])$(id).disabled=true;
+ for(const id of ['v05Dates','v05Choices'])
+  for(const child of $(id).children)if(child.tagName==='button')child.disabled=true;
+ $('v07Rescan').disabled=v07.recovering;
+}
+function v07SafeRead_(response,last){
+ if(!safePreview(response)||response.formalPorts?.activated!==false||
+  !Number.isSafeInteger(response.revision)||response.revision<0||
+  new Set(response.applications.map(a=>a?.id)).size!==response.applications.length||
+  !response.applications.every(a=>a&&/^SIM-[0-9]{3}$/.test(a.id)&&
+   ['E1','E2'].includes(a.experiment)&&
+   ['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD',
+    'CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)))return false;
+ if(last){
+  const match=response.applications.filter(a=>a.id===last.id);
+  if(match.length!==1||match[0].experiment!==last.experiment)return false;
+ }
+ return true;
+}
+function v07Description_(response,last){
+ if(!last)return '已重新讀取原GAS虛構資料來源，沒有重送任何預約操作。';
+ const a=response.applications.find(x=>x.id===last.id);
+ if(a.phase==='INELIGIBLE')
+  return '資格不符：目前虛構申請來源標示不符合條件；不是待人工審核。';
+ if(last.action==='CONFIRM'&&a.phase==='CONFIRMED'||
+    last.action==='MOVE'&&a.phase==='CONFIRMED'&&a.slotId===last.slotId)
+  return '目前狀態：虛構預約已成立。此為原GAS目前狀態，無法證明剛才那次提交成功。';
+ if(last.action==='CANCEL'&&a.phase==='CANCELLED')
+  return '目前狀態：虛構預約已取消。此為原GAS目前狀態，無法證明剛才那次提交成功。';
+ if(last.action==='HOLD'&&['HELD','CONSENTED','CONFIRMED'].includes(a.phase)&&
+    a.slotId===last.slotId)
+  return '目前狀態：虛構時段已有暫留或後續進度，無法證明剛才那次提交成功。';
+ if(last.action==='HOLD'&&a.phase==='VERIFIED'){
+  const slot=response.slots.find(s=>s.id===last.slotId);
+  if(!slot||slot.experiment!==a.experiment||slot.bookable===false||
+   slot.remaining===0||['CANCELLED','CLOSED'].includes(response.b02?.sessions?.[last.slotId]?.status))
+   return '時段已滿或失效：目前虛構來源無法確認原時段可用，不是已成立預約。';
+ }
+ return '結果未知：目前來源未顯示可確認的預約結果；不是已成立、待人工審核或已確定失敗。';
+}
+function v07Readback_(afterFailure,detail){
+ const generation=++v07.generation;
+ busy=true;v07.blocked=true;v07.recovering=true;
+ $('v07Rescan').disabled=true;
+ $('v07Result').textContent='正在唯讀核對原GAS目前虛構狀態；不重送提交。';
+ v07Lock_();
+ google.script.run.withSuccessHandler(response=>{
+  if(generation!==v07.generation)return;
+  if(!v07SafeRead_(response,v07.last)){
+   refuseReply('V07來源或虛構申請狀態無法核實，已停止操作。');return;
+  }
+  model=response;busy=false;v07.recovering=false;
+  const note=v07Description_(response,v07.last);
+  if(!afterFailure){v07.blocked=false;v07.last=null;pending=null;}
+  render();
+  $('v07Result').textContent=note+
+   (afterFailure?'｜此次操作因果結果尚未確認，已鎖定再次送出。':'');
+  if(v07.blocked)v07Lock_();
+  else $('v07Rescan').disabled=true;
+  setStatus(afterFailure?'此次提交結果未確認：'+detail+'；已唯讀回查但不自動重送。':
+   '已安全重新讀取原GAS，目前沒有重新送出預約。',afterFailure);
+ }).withFailureHandler(error=>{
+  if(generation!==v07.generation)return;
+  refuseReply('V07回讀失敗：'+String(error.message||error)+'；未重新提交。');
+ }).study1UnifiedPreviewGet();
+}
+$('v07Rescan').addEventListener('click',()=>{
+ if(busy||v07.recovering||!v07.blocked)return;
+ v07Readback_(false,'手動唯讀重新核對');
+});
+function v07ConfirmResponse_(action,payload,response,priorRevision){
+ if(!['HOLD','CONFIRM','MOVE','CANCEL'].includes(action))return true;
+ if(!v07SafeRead_(response,null)||response.revision!==priorRevision+1)return false;
+ const a=response.applications.find(x=>x.id===payload.id);
+ if(!a)return false;
+ if(action==='HOLD')return a.phase==='HELD'&&a.slotId===payload.slotId;
+ if(action==='CONFIRM')return a.phase==='CONFIRMED';
+ if(action==='MOVE')return a.phase==='CONFIRMED'&&a.slotId===payload.slotId;
+ return a.phase==='CANCELLED';
+}
 function load(){
  busy=true;$('chooseE1').disabled=true;$('chooseE2').disabled=true;
  setStatus('正在載入報名頁面…');
