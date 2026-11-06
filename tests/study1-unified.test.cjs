@@ -597,3 +597,24 @@ test('Legacy fixture receives display settings without changing old test applica
  assert.equal(now.recruitment.E2.mode,'COMING_SOON');
  assert.equal(now.applications[0].id,'SIM-001');
 });
+
+test('B08 owner snapshot covers all 15 original bounded notifications without a new property or data migration',()=>{
+ const instance=setup();instance.cmd('START',{experiment:'E1'});
+ const source=instance.ctx.study1UnifiedRead_(),writes=instance.writes;
+ source.notifications=Array.from({length:15},(_,i)=>({
+  id:'SIM-001',event:i%2?'MOVE':'CONFIRM',
+  text:'〔SIM〕虛構操作 '+i+'（僅預覽，未寄送）',
+  status:'SIM_PENDING',attempts:0,lastError:null
+ }));
+ const view=JSON.parse(JSON.stringify(instance.ctx.study1UnifiedView_(source)));
+ assert.equal(view.notifications.length,15);
+ assert.deepEqual(view.notifications.map(n=>n.index),
+  Array.from({length:15},(_,i)=>i));
+ assert.equal(view.notifications[0].text,source.notifications[0].text);
+ assert.equal(view.notifications[14].text,source.notifications[14].text);
+ assert.equal(view.open,false);assert.equal(view.consentReady,false);
+ assert.equal(view.formalReadiness.activationAllowed,false);
+ assert.equal(instance.writes,writes);
+ assert.deepEqual([...instance.p.keys()].sort(),
+  ['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']);
+});
