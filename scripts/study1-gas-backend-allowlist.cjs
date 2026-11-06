@@ -303,7 +303,11 @@ function assertTeamHtml(html){
     !html.includes('後台研究範圍不合法')||
     !html.includes('id="b07Module"')||!html.includes('id="b07Rows"')||
     !html.includes('id="b07History"')||!html.includes('id="b07Experiment"')||
-    !html.includes("function b07Valid_()")||
+    !html.includes("function b07Valid_(data=model)")||
+    !html.includes("function b07SummaryVerified_(data)")||
+    !html.includes('id="b01B07Consistency"')||
+    !html.includes('id="b09B07Consistency"')||
+    !html.includes('<option value="B07">B07 逐階段待核</option>')||
     !html.includes("function b07Save_(id,status,reason)")||
     !html.includes("action:'ADMIN_B07_REVIEW'")||
      !html.includes('id="b07ItemRows"')||
