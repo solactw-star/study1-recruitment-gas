@@ -551,6 +551,126 @@ function study1UnifiedRestoreOwnedWrite_(props,key,before,attempted){
   throw Error('原始資料恢復後回讀失敗');
  return true;
 }
+/**
+ * B12 owner-only read-only audit view in the ORIGINAL Study1 website.
+ * B06 has a validated SHA chain and full before/after states; older B02-B05
+ * histories are limited, bounded and NOT independently tamper-evident.
+ * Never expose raw B04 notes or B05 free text through this overview.
+ */
+function study1UnifiedB12Events_(state,tasks){
+ study1B06Verify_(tasks);
+ const events=[];
+ const push=(module,seq,at,action,subject,reason,diff,quality)=>{
+  if(typeof at!=='string'||!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$/.test(at)||
+     !Number.isFinite(Date.parse(at))||typeof action!=='string'||
+     typeof subject!=='string')throw Error('B12來源事件格式或時間異常，已停止查詢');
+  events.push({id:module+':'+String(seq).padStart(6,'0'),module,at,action,
+   subject,actor:'OWNER',reason,diff,quality});
+ };
+ for(const [i,h] of state.b02.history.entries()){
+  if(!Array.isArray(h.ids)||h.ids.some(id=>!/^SIM-(?:\d{3}|SLOT-E[12]-[A-Z])$/.test(id)))
+   throw Error('B12行事曆歷史出現非虛構代碼');
+  push('B02',i+1,h.at,h.action,h.ids.join(', '),'舊版歷程未保存操作原因',[],
+   'LIMITED_LEGACY');
+ }
+ for(const [i,h] of state.b04.history.entries()){
+  if(!/^SIM-\d{3}$/.test(h.id))throw Error('B12資料歷史出現非虛構代碼');
+  push('B04',i+1,h.at,h.field,h.id,'原始行政原因僅於原B04核准介面檢視',
+   [{field:h.field,before:'〔內容未於B12顯示〕',after:'〔內容未於B12顯示〕'}],
+   'LIMITED_REDACTED');
+ }
+ for(const [i,h] of state.b05.history.entries()){
+  if(!/^SIM-SLOT-E[12]-[A-Z]$/.test(h.slotId))
+   throw Error('B12場次歷史出現非虛構代碼');
+  push('B05',i+1,h.at,h.action,h.slotId,
+   '人工原因已保留於原B05歷程（本頁不列出自由文字）',
+   [{field:'場次行政狀態',before:h.before,after:h.after}],
+   'LIMITED_LEGACY');
+ }
+ for(const h of tasks.audit){
+  const fields=['title','description','status','archived','assignee','dueDate',
+   'experiment','relationType','relationId'];
+  const diff=[];
+  for(const field of fields){
+   const before=h.before===null?null:h.before[field];
+   const after=h.after[field];
+   if(before!==after)diff.push({field,before:before===null?'〔尚未建立〕':String(before),
+    after:String(after)});
+  }
+  push('B06',h.seq,h.at,h.action,h.taskId,h.reason,diff,'CHAIN_VERIFIED');
+ }
+ return events;
+}
+function study1UnifiedB12Page_(state,tasks,query,rawFixture,rawTasks){
+ if(!query||typeof query!=='object'||Array.isArray(query)||
+    Object.keys(query).sort().join(',')!=='after,limit,module,snapshotHash,sort,term'||
+    !['ALL','B02','B04','B05','B06'].includes(query.module)||
+    !['DESC','ASC'].includes(query.sort)||
+    typeof query.term!=='string'||query.term.length>50||/[<>]/.test(query.term)||
+    typeof query.after!=='string'||query.after.length>40||
+    typeof query.snapshotHash!=='string'||query.snapshotHash.length>64||
+    !Number.isSafeInteger(query.limit)||query.limit<1||query.limit>20||
+    !(query.snapshotHash===''||/^[a-f0-9]{64}$/.test(query.snapshotHash)))
+  throw Error('B12查詢條件或分頁上限不合法');
+ if(!state||state.schemaVersion!==1||!Number.isSafeInteger(state.revision)||
+    !state.b02||!state.b04||!state.b05||typeof rawFixture!=='string'||
+    typeof rawTasks!=='string')throw Error('B12合成來源缺失，拒絕查詢');
+ const events=study1UnifiedB12Events_(state,tasks);
+ const normalized=query.term.trim().toLowerCase();
+ const rows=events.filter(e=>(query.module==='ALL'||e.module===query.module)&&
+   (!normalized||[e.module,e.id,e.subject,e.action].join(' ').toLowerCase().includes(normalized)))
+  .sort((a,b)=>(query.sort==='DESC'?b.at.localeCompare(a.at):a.at.localeCompare(b.at))||
+    a.id.localeCompare(b.id));
+ // Bind both source bytes AND query/sort. A cursor cannot cross source revisions
+ // or change its filters while retaining the previous snapshot hash.
+ const snapshotHash=study1UnifiedStoreHash_([rawFixture,rawTasks,
+  query.module,query.sort,normalized,rows.map(e=>e.id)]);
+ if(query.after){
+  if(query.snapshotHash!==snapshotHash)throw Error('B12快照或篩選已變更，請重新查詢');
+  const position=rows.findIndex(e=>e.id===query.after);
+  if(position<0)throw Error('B12分頁游標不存在，拒絕跨快照續頁');
+  const items=rows.slice(position+1,position+1+query.limit);
+  return {schema:'STUDY1_B12_READONLY_V1',mode:'SYNTHETIC_ONLY',
+   integrity:'B06_CHAIN_VERIFIED',exportAllowed:false,formalData:false,
+   revision:state.revision,b06Revision:tasks.revision,snapshotHash,
+   warnings:['B02至B05為有限舊歷程，無獨立完整SHA稽核鏈；部分前後值已遮蔽'],
+   total:rows.length,items:JSON.parse(JSON.stringify(items)),
+   nextAfter:position+1+items.length<rows.length?items[items.length-1].id:null};
+ }
+ if(query.snapshotHash!=='')throw Error('B12首頁不可沿用其他快照');
+ const items=rows.slice(0,query.limit);
+ return {schema:'STUDY1_B12_READONLY_V1',mode:'SYNTHETIC_ONLY',
+  integrity:'B06_CHAIN_VERIFIED',exportAllowed:false,formalData:false,
+  revision:state.revision,b06Revision:tasks.revision,snapshotHash,
+  warnings:['B02至B05為有限舊歷程，無獨立完整SHA稽核鏈；部分前後值已遮蔽'],
+  total:rows.length,items:JSON.parse(JSON.stringify(items)),
+  nextAfter:rows.length>items.length?items[items.length-1].id:null};
+}
+function study1UnifiedB12Query(query){
+ // Server-side OWNER, both users and both CLOSED flags, never client role labels.
+ study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_READ');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(8000))throw Error('B12來源正在更新，請稍後重讀');
+ try{
+  study1SandboxBookingFlags_();
+  const props=PropertiesService.getScriptProperties();
+  const firstFixture=props.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+  const firstTasks=props.getProperty(STUDY1_B06_TASK_KEY_);
+  const state=study1UnifiedRead_();
+  const tasks=study1B06Read_(); // full B06 chain verification or fail closed
+  if(props.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==firstFixture||
+     props.getProperty(STUDY1_B06_TASK_KEY_)!==firstTasks)
+   throw Error('B12來源讀取期間發生競寫，已停止查詢');
+  const result=study1UnifiedB12Page_(state,tasks,query,
+   firstFixture===null?'〔EMPTY_UNIFIED_FIXTURE〕':firstFixture,
+   firstTasks===null?'〔EMPTY_B06_TASKS〕':firstTasks);
+  if(props.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==firstFixture||
+     props.getProperty(STUDY1_B06_TASK_KEY_)!==firstTasks)
+   throw Error('B12分頁產生期間來源變更，請重讀');
+  return result;
+ }finally{lock.releaseLock();}
+}
+
 /* The only B06 entrypoint; available to the SAME authorized GAS owner only. */
 function study1UnifiedB06Command(command){
  study1UnifiedAssertOwner_();
