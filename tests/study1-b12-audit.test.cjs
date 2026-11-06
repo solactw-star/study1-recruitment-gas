@@ -218,3 +218,31 @@ test('B12 contains no formal data provider or unapproved third-party export call
  assert.match(text,/STUDY1_B12_DIAGNOSTIC_V1/);
  assert.match(text,/snapshotHash/);
 });
+
+test('B12 UI newest/oldest ordering uses independent snapshot-bound cursors and legacy ASC remains valid',()=>{
+ const ctx=setup().ctx,{f,b}=b06Events(ctx,12);
+ const old=ctx.study1B12AuditPage_(f,b,query(f,b,{limit:5,module:'B06'}));
+ assert.deepEqual(old.items.map(x=>x.action),['CREATE','COMPLETE','REOPEN','COMPLETE','REOPEN']);
+ const oldest=ctx.study1B12AuditPage_(f,b,query(f,b,{
+  sort:'ASC',limit:5,module:'B06'}));
+ assert.deepEqual(oldest.items.map(x=>x.id),old.items.map(x=>x.id));
+ const newest=ctx.study1B12AuditPage_(f,b,query(f,b,{
+  sort:'DESC',limit:5,module:'B06'}));
+ assert.deepEqual(newest.items.map(x=>x.id),[
+  'B06-000012','B06-000011','B06-000010','B06-000009','B06-000008']);
+ assert.notEqual(oldest.snapshotHash,newest.snapshotHash);
+ const next=ctx.study1B12AuditPage_(f,b,query(f,b,{
+  sort:'DESC',limit:5,module:'B06',
+  after:newest.nextAfter,snapshotHash:newest.snapshotHash}));
+ assert.deepEqual(next.items.map(x=>x.id),[
+  'B06-000007','B06-000006','B06-000005','B06-000004','B06-000003']);
+ assert.throws(()=>ctx.study1B12AuditPage_(f,b,query(f,b,{
+  sort:'ASC',limit:5,module:'B06',after:newest.nextAfter,
+  snapshotHash:newest.snapshotHash})),/快照/);
+ assert.throws(()=>ctx.study1B12AuditPage_(f,b,query(f,b,{
+  sort:'REVERSE',module:'B06'})),/參數/);
+ const ui=fs.readFileSync(require('node:path').join(root,'Study1Team.html'),'utf8');
+ assert.match(ui,/id="b12Sort"/);
+ assert.match(ui,/sort:\$\('b12Sort'\)\.value/);
+ assert.match(ui,/\['b12ModuleFilter','b12Result','b12Limit','b12Sort'\]/);
+});

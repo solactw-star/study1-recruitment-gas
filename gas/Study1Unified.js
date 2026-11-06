@@ -678,26 +678,32 @@ function study1B12AuditBuild_(fixture,b06){
 }
 function study1B12AuditPage_(fixture,b06,query){
  if(!query||typeof query!=='object'||Array.isArray(query)||
-    Object.keys(query).sort().join(',')!==
-    'after,expectedB06Revision,expectedFixtureRevision,limit,module,result,search,snapshotHash'||
+    !['after,expectedB06Revision,expectedFixtureRevision,limit,module,result,search,snapshotHash',
+      'after,expectedB06Revision,expectedFixtureRevision,limit,module,result,search,snapshotHash,sort']
+      .includes(Object.keys(query).sort().join(','))||
     query.expectedB06Revision!==b06.revision||
     query.expectedFixtureRevision!==fixture.revision||
     !Number.isSafeInteger(query.limit)||query.limit<1||query.limit>30||
     !['ALL','B04','B05','B06','B08'].includes(query.module)||
     !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT'].includes(query.result)||
+    !(query.sort===undefined||['ASC','DESC'].includes(query.sort))||
     typeof query.search!=='string'||query.search.length>60||
     /[<>\u0000-\u001f]/.test(query.search)||
     typeof query.after!=='string'||query.after.length>40||
     typeof query.snapshotHash!=='string')
   throw Error('B12稽核查詢、版本或分頁參數不合法');
  const all=study1B12AuditBuild_(fixture,b06);
+ const direction=query.sort===undefined?'ASC':query.sort; // legacy cursors remain ASC
  const q=query.search.trim().toLowerCase();
  const filtered=all.filter(e=>
   (query.module==='ALL'||e.module===query.module)&&
   (query.result==='ALL'||e.result===query.result)&&
   (!q||[e.id,e.module,e.action,e.target,e.reason,e.result].join(' ').toLowerCase().includes(q)));
+ // Source event ids remain stable; reverse chronological order for the new
+ // UI must be tied to its own snapshot so a cursor cannot cross directions.
+ if(direction==='DESC')filtered.reverse();
  const snapshotHash=study1UnifiedStoreHash_([
-  fixture.revision,b06.revision,b06.head,query.module,query.result,q,all]);
+  fixture.revision,b06.revision,b06.head,query.module,query.result,q,direction,all]);
  let start=0;
  if(query.after){
   if(query.snapshotHash!==snapshotHash)
