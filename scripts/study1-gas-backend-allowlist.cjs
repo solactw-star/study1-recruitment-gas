@@ -287,6 +287,17 @@ function assertTeamHtml(html){
     !html.includes("adminScopeMatch_('B08',a.experiment)")||
     !html.includes("adminScopeEffective_('B09')")||
     !html.includes('後台研究範圍不合法')||
+    !html.includes('id="b10Module"')||!html.includes('id="b10Rows"')||
+    !html.includes('id="b10Experiment"')||!html.includes('id="b10Type"')||
+    !html.includes('id="b10Compare"')||
+    !html.includes('id="b10FormalView" type="button" class="secondary" disabled')||
+    !html.includes('id="b10Sign" type="button" class="secondary" disabled')||
+    !html.includes('id="b10Export" type="button" class="secondary" disabled')||
+    !html.includes('function b10Build_(data)')||
+    !html.includes('gov.sourceBytesVerified!==false||gov.approved!==false')||
+    !html.includes('B10來源或版本無法核實，索引已清空')||
+    !html.includes('REC_DRAFT_ONLY｜PENDING（正式REC未核准／未驗證）')||
+    !html.includes('b10Clear_(\'OWNER讀取失敗；B10索引已清空。\')')||
     !html.includes('id="b11Module"')||!html.includes('id="b11Diff"')||
     !html.includes('id="b11Demo"')||!html.includes('id="b11Scope"')||
     !html.includes('id="b11Publish" type="button" class="secondary" disabled')||
