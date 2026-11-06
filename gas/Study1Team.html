@@ -214,6 +214,16 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .adminScopeLocal select{max-width:225px}
 .adminScopeLocal span{font-size:12px;color:var(--muted)}
 @media(max-width:500px){.adminScopeLocal{display:block}.adminScopeLocal select{max-width:none}}
+/* B10: only TEST policy metadata; not a formal document repository. */
+#b10Module{scroll-margin-top:24px}
+.b10Tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.b10Tools label{font-size:13px;font-weight:700}
+.b10TableWrap{overflow-x:auto;width:100%;margin-top:12px}
+.b10Table{border-collapse:collapse;width:100%;min-width:700px}
+.b10Table th,.b10Table td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top;font-size:13px;overflow-wrap:anywhere}
+.b10Table th{background:#f2f8f5}
+@media(max-width:760px){.b10Tools{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.b10Tools{grid-template-columns:1fr}}
 /* B11: owner-only draft comparison in the existing site, no formal publish. */
 #b11Module{scroll-margin-top:24px}
 .b11Tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -227,7 +237,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:510px){.b11Tools,.b11Fields{grid-template-columns:1fr}}
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#b10Module">研究文件</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -404,6 +414,23 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
    <div id="profileTimeline"></div>
   </aside>
  </div>
+</section>
+
+
+<section class="panel" id="b10Module" aria-labelledby="b10Heading">
+ <span class="tag">B10｜研究文件索引（P2・僅TEST中繼資料）</span>
+ <h2 id="b10Heading">E1／E2 文件版本與核准來源核對</h2>
+ <p class="sub">只讀取原GAS owner已提供的虛構文件版本、初篩規則與研究介紹草稿。本頁沒有正式REC文件原檔、核准簽章、正式文件庫、下載或寄送；<strong>「版本有紀錄」不等於「已核准或已驗證來源位元組」。</strong></p>
+ <div class="b10Tools">
+  <label for="b10Experiment">實驗<select id="b10Experiment"><option value="ALL">E1＋E2</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <label for="b10Type">文件類型<select id="b10Type"><option value="ALL">全部</option><option value="CONSENT">同意文件版本資訊</option><option value="SCREENING">資格規則草稿</option><option value="RESEARCH">研究介紹草稿</option></select></label>
+  <label for="b10Compare">目前申請引用<select id="b10Compare"><option value="ALL">全部（包含未引用）</option><option value="DIFFERENT">與目前草稿版本不同</option><option value="REFERENCED">有虛構申請引用</option><option value="NO_VERSION">無獨立版本可比對</option></select></label>
+ </div>
+ <p id="b10Status" class="small" role="status" aria-live="polite">文件中繼資料尚未核實，正式原檔未連接。</p>
+ <div class="b10TableWrap"><table class="b10Table"><thead><tr><th scope="col">實驗／資料類型</th><th scope="col">目前草稿版本</th><th scope="col">原始來源與核准狀態</th><th scope="col">申請引用版本比較</th><th scope="col">原檔驗證</th></tr></thead><tbody id="b10Rows"></tbody></table></div>
+ <p id="b10Coverage" class="small" aria-live="polite">沒有資料前，不得把未核對的版本、雜湊或電子簽署標為完成。</p>
+ <div class="b06Actions"><button id="b10FormalView" type="button" class="secondary" disabled>查看正式PDF（原檔未驗證）</button><button id="b10Sign" type="button" class="secondary" disabled>正式簽署／寄送（未授權）</button><button id="b10Export" type="button" class="secondary" disabled>匯出文件（未授權）</button></div>
+ <p class="small">僅比對同一TEST快照目前申請引用的版本；不是不可變更歷史、簽署證據或REC核准檔。本頁不開放上傳、替換、刪除、下載、原檔瀏覽及正式範本發布。後續必須依正式REC及文件權責逐一核對。</p>
 </section>
 
 <section class="panel" id="b11Module" aria-labelledby="b11Heading">
@@ -631,7 +658,7 @@ function render(data){
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
   model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
-  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
+  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');b10Clear_('原OWNER安全資料無法核實；B10索引已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -643,7 +670,7 @@ function render(data){
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
  adminScopeLabels_();b11Load_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
- b03Render();b06Render();b08Render();
+ b03Render();b06Render();b08Render();b10Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
@@ -968,6 +995,121 @@ $('b09Reset').addEventListener('click',()=>{
 for(const id of ['b09Scope','b09Phase'])$(id).addEventListener('change',b09Render);
 for(const id of ['b09Start','b09End'])$(id).addEventListener('change',b09Render);
 
+
+/* B10 OWNER-only, read-only, unverified REC_DRAFT_ONLY document metadata.
+ * Never infer legal approval, real PDF bytes, formal signature or history. */
+function b10Clear_(reason){
+ $('b10Rows').replaceChildren();
+ $('b10Status').textContent=reason||'文件來源未經核實，已清除資料。';
+ $('b10Coverage').textContent='正式REC原檔、核准簽章、文件保存與授權來源未驗證；不提供正式文件。';
+}
+function b10Build_(data){
+ if(!data||data.mode!=='TEST'||data.open!==false||
+  data.consentReady!==false||!data.formalReadiness||
+  data.formalReadiness.activationAllowed!==false||
+  !data.formalPorts||data.formalPorts.activated!==false||
+  data.researchSource!=='REC_DRAFT_ONLY'||data.researchApproval!=='PENDING'||
+  !data.governance||data.governance.mode!=='TEST'||
+  data.governance.approval!=='PENDING'||data.governance.access!=='828_OWNER_ONLY'||
+  !data.governance.documents||!data.policy||!data.policy.screening||
+  data.policy.screening.source!=='REC_DRAFT_ONLY'||
+  !data.policy.screening.mappings||!data.policy.consent||
+  !data.definitions||!Array.isArray(data.applications)||data.applications.length>8)
+  throw Error('研究文件測試來源或正式安全狀態不合法');
+ const results=[];
+ const seen=new Set();
+ for(const a of data.applications){
+  if(!a||!/^SIM-\d{3}$/.test(a.id)||seen.has(a.id)||
+   !['E1','E2'].includes(a.experiment)||
+   ![null,undefined].includes(a.consentVersion)&&
+    (typeof a.consentVersion!=='string'||a.consentVersion.length>160)||
+   ![null,undefined].includes(a.screeningVersion)&&
+    (typeof a.screeningVersion!=='string'||a.screeningVersion.length>160)||
+   ![null,undefined,'REC_DRAFT_ONLY'].includes(a.screeningSource))
+    throw Error('虛構申請引用版本或來源無法核實');
+  seen.add(a.id);
+ }
+ for(const exp of ['E1','E2']){
+  const consent=data.policy.consent[exp],screen=data.policy.screening.mappings[exp],
+   gov=data.governance.documents[exp],def=data.definitions[exp];
+  if(!consent||!screen||!gov||!def||
+    consent.approval!=='PENDING'||screen.source!=='REC_DRAFT_ONLY'||
+    gov.source!=='REC_DRAFT_ONLY'||gov.version!==consent.version||
+    gov.declaredSha256!==consent.sha256||
+    gov.sourceBytesVerified!==false||gov.approved!==false||
+    gov.formalPdfAvailable!==false||
+    typeof consent.version!=='string'||!consent.version||
+    consent.version.length>160||typeof consent.sha256!=='string'||
+    (consent.sha256!==''&&!/^[a-fA-F0-9]{64}$/.test(consent.sha256))||
+    typeof screen.version!=='string'||!screen.version||
+    screen.version.length>160||typeof def.label!=='string'||
+    def.label.length>350||def.recVersion!==consent.version)
+   throw Error('B10版本、申報雜湊或REC待核來源彼此矛盾');
+  const apps=data.applications.filter(a=>a.experiment===exp);
+  for(const [type,version,field] of [
+    ['CONSENT',consent.version,'consentVersion'],
+    ['SCREENING',screen.version,'screeningVersion'],
+    ['RESEARCH',null,null]]){
+   const refs=field?apps.filter(a=>typeof a[field]==='string'&&a[field]!==''):[];
+   const matches=refs.filter(a=>a[field]===version).length;
+   const different=refs.length-matches;
+   results.push({experiment:exp,type,version,source:'REC_DRAFT_ONLY',
+    approval:'PENDING',sourceVerified:false,approved:false,formalPdf:false,
+    hasDeclaredHash:type==='CONSENT'&&consent.sha256!==''&&
+      gov.declaredSha256===consent.sha256,
+    matching:matches,different,unrecorded:field?apps.length-refs.length:null,
+    count:refs.length,applications:apps.length,
+    label:type==='RESEARCH'?def.label:type==='CONSENT'?
+     exp+'：模擬同意文件版本資訊':exp+'：模擬資格規則草稿'});
+  }
+ }
+ return results;
+}
+function b10Render(){
+ const target=$('b10Rows');target.replaceChildren();
+ try{
+  const all=b10Build_(model),experiment=$('b10Experiment').value||'ALL',
+   type=$('b10Type').value||'ALL',compare=$('b10Compare').value||'ALL';
+  if(!['ALL','E1','E2'].includes(experiment)||
+   !['ALL','CONSENT','SCREENING','RESEARCH'].includes(type)||
+   !['ALL','DIFFERENT','REFERENCED','NO_VERSION'].includes(compare))
+   throw Error('B10篩選值不合法');
+  const visible=all.filter(d=>
+   (experiment==='ALL'||d.experiment===experiment)&&
+   (type==='ALL'||d.type===type)&&
+   (compare==='ALL'||compare==='DIFFERENT'&&d.different>0||
+    compare==='REFERENCED'&&d.count>0||
+    compare==='NO_VERSION'&&d.version===null));
+  const typenames={CONSENT:'同意版本資訊',SCREENING:'資格規則草稿',RESEARCH:'研究介紹草稿'};
+  for(const d of visible){
+   const tr=calElem('tr');
+   const cells=[
+    d.experiment+'｜'+typenames[d.type],
+    d.version===null?'尚無獨立版本（不得填0）':d.version,
+    'REC_DRAFT_ONLY｜PENDING（正式REC未核准／未驗證）',
+    d.type==='RESEARCH'?'無獨立版本，不能比對引用': '相同 '+d.matching+
+     '｜不同 '+d.different+'｜未記錄 '+d.unrecorded+
+     '（同實驗虛構申請代碼）',
+    '未取得正式原檔位元組；'+
+     (d.hasDeclaredHash?'僅有宣告SHA256，不能當已驗證':'沒有可驗證的原檔SHA256')
+   ];
+   for(const cell of cells)tr.append(calElem('td',cell));
+   target.append(tr);
+  }
+  if(!visible.length){
+   const tr=calElem('tr'),td=calElem('td','此篩選沒有可核實的測試文件版本紀錄；不能視為正式來源不存在。');
+   td.colSpan=5;tr.append(td);target.append(tr);
+  }
+  $('b10Status').textContent='已核對OWNER TEST來源｜顯示 '+visible.length+
+   '／6 項虛構中繼資料｜原修訂版 '+model.revision+'｜正式核准 0 項（非正式核准清單）';
+  $('b10Coverage').textContent='E1/E2各三類：同意版本、初篩規則、研究介紹；均為REC_DRAFT_ONLY及PENDING。引用比較只來自目前TEST快照，沒有歷史保證。實際REC核准文件、原PDF雜湊驗證、簽署副本、上傳及正式下載全部未開放。';
+ }catch(error){
+  b10Clear_('B10來源或版本無法核實，索引已清空：'+String(error.message||error));
+ }
+}
+for(const id of ['b10Experiment','b10Type','b10Compare'])
+ $(id).addEventListener('change',b10Render);
+
 /* B11: draft comparisons never persist; only one explicitly reviewed
  * TEST_ONLY command uses the existing server-side ScriptLock, CAS and owner. */
 const b11={preview:null,revision:null,mustReload:false};
@@ -1259,7 +1401,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');b10Clear_('OWNER讀取失敗；B10索引已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
