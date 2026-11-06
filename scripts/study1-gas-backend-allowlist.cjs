@@ -218,6 +218,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
   'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1UnifiedB11FormalPublish_',
+  'study1B07Initial_','study1B07Verify_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
   'study1B12AuditBuild_','study1B12AuditPage_',
