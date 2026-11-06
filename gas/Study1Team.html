@@ -995,11 +995,14 @@ function b11ResponseMatches_(data,command){
     !Number.isSafeInteger(data.revision)||
     data.revision!==command.expectedRevision+1||
     !data.recruitment||!data.config)return false;
- for(const exp of (scope==='ALL'?['E1','E2']:[scope]))
-  if(!data.recruitment[exp]||data.recruitment[exp].mode!==staged.modes[exp])
-   return false;
- if(staged.site!==null&&
-    ['title','notice','emailTemplate'].some(k=>data.config[k]!==staged.site[k]))
+ for(const exp of ['E1','E2']){
+  const expected=Object.prototype.hasOwnProperty.call(staged.modes,exp)?
+   staged.modes[exp]:model.recruitment[exp].mode;
+  if(!data.recruitment[exp]||data.recruitment[exp].mode!==expected||
+     data.recruitment[exp].year!==(exp==='E1'?2026:2027))return false;
+ }
+ const site=staged.site===null?model.config:staged.site;
+ if(['title','notice','emailTemplate'].some(k=>data.config[k]!==site[k]))
   return false;
  return true;
 }
