@@ -29,7 +29,7 @@ const src=fs.readFileSync(path.join(gasDir,'OtpCore.js'),'utf8')+'\n'+
 const html=fs.readFileSync(path.join(gasDir,'Study1Unified.html'),'utf8');
 function setup({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open='false',consent='false'}={}){
  const p=new Map([['OPEN',open],['CONSENT_READY',consent]]);let writes=0,deletes=0;let held=false,locks=0;
- const props={getProperty:k=>p.has(k)?p.get(k):null,setProperty:(k,v)=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');p.set(k,v);writes++;},deleteProperty:k=>{assert.equal(k,'STUDY1_UNIFIED_FIXTURE_V1');p.delete(k);deletes++;}};
+ const props={getProperty:k=>p.has(k)?p.get(k):null,setProperty:(k,v)=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B01_OWNER_LAYOUT_V1'].includes(k));p.set(k,v);writes++;},deleteProperty:k=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B01_OWNER_LAYOUT_V1'].includes(k));p.delete(k);deletes++;}};
  const lock={tryLock:()=>{assert.equal(held,false);held=true;locks++;return true;},releaseLock:()=>{assert.equal(held,true);held=false;},hasLock:()=>held};
  const ctx=vm.createContext({
   Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
@@ -902,4 +902,69 @@ test('B07 independent stage histories retain at most 32 recent TEST corrections'
  assert.equal(view.b07.itemHistory.at(-1).at,view.b07.itemReviews[key].at);
  assert.equal(view.b07.itemHistory.length,32);
  assert.equal(view.revision,36);
+});
+
+test('B01 non-sensitive owner layout defaults without writing and persists exact stable card IDs',()=>{
+ const x=setup(),ctx=x.ctx,first=JSON.parse(JSON.stringify(ctx.study1UnifiedB01LayoutGet()));
+ assert.equal(first.mode,'TEST_LAYOUT_ONLY');assert.equal(first.revision,0);
+ assert.equal(first.order.length,13);assert.deepEqual(first.hidden,[]);
+ assert.equal(x.writes,0);assert.equal(x.p.has('STUDY1_B01_OWNER_LAYOUT_V1'),false);
+ const order=first.order.slice();[order[0],order[1]]=[order[1],order[0]];
+ const cmd={order,hidden:[first.order[0]],expectedRevision:0,
+  requestId:'REQ-SIM-B01_layout00000001'};
+ const saved=JSON.parse(JSON.stringify(ctx.study1UnifiedB01LayoutSave(cmd)));
+ assert.equal(saved.revision,1);assert.deepEqual(saved.order,order);
+ assert.deepEqual(saved.hidden,[first.order[0]]);assert.equal(saved.deduplicated,false);
+ assert.equal(x.writes,1);
+ assert.equal(x.p.has('STUDY1_UNIFIED_FIXTURE_V1'),false);
+ const raw=x.p.get('STUDY1_B01_OWNER_LAYOUT_V1');
+ assert.doesNotMatch(raw,/SIM-001|email|amount|payment|approved|phone|compensation/i);
+ assert.deepEqual(JSON.parse(JSON.stringify(ctx.study1UnifiedB01LayoutGet())).order,order);
+ assert.equal(x.p.get('OPEN'),'false');assert.equal(x.p.get('CONSENT_READY'),'false');
+ assert.equal(x.held,false);
+});
+test('B01 revision CAS blocks second tab, request replay is idempotent and no-op denied',()=>{
+ const x=setup(),ctx=x.ctx,base=JSON.parse(JSON.stringify(ctx.study1UnifiedB01LayoutGet()));
+ const id='REQ-SIM-B01_concurrent00000001';
+ const cmd={order:base.order.slice().reverse(),hidden:[],expectedRevision:0,requestId:id};
+ const saved=ctx.study1UnifiedB01LayoutSave(cmd),w=x.writes;
+ assert.equal(saved.revision,1);
+ const replay=ctx.study1UnifiedB01LayoutSave(cmd);
+ assert.equal(replay.deduplicated,true);assert.equal(x.writes,w);
+ assert.throws(()=>ctx.study1UnifiedB01LayoutSave({...cmd,hidden:[base.order[0]]}),/請求識別碼/);
+ assert.throws(()=>ctx.study1UnifiedB01LayoutSave({...cmd,
+  requestId:'REQ-SIM-B01_stale0000000001',hidden:[base.order[0]]}),/版本已變更/);
+ assert.throws(()=>ctx.study1UnifiedB01LayoutSave({...cmd,
+  requestId:'REQ-SIM-B01_noop00000000001',expectedRevision:1}),/沒有修改/);
+ assert.equal(x.writes,w);
+ const second=ctx.study1UnifiedB01LayoutGet();
+ assert.equal(second.revision,1);
+ assert.equal(x.held,false);
+});
+test('B01 layout denies forged identifiers, duplicate ordering, PII fields, unsafe flags and unauthorized owner',()=>{
+ const x=setup(),ctx=x.ctx,base=JSON.parse(JSON.stringify(ctx.study1UnifiedB01LayoutGet()));
+ const valid={order:base.order.slice().reverse(),hidden:[base.order[0]],expectedRevision:0,
+  requestId:'REQ-SIM-B01_inval0000000001'};
+ const writes=x.writes;
+ for(const payload of [
+  {...valid,order:[...valid.order.slice(0,12),'A_PERSON']},
+  {...valid,order:[valid.order[0],...valid.order.slice(0,12)]},
+  {...valid,hidden:[base.order[0],base.order[0]]},
+  {...valid,hidden:[base.order[5],base.order[0]]},
+  {...valid,email:'name@example.invalid'},
+  {...valid,amount:100},
+  {...valid,hidden:['SIM-001']},
+  {...valid,requestId:'INVALID'}
+ ])assert.throws(()=>ctx.study1UnifiedB01LayoutSave(payload),/B01/);
+ assert.equal(x.writes,writes);
+ x.p.set('STUDY1_B01_OWNER_LAYOUT_V1','{"schema":"STUDY1_B01_LAYOUT_V1","order":["PII"]}');
+ assert.throws(()=>ctx.study1UnifiedB01LayoutGet(),/B01/);
+ x.p.delete('STUDY1_B01_OWNER_LAYOUT_V1');
+ const unsafe=setup({open:'true'});
+ assert.throws(()=>unsafe.ctx.study1UnifiedB01LayoutGet(),/OPEN|關閉|權限|拒絕/);
+ assert.throws(()=>unsafe.ctx.study1UnifiedB01LayoutSave(valid),/OPEN|關閉|權限|拒絕/);
+ const noOwner=setup({active:'other@example.invalid'});
+ assert.throws(()=>noOwner.ctx.study1UnifiedB01LayoutGet(),/權限|拒絕|帳號/);
+ assert.throws(()=>noOwner.ctx.study1UnifiedB01LayoutSave(valid),/權限|拒絕|帳號/);
+ assert.equal(noOwner.writes,0);assert.equal(unsafe.writes,0);
 });
