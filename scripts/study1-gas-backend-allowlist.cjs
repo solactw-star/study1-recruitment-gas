@@ -287,6 +287,13 @@ function assertTeamHtml(html){
     !html.includes("adminScopeMatch_('B08',a.experiment)")||
     !html.includes("adminScopeEffective_('B09')")||
     !html.includes('後台研究範圍不合法')||
+    !html.includes('id="b10Module"')||!html.includes('id="b10Rows"')||
+    !html.includes('id="b10Experiment"')||!html.includes('id="b10Warning"')||
+    !html.includes("function b10Rows_(data)")||
+    !html.includes("function b10Render_()")||
+    !html.includes("g.subjectExport!=='FORMAL_BLOCKED'")||
+    !html.includes("prov.recApprovalVerified!==false")||
+    !html.includes("b10Clear_('無法讀取OWNER-only TEST快照")||
     !html.includes('id="b11Module"')||!html.includes('id="b11Diff"')||
     !html.includes('id="b11Demo"')||!html.includes('id="b11Scope"')||
     !html.includes('id="b11Publish" type="button" class="secondary" disabled')||

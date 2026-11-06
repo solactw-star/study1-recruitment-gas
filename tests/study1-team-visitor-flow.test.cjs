@@ -1055,3 +1055,78 @@ test('B11 forbidden owner and OPEN/CONSENT flags keep all six scoped panels empt
   assert.equal(srv.store.has('STUDY1_B11_SCOPE_V1'),false);
  }
 });
+
+
+test('B10 uses only the same owner TEST snapshot for E1/E2 draft provenance without writes',()=>{
+ const srv=server(),before=srv.writes,team=page(srv,'team');
+ const rows=team.get('b10Rows').children;
+ assert.equal(rows.length,6,'three draft-source field references for each experiment');
+ assert.deepEqual(rows.map(r=>r.children[0].textContent),['E1','E1','E1','E2','E2','E2']);
+ assert.ok(rows.some(r=>r.children.some(cell=>/PENDING_REC_APPROVAL_E1/.test(cell.textContent))));
+ assert.ok(rows.some(r=>r.children.some(cell=>/PENDING_E2_RULES_V1/.test(cell.textContent))));
+ assert.ok(rows.every(r=>r.children.length===5&&r.children.every(c=>c.tagName==='td')));
+ assert.match(team.get('b10Status').textContent,/0 筆已核准正式文件/);
+ assert.match(team.get('b10Warning').textContent,/不可據此認定REC核准/);
+ team.set('b10Experiment','E2');team.change('b10Experiment');
+ assert.equal(team.get('b10Rows').children.length,3);
+ assert.ok(team.get('b10Rows').children.every(r=>r.children[0].textContent==='E2'));
+ team.click('b10Reset');
+ assert.equal(team.get('b10Rows').children.length,6);
+ assert.equal(team.calls.filter(x=>x!=='READ').length,0,'never call any write RPC');
+ assert.equal(srv.writes,before);
+ assert.equal(srv.store.has('STUDY1_B10_DOCUMENTS_V1'),false);
+ assert.doesNotMatch(teamHtml,/id="b10Download"|id="b10Export"|id="b10Sign"/);
+ closed(srv);
+});
+
+test('B10 rejects forged approved metadata and inconsistent REC version without modifying source',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{
+  const v=original();
+  v.governance.documents.E1.approved=true;
+  return v;
+ };
+ team.click('refresh');
+ assert.equal(team.get('b10Rows').children.length,0);
+ assert.match(team.get('b10Status').textContent,/B10拒絕顯示/);
+ assert.match(team.get('b10Status').textContent,/來源一致性|REC狀態/);
+ srv.ctx.study1UnifiedPreviewGet=()=>{
+  const v=original();
+  v.formalReadiness.provenance.E2.recVersion='PENDING_MISMATCHED_VERSION';
+  return v;
+ };
+ team.click('refresh');
+ assert.equal(team.get('b10Rows').children.length,0);
+ assert.match(team.get('b10Status').textContent,/B10拒絕顯示/);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ team.click('refresh');
+ assert.equal(team.get('b10Rows').children.length,6);
+ assert.equal(srv.writes,before);
+ closed(srv);
+});
+
+test('B10 field with declared SHA stays unverified, and denied owner read clears table',()=>{
+ const srv=server(),before=srv.writes,original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{
+  const v=original();
+  const sha='a'.repeat(64);
+  v.governance.documents.E1.declaredSha256=sha;
+  v.formalReadiness.provenance.E1.declaredSha256=sha;
+  v.policy.consent.E1.sha256=sha;
+  return v;
+ };
+ const team=page(srv,'team');
+ assert.equal(team.get('b10Rows').children.length,6);
+ const e1Consent=team.get('b10Rows').children[2];
+ assert.match(e1Consent.children[3].textContent,/宣稱雜湊（未查核）/);
+ assert.doesNotMatch(team.get('b10Status').textContent,/1 筆已核准/);
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b10Rows').children.length,0);
+ assert.match(team.get('b10Status').textContent,/文件來源索引已清空/);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
