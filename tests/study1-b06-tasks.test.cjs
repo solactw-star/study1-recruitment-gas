@@ -210,3 +210,59 @@ test('per-property safe capacity rejects oversized incompressible synthetic data
  assert.equal(s.data.get('OPEN'),'false');
  assert.equal(s.data.get('CONSENT_READY'),'false');
 });
+
+test('B06 detects corrupt next-ID allocation and history schema without changing stored bytes',()=>{
+ const s=setup(),first=s.cmd('CREATE',s.fields);
+ const id=first.b06.tasks[0].id;
+ s.cmd('COMPLETE',{id,reason:'人工完成虛構事項'});
+ const before=s.data.get('STUDY1_B06_TASKS_V1');
+ const drift=JSON.parse(JSON.stringify(s.ctx.study1B06Read_()));
+ drift.next++;
+ assert.throws(()=>s.ctx.study1B06Verify_(drift),/不一致/);
+ const extra=JSON.parse(JSON.stringify(s.ctx.study1B06Read_()));
+ extra.audit[0].after.contact='sim-only-invalid-field';
+ const copy={...extra.audit[0]};delete copy.digest;
+ extra.audit[0].digest=s.ctx.study1UnifiedStoreHash_(copy);
+ extra.audit[1].prev=extra.audit[0].digest;
+ const after={...extra.audit[1]};delete after.digest;
+ extra.audit[1].digest=s.ctx.study1UnifiedStoreHash_(after);
+ extra.head=extra.audit[1].digest;
+ assert.throws(()=>s.ctx.study1B06Verify_(extra),/未核准欄位/);
+ assert.equal(s.data.get('STUDY1_B06_TASKS_V1'),before);
+ assert.equal(s.locked,false);
+});
+
+test('B06 audit rejects forged state transitions and backdated events with recomputed hashes',()=>{
+ const s=setup(),first=s.cmd('CREATE',s.fields);
+ const id=first.b06.tasks[0].id;
+ s.cmd('COMPLETE',{id,reason:'人工完成虛構事項'});
+ const source=s.ctx.study1B06Read_();
+ const forged=JSON.parse(JSON.stringify(source));
+ forged.audit[1].after.status='OPEN';
+ forged.tasks[0].status='OPEN';
+ const event={...forged.audit[1]};delete event.digest;
+ forged.audit[1].digest=s.ctx.study1UnifiedStoreHash_(event);
+ forged.head=forged.audit[1].digest;
+ assert.throws(()=>s.ctx.study1B06Verify_(forged),/狀態轉移/);
+ const backdated=JSON.parse(JSON.stringify(source));
+ backdated.audit[1].at=new Date(Date.parse(backdated.audit[0].at)-1000).toISOString();
+ const evt={...backdated.audit[1]};delete evt.digest;
+ backdated.audit[1].digest=s.ctx.study1UnifiedStoreHash_(evt);
+ backdated.head=backdated.audit[1].digest;
+ assert.throws(()=>s.ctx.study1B06Verify_(backdated),/時間順序倒退/);
+ assert.equal(s.ctx.study1B06Verify_(source),true);
+});
+
+test('B06 transaction pins audit chronology when synthetic clock moves backwards',()=>{
+ const s=setup(),first=s.cmd('CREATE',s.fields);
+ const taskId=first.b06.tasks[0].id,state=s.ctx.study1B06Read_();
+ const earlier=Date.parse(state.audit[0].at)-10000;
+ const result=s.ctx.study1B06Apply_(state,{
+  action:'COMPLETE',payload:{id:taskId,reason:'人工完成虛構事項'},
+  expectedRevision:state.revision,requestId:'REQ-SIM-B06CLOCKBACK0001'
+ },s.ctx.study1UnifiedInitial_(),earlier);
+ assert.equal(result.state.audit[1].at,state.audit[0].at);
+ assert.equal(result.state.tasks[0].updatedAt,state.audit[0].at);
+ assert.equal(s.ctx.study1B06Verify_(result.state),true);
+ assert.equal(s.data.get('STUDY1_B06_TASKS_V1')!==null,true);
+});
