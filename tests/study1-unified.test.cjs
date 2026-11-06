@@ -697,7 +697,7 @@ test('B11 rejects publishing, scoped tamper, invalid content, no-op, stale CAS a
 
 test('B07 only records pending synthetic source checks, without money, payments, or second storage keys',()=>{
  const s=setup(),start=s.read();
- assert.deepEqual(JSON.parse(JSON.stringify(start.b07)),{reviews:{},history:[]});
+ assert.deepEqual(JSON.parse(JSON.stringify(start.b07)),{reviews:{},history:[],itemReviews:{},itemHistory:[]});
  assert.equal(s.writes,0);
  s.cmd('START',{experiment:'E1'});
  const before=s.writes;
@@ -759,7 +759,7 @@ test('B07 old owner fixture migrates on read only, and tampered pending records 
  s.p.set('STUDY1_UNIFIED_FIXTURE_V1',
   s.ctx.study1UnifiedStoredEncode_(JSON.stringify(stored)));
  const before=s.writes;
- assert.deepEqual(JSON.parse(JSON.stringify(s.read().b07)),{reviews:{},history:[]});
+ assert.deepEqual(JSON.parse(JSON.stringify(s.read().b07)),{reviews:{},history:[],itemReviews:{},itemHistory:[]});
  assert.equal(s.writes,before,'read-only schema migration cannot write fixture');
  let m=s.cmd('ADMIN_B07_REVIEW',
   {id:'SIM-001',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'});
@@ -793,4 +793,95 @@ test('B07 bounded pending review history retains final state and remains nonfina
  assert.equal(view.b07.history[11].to,view.b07.reviews['SIM-001'].status);
  assert.equal(view.b07.history[11].at,view.b07.reviews['SIM-001'].at);
  assert.equal(view.revision,16);
+});
+
+test('B07 E1 one-time and E2 pretest, eight-week intervention and posttest ledger are separate TEST items',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});s.cmd('START',{experiment:'E2'});
+ const stages=['PRETEST','INTERVENTION_8W','POSTTEST'];
+ let m=s.cmd('ADMIN_B07_ITEM_REVIEW',
+  {id:'SIM-001',stage:'SINGLE_SESSION',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'});
+ assert.equal(m.b07.itemReviews['SIM-001:SINGLE_SESSION'].status,'SOURCE_PENDING');
+ for(const [i,stage] of stages.entries()){
+  m=s.cmd('ADMIN_B07_ITEM_REVIEW',{id:'SIM-002',stage,
+   status:['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'][i],reason:'DOCUMENT_CHECK'});
+ }
+ assert.deepEqual(Object.keys(m.b07.itemReviews).sort(),
+  ['SIM-001:SINGLE_SESSION',...stages.map(x=>'SIM-002:'+x)].sort());
+ assert.equal(m.b07.itemHistory.length,4);
+ assert.deepEqual(m.b07.itemHistory.map(h=>h.from),Array(4).fill('UNRECORDED'));
+ assert.equal(s.p.has('STUDY1_B07_PAYMENT_LEDGER'),false);
+ assert.equal(JSON.stringify(m.b07).includes('amount'),false);
+ assert.equal(JSON.stringify(m.b07).includes('PAID'),false);
+ assert.equal(m.open,false);assert.equal(m.consentReady,false);
+ const before=s.writes;
+ for(const p of [
+  {id:'SIM-001',stage:'PRETEST',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'},
+  {id:'SIM-002',stage:'SINGLE_SESSION',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'},
+  {id:'SIM-999',stage:'PRETEST',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'},
+  {id:'SIM-002',stage:'POSTTEST',status:'PAID',reason:'SOURCE_CHECK'},
+  {id:'SIM-002',stage:'POSTTEST',status:'APPROVED',reason:'SOURCE_CHECK'},
+  {id:'SIM-002',stage:'POSTTEST',status:'SOURCE_PENDING',reason:'SOURCE_CHECK',amount:200}
+ ])assert.throws(()=>s.cmd('ADMIN_B07_ITEM_REVIEW',p),/B07階段項目/);
+ assert.equal(s.writes,before);
+});
+test('B07 stage item correction captures before after reason and rejects duplicate or stale competing edits',()=>{
+ const s=setup();s.cmd('START',{experiment:'E2'});
+ const initial=s.read().revision;
+ const payload={id:'SIM-001',stage:'PRETEST',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'};
+ let m=s.cmd('ADMIN_B07_ITEM_REVIEW',payload,initial,'REQ-SIM-B07ITEMONE01');
+ assert.equal(m.b07.itemHistory[0].from,'UNRECORDED');
+ assert.equal(m.b07.itemHistory[0].to,'SOURCE_PENDING');
+ assert.equal(m.b07.itemHistory[0].reason,'SOURCE_CHECK');
+ const before=s.writes;
+ const replay=s.cmd('ADMIN_B07_ITEM_REVIEW',payload,initial,'REQ-SIM-B07ITEMONE01');
+ assert.equal(replay.deduplicated,true);assert.equal(s.writes,before);
+ assert.throws(()=>s.cmd('ADMIN_B07_ITEM_REVIEW',
+  {...payload,status:'DOCUMENTS_PENDING'},initial),/版本已變更/);
+ assert.throws(()=>s.cmd('ADMIN_B07_ITEM_REVIEW',payload),/重複項目事件/);
+ m=s.cmd('ADMIN_B07_ITEM_REVIEW',{...payload,status:'PI_REVIEW_PENDING',reason:'PI_REVIEW_REQUEST'});
+ assert.equal(m.b07.itemHistory[1].from,'SOURCE_PENDING');
+ assert.equal(m.b07.itemHistory[1].to,'PI_REVIEW_PENDING');
+ assert.equal(m.b07.itemHistory[1].reason,'PI_REVIEW_REQUEST');
+ assert.equal(m.b07.itemReviews['SIM-001:PRETEST'].at,m.b07.itemHistory[1].at);
+ assert.equal(s.writes,before+1);
+});
+test('B07 stage ledger migrates old pending fixture read-only and fails closed on forged item keys or history',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});
+ const key='STUDY1_UNIFIED_FIXTURE_V1';
+ const decode=()=>JSON.parse(s.ctx.study1UnifiedStoredDecode_(s.p.get(key)));
+ const put=v=>s.p.set(key,s.ctx.study1UnifiedStoredEncode_(JSON.stringify(v)));
+ const legacy=decode();delete legacy.b07.itemReviews;delete legacy.b07.itemHistory;
+ put(legacy);const writes=s.writes;
+ assert.deepEqual(JSON.parse(JSON.stringify(s.read().b07.itemReviews)),{});
+ assert.equal(s.writes,writes,'legacy read cannot mutate backing TEST storage');
+ let m=s.cmd('ADMIN_B07_ITEM_REVIEW',
+  {id:'SIM-001',stage:'SINGLE_SESSION',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'});
+ const clean=decode();const record=clean.b07.itemReviews['SIM-001:SINGLE_SESSION'];
+ const h=clean.b07.itemHistory[0];
+ for(const b07 of [
+  {...clean.b07,itemReviews:{'SIM-001:PRETEST':record}},
+  {...clean.b07,itemReviews:{'SIM-001:SINGLE_SESSION':{...record,status:'PAID'}}},
+  {...clean.b07,itemReviews:{...clean.b07.itemReviews,'SIM-999:SINGLE_SESSION':record}},
+  {...clean.b07,itemHistory:[{...h,from:'PI_REVIEW_PENDING'}]},
+  {...clean.b07,itemHistory:[h,{...h}]},
+  {...clean.b07,itemHistory:[{...h,reason:'PAYMENT_SENT'}]},
+  {...clean.b07,itemHistory:[{...h,to:'DOCUMENTS_PENDING'}]}
+ ]){
+  put({...clean,b07});
+  assert.throws(()=>s.read(),/B07/);
+ }
+ put(clean);assert.equal(s.read().b07.itemReviews['SIM-001:SINGLE_SESSION'].status,'SOURCE_PENDING');
+ assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
+});
+test('B07 independent stage histories retain at most 32 recent TEST corrections',()=>{
+ const s=setup();s.cmd('START',{experiment:'E2'});
+ const values=['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
+ for(let i=0;i<35;i++)s.cmd('ADMIN_B07_ITEM_REVIEW',{
+  id:'SIM-001',stage:'INTERVENTION_8W',status:values[i%3],reason:'PI_REVIEW_REQUEST'});
+ const view=s.read(),key='SIM-001:INTERVENTION_8W';
+ assert.equal(view.b07.itemHistory.length,32);
+ assert.equal(view.b07.itemHistory.at(-1).to,view.b07.itemReviews[key].status);
+ assert.equal(view.b07.itemHistory.at(-1).at,view.b07.itemReviews[key].at);
+ assert.equal(view.b07.itemHistory.length,32);
+ assert.equal(view.revision,36);
 });
