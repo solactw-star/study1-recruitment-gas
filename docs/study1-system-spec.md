@@ -612,7 +612,7 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `NEXT_ACTION`：下輪重讀最新main、開放PR（本輪後發現與本次三檔無重疊的B01 PR #79仍待各自測試／競寫核實）、每小時排程與部署，選擇B12稽核或B01/B09來源一致性的下一個安全子模組；實際REC、PI／RA及真人個資資料服務仍待正式授權。不要求使用者於本輪人工驗收。
 - `WRITE_OWNER=GitHub main + original GAS safety backup/sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; LIVE_UI_AND_FORMAL_DATA_BLOCKED`。
 
-## 四十八、B01管理頁13張卡片順序與顯示自訂／原GAS V75同ID回讀（2026-11-06）
+## 四十九、B01管理頁13張卡片順序與顯示自訂／原GAS V75同ID回讀（2026-11-06）
 
 - `TASK_DOMAIN=Study1 recruitment website / B01 P2-05 dashboard layout`。先核對當次最新原GitHub main `07fb17e751199853b031394bc30cfd08d1c321ba`、正式規格第14與31–47節、並行PR、每小時排程及原GAS V73；規格第14節仍要求B01資訊卡可調順序、顯示／隱藏，而原站13張唯讀卡均固定。使用者明確授權繼續未需REC／真人資料的最小增量；因此只對原OWNER-only TEST管理頁補足卡片介面功能，**不改原指標及資料模型**。
 - `CONCURRENCY`：首輪隔離PR #79在原main `07fb17e751199853b031394bc30cfd08d1c321ba` 通過551/551 CI，但另一個合格寫入者已先合併B10 PR #78到main程式 `9326d2da011c90aa443476a7c8f90de523e48fb3`；禁止將PR #79過時的同頁文件覆蓋B10。PR #79因此**關閉而未合併／未部署**；B01選擇性移植到新main後，以PR #80提交，並保留B10來源與核准檢查、原後端及其既有測試。合併前另一寫入者只更新B10規格文件至`f065ebeb7ca9923a148ad8291cedbb4d45dfec53`，PR #80對應三個程式／測試檔沒有修改範圍競爭；核實GitHub可合併及CI全綠後才合併。
