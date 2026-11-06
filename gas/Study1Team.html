@@ -181,14 +181,26 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:480px){.b08Tools{grid-template-columns:1fr}}
 
 
+/* B01 owner-only overview: derived, read-only, fail-closed from shared snapshot. */
+#b01Module{scroll-margin-top:24px} .b01Cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
+.b01Card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#f6faf8}.b01Card strong{display:block;font-size:25px}
+.b01Links{display:flex;gap:10px;flex-wrap:wrap}.b01Links a{padding:9px 13px;border:1px solid var(--line);border-radius:9px;color:var(--teal)}
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#b01Module">研究總覽</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
 <div class="warn"><strong>正式研究招募仍關閉</strong><p>這裡只管理虛構示範資料；變更「可體驗報名」不代表開放真人招募。實驗二預計 2027 年進行，2026 年不招募。REC 核准、研究團隊角色權限及正式個資服務仍須另行驗證。</p></div>
 <p id="b06Overview" class="small" aria-live="polite">人工待辦：載入中…</p><p id="status" role="status" aria-live="polite">正在核對研究團隊管理權限…</p><button class="secondary" id="refresh" type="button">重新載入設定</button></div>
+
+<section class="panel" id="b01Module" aria-labelledby="b01Heading">
+ <span class="tag">B01｜研究總覽</span><h2 id="b01Heading">研究進度與今日工作</h2>
+ <p class="sub">僅彙整同一份已授權的虛構資料快照；非正式招募數據。人數與預約人次分開計算，正式目標及完成率尚未核准。</p>
+ <p id="b01Status" role="status" aria-live="polite">正在核對研究安全設定與資料…</p>
+ <div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
+ <div class="b01Links"><a href="#calendarModule">查看研究行事曆</a><a href="#b03Module">查看參與者名單</a><a href="#b06Module">查看人工待辦</a></div>
+</section>
 
 <section class="panel" id="calendarModule" aria-labelledby="calHeading">
  <div class="calTop"><div><span class="tag">B02 · 隔離測試</span><h2 id="calHeading">整合式研究行事曆</h2>
@@ -512,7 +524,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
+  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -523,14 +535,73 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();calendarRender();profileRender();b05Render();
+ displaySlots();displayWeeks();b01Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
+function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
+function b01Render(){
+ const cards=$('b01Cards');cards.replaceChildren();
+ const safe=model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
+  model.formalReadiness&&model.formalReadiness.activationAllowed===false&&
+  Array.isArray(model.slots)&&Array.isArray(model.applications)&&model.b02&&
+  model.b02.sessions&&typeof model.b02.sessions==='object'&&!Array.isArray(model.b02.sessions)&&
+  model.b02.attendance&&typeof model.b02.attendance==='object'&&!Array.isArray(model.b02.attendance)&&
+  model.b06&&Array.isArray(model.b06.tasks)&&
+  model.slots.every(s=>s&&typeof s.id==='string'&&s.id.length>0&&typeof s.when==='string'&&/^\d{4}-\d{2}-\d{2} /.test(s.when)&&!Number.isNaN(Date.parse(s.when.replace(' ','T')+'+08:00'))&&new Date(Date.UTC(Number(s.when.slice(0,4)),Number(s.when.slice(5,7))-1,Number(s.when.slice(8,10)))).toISOString().slice(0,10)===s.when.slice(0,10))&&
+  new Set(model.slots.map(s=>s.id)).size===model.slots.length&&
+  new Set(model.applications.map(a=>a&&a.id)).size===model.applications.length&&
+  model.applications.every(a=>a&&typeof a.id==='string'&&typeof a.phase==='string')&&
+  model.b06.tasks.every(t=>t&&typeof t.status==='string');
+ if(!safe){b01Clear('資料或安全設定未核實；不顯示統計。');return;}
+ const applications=model.applications,slots=model.slots;
+ const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
+ const today=new Date(Date.now()+28800000).toISOString().slice(0,10);
+ const todays=slots.filter(s=>s.when.slice(0,10)===today&&
+  model.b02.sessions[s.id]?.status!=='CANCELLED');
+ const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN');
+ const pending=applications.filter(a=>{if(a.phase==='CANCELLED'||!a.slotId)return false;const slot=slots.find(s=>s.id===a.slotId);if(!slot||model.b02.sessions[slot.id]?.status==='CANCELLED')return false;const attendance=model.b02.attendance[a.id];return !attendance||attendance.attendance==='PENDING';});
+ const entries=[['不重複申請代碼',unique.size,'申請代碼不代表獨立參與者'],
+  ['預約／申請紀錄',applications.length,'不等於獨立參與者人數'],
+  ['場次紀錄',slots.length,'含歷史與取消場次'],
+  ['今日未取消場次',todays.length,'依臺灣日期'],
+  ['有效預約待確認出席',pending.length,'排除取消申請、無場次與已取消場次；不視為缺席'],
+  ['未完成人工待辦',active.length,'不自動產生事項'],
+  ['實驗一／有效申請',applications.filter(a=>a.experiment==='E1'&&a.phase!=='CANCELLED').length,
+   '按申請紀錄計算，非獨立參與者'],
+  ['實驗二／有效申請',applications.filter(a=>a.experiment==='E2'&&a.phase!=='CANCELLED').length,
+   '僅虛構紀錄；不代表實驗二已開放招募'],
+  ['已成立預約紀錄',applications.filter(a=>a.phase==='CONFIRMED'&&a.slotId&&
+   slots.some(s=>s.id===a.slotId&&model.b02.sessions[s.id]?.status!=='CANCELLED')).length,
+   '僅已成立且關聯未取消場次的申請紀錄'],
+  ['出席已確認紀錄',applications.filter(a=>a.phase!=='CANCELLED'&&a.slotId&&
+   slots.some(s=>s.id===a.slotId&&model.b02.sessions[s.id]?.status!=='CANCELLED')&&
+   ['PRESENT','LATE','ABSENT'].includes(model.b02.attendance[a.id]?.attendance)).length,
+   '出席確認與施測完成分開計算'],
+  ['施測進度完成紀錄',applications.filter(a=>a.phase!=='CANCELLED'&&a.slotId&&
+   slots.some(s=>s.id===a.slotId&&model.b02.sessions[s.id]?.status!=='CANCELLED')&&
+   model.b02.attendance[a.id]?.progress==='COMPLETE').length,
+   '僅行政進度標記，不代表正式研究完成'],
+  ['待釐清的場次關聯',applications.filter(a=>a.phase!=='CANCELLED'&&a.slotId&&
+   !slots.some(s=>s.id===a.slotId)).length,
+   '申請所指場次不存在；不自動修正或刪除'],
+  ['已取消場次的有效申請',applications.filter(a=>a.phase!=='CANCELLED'&&a.slotId&&
+   slots.some(s=>s.id===a.slotId&&model.b02.sessions[s.id]?.status==='CANCELLED')).length,
+   '需人工核對，不自動取消申請或通知']];
+ for(const [label,value,note] of entries){
+  const box=document.createElement('div');box.className='b01Card';
+  const title=document.createElement('span');title.textContent=label;
+  const number=document.createElement('strong');number.textContent=String(value);
+  const detail=document.createElement('small');detail.textContent=note;
+  box.append(title,number,detail);cards.append(box);
+ }
+ $('b01Status').textContent='已依目前虛構資料快照更新｜正式研究目標與完成率：未核准，不計算。';
+}
+
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
