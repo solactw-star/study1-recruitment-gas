@@ -1528,6 +1528,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
  /* Atomic B11 configuration change to the existing synthetic fixture.
   * The top-level transaction already checks owner, CLOSED flags, ScriptLock,
   * expectedRevision, idempotency, rollback and post-write readback. */
+ if(action==='ADMIN_B07_RECORD'){
+  throw Error('B07虛構行政操作尚未完成核對');
+ }
  if(action==='ADMIN_B11_SETTINGS'){
   if(Object.keys(p).sort().join(',')!=='modes,release,scope,site'||
     p.release!=='TEST_ONLY'||!['E1','E2','ALL'].includes(p.scope)||
