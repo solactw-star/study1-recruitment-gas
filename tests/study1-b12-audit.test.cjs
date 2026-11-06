@@ -348,3 +348,40 @@ test('B12 fails closed on forged B02 codes/dates and never enables a formal expo
  assert.match(html,/coverage\.warnings\.map/);
  assert.doesNotMatch(html,/id="b12Export"/);
 });
+
+test('B12 B07 exposes bounded TEST stage corrections and independently reconciles four E1 E2 stages',()=>{
+ const x=setup(),ctx=x.ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ f.applications=[{id:'SIM-001',experiment:'E1'},{id:'SIM-002',experiment:'E2'}];
+ const at='2026-11-06T08:00:00.000Z';
+ f.b07.itemReviews['SIM-001:SINGLE_SESSION']={actor:'OWNER',at,status:'SOURCE_PENDING'};
+ f.b07.itemReviews['SIM-002:PRETEST']={actor:'OWNER',at,status:'DOCUMENTS_PENDING'};
+ f.b07.itemHistory.push({id:'SIM-001',stage:'SINGLE_SESSION',from:'UNRECORDED',
+  to:'SOURCE_PENDING',reason:'SOURCE_CHECK',actor:'OWNER',at});
+ f.b07.itemHistory.push({id:'SIM-002',stage:'PRETEST',from:'UNRECORDED',
+  to:'DOCUMENTS_PENDING',reason:'DOCUMENT_CHECK',actor:'OWNER',at});
+ const old=JSON.stringify(f),before=x.writes;
+ const page=ctx.study1B12AuditPage_(f,b,query(f,b,{module:'B07'}));
+ assert.equal(page.total,2);
+ assert.equal(page.items[0].module,'B07');
+ assert.equal(page.items[0].provenance,'BOUNDED_PENDING_HISTORY');
+ assert.equal(page.items[0].before.status,'UNRECORDED');
+ assert.equal(page.items[0].after.status,'SOURCE_PENDING');
+ assert.equal(page.coverage.b07Summary.total.total,4);
+ assert.equal(page.coverage.b07Summary.total.unrecorded,2);
+ assert.equal(page.coverage.b07Summary.total.sourcePending,1);
+ assert.equal(page.coverage.b07Summary.total.documentsPending,1);
+ assert.equal(page.coverage.sources.find(s=>s.module==='B07').retained,2);
+ assert.equal(page.coverage.b07Summary.payment,false);
+ assert.equal(JSON.stringify(f),old);assert.equal(x.writes,before);
+ assert.equal(x.store.has('STUDY1_B07_PAYMENTS_V1'),false);
+ const forged=JSON.parse(old);
+ forged.b07.itemReviews['SIM-001:SINGLE_SESSION'].status='APPROVED';
+ assert.throws(()=>ctx.study1B12AuditPage_(forged,b,query(forged,b,{module:'B07'})),/B07/);
+ const mismatch=JSON.parse(old);
+ mismatch.b07.itemHistory[0].to='PI_REVIEW_PENDING';
+ assert.throws(()=>ctx.study1B12AuditPage_(mismatch,b,query(mismatch,b,{module:'B07'})),/B07/);
+ const drift=JSON.parse(old);
+ drift.b07.itemHistory[0].reason='PI_REVIEW_REQUEST';
+ assert.throws(()=>ctx.study1B12AuditPage_(drift,b,query(drift,b,{module:'B07',
+  after:page.items[0].id,snapshotHash:page.snapshotHash})),/快照/);
+});
