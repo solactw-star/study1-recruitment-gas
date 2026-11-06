@@ -100,3 +100,23 @@ test('atomic expired capability fails before CAS',()=>{
  assert.equal(atomic(input,2000,s.adapter).ok,false);
  assert.equal(s.writes(),0);
 });
+
+test('atomic lock provider failure is fail-closed and never writes',()=>{
+ const s=storeAdapter();
+ s.adapter.withExclusiveLock=()=>{throw Error('lock unavailable')};
+ assert.equal(atomic(input,1999,s.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(s.writes(),0);
+});
+test('atomic CAS false after uncertain commit is not retried or acknowledged',()=>{
+ const s=storeAdapter();
+ s.adapter.compareAndSwap=(_id,_expected,next)=>{s.adapter._committed=next;return false};
+ const result=atomic(input,1999,s.adapter);
+ assert.equal(result.ok,false);
+ assert.equal(result.reason,'CONFLICT_OR_UNKNOWN');
+});
+test('atomic storage read failure before write is fail-closed',()=>{
+ const s=storeAdapter();
+ s.adapter.read=()=>{throw Error('storage unavailable')};
+ assert.equal(atomic(input,1999,s.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(s.writes(),0);
+});
