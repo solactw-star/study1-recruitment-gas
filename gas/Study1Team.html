@@ -1364,7 +1364,8 @@ function calendarRender(){
  }
  const days=calRange(),el=$('calBoard');el.replaceChildren();
  el.style.setProperty('--day-count',days.length===1?'1':'7');
- const exp=$('calExperiment').value,state=$('calStatus').value,q=$('calSearch').value.trim().toLowerCase();
+ const exp=$('calExperiment').value||'ALL',state=$('calStatus').value||'ALL',
+  q=$('calSearch').value.trim().toLowerCase();
  let total=0;
  for(const date of days){
   const cell=calElem('div',undefined,'calDay');
