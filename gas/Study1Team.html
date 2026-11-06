@@ -1488,6 +1488,14 @@ function b06Init(){
 b06Init();
 
 
+/* B12: display object fields via textContent, never a JSON editor or HTML injection. */
+function b12ValueText(value){
+ if(value===null)return '無';
+ if(typeof value!=='object')return String(value);
+ if(Array.isArray(value))return value.map(v=>String(v)).join('、');
+ return Object.entries(value).map(([k,v])=>k+'：'+
+  (v===null?'無':typeof v==='object'?'（巢狀值未展開）':String(v))).join('\n');
+}
 /* B12: explicitly requested, read-only RPC; NO export/download operation. */
 const b12={cursor:'',hash:'',history:[],next:null,loading:false,page:0};
 function b12Status(t,error){
@@ -1525,7 +1533,7 @@ function b12Render(page,after){
   const values=calElem('div',undefined,'b12Values');
   for(const [title,value] of [['原值',item.before],['新值',item.after]]){
    const wrap=calElem('div');wrap.append(calElem('strong',title));
-   wrap.append(calElem('pre',value===null?'無':JSON.stringify(value,null,2)));
+   wrap.append(calElem('pre',value===null?'無':b12ValueText(value)));
    values.append(wrap);
   }
   box.append(values);target.append(box);
