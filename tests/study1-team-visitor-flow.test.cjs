@@ -607,3 +607,96 @@ test('B08 stale version fails closed and does not falsely report a simulated del
  assert.equal(srv.read().notifications[0].attempts,1);
  closed(srv);
 });
+
+test('B09 uses exactly the B01 shared owner TEST snapshot: no new RPC, writes or export',()=>{
+ const srv=server();const before=srv.writes;const team=page(srv,'team');
+ assert.ok(team.get('b09Metrics').children.length>=10);
+ assert.equal(team.get('b09Metrics').children[0].children[1].textContent,
+  team.get('b01Cards').children[0].children[1].textContent,
+  'all-time application code count agrees with original B01');
+ assert.equal(team.get('b09Metrics').children[2].children[1].textContent,
+  String(srv.read().slots.length),'calendar total agrees with B02');
+ assert.equal(team.get('b09ByExperiment').children.length,2);
+ assert.equal(team.get('b09Trend').children.length>=1,true);
+ assert.match(team.get('b09Notes').textContent,/沒有跨申請代碼的真人身分去重/);
+ assert.match(team.get('b09Notes').textContent,/CSV／XLSX匯出.*未開放/);
+ assert.equal(team.calls.filter(x=>x!=='READ').length,0,'report does not call a mutation RPC');
+ assert.equal(srv.writes,before);
+ assert.equal(srv.store.has('STUDY1_B09_REPORT_V1'),false);
+ closed(srv);
+});
+test('B09 E1/E2 filters, phase, correct eligibility denominator and inclusive session-date filter',()=>{
+ const srv=server();
+ const add=(exp)=>srv.command('START',{experiment:exp});
+ add('E1');add('E1');add('E1');add('E2');
+ const original=srv.ctx.study1UnifiedRead_(),slots=original.slots;
+ const e1=slots.filter(x=>x.experiment==='E1'),e2=slots.find(x=>x.experiment==='E2');
+ assert.equal(e1.length>=2,true);
+ const [a,b,c,d]=original.applications;
+ Object.assign(a,{phase:'CONFIRMED',eligible:true,slotId:e1[0].id});
+ Object.assign(b,{phase:'CONFIRMED',eligible:true,slotId:e1[1].id});
+ Object.assign(c,{phase:'CANCELLED',eligible:false,slotId:e1[0].id});
+ Object.assign(d,{phase:'CONFIRMED',eligible:true,slotId:e2.id});
+ original.b02.attendance[a.id]={attendance:'PRESENT',progress:'COMPLETE',note:''};
+ original.b02.attendance[b.id]={attendance:'ABSENT',progress:'PARTIAL',note:''};
+ original.b02.attendance[d.id]={attendance:'LATE',progress:'COMPLETE',note:''};
+ original.b02.sessions[e1[1].id]={title:'虛構已取消的場次',place:'',
+  minutes:90,group:'',status:'CANCELLED'};
+ srv.store.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(original));
+ const writes=srv.writes,team=page(srv,'team');
+ const metric=n=>team.get('b09Metrics').children[n].children[1].textContent;
+ assert.equal(metric(0),'4','all-time unique synthetic applications');
+ assert.equal(metric(2),'3','only non-cancelled E1+E2 slots');
+ assert.equal(metric(3),'2','exclude cancelled application and cancelled session');
+ assert.match(metric(4),/^2\/2（100\.0%）/,'confirmed denominator is active slot-related codes');
+ assert.match(metric(5),/^2\/2（100\.0%）/,'PRESENT/LATE count, not ABSENT');
+ assert.match(metric(6),/^2\/2（100\.0%）/,'COMPLETE means synthetic administrative progress only');
+ team.set('b09Scope','E1');team.change('b09Scope');
+ assert.equal(team.get('b09ByExperiment').children.length,1);
+ assert.equal(metric(0),'3','date filters never silently remove unassigned/all-time applications');
+ assert.equal(metric(3),'1','E1 E1-B cancelled session excluded');
+ assert.match(metric(1),/^2\/3（66\.7%）/,'eligible evaluated denominator: 3 including failed');
+ team.set('b09Start',e1[0].when.slice(0,10));
+ team.change('b09Start');
+ team.set('b09End',e1[0].when.slice(0,10));
+ team.change('b09End');
+ assert.equal(metric(0),'3','all-time application count independent of session date');
+ assert.equal(metric(2),'1','one selected noncancelled session');
+ assert.equal(team.get('b09Trend').children.length,1);
+ assert.equal(team.get('b09Trend').children[0].children[0].textContent,e1[0].when.slice(0,10));
+ assert.equal(metric(3),'1');
+ team.set('b09Phase','INELIGIBLE');team.change('b09Phase');
+ assert.equal(metric(0),'0','cancelled application current phase not counted as INELIGIBLE');
+ assert.equal(metric(3),'0');
+ team.set('b09Phase','CANCELLED');team.change('b09Phase');
+ assert.equal(metric(0),'1','phase filter describes current state');
+ assert.equal(metric(3),'0','cancelled application excluded from valid session denominator');
+ team.click('b09Reset');
+ assert.equal(team.get('b09Start').value,'');
+ assert.equal(team.get('b09End').value,'');
+ assert.equal(team.get('b09Scope').value,'ALL');
+ assert.equal(metric(0),'4');
+ assert.equal(srv.writes,writes,'all report filters and recomputations are read-only');
+ closed(srv);
+});
+test('B09 malformed date, inverted period, tampered model, and failed authorized read clear stale statistics',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ assert.equal(team.get('b09Metrics').children.length>0,true);
+ team.set('b09Start','2027-02-30');team.change('b09Start');
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.match(team.get('b09Status').textContent,/報表已清空/);
+ team.set('b09Start','2027-04-01');team.change('b09Start');
+ team.set('b09End','2027-03-01');team.change('b09End');
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.match(team.get('b09Status').textContent,/日期/);
+ team.click('b09Reset');
+ assert.ok(team.get('b09Metrics').children.length>0);
+ assert.equal(srv.writes,before);
+ // Revoking a previously valid session must clear displayed report values.
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner denied');};
+ const read=team.get('refresh');read.handlers.click();
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.match(team.get('b09Status').textContent,/快照|清空/);
+ assert.equal(srv.writes,before);
+ closed(srv);
+});
