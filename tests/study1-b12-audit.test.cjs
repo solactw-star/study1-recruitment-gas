@@ -122,7 +122,7 @@ test('B12 rejects B06 audit tampering, mismatched prior values and forged action
  const third={...wrongAction.audit[2]};delete third.digest;
  wrongAction.audit[2].digest=ctx.study1UnifiedStoreHash_(third);
  wrongAction.head=wrongAction.audit[2].digest;
- assert.throws(()=>ctx.study1B12AuditBuild_(f,wrongAction),/前後值|類型/);
+ assert.throws(()=>ctx.study1B12AuditBuild_(f,wrongAction),/前後值|類型|前態/);
 });
 test('B12 tests recent B04/B05 before-after continuity and latest record without rewriting old bounded history',()=>{
  const ctx=setup().ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
@@ -173,7 +173,7 @@ test('original B12 endpoint reads the same owner-only existing two fixture keys,
  assert.equal(x.store.has('STUDY1_B12_AUDIT_V1'),false);
  assert.equal(x.locked,false);
  assert.equal(x.store.get('OPEN'),'false');assert.equal(x.store.get('CONSENT_READY'),'false');
- assert.throws(()=>ctx.study1UnifiedB12Export(),/未獲授權/);
+ assert.throws(()=>ctx.study1UnifiedB12Export_(),/未獲授權/);
  assert.throws(()=>ctx.study1UnifiedProductionAdapter_().exportAudit(),/尚未核准/);
  assert.equal(x.writes,before);
 });
@@ -185,7 +185,7 @@ test('B12 denies unauthorized users and opened consent flag without reading or w
   const x=setup(options),ctx=x.ctx;
   assert.throws(()=>ctx.study1UnifiedB12AuditPage(query({revision:0},{revision:0})),
    /權限|拒絕|帳號|關閉|CONSENT_READY|OPEN|授權/);
-  assert.throws(()=>ctx.study1UnifiedB12Export(),/未獲授權/);
+  assert.throws(()=>ctx.study1UnifiedB12Export_(),/未獲授權/);
   assert.equal(x.writes,0);assert.equal(x.locked,false);
  }
 });
