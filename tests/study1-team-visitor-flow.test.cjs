@@ -693,10 +693,12 @@ test('B09 malformed date, inverted period, tampered model, and failed authorized
  assert.ok(team.get('b09Metrics').children.length>0);
  assert.equal(srv.writes,before);
  // Revoking a previously valid session must clear displayed report values.
+ const originalRead=srv.ctx.study1UnifiedPreviewGet;
  srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner denied');};
  const read=team.get('refresh');read.handlers.click();
  assert.equal(team.get('b09Metrics').children.length,0);
  assert.match(team.get('b09Status').textContent,/快照|清空/);
  assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=originalRead;
  closed(srv);
 });
