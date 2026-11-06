@@ -716,3 +716,42 @@ test('B07 TEST item: E1/E2 stage, classification and duplicate prevention on ori
  assert.equal(x.p.get('OPEN'),'false');assert.equal(x.p.get('CONSENT_READY'),'false');
  assert.equal(x.p.has('STUDY1_B07_PAYMENTS_V1'),false);
 });
+
+test('B07 TEST correction preserves before/after, reason, CAS, idempotency and no-op failure',()=>{
+ const x=setup();x.cmd('START',{experiment:'E1'});
+ const make={operation:'CREATE',applicationId:'SIM-001',experiment:'E1',
+  stage:'E1_SESSION',item:'PARTICIPATION_DEMO',status:'PENDING_REVIEW',
+  notes:'待查',reason:'人工建立測試分類'};
+ const first=x.cmd('ADMIN_B07_RECORD',make),rev=first.revision;
+ const update={operation:'CORRECT',id:'SIM-B07-001',status:'REVIEWED_TEST',
+  notes:'示範核對完成，非已發放',reason:'比對原始行政狀態'};
+ const result=x.cmd('ADMIN_B07_RECORD',update,rev,'REQ-SIM-B07REV000001');
+ assert.equal(result.b07.records[0].status,'REVIEWED_TEST');
+ assert.equal(result.b07.history[1].before.status,'PENDING_REVIEW');
+ assert.equal(result.b07.history[1].after.status,'REVIEWED_TEST');
+ assert.equal(result.b07.history[1].reason,'比對原始行政狀態');
+ const writes=x.writes;
+ const duplicate=x.cmd('ADMIN_B07_RECORD',update,rev,'REQ-SIM-B07REV000001');
+ assert.equal(duplicate.deduplicated,true);assert.equal(x.writes,writes);
+ assert.throws(()=>x.cmd('ADMIN_B07_RECORD',update),/沒有實質變更/);
+ assert.throws(()=>x.cmd('ADMIN_B07_RECORD',{...update,status:'CORRECTION_REQUIRED'},
+  rev,'REQ-SIM-B07REV000002'),/版本已變更/);
+ assert.equal(x.writes,writes);
+});
+test('B07 TEST rejects monetary fields, forged recipient and unapproved status before any write',()=>{
+ for(const options of [{},{active:'other@example.invalid'},{open:'true'},{consent:'true'}]){
+  const x=setup(options),p={operation:'CREATE',applicationId:'SIM-001',
+   experiment:'E1',stage:'E1_SESSION',item:'TRANSPORT_DEMO',
+   status:'PENDING_REVIEW',notes:'僅行政測試',reason:'人工測試情境'};
+  if(options.active||options.open||options.consent){
+   assert.throws(()=>x.cmd('ADMIN_B07_RECORD',p,0));assert.equal(x.writes,0);continue;
+  }
+  x.cmd('START',{experiment:'E1'});const before=x.writes;
+  for(const bad of [{...p,amount:200},{...p,receiptRef:'receipt.pdf'},
+   {...p,paymentStatus:'PAID'},{...p,status:'PAID'},
+   {...p,reason:'短'},{...p,applicationId:'REAL-001'},
+   {...p,experiment:'E2'},{...p,stage:'E2_PRE'}])
+   assert.throws(()=>x.cmd('ADMIN_B07_RECORD',bad));
+  assert.equal(x.writes,before);
+ }
+});
