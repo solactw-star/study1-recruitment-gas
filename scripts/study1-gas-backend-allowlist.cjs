@@ -287,6 +287,12 @@ function assertTeamHtml(html){
     !html.includes("adminScopeMatch_('B08',a.experiment)")||
     !html.includes("adminScopeEffective_('B09')")||
     !html.includes('後台研究範圍不合法')||
+    !html.includes('id="b01LayoutPanel"')||
+    !html.includes('id="b01LayoutControls"')||
+    !html.includes('id="b01LayoutReset"')||
+    !html.includes('function b01LayoutRender_()')||
+    !html.includes("b01LayoutReset').addEventListener('click'")||
+    !html.includes('只調整目前OWNER管理頁的排列及可見性')||
     !html.includes('id="b10Module"')||!html.includes('id="b10Rows"')||
     !html.includes('id="b10Experiment"')||!html.includes('id="b10Warning"')||
     !html.includes("function b10Rows_(data)")||
