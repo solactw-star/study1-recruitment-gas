@@ -266,3 +266,91 @@ test('B06 transaction pins audit chronology when synthetic clock moves backwards
  assert.equal(s.ctx.study1B06Verify_(result.state),true);
  assert.equal(s.data.get('STUDY1_B06_TASKS_V1')!==null,true);
 });
+
+test('B12 owner-only read-only query sorts B06 audit, shows verified diffs and never writes',()=>{
+ const s=setup(),created=s.cmd('CREATE',s.fields);
+ const id=created.b06.tasks[0].id;
+ s.cmd('COMPLETE',{id,reason:'研究人員人工完成'});
+ s.cmd('REOPEN',{id,reason:'研究人員人工重開'});
+ const before=s.writes;
+ const base={module:'B06',sort:'DESC',term:'',after:'',snapshotHash:'',limit:2};
+ const first=JSON.parse(JSON.stringify(s.ctx.study1UnifiedB12Query(base)));
+ assert.equal(first.schema,'STUDY1_B12_READONLY_V1');
+ assert.equal(first.mode,'SYNTHETIC_ONLY');
+ assert.equal(first.integrity,'B06_CHAIN_VERIFIED');
+ assert.equal(first.exportAllowed,false);assert.equal(first.formalData,false);
+ assert.equal(first.total,3);assert.equal(first.items.length,2);
+ assert.deepEqual(first.items.map(x=>x.action),['REOPEN','COMPLETE']);
+ assert.ok(first.items[0].diff.some(d=>d.field==='status'&&d.before==='DONE'&&d.after==='OPEN'));
+ assert.equal(first.items[0].quality,'CHAIN_VERIFIED');
+ assert.ok(first.nextAfter);
+ const second=JSON.parse(JSON.stringify(s.ctx.study1UnifiedB12Query({
+  ...base,after:first.nextAfter,snapshotHash:first.snapshotHash
+ })));
+ assert.equal(second.items.length,1);
+ assert.equal(second.items[0].action,'CREATE');assert.equal(second.nextAfter,null);
+ assert.equal(new Set(first.items.concat(second.items).map(x=>x.id)).size,3);
+ assert.equal(s.writes,before);
+ assert.equal(s.data.get('OPEN'),'false');assert.equal(s.data.get('CONSENT_READY'),'false');
+ assert.equal(s.locked,false);
+});
+
+test('B12 paging pins exact source bytes and filters, fails closed on stale or fake cursor',()=>{
+ const s=setup();s.cmd('CREATE',s.fields);s.cmd('CREATE',{...s.fields,title:'第二項虛構待辦'});
+ const base={module:'ALL',sort:'ASC',term:'',after:'',snapshotHash:'',limit:1};
+ const first=s.ctx.study1UnifiedB12Query(base);
+ assert.ok(first.nextAfter);
+ assert.throws(()=>s.ctx.study1UnifiedB12Query({...base,after:first.nextAfter,
+  snapshotHash:first.snapshotHash,sort:'DESC'}),/快照|篩選/);
+ assert.throws(()=>s.ctx.study1UnifiedB12Query({...base,after:'B06:999999',
+  snapshotHash:first.snapshotHash}),/游標/);
+ s.cmd('CREATE',{...s.fields,title:'第三項虛構待辦'});
+ assert.throws(()=>s.ctx.study1UnifiedB12Query({...base,after:first.nextAfter,
+  snapshotHash:first.snapshotHash}),/快照|篩選/);
+ assert.throws(()=>s.ctx.study1UnifiedB12Query({...base,after:'',
+  snapshotHash:first.snapshotHash}),/首頁不可沿用/);
+ assert.equal(s.locked,false);
+});
+
+test('B12 rejects unapproved query, formal export, unauthorized role and broken audit chain',()=>{
+ const s=setup(),before=s.writes;
+ const base={module:'ALL',sort:'DESC',term:'',after:'',snapshotHash:'',limit:10};
+ for(const bad of [
+  {...base,module:'REAL'}, {...base,limit:101},
+  {...base,export:true}, {...base,term:'<img src=x>'},
+  {...base,snapshotHash:'bad'}, {...base,sort:'UNKNOWN'}
+ ])assert.throws(()=>s.ctx.study1UnifiedB12Query(bad));
+ assert.throws(()=>s.ctx.study1UnifiedRoleAuthorise_('OWNER','EXPORT_AUDIT'),/未獲授權/);
+ const denied=setup({active:'unauthorized@example.invalid'});
+ assert.throws(()=>denied.ctx.study1UnifiedB12Query(base),/拒絕|授權|管理|帳號/);
+ const consent=setup({consent:'true'});
+ assert.throws(()=>consent.ctx.study1UnifiedB12Query(base),/關閉|CONSENT_READY/);
+ s.cmd('CREATE',s.fields);
+ const original=s.data.get('STUDY1_B06_TASKS_V1');
+ const mutated=JSON.parse(s.ctx.study1UnifiedStoredDecode_(original));
+ mutated.audit[0].reason='竄改的操作原因';
+ s.data.set('STUDY1_B06_TASKS_V1',JSON.stringify(mutated));
+ assert.throws(()=>s.ctx.study1UnifiedB12Query(base),/B06.*稽核|雜湊|不一致/);
+ assert.equal(s.writes,before+1,'read-only B12 cannot rewrite invalid stored audit');
+ assert.equal(s.locked,false);
+});
+
+test('B12 legacy B02/B04/B05 events are clearly limited and redact free text',()=>{
+ const s=setup(),state=s.ctx.study1UnifiedInitial_(),tasks=s.ctx.study1B06Initial_();
+ const at='2026-11-06T06:30:00.000Z';
+ state.b02.history.push({at,action:'ADD',ids:['SIM-SLOT-E1-A']});
+ state.b04.history.push({at,id:'SIM-001',field:'adminNote',before:'hidden before note',
+  after:'hidden after note',reason:'private note reason',actor:'OWNER'});
+ state.b05.history.push({at,slotId:'SIM-SLOT-E1-A',action:'CLOSE',actor:'OWNER',
+  before:'OPEN',after:'CLOSED',issues:0,reason:'private closure reason',handoff:'private'});
+ const query={module:'ALL',sort:'ASC',term:'SIM',after:'',snapshotHash:'',limit:10};
+ const page=s.ctx.study1UnifiedB12Page_(state,tasks,query,'sim-raw-main','sim-raw-tasks');
+ assert.equal(page.total,3);
+ assert.deepEqual(JSON.parse(JSON.stringify(page.items.map(x=>x.module))),['B02','B04','B05']);
+ assert.match(page.warnings.join(' '),/有限舊歷程/);
+ assert.ok(page.items.every(x=>x.quality.startsWith('LIMITED')));
+ assert.doesNotMatch(JSON.stringify(page),/hidden before note|hidden after note|private note reason|private closure reason|private"/);
+ assert.equal(page.items.find(x=>x.module==='B05').diff[0].before,'OPEN');
+ assert.equal(page.items.find(x=>x.module==='B04').diff[0].after,'〔內容未於B12顯示〕');
+ assert.equal(s.locked,false);
+});
