@@ -130,3 +130,102 @@ test('V06 final confirmation is disabled on bad source and does not create a new
  assert.match(nodes.get('v06Status').textContent,/禁止提交/);
  assert.doesNotMatch(html,/new\s+XMLHttpRequest|localStorage|\.innerHTML\s*=/);
 });
+
+
+test('V05 mobile calendar keeps accessible dates, touch controls, source-derived times and original select',()=>{
+ for(const id of ['v05Prev','v05Next','v05Month','v05Dates','v05Status','v05Choices','slot','hold'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/grid-template-columns:repeat\(7,minmax\(0,1fr\)\)/);
+ assert.match(html,/\.v05Day\{[^}]*min-height:44px/);
+ assert.match(html,/@media\(max-width:540px\)/);
+ assert.match(html,/role="group" aria-label="選擇可預約的虛構日期"/);
+ assert.match(html,/aria-pressed/);
+ assert.match(html,/v05Read_\(model,a\)/);
+ assert.match(html,/s\.day===v05State\.date/);
+ assert.match(html,/issue\('HOLD',\{id:a\.id,slotId:\$\('slot'\)\.value\}\)/);
+ assert.doesNotMatch(html,/localStorage|<script[^>]+src=|\.innerHTML\s*=/);
+});
+test('V05 source rejects malformed dates, forged availability, duplicate slot and crossed E1/E2',()=>{
+ const vm=require('node:vm'),now=Date.parse('2026-11-06T12:00:00Z');
+ const begin=html.indexOf('function v05Read_(response,a){'),end=html.indexOf('function v05Render_(a){',begin);
+ assert.ok(begin>=0&&end>begin);
+ const model={mode:'TEST',open:false,consentReady:false,
+  formalPorts:{activated:false},recruitment:{E1:{year:2026,mode:'DEMO_OPEN'},E2:{year:2027,mode:'COMING_SOON'}},
+  b02:{sessions:{'SIM-SLOT-E1-A':{title:'模擬活動',place:'測試室',minutes:60,status:'OPEN'}}},
+  slots:[
+   {id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-01-05 10:00',capacity:2,remaining:1,bookable:true},
+   {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-02-06 14:00',capacity:2,remaining:2,bookable:true},
+   {id:'SIM-SLOT-E2-A',experiment:'E2',when:'2027-03-01 10:00',capacity:2,remaining:1,bookable:true}
+  ]};
+ const app={id:'SIM-001',experiment:'E1',phase:'VERIFIED',eligible:true};
+ const ctx={Date:class extends Date{static now(){return now;}},Number,Object,Set,Array,String,
+  safePreview:r=>r.mode==='TEST'&&r.open===false&&r.consentReady===false};
+ vm.createContext(ctx);vm.runInContext(html.slice(begin,end),ctx);
+ const rows=ctx.v05Read_(model,app);
+ assert.equal(rows.length,2);
+ assert.equal(rows[0].month,'2027-01');
+ assert.equal(rows[0].end,'2027-01-05 11:00（臺灣）');
+ assert.equal(rows[0].remaining,1);
+ assert.equal(ctx.v05Read_(model,{...app,experiment:'E2'}),null,'E2 coming soon cannot select');
+ const deny=[
+  {...model,mode:'FORMAL'},
+  {...model,open:true},
+  {...model,formalPorts:{activated:true}},
+  {...model,slots:[...model.slots,model.slots[0]]},
+  {...model,slots:[{...model.slots[0],when:'2027-02-30 10:00'},...model.slots.slice(1)]},
+  {...model,slots:[{...model.slots[0],remaining:3},...model.slots.slice(1)]},
+  {...model,slots:[{...model.slots[0],experiment:'E2'},...model.slots.slice(1)]},
+  {...model,slots:[{...model.slots[0],bookable:true,when:'2025-01-01 10:00'},...model.slots.slice(1)]},
+  {...model,b02:{sessions:{'SIM-SLOT-E1-A':{status:'CANCELLED'}}}},
+  {...model,b02:{sessions:{'SIM-SLOT-E1-A':{status:'OPEN',minutes:900}}}}
+ ];
+ for(const bad of deny)assert.equal(ctx.v05Read_(bad,app),null,'conflicting TEST slot must fail closed');
+ assert.equal(ctx.v05Read_(model,{...app,phase:'CONFIRMED'}),null);
+ assert.equal(ctx.v05Read_(model,{...app,eligible:false}),null);
+});
+test('V05 month picker reads same synthetic snapshot, filters dates and clears on denied owner source',()=>{
+ const vm=require('node:vm'),now=Date.parse('2026-11-06T12:00:00Z');
+ const begin=html.indexOf('const v05State='),end=html.indexOf('/* V06 confirmation summary',begin);
+ assert.ok(begin>=0&&end>begin);
+ function node(tagName='div'){
+  return {tagName,children:[],handlers:{},attributes:{},disabled:false,value:'',textContent:'',
+   append(...items){this.children.push(...items);},
+   replaceChildren(...items){this.children=[...items];if(this.tagName==='select')this.value=items[0]?.value||'';},
+   addEventListener(k,fn){this.handlers[k]=fn;},
+   setAttribute(k,v){this.attributes[k]=v;}
+  };
+ }
+ const ids=new Map(['v05Dates','v05Choices','slot','hold','v05Prev','v05Next','v05Month','v05Status']
+  .map(id=>[id,node(id==='slot'?'select':'div')]));
+ const app={id:'SIM-001',experiment:'E1',phase:'VERIFIED',eligible:true};
+ const model={mode:'TEST',open:false,consentReady:false,formalPorts:{activated:false},
+  recruitment:{E1:{mode:'DEMO_OPEN'}},b02:{sessions:{}},slots:[
+    {id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-01-05 10:00',capacity:2,remaining:1,bookable:true},
+    {id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-02-06 14:00',capacity:2,remaining:2,bookable:true}
+  ]};
+ const ctx={Date:class extends Date{static now(){return now;}},Number,Object,Set,Array,String,
+  model,current:()=>app,busy:false,$:id=>{assert.ok(ids.has(id));return ids.get(id);},
+  safePreview:r=>r.mode==='TEST'&&r.open===false&&r.consentReady===false,
+  document:{createElement:node},
+  makeOptions:(n,items)=>{n.replaceChildren(...items.map(r=>Object.assign(node('option'),{value:r.id,textContent:r.when})));}};
+ vm.createContext(ctx);vm.runInContext(html.slice(begin,end),ctx);
+ ctx.v05Render_(app);
+ assert.equal(ids.get('v05Month').textContent,'2027 年 01 月（虛構）');
+ assert.equal(ids.get('v05Choices').children.length,1);
+ assert.equal(ids.get('slot').children[0].value,'SIM-SLOT-E1-A');
+ assert.equal(ids.get('v05Prev').disabled,true);
+ assert.equal(ids.get('v05Next').disabled,false);
+ assert.ok(ids.get('v05Dates').children.some(n=>n.tagName==='button'&&n.textContent==='5'&&n.disabled===false));
+ assert.equal(ids.get('hold').disabled,false);
+ ids.get('v05Next').handlers.click();
+ assert.equal(ids.get('v05Month').textContent,'2027 年 02 月（虛構）');
+ assert.equal(ids.get('slot').value,'SIM-SLOT-E1-B');
+ assert.equal(ids.get('v05Prev').disabled,false);
+ model.open=true;
+ ctx.v05Render_(app);
+ assert.equal(ids.get('hold').disabled,true);
+ assert.equal(ids.get('slot').children.length,0);
+ assert.equal(ids.get('v05Choices').children.length,0);
+ assert.equal(ids.get('v05Dates').children.length,0);
+ assert.match(ids.get('v05Status').textContent,/拒絕選擇/);
+});
