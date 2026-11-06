@@ -271,6 +271,10 @@ function assertTeamHtml(html){
     !html.includes("save('ADMIN_RECRUITMENT'")||
     !html.includes('id="b06Module"')||!html.includes('id="b06Form"')||
     !html.includes('id="b06History"')||!html.includes('study1UnifiedB06Command(')||
+    !html.includes('id="b08Module"')||!html.includes('id="b08List"')||
+    !html.includes("action:'ADMIN_NOTIFY_ATTEMPT'")||
+    !html.includes('b08StatusName(status)')||
+    !html.includes('沒有寄送真實郵件')||
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
     !html.includes('正式收件開關保持鎖定')||
