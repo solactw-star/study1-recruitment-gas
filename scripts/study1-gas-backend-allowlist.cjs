@@ -269,6 +269,13 @@ function assertTeamHtml(html){
     !html.includes('id="modeE2"')||!html.includes('id="saveResearch"')||
     !html.includes('id="saveSlots"')||!html.includes('id="saveWeeks"')||
     !html.includes("save('ADMIN_RECRUITMENT'")||
+    !html.includes('id="b11Module"')||!html.includes('id="b11Diff"')||
+    !html.includes('id="b11Demo"')||!html.includes('id="b11Scope"')||
+    !html.includes('id="b11Publish" type="button" class="secondary" disabled')||
+    !html.includes("action:'ADMIN_B11_SETTINGS'")||
+    !html.includes("release:'TEST_ONLY'")||
+    !html.includes('b11.fingerprint=JSON.stringify(payload)')||
+    !html.includes('正式收件：CLOSED｜REC：PENDING｜通知：DISABLED')||
     !html.includes('id="b09Module"')||!html.includes('id="b09Metrics"')||
     !html.includes('id="b09ByExperiment"')||!html.includes('id="b09Trend"')||
     !html.includes('function b09Compute_(data,scope,phase,start,end)')||
