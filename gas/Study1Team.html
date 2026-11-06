@@ -994,6 +994,11 @@ function b11Flat_(obj,prefix='',out={}){
  }else out[prefix]=obj===null?'（未填）':obj===undefined?'（無來源）':String(obj);
  return out;
 }
+function b11Same_(left,right){
+ const a=b11Flat_(left),b=b11Flat_(right);
+ const keys=Object.keys(a).sort(),other=Object.keys(b).sort();
+ return keys.length===other.length&&keys.every((k,i)=>k===other[i]&&a[k]===b[k]);
+}
 function b11Review_(action,payload){
  if(busy||!b11Safe_(model)||!b11Actions.includes(action)){
   b11Clear_('B11未取得安全的OWNER TEST快照，禁止預覽及提交。',true);return;
@@ -1008,9 +1013,8 @@ function b11Review_(action,payload){
    $('b11Status').textContent='B11沒有實際設定差異，不會建立寫入。';
    return;
   }
-  if(JSON.stringify(payload).length>1600)throw Error('B11草稿超過既有伺服器指令容量');
-  b11Pending={action,payload:JSON.parse(JSON.stringify(payload)),
-   revision:model.revision,source:JSON.stringify(before),target:JSON.stringify(after)};
+  // The backend remains the only authority for exact serialized command size.
+  b11Pending={action,payload,revision:model.revision,source:before,target:after};
   for(const field of changed){
    const card=calElem('div',undefined,'b11Change');
    card.append(calElem('strong',field));
@@ -1043,8 +1047,8 @@ function b11Commit_(){
  const pending=b11Pending;
  try{
   if(!b11Safe_(model)||model.revision!==pending.revision||
-     JSON.stringify(b11Source_(pending.action,model))!==pending.source||
-     JSON.stringify(b11Desired_(pending.action,b11Current_(pending.action)))!==pending.target)
+     !b11Same_(b11Source_(pending.action,model),pending.source)||
+     !b11Same_(b11Desired_(pending.action,b11Current_(pending.action)),pending.target))
    throw Error('設定草稿或來源版本已變更，請重新預覽');
  }catch(error){
   b11Clear_('B11未提交：'+String(error.message||error),true);return;
@@ -1056,7 +1060,7 @@ function b11Commit_(){
   let valid=false;
   try{
    valid=b11Safe_(data)&&data.revision===pending.revision+1&&
-    JSON.stringify(b11Source_(pending.action,data))===pending.target;
+    b11Same_(b11Source_(pending.action,data),pending.target);
   }catch(error){valid=false;}
   if(!valid){
    b11Recover_('伺服器回應版本或新值與確認草稿不一致');
