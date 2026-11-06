@@ -161,7 +161,9 @@ function assertUnifiedFlow(source){
    "e.actor!=='OWNER'","b04:JSON.parse(JSON.stringify(s.b04",
    "if(s&&!s.b04)s.b04={notes:{},history:[]}",
    "action==='ADMIN_B05_CLOSURE'","s.b05.history.push(",
-   "action==='ADMIN_B07_REVIEW'","study1B07Verify_(s)",
+   "action==='ADMIN_B07_REVIEW'","action==='ADMIN_B07_ITEM_REVIEW'",
+    "study1B07Verify_(s)","STUDY1_B07_STAGES_", "s.b07.itemReviews[key]=",
+    "s.b07.itemHistory.push(",
    "s.b07.reviews[p.id]=","s.b07.history.push(",
    "if(s&&!s.b07)s.b07=study1B07Initial_()",
    "b07:JSON.parse(JSON.stringify(s.b07",
@@ -297,6 +299,10 @@ function assertTeamHtml(html){
     !html.includes("function b07Valid_()")||
     !html.includes("function b07Save_(id,status,reason)")||
     !html.includes("action:'ADMIN_B07_REVIEW'")||
+     !html.includes('id="b07ItemRows"')||
+     !html.includes('id="b07ItemHistory"')||
+     !html.includes("function b07ItemSave_(id,stage,status,reason)")||
+     !html.includes("action:'ADMIN_B07_ITEM_REVIEW'")||
     !html.includes('正式補貼核准／金額／發放：全部未啟用')||
     !html.includes('id="b01LayoutPanel"')||
     !html.includes('id="b01LayoutControls"')||
