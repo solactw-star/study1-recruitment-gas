@@ -131,6 +131,11 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <h3>需要變更時間嗎？</h3><label for="moveSlot" class="field">其他可選時段</label><select id="moveSlot"></select>
 <div class="actionrow"><button id="move" class="ghost" type="button">更改示範預約時間</button><button id="cancel" class="ghost" type="button">取消示範預約</button><button id="newStart" type="button">體驗另一項實驗</button></div>
 <p id="e2Hint" class="help" hidden>實驗二正式研究包含八週安排；本 Demo 展示前期報名與時段預約，後續團課、居家練習與分組將依核准研究流程安排。</p></section>
+<div class="box warn" aria-label="V07虛構預約結果核對">
+<strong>V07｜虛構預約結果與安全回讀</strong>
+<p id="v07Result" role="status" aria-live="polite">尚未送出虛構預約；待人工審核狀態未接入，不得視為已核准。</p>
+<button id="v07Rescan" type="button" class="ghost" disabled>重新核對原GAS狀態（不重送）</button>
+<p class="help">網路中斷不代表寫入成功或失敗；只顯示原GAS已核對的目前狀態。再次核對是唯讀操作，不接真人資料或付款。</p></div>
 <div id="status" role="status" aria-live="polite">正在連接研究報名示範…</div>
 </div></main><footer>Study1 · 國科會研究計畫 NSTC 115-2410-H-033-015 · 本網頁為示範版，非正式招募服務。</footer>
 <script>
@@ -139,6 +144,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 const $=id=>document.getElementById(id);
 const phases=['choose','screen','otp','slots','consent','confirm','done'];
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
+ const v07={blocked:false,recovering:false,last:null,generation:0};
 const setStatus=(message,error=false)=>{$('status').textContent=message;$('status').className=error?'error':'';};
 function safePreview(response){
  return !!response&&response.mode==='TEST'&&response.open===false&&response.consentReady===false&&
@@ -151,6 +157,9 @@ function safePreview(response){
 }
 function refuseReply(message){
  busy=false;model=null;selected=null;pending=null;
+ v07.generation++;v07.blocked=true;v07.recovering=false;
+ $('v07Result').textContent='狀態未知：OWNER或研究安全來源無法核實；不能視為提交成功或失敗。';
+ $('v07Rescan').disabled=false;
  v05Clear_('安全來源已拒絕，虛構日期與時段已清空。');
  $('chooseE1').disabled=true;$('chooseE2').disabled=true;
  setStatus(message,true);
@@ -415,6 +424,7 @@ function render(){
  $('screenNext').disabled=busy;v06Render_();
  $('otpPaste').disabled=busy;
  if(!busy)setStatus(a.phase==='CONFIRMED'?'示範報名已完成，您可以測試改期或取消。':'您目前操作的是虛構資料報名示範。');
+ if(v07.blocked)v07Lock_();
 }
 function load(){
  busy=true;$('chooseE1').disabled=true;$('chooseE2').disabled=true;
