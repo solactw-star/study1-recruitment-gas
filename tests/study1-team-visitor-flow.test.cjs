@@ -160,6 +160,11 @@ function page(server,kind){
  const set=(id,value)=>{get(id).value=value;};
  return {kind,ids,get,click,change,set,calls,failures,context};
 }
+function clickB11Save(ui,button){
+ ui.click(button);
+ assert.match(ui.get('b11Status').textContent,/尚未寫入|沒有實際設定差異/);
+ if(!ui.get('b11Apply').disabled)ui.click('b11Apply');
+}
 const closed=server=>{
  assert.equal(server.store.get('OPEN'),'false');
  assert.equal(server.store.get('CONSENT_READY'),'false');
@@ -192,7 +197,7 @@ test('Cross-page: real team Save button persists TEST settings; reopening visito
  const s=server();
  const team=page(s,'team');
  team.set('modeE1','COMING_SOON');team.set('modeE2','COMING_SOON');
- team.click('saveModes');
+ clickB11Save(team,'saveModes');
  assert.equal(team.failures.length,0);
  assert.match(team.get('status').textContent,/已儲存/);
  assert.equal(s.read().recruitment.E1.mode,'COMING_SOON');
@@ -204,7 +209,7 @@ test('Cross-page: real team Save button persists TEST settings; reopening visito
 });
 test('Cross-page: team toggles E2 demo only; new visitor view enables synthetic E2, not formal recruitment',()=>{
  const s=server(),team=page(s,'team');
- team.set('modeE2','DEMO_OPEN');team.click('saveModes');
+ team.set('modeE2','DEMO_OPEN');clickB11Save(team,'saveModes');
  assert.equal(s.read().recruitment.E2.mode,'DEMO_OPEN');
  let visitor=page(s,'visitor');
  assert.equal(visitor.get('chooseE2').disabled,false);
@@ -214,7 +219,7 @@ test('Cross-page: team toggles E2 demo only; new visitor view enables synthetic 
  // The visitor started a new synthetic application, advancing the shared revision.
  // Reload the team editor before saving to avoid overwriting concurrent changes.
  team.click('refresh');
- team.set('modeE2','COMING_SOON');team.click('saveModes');
+ team.set('modeE2','COMING_SOON');clickB11Save(team,'saveModes');
  assert.equal(team.failures.length,0);
  visitor=page(s,'visitor');
  assert.equal(visitor.get('chooseE2').disabled,true);
@@ -225,12 +230,12 @@ test('Cross-page: GUI research/site text save appears after visitor reload; no d
  const s=server(),team=page(s,'team');
  team.set('siteTitle','〔SIM〕記憶與身體感覺報名');
  team.set('siteNotice','〔SIM〕老師展示專用，不接收真人資料');
- team.click('saveSite');
+ clickB11Save(team,'saveSite');
  assert.equal(s.read().config.title,'〔SIM〕記憶與身體感覺報名');
  assert.equal(s.read().config.notice,'〔SIM〕老師展示專用，不接收真人資料');
  team.set('e1Label','〔SIM〕實驗一記憶研究');
  team.set('e2Label','〔SIM〕實驗二（2027）');
- team.click('saveResearch');
+ clickB11Save(team,'saveResearch');
  const visitor=page(s,'visitor');
  assert.equal(visitor.get('visitorHeroTitle').textContent,'〔SIM〕記憶與身體感覺報名');
  assert.equal(visitor.get('siteNoticeText').textContent,'〔SIM〕老師展示專用，不接收真人資料');
@@ -245,12 +250,12 @@ test('Cross-page: editing slot capacity and E2 weekly plan uses actual team inpu
  const e1=rows.find(r=>r.dataset.slotId==='SIM-SLOT-E1-A');
  assert.ok(e1);
  e1.querySelector('[data-role="capacity"]').value='3';
- team.click('saveSlots');
+ clickB11Save(team,'saveSlots');
  assert.equal(s.read().slots.find(x=>x.id==='SIM-SLOT-E1-A').capacity,3);
  const week=team.get('weekRows').children[0];
  week.querySelector('[data-role="date"]').value='2027-03-04';
  week.querySelector('[data-role="notes"]').value='〔SIM〕研究團隊暫定週次';
- team.click('saveWeeks');
+ clickB11Save(team,'saveWeeks');
  assert.equal(s.read().e2Operations.weeks[0].date,'2027-03-04');
  const reloaded=page(s,'team');
  assert.equal(reloaded.get('weekRows').children[0].querySelector('[data-role="notes"]').value,
@@ -269,15 +274,15 @@ test('Cross-page: editing slot capacity and E2 weekly plan uses actual team inpu
 });
 test('Two owner GUI tabs: stale revision fails closed without overwriting the first saved change',()=>{
  const s=server(),one=page(s,'team'),two=page(s,'team');
- one.set('modeE1','COMING_SOON');one.click('saveModes');
+ one.set('modeE1','COMING_SOON');clickB11Save(one,'saveModes');
  const rev=s.read().revision;
- two.set('modeE2','HIDDEN');two.click('saveModes');
+ two.set('modeE2','HIDDEN');clickB11Save(two,'saveModes');
  assert.equal(two.failures.length,1);
  assert.match(two.get('status').textContent,/版本已變更/);
  assert.equal(s.read().revision,rev);
  assert.equal(s.read().recruitment.E2.mode,'COMING_SOON');
  two.click('refresh');
- two.set('modeE2','HIDDEN');two.click('saveModes');
+ two.set('modeE2','HIDDEN');clickB11Save(two,'saveModes');
  assert.equal(s.read().recruitment.E2.mode,'HIDDEN');
  const visitor=page(s,'visitor');
  assert.equal(visitor.get('chooseE2').hidden,true);
@@ -303,10 +308,11 @@ test('Malformed owner team save success cannot falsely show saved or keep editin
  s.ctx.study1UnifiedPreviewCommand=()=>({mode:'TEST',open:false,consentReady:false,
   formalReadiness:{activationAllowed:false},recruitment:{
    E1:{year:2026,mode:'DEMO_OPEN'},E2:{year:2027,mode:'COMING_SOON'}}});
- team.set('modeE1','COMING_SOON');team.click('saveModes');
- assert.match(team.get('status').textContent,/無法核實.*拒絕操作/);
- assert.doesNotMatch(team.get('status').textContent,/已儲存/);
- assert.equal(team.get('saveModes').disabled,true);
+ team.set('modeE1','COMING_SOON');clickB11Save(team,'saveModes');
+ assert.match(team.get('status').textContent,/未確認儲存|回復最新權威快照/);
+ assert.match(team.get('b11Status').textContent,/版本或新值與確認草稿不一致/);
+ assert.doesNotMatch(team.get('status').textContent,/已核實並儲存/);
+ assert.equal(team.get('saveModes').disabled,false,'successful owner re-read restores editing after rejected response');
  assert.equal(s.writes,before);
  closed(s);
 });
@@ -749,4 +755,102 @@ test('B09 trend graph empties for no session dates and clears on invalid date or
  assert.equal(srv.writes,before);
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
+});
+
+
+test('B11 previews each existing synthetic owner setting before any server mutation and supports cancellation',()=>{
+ const s=server(),team=page(s,'team'),before=s.writes;
+ const review=(button,edit,expected)=>{
+  edit();const prev=s.writes;team.click(button);
+  assert.equal(s.writes,prev,'B11 preview cannot write to GAS');
+  assert.equal(team.get('b11Apply').disabled,false);
+  assert.ok(team.get('b11Diff').children.length>0);
+  assert.match(team.get('b11Status').textContent,/來源版本|尚未寫入/);
+  assert.match(team.get('b11Diff').children[0].children[0].textContent,expected);
+  team.click('b11Cancel');
+  assert.equal(team.get('b11Apply').disabled,true);
+  assert.equal(team.get('b11Diff').children.length,0);
+  assert.equal(s.writes,prev,'cancel never sends a write RPC');
+ };
+ review('saveModes',()=>team.set('modeE1','HIDDEN'),/E1\.mode/);
+ review('saveSite',()=>team.set('siteTitle','〔SIM〕待確認新標題'),/title/);
+ review('saveResearch',()=>team.set('e1Label','〔SIM〕新草稿'),/E1\.label/);
+ review('saveSlots',()=>{team.get('slotRows').children[0]
+  .querySelector('[data-role="capacity"]').value='4';},/capacity/);
+ review('saveWeeks',()=>{team.get('weekRows').children[0]
+  .querySelector('[data-role="notes"]').value='〔SIM〕練習安排';},/notes/);
+ assert.equal(s.writes,before);
+ closed(s);
+});
+test('B11 allows explicit unchanged-preview confirmation only when source and form have not drifted',()=>{
+ const s=server(),team=page(s,'team'),before=s.writes;
+ team.click('saveModes');
+ assert.equal(team.get('b11Apply').disabled,true,'unchanged settings require no write');
+ assert.equal(s.writes,before);
+ team.set('siteTitle','〔SIM〕新標題');team.click('saveSite');
+ assert.equal(team.get('b11Apply').disabled,false);
+ assert.equal(s.writes,before);
+ team.set('siteTitle','〔SIM〕預覽後偷偷修改');
+ team.click('b11Apply');
+ assert.equal(s.writes,before,'unreviewed draft changes must be rejected before RPC');
+ assert.match(team.get('b11Status').textContent,/草稿或來源版本已變更/);
+ assert.equal(team.get('b11Apply').disabled,true);
+ team.set('siteTitle','〔SIM〕核實修改');
+ team.click('saveSite');
+ const rev=s.read().revision;
+ team.click('b11Apply');
+ assert.equal(s.read().revision,rev+1);
+ assert.equal(s.read().config.title,'〔SIM〕核實修改');
+ assert.match(team.get('b11Status').textContent,/已回讀來源版本/);
+ closed(s);
+});
+test('B11 stale two-owner-tab preview rejects CAS, recovers current authoritative source and never overwrites',()=>{
+ const s=server(),a=page(s,'team'),b=page(s,'team');
+ b.set('modeE2','HIDDEN');b.click('saveModes');
+ assert.equal(b.get('b11Apply').disabled,false);
+ a.set('modeE1','COMING_SOON');clickB11Save(a,'saveModes');
+ const current=s.read(),writes=s.writes;
+ b.click('b11Apply');
+ assert.equal(s.writes,writes,'stale form cannot overwrite another owner commit');
+ assert.equal(s.read().revision,current.revision);
+ assert.equal(s.read().recruitment.E2.mode,'COMING_SOON');
+ assert.match(b.get('b11Status').textContent,/已重新讀取最新OWNER TEST設定/);
+ assert.equal(b.get('modeE1').value,'COMING_SOON');
+ assert.equal(b.get('modeE2').value,'COMING_SOON','stale unsaved draft cleared');
+ assert.equal(b.get('b11Apply').disabled,true);
+ assert.equal(b.get('saveModes').disabled,false);
+ assert.ok(b.calls.filter(x=>x==='READ').length>=2);
+ closed(s);
+});
+test('B11 malformed success response triggers verified re-read without claiming save success',()=>{
+ const s=server(),team=page(s,'team'),before=s.writes;
+ const original=s.ctx.study1UnifiedPreviewCommand;
+ s.ctx.study1UnifiedPreviewCommand=()=>({mode:'TEST',open:false,consentReady:false,
+  revision:999,formalReadiness:{activationAllowed:false},formalPorts:{activated:false},
+  config:{title:'IMPOSTOR'}});
+ team.set('siteTitle','〔SIM〕新標題');team.click('saveSite');
+ assert.equal(team.get('b11Apply').disabled,false);
+ team.click('b11Apply');
+ assert.equal(s.writes,before);
+ assert.equal(team.get('siteTitle').value,s.read().config.title);
+ assert.match(team.get('b11Status').textContent,/伺服器回應版本或新值與確認草稿不一致/);
+ assert.doesNotMatch(team.get('status').textContent,/已核實並儲存/);
+ s.ctx.study1UnifiedPreviewCommand=original;
+ closed(s);
+});
+test('B11 unsafe re-read denies all writes and clears B01/B09/B11 after failed settings mutation',()=>{
+ const s=server(),team=page(s,'team'),before=s.writes;
+ team.set('siteTitle','〔SIM〕示範新標題');team.click('saveSite');
+ const get=s.ctx.study1UnifiedPreviewGet,cmd=s.ctx.study1UnifiedPreviewCommand;
+ s.ctx.study1UnifiedPreviewCommand=()=>{throw Error('synthetic stale revision');};
+ s.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner access revoked');};
+ team.click('b11Apply');
+ assert.equal(team.get('b11Apply').disabled,true);
+ assert.equal(team.get('saveSite').disabled,true);
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.match(team.get('b11Status').textContent,/重新讀取亦失敗/);
+ assert.equal(s.writes,before);
+ s.ctx.study1UnifiedPreviewGet=get;s.ctx.study1UnifiedPreviewCommand=cmd;
+ closed(s);
 });
