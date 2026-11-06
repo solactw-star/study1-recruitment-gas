@@ -522,28 +522,44 @@ function load(){
   }
   model=response;
   if(!model.applications.some(a=>a.id===selected))selected=null;
+  v07.blocked=false;v07.last=null;v07.recovering=false;pending=null;
+  $('v07Result').textContent='來源已安全載入：尚未提交新虛構預約；待人工審核狀態未接入。';
+  $('v07Rescan').disabled=true;
   render();
  }).withFailureHandler(e=>refuseReply('無法載入示範：'+String(e.message||e)))
  .study1UnifiedPreviewGet();
 }
 function issue(action,payload,onSuccess){
- if(busy||!model)return;
+ if(busy||v07.blocked||!model)return;
  const fingerprint=JSON.stringify([action,payload]);
  if(!pending||pending.fingerprint!==fingerprint){
   pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)};
  }
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
+ const priorRevision=model.revision,priorApp=current();
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
-  if(!safePreview(response)){
-   refuseReply('示範操作回應無法驗證，已停止操作；請重新載入頁面核對。');return;
+  if(!safePreview(response)||!v07ConfirmResponse_(action,payload,response,priorRevision)){
+   refuseReply('示範操作回應與原GAS安全來源或預期狀態不一致，已停止操作；請重新核對。');return;
   }
   busy=false;model=response;pending=null;
+  v07.blocked=false;v07.last=null;
+  if(['HOLD','CONFIRM','MOVE','CANCEL'].includes(action))
+   $('v07Result').textContent=action==='HOLD'?'原GAS已確認虛構時段暫留；非正式預約。':
+    action==='CONFIRM'?'原GAS已確認虛構預約成立；非正式招募。':
+    action==='MOVE'?'原GAS已確認虛構預約改期；非正式招募。':
+    '原GAS已確認虛構預約取消；非正式資料。';
   if(action==='START'&&response.applications.length)selected=response.applications[response.applications.length-1].id;
   render();
   if(typeof onSuccess==='function')onSuccess(response);
  }).withFailureHandler(e=>{
-  busy=false;render();setStatus('這一步尚未完成：'+String(e&&e.message||e)+'。若資料已更新，請重新載入頁面。',true);
+  const detail=String(e&&e.message||e);
+  if(['HOLD','CONFIRM','MOVE','CANCEL'].includes(action)){
+   v07.last={action,id:payload.id,slotId:payload.slotId||null,
+    experiment:priorApp?.experiment||null};
+   v07Readback_(true,detail);return;
+  }
+  busy=false;render();setStatus('本步未取得確認：'+detail+'；不視為成功，請重新核對。',true);
  }).study1UnifiedPreviewCommand(envelope);
 }
 function start(exp){if(!model||!model.recruitment||!model.recruitment[exp]||
