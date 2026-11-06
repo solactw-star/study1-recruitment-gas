@@ -274,9 +274,10 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p id="b01Status" role="status" aria-live="polite">正在核對研究安全設定與資料…</p>
 <div class="adminScopeLocal" aria-label="B01本頁範圍覆寫"><label for="adminScopeB01">B01 本頁範圍</label><select id="adminScopeB01"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB01" aria-live="polite">繼承全域</span></div>
  <details id="b01LayoutPanel" class="b01LayoutTools"><summary>自訂本頁資訊卡順序與顯示</summary>
- <p class="small">只調整目前OWNER管理頁的排列及可見性；不改統計數字、GAS資料、權限或研究程序。重新開啟新管理頁會回到預設。</p>
+ <p class="small">只調整目前OWNER管理頁的排列及可見性；不改統計數字、研究資料、權限或研究程序。按下儲存後，原GAS只保存13張卡片的固定代碼、排序與顯示設定；重新開啟同一OWNER管理頁會載入已儲存偏好。</p>
  <p id="b01LayoutStatus" class="small" aria-live="polite">待安全來源載入後可調整卡片。</p>
- <button type="button" id="b01LayoutReset" class="secondary" disabled>恢復全部13張預設卡片</button>
+ <button type="button" id="b01LayoutReset" class="secondary" disabled>恢復全部13張預設卡片（尚未儲存）</button>
+ <button type="button" id="b01LayoutSave" class="secondary" disabled>儲存排序與顯示偏好</button>
  <div id="b01LayoutControls" aria-label="資訊卡可見性與排序操作"></div>
 </details>
 <div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
@@ -726,7 +727,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- adminScopeLabels_();b11Load_();b10Render_();b07Render_();displaySlots();displayWeeks();b01Render();b01LayoutRender_();b09Render();calendarRender();profileRender();b05Render();
+ adminScopeLabels_();b11Load_();b10Render_();b07Render_();displaySlots();displayWeeks();b01LayoutLoad_();b01Render();b01LayoutRender_();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
@@ -809,7 +810,8 @@ function adminScopeChanged_(module){
  adminScopeLabels_();
  if(!model||busy){adminScopeClearAll_();return;}
  if(module==='GLOBAL')b07Render_();
- if(affected.includes('B01')){b01Render();b01LayoutRender_();}
+ if(affected.includes('B01')){if(!b01Layout.ready&&!b01Layout.loading)b01LayoutLoad_();
+  b01Render();b01LayoutRender_();}
  if(affected.includes('B02'))calendarRender();
  if(affected.includes('B03'))b03Render();
  if(affected.includes('B06'))b06Render();
@@ -1436,80 +1438,172 @@ $('b10Reset').addEventListener('click',()=>{
 });
 
 
-/* B01 P2-05: session-only OWNER layout preference, not a persisted
- * configuration or permission. Each label is present in B01's audited count
- * list; changing layout never recalculates or writes source metrics. */
-const b01Layout={order:[],hidden:new Set()};
+/* B01: persist ONLY 13 approved card IDs and visibility/order, never KPI
+ * values, real identities, source records, money, permissions or credentials. */
+const b01LayoutKeys=['APPLICATION_CODES','APPLICATION_RECORDS','SESSION_RECORDS',
+ 'TODAY_SESSIONS','ATTENDANCE_PENDING','OPEN_TASKS','E1_ACTIVE','E2_ACTIVE',
+ 'CONFIRMED','ATTENDANCE_MARKED','PROGRESS_COMPLETE','MISSING_SLOT',
+ 'CANCELLED_SLOT_ACTIVE'];
+const b01LayoutLabels=['不重複申請代碼','預約／申請紀錄','場次紀錄','今日未取消場次',
+ '有效預約待確認出席','未完成人工待辦','實驗一／有效申請','實驗二／有效申請',
+ '已成立預約紀錄','出席已確認紀錄','施測進度完成紀錄','待釐清的場次關聯',
+ '已取消場次的有效申請'];
+const b01Layout={order:[],hidden:new Set(),savedOrder:[],savedHidden:[],
+ revision:null,ready:false,loading:false,saving:false,generation:0};
+function b01LayoutValid_(data){
+ const ids=b01LayoutKeys;
+ return !!(data&&typeof data==='object'&&!Array.isArray(data)&&
+  Object.keys(data).sort().join(',')==='deduplicated,hidden,mode,order,revision'&&
+  data.mode==='TEST_LAYOUT_ONLY'&&data.deduplicated===false||
+  data&&typeof data==='object'&&!Array.isArray(data)&&
+  Object.keys(data).sort().join(',')==='deduplicated,hidden,mode,order,revision'&&
+  data.mode==='TEST_LAYOUT_ONLY'&&data.deduplicated===true)
+  &&Number.isSafeInteger(data.revision)&&data.revision>=0&&
+  Array.isArray(data.order)&&data.order.length===13&&
+  new Set(data.order).size===13&&data.order.every(k=>ids.includes(k))&&
+  Array.isArray(data.hidden)&&new Set(data.hidden).size===data.hidden.length&&
+  data.hidden.every((k,i)=>ids.includes(k)&&
+   (i===0||ids.indexOf(k)>ids.indexOf(data.hidden[i-1])));
+}
+function b01LayoutEqual_(a,b){
+ return a.length===b.length&&a.every((x,i)=>x===b[i]);
+}
+function b01LayoutHidden_(){
+ return b01LayoutKeys.filter(k=>b01Layout.hidden.has(k));
+}
+function b01LayoutDirty_(){
+ return !b01LayoutEqual_(b01Layout.order,b01Layout.savedOrder)||
+  !b01LayoutEqual_(b01LayoutHidden_(),b01Layout.savedHidden);
+}
 function b01LayoutClear_(messageText){
+ b01Layout.generation++;b01Layout.ready=false;b01Layout.loading=false;
+ b01Layout.saving=false;b01Layout.revision=null;
  b01Layout.order=[];b01Layout.hidden.clear();
+ b01Layout.savedOrder=[];b01Layout.savedHidden=[];
  $('b01LayoutControls').replaceChildren();
- $('b01LayoutReset').disabled=true;
+ $('b01LayoutReset').disabled=true;$('b01LayoutSave').disabled=true;
  $('b01LayoutStatus').textContent=messageText;
 }
+function b01LayoutLoad_(notice='',expected=null){
+ if(!model||model.mode!=='TEST'||model.open!==false||
+  model.consentReady!==false||model.formalReadiness?.activationAllowed!==false){
+  b01LayoutClear_('B01權限或正式研究關閉條件未核實，偏好讀取已拒絕。');
+  b01Clear('B01偏好來源未核實，不顯示摘要。');return;
+ }
+ const generation=++b01Layout.generation;
+ b01Layout.ready=false;b01Layout.loading=true;b01Layout.saving=false;
+ $('b01LayoutControls').replaceChildren();$('b01LayoutReset').disabled=true;
+ $('b01LayoutSave').disabled=true;
+ $('b01LayoutStatus').textContent='正在從原GAS驗證OWNER-only卡片偏好…';
+ google.script.run.withSuccessHandler(data=>{
+  if(generation!==b01Layout.generation||!model)return;
+  if(!b01LayoutValid_(data)||(expected&&
+   (data.revision!==expected.revision||
+    !b01LayoutEqual_(data.order,expected.order)||
+    !b01LayoutEqual_(data.hidden,expected.hidden)))){
+   b01LayoutClear_('B01偏好回讀不一致或版本不合法，已鎖定操作。');
+   b01Clear('B01偏好回讀不一致；研究摘要已清除。');return;
+  }
+  b01Layout.revision=data.revision;b01Layout.order=data.order.slice();
+  b01Layout.hidden=new Set(data.hidden);
+  b01Layout.savedOrder=data.order.slice();b01Layout.savedHidden=data.hidden.slice();
+  b01Layout.ready=true;b01Layout.loading=false;
+  b01Render();b01LayoutRender_();
+  if(notice)$('b01LayoutStatus').textContent=notice+'｜原GAS修訂版 '+data.revision;
+ }).withFailureHandler(error=>{
+  if(generation!==b01Layout.generation)return;
+  b01LayoutClear_('B01偏好讀取失敗或管理權限失效，已鎖定：'+String(error.message||error));
+  b01Clear('B01偏好讀取／授權失敗；研究摘要已清除。');
+ }).study1UnifiedB01LayoutGet();
+}
 function b01LayoutRender_(){
- const target=$('b01Cards'),control=$('b01LayoutControls'),
-  source=[...target.children];
+ const target=$('b01Cards'),control=$('b01LayoutControls'),source=[...target.children];
  control.replaceChildren();
- if(!model||busy||source.length!==13){
-  b01LayoutClear_('資料或管理權限未核實，卡片排序與顯示操作已鎖定。');
+ if(!model||busy||!b01Layout.ready||b01Layout.loading||b01Layout.saving||
+  source.length!==13){
+  $('b01LayoutReset').disabled=true;$('b01LayoutSave').disabled=true;
   return;
  }
- const ids=source.map(card=>card.children[0]?.textContent);
- if(ids.some(k=>typeof k!=='string'||!k)||new Set(ids).size!==13){
-  b01Clear('卡片來源不一致；停止顯示研究摘要。');
-  b01LayoutClear_('資料來源不一致，拒絕保留舊的排序。');
-  return;
+ const mapped=source.map(card=>{
+  const label=card.children[0]?.textContent,idx=b01LayoutLabels.indexOf(label);
+  return idx<0?null:{key:b01LayoutKeys[idx],card};
+ });
+ if(mapped.some(x=>!x)||new Set(mapped.map(x=>x.key)).size!==13||
+  b01Layout.order.length!==13||
+  b01Layout.order.some((k,i)=>!b01LayoutKeys.includes(k)||
+   b01Layout.order.indexOf(k)!==i)){
+  b01Clear('卡片來源與B01固定代碼不一致；拒絕顯示。');
+  b01LayoutClear_('B01固定卡片來源不一致，已鎖定偏好操作。');return;
  }
- if(b01Layout.order.length!==13||
-    b01Layout.order.some((k,i)=>!ids.includes(k)||
-      b01Layout.order.indexOf(k)!==i)){
-  b01Layout.order=ids.slice();b01Layout.hidden.clear();
- }
- const ordered=b01Layout.order.map(key=>source.find(card=>card.children[0].textContent===key));
+ const ordered=b01Layout.order.map(k=>mapped.find(x=>x.key===k).card);
  target.replaceChildren(...ordered);
  ordered.forEach((card,i)=>{
-  const key=b01Layout.order[i],hidden=b01Layout.hidden.has(key);
-  card.hidden=hidden;
+  const key=b01Layout.order[i],label=b01LayoutLabels[b01LayoutKeys.indexOf(key)];
+  const hidden=b01Layout.hidden.has(key);card.hidden=hidden;
   const line=document.createElement('div');line.className='b01LayoutRow';
-  const name=document.createElement('span');name.textContent=key;
+  const name=document.createElement('span');name.textContent=label;
   const show=document.createElement('button');show.type='button';
   show.className='secondary';show.textContent=hidden?'顯示':'隱藏';
-  show.setAttribute('aria-label',(hidden?'顯示':'隱藏')+'「'+key+'」卡片');
+  show.setAttribute('aria-label',(hidden?'顯示':'隱藏')+'「'+label+'」卡片');
   show.addEventListener('click',()=>{
-   if(!model||busy)return;
+   if(!model||busy||!b01Layout.ready||b01Layout.saving)return;
    if(b01Layout.hidden.has(key))b01Layout.hidden.delete(key);
    else b01Layout.hidden.add(key);
    b01LayoutRender_();
   });
   const up=document.createElement('button');up.type='button';
   up.className='secondary';up.textContent='上移';up.disabled=i===0;
-  up.setAttribute('aria-label','上移「'+key+'」');
+  up.setAttribute('aria-label','上移「'+label+'」');
   up.addEventListener('click',()=>{
-   if(!model||busy||i===0)return;
+   if(!model||busy||!b01Layout.ready||b01Layout.saving||i===0)return;
    [b01Layout.order[i-1],b01Layout.order[i]]=
-    [b01Layout.order[i],b01Layout.order[i-1]];
-   b01LayoutRender_();
+    [b01Layout.order[i],b01Layout.order[i-1]];b01LayoutRender_();
   });
   const down=document.createElement('button');down.type='button';
-  down.className='secondary';down.textContent='下移';down.disabled=i===ordered.length-1;
-  down.setAttribute('aria-label','下移「'+key+'」');
+  down.className='secondary';down.textContent='下移';down.disabled=i===12;
+  down.setAttribute('aria-label','下移「'+label+'」');
   down.addEventListener('click',()=>{
-   if(!model||busy||i===ordered.length-1)return;
+   if(!model||busy||!b01Layout.ready||b01Layout.saving||i===12)return;
    [b01Layout.order[i+1],b01Layout.order[i]]=
-    [b01Layout.order[i],b01Layout.order[i+1]];
-   b01LayoutRender_();
+    [b01Layout.order[i],b01Layout.order[i+1]];b01LayoutRender_();
   });
   line.append(name,show,up,down);control.append(line);
  });
- const visible=13-b01Layout.hidden.size;
- $('b01LayoutStatus').textContent='本頁顯示 '+visible+'／13 張；順序已套用。只更動目前頁面，不會寫入GAS。';
- $('b01LayoutReset').disabled=false;
+ const visible=13-b01Layout.hidden.size,dirty=b01LayoutDirty_();
+ $('b01LayoutStatus').textContent='本頁顯示 '+visible+'／13 張｜原GAS設定版本 '+
+  b01Layout.revision+(dirty?'｜有尚未儲存的排序或顯示變更':'｜已與原GAS設定一致');
+ $('b01LayoutReset').disabled=false;$('b01LayoutSave').disabled=!dirty;
+}
+function b01LayoutSave_(){
+ if(!model||busy||!b01Layout.ready||b01Layout.loading||b01Layout.saving||
+  !b01LayoutDirty_())return;
+ const order=b01Layout.order.slice(),hidden=b01LayoutHidden_(),
+  expected=b01Layout.revision,
+  requestId='REQ-SIM-B01_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ b01Layout.saving=true;$('b01LayoutSave').disabled=true;
+ $('b01LayoutReset').disabled=true;
+ $('b01LayoutStatus').textContent='正在安全儲存非敏感偏好並回讀原GAS…';
+ google.script.run.withSuccessHandler(result=>{
+  if(!b01LayoutValid_(result)||result.deduplicated!==false||
+   result.revision!==expected+1||
+   !b01LayoutEqual_(result.order,order)||!b01LayoutEqual_(result.hidden,hidden)){
+   b01LayoutLoad_('B01寫入回應不一致，已回讀權威設定；不自動重送');
+   return;
+  }
+  b01LayoutLoad_('B01排序及顯示偏好已儲存並完成回讀',
+   {revision:expected+1,order,hidden});
+ }).withFailureHandler(error=>{
+  b01LayoutLoad_('B01儲存未確認或發生競寫：'+String(error.message||error)+
+   '；已回讀最新設定，不自動重送');
+ }).study1UnifiedB01LayoutSave({order,hidden,
+  expectedRevision:expected,requestId});
 }
 $('b01LayoutReset').addEventListener('click',()=>{
- if(!model||busy)return;
- b01Layout.order=[];b01Layout.hidden.clear();
+ if(!model||busy||!b01Layout.ready||b01Layout.saving)return;
+ b01Layout.order=b01LayoutKeys.slice();b01Layout.hidden.clear();
  b01Render();b01LayoutRender_();
 });
+$('b01LayoutSave').addEventListener('click',b01LayoutSave_);
 
 /* B07 only tracks pending synthetic administrative preparation.
  * No formal amount/status, PII, payment adapter, evidence files or exports. */
@@ -1790,6 +1884,7 @@ function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textCon
  $('b01B07Consistency').textContent='B07來源或數量未核實，不顯示待核統計。';}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
+ if(!b01Layout.ready){b01Clear('B01 OWNER偏好尚未完成安全回讀；暫不顯示研究摘要。');return;}
  const safe=model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
   model.formalReadiness&&model.formalReadiness.activationAllowed===false&&
   Array.isArray(model.slots)&&Array.isArray(model.applications)&&model.b02&&

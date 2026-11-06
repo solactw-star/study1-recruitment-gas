@@ -46,8 +46,8 @@ function server({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open
  let writes=0,lockHeld=false,requests=0;
  const props={
   getProperty:key=>store.has(key)?store.get(key):null,
-  setProperty:(key,value)=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B06_TASKS_V1'].includes(key));writes++;store.set(key,value);},
-  deleteProperty:key=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B06_TASKS_V1'].includes(key));store.delete(key);}
+  setProperty:(key,value)=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B06_TASKS_V1','STUDY1_B01_OWNER_LAYOUT_V1'].includes(key));writes++;store.set(key,value);},
+  deleteProperty:key=>{assert.ok(['STUDY1_UNIFIED_FIXTURE_V1','STUDY1_B06_TASKS_V1','STUDY1_B01_OWNER_LAYOUT_V1'].includes(key));store.delete(key);}
  };
  const mutex={
   tryLock:()=>{assert.equal(lockHeld,false);lockHeld=true;return true;},
@@ -132,6 +132,14 @@ function page(server,kind){
    try{const view=server.read();success(view);}
    catch(e){failures.push(String(e.message||e));failure(e);}
   },
+  study1UnifiedB01LayoutGet(){calls.push('B01_GET');
+   try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB01LayoutGet())));}
+   catch(e){failures.push(String(e.message||e));failure(e);}
+  },
+  study1UnifiedB01LayoutSave(c){calls.push('B01_SAVE');
+   try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB01LayoutSave(c))));}
+   catch(e){failures.push(String(e.message||e));failure(e);}
+  },
   study1UnifiedB12AuditPage(q){calls.push('B12_READ');
    try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB12AuditPage(q))));}
    catch(e){failures.push(String(e.message||e));failure(e);}
@@ -170,6 +178,7 @@ const closed=server=>{
  const expected=['CONSENT_READY','OPEN'];
  if(server.store.has('STUDY1_UNIFIED_FIXTURE_V1'))expected.push('STUDY1_UNIFIED_FIXTURE_V1');
  if(server.store.has('STUDY1_B06_TASKS_V1'))expected.push('STUDY1_B06_TASKS_V1');
+ if(server.store.has('STUDY1_B01_OWNER_LAYOUT_V1'))expected.push('STUDY1_B01_OWNER_LAYOUT_V1');
  assert.deepEqual([...server.store.keys()].sort(),expected.sort());
  assert.equal(server.held,false);
  const view=server.read();
@@ -182,7 +191,7 @@ const closed=server=>{
 test('Cross-page: E2 defaults to 2027 coming soon; owner GET loads GUI and visitor without writes',()=>{
  const s=server(),before=s.writes;
  const team=page(s,'team'),visitor=page(s,'visitor');
- assert.deepEqual(team.calls,['READ']);assert.deepEqual(visitor.calls,['READ']);
+ assert.deepEqual(team.calls,['READ','B01_GET']);assert.deepEqual(visitor.calls,['READ']);
  assert.equal(team.get('modeE1').value,'DEMO_OPEN');
  assert.equal(team.get('modeE2').value,'COMING_SOON');
  assert.equal(visitor.get('chooseE1').disabled,false);
@@ -624,7 +633,7 @@ test('B09 uses exactly the B01 shared owner TEST snapshot: no new RPC, writes or
  assert.equal(team.get('b09Trend').children.length>=1,true);
  assert.match(team.get('b09Notes').textContent,/沒有跨申請代碼的真人身分去重/);
  assert.match(team.get('b09Notes').textContent,/CSV／XLSX匯出.*未開放/);
- assert.equal(team.calls.filter(x=>x!=='READ').length,0,'report does not call a mutation RPC');
+ assert.equal(team.calls.filter(x=>x!=='READ'&&x!=='B01_GET').length,0,'report does not call a mutation RPC');
  assert.equal(srv.writes,before);
  assert.equal(srv.store.has('STUDY1_B09_REPORT_V1'),false);
  closed(srv);
@@ -727,7 +736,7 @@ test('B09 session-date visualization reuses verified summary without new RPC or 
   assert.ok(parseFloat(fill.style.width)>=0&&parseFloat(fill.style.width)<=100);
   assert.equal(fill.attributes['aria-hidden'],'true');
  }
- assert.equal(team.calls.filter(x=>x!=='READ').length,0);
+ assert.equal(team.calls.filter(x=>x!=='READ'&&x!=='B01_GET').length,0);
  assert.equal(srv.writes,writes,'visual report must not change the existing TEST fixture');
  assert.equal(srv.store.has('STUDY1_B09_CHART_V1'),false);
  closed(srv);
@@ -1076,7 +1085,7 @@ test('B10 uses only the same owner TEST snapshot for E1/E2 draft provenance with
  assert.ok(team.get('b10Rows').children.every(r=>r.children[0].textContent==='E2'));
  team.click('b10Reset');
  assert.equal(team.get('b10Rows').children.length,6);
- assert.equal(team.calls.filter(x=>x!=='READ').length,0,'never call any write RPC');
+ assert.equal(team.calls.filter(x=>x!=='READ'&&x!=='B01_GET').length,0,'never call any write RPC');
  assert.equal(srv.writes,before);
  assert.equal(srv.store.has('STUDY1_B10_DOCUMENTS_V1'),false);
  assert.doesNotMatch(teamHtml,/id="b10Download"|id="b10Export"|id="b10Sign"/);
@@ -1147,7 +1156,7 @@ test('B10 synthetic reference reconciliation shows four groups with correct empt
  assert.match(team.get('b10RefStatus').textContent,/4／4組TEST版本引用/);
  assert.match(team.get('b10RefStatus').textContent,/非正式受試者/);
  assert.equal(srv.writes,before);
- assert.deepEqual(team.calls,['READ']);
+ assert.deepEqual(team.calls,['READ','B01_GET']);
  assert.equal(srv.store.has('STUDY1_B10_REFERENCES_V1'),false);
  closed(srv);
 });
@@ -1235,58 +1244,67 @@ test('B10 malformed or duplicate TEST application refs fail closed and erase bot
  closed(srv);
 });
 
-test('B01 OWNER-only dashboard hides and reorders source-derived cards without RPC or writes',()=>{
+test('B01 owner layout edits only a draft; explicit save persists across reload, scope and fresh owner page',()=>{
  const srv=server(),before=srv.writes,team=page(srv,'team');
  const cards=team.get('b01Cards'),tools=team.get('b01LayoutControls');
- assert.equal(cards.children.length,13);
- assert.equal(tools.children.length,13);
+ assert.equal(cards.children.length,13);assert.equal(tools.children.length,13);
  const original=cards.children.map(c=>c.children[0].textContent);
  const values=Object.fromEntries(cards.children.map(c=>[c.children[0].textContent,c.children[1].textContent]));
- assert.equal(team.get('b01LayoutReset').disabled,false);
- const first=tools.children[0];
- first.children[1].handlers.click(); // hide only first card
- assert.equal(cards.children[0].hidden,true);
- assert.equal(team.get('b01LayoutControls').children[0].children[1].textContent,'顯示');
- assert.match(team.get('b01LayoutStatus').textContent,/顯示 12／13 張/);
+ assert.equal(team.get('b01LayoutSave').disabled,true);
+ tools.children[0].children[1].handlers.click(); // hide
  team.get('b01LayoutControls').children[0].children[3].handlers.click(); // move down
  assert.equal(cards.children[0].children[0].textContent,original[1]);
- assert.equal(cards.children[1].children[0].textContent,original[0]);
  assert.equal(cards.children[1].hidden,true);
- const nextValues=Object.fromEntries(cards.children.map(c=>[c.children[0].textContent,c.children[1].textContent]));
- assert.deepEqual(nextValues,values,'layout must never alter the thirteen statistical values');
- assert.deepEqual(team.calls.filter(x=>x!=='READ'),[]);
- assert.equal(srv.writes,before);
+ assert.equal(team.get('b01LayoutSave').disabled,false);
+ assert.equal(srv.writes,before,'draft changes never write');
+ const separate=page(srv,'team');
+ assert.equal(separate.get('b01Cards').children[0].hidden,false);
+ assert.equal(separate.get('b01Cards').children[0].children[0].textContent,original[0]);
+ team.click('b01LayoutSave');
+ assert.equal(srv.writes,before+1,'one atomic non-sensitive preference write');
+ assert.match(team.get('b01LayoutStatus').textContent,/已儲存並完成回讀/);
+ assert.equal(team.get('b01LayoutSave').disabled,true);
  team.click('refresh');
  assert.equal(cards.children[0].children[0].textContent,original[1]);
- assert.equal(cards.children[1].children[0].textContent,original[0]);
- assert.equal(cards.children[1].hidden,true,'same page reload retains session-only preference');
+ assert.equal(cards.children[1].hidden,true,'saved preference survives main source reload');
  team.set('adminScopeGlobal','E2');team.change('adminScopeGlobal');
  assert.equal(cards.children[0].children[0].textContent,original[1]);
- assert.equal(cards.children[1].hidden,true,'global experiment scope still inherits card layout');
+ assert.equal(cards.children[1].hidden,true);
+ const valuesAfter=Object.fromEntries(cards.children.map(c=>[c.children[0].textContent,c.children[1].textContent]));
+ assert.notEqual(valuesAfter['不重複申請代碼'],undefined);
+ assert.equal(srv.store.has('STUDY1_B01_OWNER_LAYOUT_V1'),true);
+ const fresh=page(srv,'team');
+ assert.equal(fresh.get('b01Cards').children[0].children[0].textContent,original[1]);
+ assert.equal(fresh.get('b01Cards').children[1].hidden,true);
+ assert.deepEqual(Object.keys(valuesAfter).sort(),Object.keys(values).sort(),'all thirteen metrics still exist');
  team.click('b01LayoutReset');
  assert.deepEqual(cards.children.map(c=>c.children[0].textContent),original);
- assert.ok(cards.children.every(c=>!c.hidden),'reset restores all cards');
- assert.match(team.get('b01LayoutStatus').textContent,/顯示 13／13 張/);
- assert.equal(srv.writes,before);
+ assert.ok(cards.children.every(c=>!c.hidden));
+ assert.equal(srv.writes,before+1,'reset is draft-only until explicit save');
+ team.click('b01LayoutSave');
+ assert.equal(srv.writes,before+2);
+ const restored=page(srv,'team');
+ assert.deepEqual(restored.get('b01Cards').children.map(c=>c.children[0].textContent),original);
+ assert.ok(restored.get('b01Cards').children.every(c=>!c.hidden));
  closed(srv);
 });
-
-test('B01 dashboard layout never persists to other owner tabs or changes visitor preview',()=>{
- const srv=server(),a=page(srv,'team'),start=srv.writes;
+test('B01 stale owner tab is rejected and securely re-reads, never overwriting a newer preference',()=>{
+ const srv=server(),a=page(srv,'team'),b=page(srv,'team');
  a.get('b01LayoutControls').children[0].children[1].handlers.click();
- a.get('b01LayoutControls').children[0].children[3].handlers.click();
- const b=page(srv,'team');
- assert.equal(a.get('b01Cards').children[0].children[0].textContent,
-  b.get('b01Cards').children[1].children[0].textContent);
- assert.equal(b.get('b01Cards').children[0].hidden,false);
- assert.ok(b.get('b01Cards').children.every(c=>!c.hidden));
+ a.click('b01LayoutSave');const after=srv.writes,rev=JSON.parse(srv.store.get('STUDY1_B01_OWNER_LAYOUT_V1')).revision;
+ b.get('b01LayoutControls').children[1].children[3].handlers.click();
+ b.click('b01LayoutSave');
+ assert.equal(srv.writes,after,'stale tab cannot overwrite saved settings');
+ assert.ok(b.failures.some(x=>/版本已變更/.test(x)));
+ assert.match(b.get('b01LayoutStatus').textContent,/競寫|未確認/);
+ assert.equal(b.get('b01Cards').children[0].hidden,true,'stale tab now sees first owner saved value');
+ assert.equal(JSON.parse(srv.store.get('STUDY1_B01_OWNER_LAYOUT_V1')).revision,rev);
+ assert.equal(b.get('b01LayoutSave').disabled,true);
  const visitor=page(srv,'visitor');
- assert.equal(srv.writes,start);
  assert.ok(visitor.calls.every(x=>x==='READ'));
  closed(srv);
 });
-
-test('B01 owner denial or unsafe global view clears layout and keeps controls locked',()=>{
+test('B01 owner denial and unsafe scope clear all cards and disable persisted preference controls',()=>{
  const srv=server(),team=page(srv,'team'),initial=srv.writes;
  team.get('b01LayoutControls').children[0].children[1].handlers.click();
  assert.equal(team.get('b01Cards').children[0].hidden,true);
@@ -1294,18 +1312,18 @@ test('B01 owner denial or unsafe global view clears layout and keeps controls lo
  assert.equal(team.get('b01Cards').children.length,0);
  assert.equal(team.get('b01LayoutControls').children.length,0);
  assert.equal(team.get('b01LayoutReset').disabled,true);
+ assert.equal(team.get('b01LayoutSave').disabled,true);
  assert.match(team.get('b01LayoutStatus').textContent,/管理範圍不合法/);
  const original=srv.ctx.study1UnifiedPreviewGet;
  srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner access revoked');};
  team.click('refresh');
  assert.equal(team.get('b01LayoutControls').children.length,0);
- assert.equal(team.get('b01LayoutReset').disabled,true);
+ assert.equal(team.get('b01LayoutSave').disabled,true);
  assert.equal(team.get('b01Cards').children.length,0);
  assert.equal(srv.writes,initial);
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
-
 
 test('B07 original owner management page records pending synthetic state without a payment or export',()=>{
  const srv=server();srv.command('START',{experiment:'E1'});
@@ -1499,4 +1517,24 @@ test('B07 B01 B09 B12 TEST status reconciliation, scopes and forged-count reject
  assert.match(team.get('b01B07Consistency').textContent,/未核實/);
  assert.equal(srv.writes,writes+1);
  srv.ctx.study1UnifiedPreviewGet=orig;closed(srv);
+});
+
+test('B01 preference endpoint revocation clears cached cards even when main TEST source still reads',()=>{
+ const srv=server(),team=page(srv,'team'),writes=srv.writes;
+ team.get('b01LayoutControls').children[0].children[1].handlers.click();
+ const original=srv.ctx.study1UnifiedB01LayoutGet;
+ srv.ctx.study1UnifiedB01LayoutGet=()=>{throw Error('OWNER layout access revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b01LayoutControls').children.length,0);
+ assert.equal(team.get('b01LayoutSave').disabled,true);
+ assert.equal(team.get('b01LayoutReset').disabled,true);
+ assert.match(team.get('b01LayoutStatus').textContent,/權限失效|讀取失敗/);
+ assert.equal(srv.writes,writes);
+ srv.ctx.study1UnifiedB01LayoutGet=original;
+ team.click('refresh');
+ assert.equal(team.get('b01Cards').children.length,13);
+ assert.ok(team.get('b01Cards').children.every(x=>!x.hidden));
+ assert.equal(team.get('b01LayoutSave').disabled,true);
+ closed(srv);
 });

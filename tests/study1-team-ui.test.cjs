@@ -99,7 +99,7 @@ test('B01 derived summary reconciles bookings, attendance, progress and anomalie
    attendance:{A1:{attendance:'PRESENT',progress:'COMPLETE'},A2:{attendance:'PENDING',progress:'PARTIAL'},A3:{attendance:'PRESENT',progress:'COMPLETE'}}},
   b06:{tasks:[{status:'OPEN',archived:false},{status:'DONE',archived:false},{status:'OPEN',archived:true}]}
  };
- const context={document,model:snapshot,Date:class extends Date{static now(){return Date.parse('2026-11-06T00:00:00Z');}},Set,$:id=>nodes[id],b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock};
+ const context={document,model:snapshot,b01Layout:{ready:true},Date:class extends Date{static now(){return Date.parse('2026-11-06T00:00:00Z');}},Set,$:id=>nodes[id],b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock};
  vm.createContext(context);vm.runInContext(source+';b01Render();',context);
  const values=Object.fromEntries(nodes.b01Cards.children.map(card=>[card.children[0].textContent,Number(card.children[1].textContent)]));
  assert.equal(values['不重複申請代碼'],7);
@@ -124,7 +124,7 @@ test('B01 rejects malformed cross-module snapshots without showing stale cards',
  const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
  const cards={children:[{old:true}],replaceChildren(){this.children=[];},append(node){this.children.push(node);}};
  const status={textContent:'previous successful snapshot'};
- const context={model:{mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
+ const context={b01Layout:{ready:true},model:{mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
   slots:[{id:'S1',when:null}],applications:[{id:'A1',phase:'CONFIRMED'}],
   b02:{sessions:{},attendance:{}},b06:{tasks:[]}},
   $:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,document:{createElement(){throw Error('unsafe render');}}};
@@ -150,7 +150,7 @@ test('B01 accepts valid Taiwan morning sessions without UTC date rollover',()=>{
  const snapshot={mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
   slots:[{id:'S1',when:'2026-11-06 00:30'},{id:'S2',when:'2026-11-06 07:30'}],
   applications:[],b02:{sessions:{},attendance:{}},b06:{tasks:[]}};
- const context={model:snapshot,$:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,
+ const context={model:snapshot,b01Layout:{ready:true},$:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,
   document:{createElement(tag){return {tag,textContent:'',children:[],append(...items){this.children.push(...items);}};}}};
  vm.createContext(context);
  assert.doesNotThrow(()=>vm.runInContext(source+';b01Render();',context));
@@ -167,7 +167,7 @@ test('B01 refuses duplicate identifiers and impossible Taiwan dates rather than 
   slots:[{id:'S1',when:'2026-11-06 09:00'}],
   applications:[{id:'A1',phase:'CONFIRMED',slotId:'S1'}],
   b02:{sessions:{S1:{status:'OPEN'}},attendance:{}},b06:{tasks:[]}};
- const context={model:snapshot,$:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,
+ const context={model:snapshot,b01Layout:{ready:true},$:id=>id==='b01Cards'?cards:id==='b01B07Consistency'?b07Indicator:status,Date,Set,b07SummaryVerified_:b07Mock,b07CountText_:b07CountMock,
   document:{createElement(){return {append(){},textContent:''};}}};
  vm.createContext(context);
  for(const changed of [
