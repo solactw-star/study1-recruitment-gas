@@ -274,7 +274,7 @@ function assertTeamHtml(html){
     !html.includes('id="b11Publish" type="button" class="secondary" disabled')||
     !html.includes("action:'ADMIN_B11_SETTINGS'")||
     !html.includes("release:'TEST_ONLY'")||
-    !html.includes('b11.fingerprint=JSON.stringify(payload)')||
+    !html.includes('b11Equals_(current,b11.preview)')||
     !html.includes('正式收件：CLOSED｜REC：PENDING｜通知：DISABLED')||
     !html.includes('id="b09Module"')||!html.includes('id="b09Metrics"')||
     !html.includes('id="b09ByExperiment"')||!html.includes('id="b09Trend"')||
