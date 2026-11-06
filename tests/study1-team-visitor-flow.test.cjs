@@ -1518,3 +1518,23 @@ test('B07 B01 B09 B12 TEST status reconciliation, scopes and forged-count reject
  assert.equal(srv.writes,writes+1);
  srv.ctx.study1UnifiedPreviewGet=orig;closed(srv);
 });
+
+test('B01 preference endpoint revocation clears cached cards even when main TEST source still reads',()=>{
+ const srv=server(),team=page(srv,'team'),writes=srv.writes;
+ team.get('b01LayoutControls').children[0].children[1].handlers.click();
+ const original=srv.ctx.study1UnifiedB01LayoutGet;
+ srv.ctx.study1UnifiedB01LayoutGet=()=>{throw Error('OWNER layout access revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b01LayoutControls').children.length,0);
+ assert.equal(team.get('b01LayoutSave').disabled,true);
+ assert.equal(team.get('b01LayoutReset').disabled,true);
+ assert.match(team.get('b01LayoutStatus').textContent,/權限失效|讀取失敗/);
+ assert.equal(srv.writes,writes);
+ srv.ctx.study1UnifiedB01LayoutGet=original;
+ team.click('refresh');
+ assert.equal(team.get('b01Cards').children.length,13);
+ assert.ok(team.get('b01Cards').children.every(x=>!x.hidden));
+ assert.equal(team.get('b01LayoutSave').disabled,true);
+ closed(srv);
+});
