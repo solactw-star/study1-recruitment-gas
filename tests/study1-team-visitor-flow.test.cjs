@@ -1381,3 +1381,80 @@ test('B07 spoofed formal approval or denied owner read clears pending-only viewe
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
+
+test('B07 original owner page exposes four independent E1/E2 TEST stage items and records before/after',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});srv.command('START',{experiment:'E2'});
+ const writes=srv.writes,team=page(srv,'team');
+ const rows=team.get('b07ItemRows');
+ assert.equal(rows.children.length,4);
+ assert.match(rows.children[0].children[0].textContent,/SIM-001.*單次研究.*未記錄/);
+ assert.match(rows.children[1].children[0].textContent,/SIM-002.*前測.*未記錄/);
+ assert.match(rows.children[2].children[0].textContent,/SIM-002.*八週介入.*未記錄/);
+ assert.match(rows.children[3].children[0].textContent,/SIM-002.*後測.*未記錄/);
+ assert.equal(srv.writes,writes,'item rendering must never write');
+ const fields=rows.children[1].children[1];
+ const state=fields.children[0].children[0],
+  reason=fields.children[1].children[0],save=fields.children[2];
+ state.value='PI_REVIEW_PENDING';state.handlers.change();
+ reason.value='PI_REVIEW_REQUEST';save.handlers.click();
+ assert.equal(srv.writes,writes+1);
+ const read=srv.read(),item=read.b07.itemReviews['SIM-002:PRETEST'];
+ assert.equal(item.status,'PI_REVIEW_PENDING');
+ assert.deepEqual(Object.keys(read.b07.itemReviews),['SIM-002:PRETEST']);
+ assert.equal(read.b07.itemHistory[0].from,'UNRECORDED');
+ assert.equal(read.b07.itemHistory[0].to,'PI_REVIEW_PENDING');
+ assert.equal(read.b07.itemHistory[0].reason,'PI_REVIEW_REQUEST');
+ assert.equal(team.get('b07ItemHistory').children.length,1);
+ assert.equal(team.calls.includes('ADMIN_B07_ITEM_REVIEW'),true);
+ assert.doesNotMatch(teamHtml,/id="b07Amount"|id="b07Pay"|id="b07Receipt"/);
+ team.set('b07Experiment','E1');team.change('b07Experiment');
+ assert.equal(team.get('b07ItemRows').children.length,1);
+ team.click('b07Reset');assert.equal(team.get('b07ItemRows').children.length,4);
+ team.set('adminScopeGlobal','E2');team.change('adminScopeGlobal');
+ assert.equal(team.get('b07ItemRows').children.length,3);
+ assert.equal(srv.writes,writes+1);
+ closed(srv);
+});
+test('B07 item update rejects stale competing owner page, rereads latest stage and never retries',()=>{
+ const srv=server();srv.command('START',{experiment:'E2'});
+ const a=page(srv,'team'),b=page(srv,'team');
+ const fieldsA=a.get('b07ItemRows').children[0].children[1];
+ const fieldAState=fieldsA.children[0].children[0];
+ fieldAState.value='SOURCE_PENDING';fieldAState.handlers.change();
+ fieldsA.children[2].handlers.click();
+ const current=srv.read().revision,writes=srv.writes;
+ const fieldsB=b.get('b07ItemRows').children[0].children[1];
+ const fieldBState=fieldsB.children[0].children[0];
+ fieldBState.value='DOCUMENTS_PENDING';fieldBState.handlers.change();
+ fieldsB.children[1].children[0].value='DOCUMENT_CHECK';
+ fieldsB.children[2].handlers.click();
+ assert.equal(srv.read().revision,current);
+ assert.equal(srv.writes,writes);
+ assert.equal(b.get('b07ItemRows').children[0].children[1].children[0].children[0].value,
+  'SOURCE_PENDING');
+ assert.equal(b.get('b07ItemHistory').children.length,1);
+ assert.ok(b.calls.filter(x=>x==='READ').length>=2);
+ closed(srv);
+});
+test('B07 forged cross-experiment stage or owner read failure removes all stage rows',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const team=page(srv,'team'),writes=srv.writes;
+ const orig=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{
+  const data=orig();
+  data.b07.itemReviews['SIM-001:POSTTEST']={status:'SOURCE_PENDING',actor:'OWNER',
+   at:'2026-11-06T12:00:00.000Z'};
+  return data;
+ };
+ team.click('refresh');
+ assert.equal(team.get('b07ItemRows').children.length,0);
+ assert.equal(team.get('b07Rows').children.length,0);
+ assert.match(team.get('b07Status').textContent,/拒絕顯示/);
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('OWNER revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b07ItemRows').children.length,0);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(srv.writes,writes);
+ srv.ctx.study1UnifiedPreviewGet=orig;closed(srv);
+});
