@@ -281,7 +281,14 @@ function assertTeamHtml(html){
     !html.includes('b08StatusName(status)')||
     !html.includes('沒有寄送真實郵件')||
     !html.includes('study1UnifiedPreviewGet()')||
-    !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
+    !html.includes('id="b11Module"')||!html.includes('id="b11Diff"')||
+    !html.includes('id="b11Apply"')||!html.includes('id="b11Cancel"')||
+    !html.includes('function b11Review_(action,payload)')||
+    !html.includes('function b11Commit_()')||
+    !html.includes('function b11Recover_(reason)')||
+    !html.includes("function save(action,payload){b11Review_(action,payload);}")||
+    !html.includes('expectedRevision:pending.revision')||
+    !html.includes('study1UnifiedPreviewCommand({action:pending.action,payload:pending.payload,')||
     !html.includes('正式收件開關保持鎖定')||
     !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
