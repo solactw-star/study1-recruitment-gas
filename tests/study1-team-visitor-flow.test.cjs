@@ -512,3 +512,98 @@ test('B06 original team GUI manually creates, completes, reopens, edits, archive
  assert.equal(srv.read().revision,0,'B06 never changes old B02-B05 shared revision');
  closed(srv);
 });
+
+test('B08 original team UI filters the SAME synthetic notification and safely retries without sending mail',()=>{
+ const srv=server();
+ const answers={adult:true,cycu:true,diagnosed:false,treatment:false,
+  frequentPractice:false,joinedE1:false};
+ srv.command('START',{experiment:'E1'});
+ srv.command('SCREEN',{id:'SIM-001',answers});
+ srv.command('OTP_REQUEST',{id:'SIM-001'});
+ srv.command('OTP_VERIFY',{id:'SIM-001',code:'00000000'});
+ srv.command('HOLD',{id:'SIM-001',slotId:'SIM-SLOT-E1-A'});
+ const version=srv.read().policy.consent.E1.version;
+ srv.command('CONSENT_REVIEW',{id:'SIM-001',version,sha256:''});
+ srv.command('CONSENT',{id:'SIM-001',accepted:true,version,signature:'SIMULATED_SIGN_ONLY'});
+ srv.command('CONFIRM',{id:'SIM-001'});
+ let original=srv.read().notifications[0];
+ assert.equal(original.status,'SIM_PENDING');
+ assert.equal(original.index,0);
+ const initialText=original.text;
+ const team=page(srv,'team'),writes=srv.writes;
+ assert.equal(team.get('b08List').children.length,1);
+ assert.match(team.get('b08Summary').textContent,/待模擬 1/);
+ assert.match(team.get('b08List').children[0].children[2].textContent,/僅預覽，未寄送/);
+ assert.equal(srv.writes,writes,'filter/render has zero writes');
+ team.set('b08Search','non-existing-name');
+ team.get('b08Search').handlers.input();
+ assert.equal(team.get('b08List').children.length,1);
+ assert.match(team.get('b08List').children[0].textContent,/沒有符合/);
+ team.set('b08Search','SIM-001');team.get('b08Search').handlers.input();
+ assert.equal(team.get('b08List').children.length,1);
+ team.set('b08Event','CANCEL');team.change('b08Event');
+ assert.match(team.get('b08List').children[0].textContent,/沒有符合/);
+ team.set('b08Event','ALL');team.change('b08Event');
+ const action=(label)=>{
+  const card=team.get('b08List').children[0];
+  const controls=card.children.find(el=>el.className==='b06Actions');
+  assert.ok(controls,'existing owner-only synthetic action controls');
+  const button=controls.children.find(el=>el.textContent===label);
+  assert.ok(button,'notification action '+label);
+  assert.equal(button.disabled,false);button.handlers.click();
+ };
+ action('模擬失敗');
+ assert.equal(team.failures.length,0);
+ assert.ok(team.calls.includes('ADMIN_NOTIFY_ATTEMPT'));
+ assert.equal(srv.read().notifications[0].status,'SIM_FAILED');
+ assert.equal(srv.read().notifications[0].lastError,'SIMULATED_FAILURE');
+ assert.equal(srv.read().notifications[0].attempts,1);
+ assert.match(team.get('b08Summary').textContent,/模擬失敗 1/);
+ // Editing the shared *current* template cannot overwrite historical content.
+ srv.command('ADMIN_EDIT',{title:'測試網站',notice:'僅示範',
+  emailTemplate:'新虛構模板，絕不真正寄送'});
+ assert.equal(srv.read().notifications[0].text,initialText);
+ // Reload because a separate test-owner operation advanced the revision.
+ const refreshed=page(srv,'team');
+ const card=refreshed.get('b08List').children[0];
+ const controls=card.children.find(el=>el.className==='b06Actions');
+ const successful=controls.children.find(el=>el.textContent==='模擬交付成功（不寄信）');
+ assert.equal(successful.disabled,false);successful.handlers.click();
+ assert.equal(refreshed.failures.length,0);
+ assert.equal(srv.read().notifications[0].status,'SIM_DELIVERED');
+ assert.equal(srv.read().notifications[0].attempts,2);
+ assert.equal(srv.read().notifications[0].lastError,null);
+ assert.equal(srv.read().notifications[0].text,initialText);
+ assert.match(refreshed.get('b08Summary').textContent,/模擬交付成功 1/);
+ assert.match(refreshed.get('b08Message').textContent,/沒有寄送真實郵件/);
+ assert.equal(refreshed.get('b08List').children[0].children
+   .find(el=>el.className==='b06Actions').children.filter(x=>x.tagName==='button')
+   .every(x=>x.disabled),true,'no repeated attempt after simulated completion');
+ closed(srv);
+ assert.equal(srv.store.has('STUDY1_B08_NOTIFICATIONS_V1'),false,
+  'B08 uses the single original test fixture; no parallel storage');
+});
+test('B08 stale version fails closed and does not falsely report a simulated delivery',()=>{
+ const srv=server();
+ // Prepare a synthetic notification ONLY via existing in-memory TEST fixture.
+ srv.command('START',{experiment:'E1'});
+ const state=srv.ctx.study1UnifiedRead_();
+ state.notifications.push({id:'SIM-001',event:'CONFIRM',
+  text:'〔SIM 確認〕虛構通知（僅預覽，未寄送）',
+  status:'SIM_PENDING',attempts:0,lastError:null});
+ const value=JSON.stringify(state);
+ srv.store.set('STUDY1_UNIFIED_FIXTURE_V1',value);
+ const a=page(srv,'team'),b=page(srv,'team');
+ // Two tabs share the same revision, only first should commit.
+ const first=a.get('b08List').children[0].children.find(x=>x.className==='b06Actions').children[0];
+ const stale=b.get('b08List').children[0].children.find(x=>x.className==='b06Actions').children[1];
+ first.handlers.click();
+ assert.equal(srv.read().notifications[0].status,'SIM_FAILED');
+ const writes=srv.writes;
+ stale.handlers.click();
+ assert.match(b.get('b08Message').textContent,/模擬未完成|版本已變更/);
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.read().notifications[0].status,'SIM_FAILED');
+ assert.equal(srv.read().notifications[0].attempts,1);
+ closed(srv);
+});
