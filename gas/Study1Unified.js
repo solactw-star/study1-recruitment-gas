@@ -653,7 +653,7 @@ function study1B12AuditPage_(fixture,b06,query){
     !['ALL','B04','B05','B06','B08'].includes(query.module)||
     !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT'].includes(query.result)||
     typeof query.search!=='string'||query.search.length>60||
-    /[<>\\u0000-\u001f]/.test(query.search)||
+    /[<>\u0000-\u001f]/.test(query.search)||
     typeof query.after!=='string'||query.after.length>40||
     typeof query.snapshotHash!=='string')
   throw Error('B12稽核查詢、版本或分頁參數不合法');
