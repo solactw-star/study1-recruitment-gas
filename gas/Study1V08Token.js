@@ -30,3 +30,39 @@ function study1V08ConsumePlan_(record,input,now,hash,equalDigest) {
   return {ok:true,expectedRevision:checked.expectedRevision,
     next:{...record,status:'CONSUMED',revision:record.revision+1,consumedAt:now}};
 }
+
+/**
+ * Disabled synthetic-only atomic consumption adapter.
+ * Caller MUST supply a real exclusive server-side lock and durable CAS store.
+ * A successful CAS is not a booking mutation; this consumes only the capability.
+ * An uncertain write/readback MUST remain UNKNOWN, never auto-retry.
+ */
+function study1V08ConsumeAtomic_(input, now, adapter) {
+  if (STUDY1_V08_ENABLED_ !== false) throw Error('V08 activation requires separate approval');
+  if (!adapter || typeof adapter.withExclusiveLock !== 'function' ||
+      typeof adapter.read !== 'function' || typeof adapter.compareAndSwap !== 'function' ||
+      typeof adapter.hash !== 'function' || typeof adapter.equalDigest !== 'function')
+    return {ok:false,reason:'ADAPTER_UNAVAILABLE'};
+  try {
+    return adapter.withExclusiveLock(function() {
+      const record=adapter.read(input && input.applicationId);
+      const plan=study1V08ConsumePlan_(record,input,now,adapter.hash,adapter.equalDigest);
+      if (!plan.ok) return {ok:false,reason:plan.reason};
+      const wrote=adapter.compareAndSwap(input.applicationId,plan.expectedRevision,plan.next);
+      if (wrote !== true) return {ok:false,reason:'CONFLICT_OR_UNKNOWN'};
+      // Verify the exact committed state before acknowledging consumption.
+      const saved=adapter.read(input.applicationId);
+      if (!saved || saved.status !== 'CONSUMED' ||
+          saved.revision !== plan.next.revision ||
+          saved.consumedAt !== now ||
+          saved.tokenSha256 !== record.tokenSha256 ||
+          saved.applicationId !== record.applicationId ||
+          saved.experiment !== record.experiment)
+        return {ok:false,reason:'UNKNOWN_READBACK'};
+      return {ok:true,status:'CONSUMED',revision:saved.revision};
+    });
+  } catch (_) {
+    // The write may have committed before a transport/storage failure.
+    return {ok:false,reason:'UNKNOWN_NO_RETRY'};
+  }
+}
