@@ -194,7 +194,11 @@ function assertUnifiedFlow(source){
    "study1B06Verify_(b06)",
    "query.snapshotHash!==snapshotHash",
    "function study1B12FailureDiagnostic_(module,error)",
-   "persistedInB12:false" ])
+   "persistedInB12:false",
+   "function study1UnifiedB11FormalPublish_()",
+   "if(action==='ADMIN_B11_SETTINGS')",
+   "p.release!=='TEST_ONLY'",
+   "B11正式網站發布未經REC及資料權責核准" ])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -213,6 +217,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedStoreReadiness_','study1UnifiedStoreHash_','study1UnifiedStoreInitial_',
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
   'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
+  'study1UnifiedB11FormalPublish_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
   'study1B12AuditBuild_','study1B12AuditPage_',
@@ -269,6 +274,13 @@ function assertTeamHtml(html){
     !html.includes('id="modeE2"')||!html.includes('id="saveResearch"')||
     !html.includes('id="saveSlots"')||!html.includes('id="saveWeeks"')||
     !html.includes("save('ADMIN_RECRUITMENT'")||
+    !html.includes('id="b11Module"')||!html.includes('id="b11Diff"')||
+    !html.includes('id="b11Demo"')||!html.includes('id="b11Scope"')||
+    !html.includes('id="b11Publish" type="button" class="secondary" disabled')||
+    !html.includes("action:'ADMIN_B11_SETTINGS'")||
+    !html.includes("release:'TEST_ONLY'")||
+    !html.includes('b11Equals_(current,b11.preview)')||
+    !html.includes('正式收件：CLOSED｜REC：PENDING｜通知：DISABLED')||
     !html.includes('id="b09Module"')||!html.includes('id="b09Metrics"')||
     !html.includes('id="b09ByExperiment"')||!html.includes('id="b09Trend"')||
     !html.includes('function b09Compute_(data,scope,phase,start,end)')||

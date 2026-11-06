@@ -618,3 +618,78 @@ test('B08 owner snapshot covers all 15 original bounded notifications without a 
  assert.deepEqual([...instance.p.keys()].sort(),
   ['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']);
 });
+
+test('B11 atomic TEST-only settings: scoped E1 change preserves E2 and all formal gates',()=>{
+ const s=setup(),start=s.read(),writes=s.writes;
+ const x=s.cmd('ADMIN_B11_SETTINGS',{
+  scope:'E1',modes:{E1:'COMING_SOON'},site:null,release:'TEST_ONLY'
+ });
+ assert.equal(x.revision,start.revision+1);
+ assert.equal(x.recruitment.E1.mode,'COMING_SOON');
+ assert.equal(x.recruitment.E2.mode,'COMING_SOON');
+ assert.deepEqual(x.config,start.config);
+ assert.equal(s.writes,writes+1,'one existing TEST key and one atomic revision');
+ assert.equal(s.p.get('OPEN'),'false');
+ assert.equal(s.p.get('CONSENT_READY'),'false');
+ assert.equal(x.formalReadiness.activationAllowed,false);
+ assert.equal(x.formalPorts.activated,false);
+ assert.equal(x.policy.consent.E1.approval,'PENDING');
+ assert.equal(x.policy.consent.E2.approval,'PENDING');
+ assert.deepEqual([...s.p.keys()].sort(),['CONSENT_READY','OPEN','STUDY1_UNIFIED_FIXTURE_V1']);
+});
+test('B11 combined modes and optional global site copy commit atomically without overwriting untouched research',()=>{
+ const s=setup(),before=s.read(),writes=s.writes;
+ const p={scope:'ALL',modes:{E1:'HIDDEN',E2:'DEMO_OPEN'},
+  site:{title:'虛構網站主標題',notice:'僅展示TEST內容',emailTemplate:'模擬通知，不寄送'},
+  release:'TEST_ONLY'};
+ const x=s.cmd('ADMIN_B11_SETTINGS',p);
+ assert.equal(x.revision,before.revision+1);
+ assert.equal(x.recruitment.E1.mode,'HIDDEN');
+ assert.equal(x.recruitment.E2.mode,'DEMO_OPEN');
+ assert.equal(x.recruitment.E2.year,2027);
+ assert.equal(x.config.title,'虛構網站主標題');
+ assert.equal(x.config.notice,'僅展示TEST內容');
+ assert.equal(x.config.emailTemplate,'模擬通知，不寄送');
+ assert.deepEqual(x.definitions,before.definitions);
+ assert.deepEqual(x.policy,before.policy);
+ assert.deepEqual(x.slots,before.slots);
+ assert.equal(s.writes,writes+1);
+ assert.equal(x.open,false);assert.equal(x.consentReady,false);
+});
+test('B11 rejects publishing, scoped tamper, invalid content, no-op, stale CAS and unauthorized owner',()=>{
+ const s=setup(),before=s.read(),writes=s.writes;
+ const valid={scope:'E1',modes:{E1:'HIDDEN'},site:null,release:'TEST_ONLY'};
+ assert.throws(()=>s.ctx.study1UnifiedB11FormalPublish_(),/正式網站發布未經REC/);
+ assert.throws(()=>s.cmd('ADMIN_B11_FORMAL_PUBLISH',{}),/未核准的測試指令/);
+ const bad=[
+  {...valid,release:'FORMAL_PUBLISH'},
+  {...valid,scope:'E2'},
+  {...valid,modes:{E1:'HIDDEN',E2:'HIDDEN'}},
+  {...valid,modes:{E1:'PUBLIC_OPEN'}},
+  {...valid,site:{title:'<script>',notice:'ok',emailTemplate:'ok'}},
+  {...valid,site:{title:'a'.repeat(161),notice:'ok',emailTemplate:'ok'}},
+  {...valid,site:{title:'ok',notice:'ok',emailTemplate:'ok',formalApproval:true}},
+  {...valid,authority:'PI'},
+  {...valid,scope:'ALL'}
+ ];
+ for(const p of bad)assert.throws(()=>s.cmd('ADMIN_B11_SETTINGS',p));
+ assert.equal(s.writes,writes);assert.deepEqual(s.read().config,before.config);
+ assert.deepEqual(s.read().recruitment,before.recruitment);
+ const done=s.cmd('ADMIN_B11_SETTINGS',valid,before.revision,'REQ-SIM-B11_IDEMP0001');
+ assert.equal(done.recruitment.E1.mode,'HIDDEN');
+ const once=s.writes;
+ const replay=s.cmd('ADMIN_B11_SETTINGS',valid,before.revision,'REQ-SIM-B11_IDEMP0001');
+ assert.equal(replay.deduplicated,true);assert.equal(s.writes,once);
+ assert.throws(()=>s.cmd('ADMIN_B11_SETTINGS',{
+  scope:'E2',modes:{E2:'HIDDEN'},site:null,release:'TEST_ONLY'},before.revision,
+  'REQ-SIM-B11_IDEMP0002'),/版本已變更/);
+ assert.throws(()=>s.cmd('ADMIN_B11_SETTINGS',valid),/沒有實質設定變更/);
+ assert.equal(s.writes,once);
+ for(const identity of [
+  {active:'intruder@example.invalid'},{effective:'intruder@example.invalid'},
+  {open:'true'},{consent:'true'}]){
+  const untrusted=setup(identity);
+  assert.throws(()=>untrusted.cmd('ADMIN_B11_SETTINGS',valid));
+  assert.equal(untrusted.writes,0);
+ }
+});

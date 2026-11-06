@@ -206,9 +206,20 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b09BarFill{height:100%;background:var(--teal);border-radius:8px}
 @media(max-width:550px){.b09BarRow{grid-template-columns:1fr;gap:3px}}
 
+/* B11: owner-only draft comparison in the existing site, no formal publish. */
+#b11Module{scroll-margin-top:24px}
+.b11Tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.b11Tools label,.b11Fields label{font-size:13px;font-weight:700}
+.b11Fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.b11DiffWrap{overflow-x:auto}
+.b11DiffTable{width:100%;min-width:550px;border-collapse:collapse}
+.b11DiffTable th,.b11DiffTable td{padding:9px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.b11Demo{border:1px dashed var(--line);border-radius:11px;background:#f6faf8;padding:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+@media(max-width:800px){.b11Tools,.b11Fields{grid-template-columns:1fr 1fr}}
+@media(max-width:510px){.b11Tools,.b11Fields{grid-template-columns:1fr}}
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -378,6 +389,38 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  </div>
 </section>
 
+<section class="panel" id="b11Module" aria-labelledby="b11Heading">
+ <span class="tag">B11｜原網站系統設定（P2）</span><h2 id="b11Heading">虛構設定草稿、修改前後與安全套用</h2>
+ <p class="sub">研究團隊管理範圍只是此頁的暫時操作篩選，不改參與者網站的正式實驗範圍。先預覽再套用到<strong>同一份原有 TEST 設定</strong>；原資料修訂版以一次交易鎖定。正式網站內容發布、招募、REC變更及真實通知始終未授權。</p>
+ <div class="b11Tools">
+  <label for="b11Scope">管理範圍<select id="b11Scope"><option value="ALL">實驗一＋實驗二</option><option value="E1">只修改實驗一</option><option value="E2">只修改實驗二</option></select></label>
+  <label for="b11ModeE1">實驗一（2026）示範顯示<select id="b11ModeE1">
+   <option value="DEMO_OPEN">僅開放虛構示範入口</option><option value="COMING_SOON">顯示即將開放</option><option value="HIDDEN">隱藏示範入口</option></select></label>
+  <label for="b11ModeE2">實驗二（2027）示範顯示<select id="b11ModeE2">
+   <option value="COMING_SOON">顯示尚未開放</option><option value="DEMO_OPEN">僅開放虛構示範入口</option><option value="HIDDEN">隱藏示範入口</option></select></label>
+ </div>
+ <p id="b11ScopeInfo" class="small">目前為兩實驗設定視圖，絕非正式招募開關。</p>
+ <label for="b11IncludeSite" class="label"><input id="b11IncludeSite" type="checkbox"> 同時修改全站示範文字（影響兩個實驗的虛構展示；與管理範圍獨立）</label>
+ <div class="b11Fields">
+  <label for="b11Title">全站示範頁主標題<input id="b11Title" maxlength="160" disabled></label>
+  <label for="b11Notice">全站示範提示<textarea id="b11Notice" maxlength="200" rows="3" disabled></textarea></label>
+  <label for="b11Email">虛構通知範本（永不寄信）<textarea id="b11Email" maxlength="200" rows="3" disabled></textarea></label>
+ </div>
+ <p class="small">這裡不改正式研究目的、報名條件、實驗程序、補貼、時段、同意書及公告審核來源；研究介紹與舊版示範編輯器仍維持原功能。文字上限採較嚴的160／200／200字元以保護有限測試稽核歷程。</p>
+ <div class="b06Actions">
+  <button id="b11Preview" type="button" class="secondary" disabled>比較並預覽虛構設定</button>
+  <button id="b11Apply" type="button" disabled>以版本鎖一次套用到 TEST</button>
+  <button id="b11Publish" type="button" class="secondary" disabled>正式發布（未核准，永遠禁止）</button>
+ </div>
+ <p id="b11Status" class="small" role="status" aria-live="polite">尚未預覽；請先確認目前原設定與草稿。</p>
+ <p id="b11Revision" class="small">資料修訂版尚未回讀。</p>
+ <h3>修改前後差異</h3>
+ <div class="b11DiffWrap"><table class="b11DiffTable"><thead><tr><th scope="col">欄位／範圍</th><th scope="col">原設定</th><th scope="col">預覽草稿</th></tr></thead><tbody id="b11Diff"></tbody></table></div>
+ <h3>未發布的參與者畫面預覽（只顯示草稿文字）</h3>
+ <div id="b11Demo" class="b11Demo" role="status" aria-live="polite">尚無可核實的設定預覽。</div>
+ <p class="small">B11正式發布必須先有適用REC、文件版本、授權角色及內容審核來源；不能從此頁開啟。所有管理範圍切換、預覽及差異比較都不會寫入任何資料。</p>
+</section>
+
 <section class="panel" aria-labelledby="expHeading"><h2 id="expHeading">各實驗的顯示與報名狀態</h2>
 <p class="sub">研究團隊可隨時調整示範網站顯示方式；正式報名不會因此開啟。</p>
 <div class="grid">
@@ -535,7 +578,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen','b06Save'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen','b06Save','b11Preview'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -567,6 +610,7 @@ function render(data){
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
   model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');
+  b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
@@ -578,7 +622,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
+ b11Load_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
@@ -806,6 +850,182 @@ $('b09Reset').addEventListener('click',()=>{
 for(const id of ['b09Scope','b09Phase'])$(id).addEventListener('change',b09Render);
 for(const id of ['b09Start','b09End'])$(id).addEventListener('change',b09Render);
 
+/* B11: draft comparisons never persist; only one explicitly reviewed
+ * TEST_ONLY command uses the existing server-side ScriptLock, CAS and owner. */
+const b11={preview:null,revision:null,mustReload:false};
+function b11Safe_(){
+ return model&&model.mode==='TEST'&&model.open===false&&
+  model.consentReady===false&&model.formalReadiness&&
+  model.formalReadiness.activationAllowed===false&&model.formalPorts&&
+  model.formalPorts.activated===false&&model.policy&&model.policy.consent&&
+  model.policy.consent.E1.approval==='PENDING'&&
+  model.policy.consent.E2.approval==='PENDING'&&
+  Number.isSafeInteger(model.revision)&&model.revision>=0&&
+  model.recruitment&&model.recruitment.E1?.year===2026&&
+  model.recruitment.E2?.year===2027&&model.config;
+}
+function b11Status_(text,error=false){
+ $('b11Status').textContent=text;
+ $('b11Status').style.color=error?'#ac3530':'#476f68';
+}
+function b11Clear_(text){
+ b11.preview=null;b11.revision=null;
+ $('b11Diff').replaceChildren();
+ $('b11Demo').textContent='尚無可核實的設定預覽。';
+ $('b11Apply').disabled=true;
+ $('b11Revision').textContent=model?'目前原資料修訂版：'+model.revision+
+  '｜尚未鎖定任何草稿。':'未取得已授權的資料版本。';
+ b11Status_(text||'草稿已變更，必須重新比較及預覽。');
+}
+function b11Scope_(){
+ const scope=$('b11Scope').value||'ALL';
+ if(!['E1','E2','ALL'].includes(scope))throw Error('管理範圍不合法');
+ return scope;
+}
+function b11Controls_(){
+ const scope=b11Scope_(),site=$('b11IncludeSite').checked;
+ $('b11ModeE1').disabled=busy||!model||scope==='E2'||b11.mustReload;
+ $('b11ModeE2').disabled=busy||!model||scope==='E1'||b11.mustReload;
+ for(const id of ['b11Title','b11Notice','b11Email'])
+  $(id).disabled=busy||!model||!site||b11.mustReload;
+ $('b11Preview').disabled=busy||!model||b11.mustReload;
+ $('b11Apply').disabled=busy||!model||b11.mustReload||!b11.preview;
+ $('b11Publish').disabled=true;
+ $('b11ScopeInfo').textContent=scope==='ALL'?'本次只管理E1及E2虛構顯示；不會修改正式招募。':
+  '本次只管理'+(scope==='E1'?'實驗一':'實驗二')+
+  '的虛構顯示，另一實驗保持原值；不會修改正式招募。';
+}
+function b11Load_(){
+ b11.mustReload=false;
+ if(!b11Safe_()){
+  b11Clear_('B11來源與未核准狀態無法核實，已停止設定操作。');
+  $('b11Preview').disabled=true;return;
+ }
+ if(!['ALL','E1','E2'].includes($('b11Scope').value))$('b11Scope').value='ALL';
+ $('b11ModeE1').value=model.recruitment.E1.mode;
+ $('b11ModeE2').value=model.recruitment.E2.mode;
+ $('b11IncludeSite').checked=false;
+ $('b11Title').value=model.config.title;
+ $('b11Notice').value=model.config.notice;
+ $('b11Email').value=model.config.emailTemplate;
+ b11Clear_('已回讀原虛構設定；請編輯草稿後先預覽。');
+ b11Controls_();
+}
+function b11Collect_(){
+ if(!b11Safe_())throw Error('沒有通過原網站owner TEST安全檢查');
+ const scope=b11Scope_(),selected=scope==='ALL'?['E1','E2']:[scope],modes={};
+ for(const exp of selected){
+  const value=$('b11Mode'+exp).value;
+  if(!['DEMO_OPEN','COMING_SOON','HIDDEN'].includes(value))
+   throw Error('虛構顯示模式不合法');
+  modes[exp]=value;
+ }
+ let site=null;
+ if($('b11IncludeSite').checked){
+  site={title:$('b11Title').value,notice:$('b11Notice').value,
+   emailTemplate:$('b11Email').value};
+  if(typeof site.title!=='string'||site.title.length>160||
+   typeof site.notice!=='string'||site.notice.length>200||
+   typeof site.emailTemplate!=='string'||site.emailTemplate.length>200||
+   Object.values(site).some(value=>typeof value!=='string'||/[<>]/.test(value)))
+   throw Error('全站草稿字數或安全字元不符');
+ }
+ const payload={scope,modes,site,release:'TEST_ONLY'};
+ if(site!==null&&site.title.length+site.notice.length+
+  site.emailTemplate.length>560)throw Error('虛構設定預覽超過可稽核容量');
+ return payload;
+}
+function b11Equals_(a,b){
+ if(!a||!b||a.scope!==b.scope||a.release!==b.release||
+  (a.site===null)!==(b.site===null))return false;
+ for(const exp of ['E1','E2']){
+  if((a.modes[exp]||null)!==(b.modes[exp]||null))return false;
+ }
+ if(a.site!==null&&['title','notice','emailTemplate'].some(k=>a.site[k]!==b.site[k]))
+  return false;
+ return true;
+}
+function b11Diff_(payload){
+ const rows=[];
+ for(const exp of Object.keys(payload.modes)){
+  const before=model.recruitment[exp].mode,after=payload.modes[exp];
+  if(before!==after)rows.push([exp+'｜虛構展示模式',before,after]);
+ }
+ if(payload.site!==null){
+  for(const [key,label] of [['title','全站｜頁首主標題'],
+   ['notice','全站｜研究說明提示'],['emailTemplate','全站｜虛構通知範本']]){
+   const before=model.config[key],after=payload.site[key];
+   if(before!==after)rows.push([label,before,after]);
+  }
+ }
+ return rows;
+}
+function b11Preview_(){
+ b11Clear_('預覽前正在核對權限、差異及版本。');
+ if(b11.mustReload){b11Status_('先重新讀取原GAS版本，舊草稿不可套用。',true);return;}
+ try{
+  const payload=b11Collect_(),diff=b11Diff_(payload);
+  if(!diff.length){b11Status_('沒有變更；不會建立空白設定交易。');b11Controls_();return;}
+  const target=$('b11Diff');
+  for(const [label,before,after] of diff){
+   const tr=calElem('tr');
+   for(const value of [label,before,after])tr.append(calElem('td',String(value)));
+   target.append(tr);
+  }
+  const previewRecruitment={E1:model.recruitment.E1.mode,E2:model.recruitment.E2.mode,
+   ...payload.modes};
+  const title=payload.site===null?model.config.title:payload.site.title;
+  const notice=payload.site===null?model.config.notice:payload.site.notice;
+  $('b11Demo').textContent='〔未發布的TEST預覽〕\n'+title+'\n'+notice+
+   '\n實驗一：'+previewRecruitment.E1+'｜實驗二：'+previewRecruitment.E2+
+   '\n正式收件：CLOSED｜REC：PENDING｜通知：DISABLED';
+  b11.preview=payload;b11.revision=model.revision;
+  // Stage holds the exact reviewed values; a changed field cannot be reused.
+  $('b11Revision').textContent='草稿鎖定原資料修訂版 '+b11.revision+
+   '｜如原網站其他頁籤先寫入，本次應由伺服器拒絕。';
+  b11Status_('已預覽 '+diff.length+' 項差異；只有 TEST 模式可以一次套用，正式發布永遠禁止。');
+  b11Controls_();
+ }catch(e){b11Status_('拒絕B11草稿：'+String(e.message||e),true);b11Controls_();}
+}
+function b11Apply_(){
+ if(!b11.preview||busy||b11.mustReload||!b11Safe_())return;
+ let current;
+ try{current=b11Collect_();}catch(e){
+  b11Clear_('B11草稿驗證失敗，必須重新預覽。');return;
+ }
+ if(model.revision!==b11.revision||!b11Equals_(current,b11.preview)){
+  b11Clear_('設定或原始版本已改變，請重新預覽後再送出。');return;
+ }
+ const command={action:'ADMIN_B11_SETTINGS',payload:current,
+  requestId:'REQ-SIM-B11_'+Date.now()+'_'+Math.floor(Math.random()*1e7),
+  expectedRevision:b11.revision};
+ setBusy(true);b11Controls_();
+ b11Status_('使用原GAS同一資料版本鎖一次儲存TEST設定；不執行正式發布。');
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data))b11Status_('已在原網站回讀虛構設定新版本 '+data.revision+
+   '；正式招募、電子同意及正式內容發布仍關閉。');
+ }).withFailureHandler(error=>{
+  setBusy(false);b11.mustReload=true;
+  b11Clear_('版本衝突或寫入未完成：'+String(error.message||error)+
+   '。必須按「重新載入設定」，不能重用舊預覽。');
+  b11Controls_();
+ }).study1UnifiedPreviewCommand(command);
+}
+$('b11Preview').addEventListener('click',b11Preview_);
+$('b11Apply').addEventListener('click',b11Apply_);
+$('b11Scope').addEventListener('change',()=>{
+ b11Load_(); // Scope affects the admin's staged subset only, not public E1/E2.
+});
+$('b11IncludeSite').addEventListener('change',()=>{
+ b11Clear_('已變更全站文字修改範圍，須重新預覽。');b11Controls_();
+});
+for(const id of ['b11ModeE1','b11ModeE2']){
+ $(id).addEventListener('change',()=>{b11Clear_('實驗草稿改變，請重新預覽。');b11Controls_();});
+}
+for(const id of ['b11Title','b11Notice','b11Email']){
+ $(id).addEventListener('input',()=>{b11Clear_('文字草稿改變，請重新預覽。');b11Controls_();});
+}
+
 function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
@@ -865,9 +1085,11 @@ function b01Render(){
  $('b01Status').textContent='已依目前虛構資料快照更新｜正式研究目標與完成率：未核准，不計算。';
 }
 
+
+
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b09Clear_('資料載入失敗；B09報表已清空。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
