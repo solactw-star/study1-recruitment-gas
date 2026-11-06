@@ -551,6 +551,178 @@ function study1UnifiedB06Command(command){
 }
 
 /**
+ * B12: read-only audit projection on top of EXISTING synthetic fixture and B06
+ * history. No additional ScriptProperties key, migration or real data adapter.
+ * B06 has a SHA chain; legacy B04/B05 have bounded, non-chained history.
+ * A simulated failed notification is a CURRENT STATUS SNAPSHOT, never a
+ * fabricated historical audit event.
+ */
+function study1B12AuditBuild_(fixture,b06){
+ study1B06Verify_(b06);
+ if(!fixture||!Number.isSafeInteger(fixture.revision)||fixture.revision<0||
+    !fixture.b04||!Array.isArray(fixture.b04.history)||
+    !fixture.b05||!Array.isArray(fixture.b05.history)||
+    !Array.isArray(fixture.notifications))
+  throw Error('B12虛構稽核來源格式不合法');
+ const events=[],b04Last=new Map(),b05Last=new Map();
+ let b06At='';
+ for(const h of b06.audit){
+  if(h.at<b06At||(h.action==='CREATE'&&h.before!==null)||
+     (h.action!=='CREATE'&&h.before===null)||
+     !h.after||h.after.updatedAt!==h.at)
+   throw Error('B12待辦歷史時間、前後值或操作類型不一致');
+  b06At=h.at;
+  events.push({id:'B06-'+String(h.seq).padStart(6,'0'),module:'B06',
+   actor:'OWNER',at:h.at,action:h.action,target:h.taskId,
+   before:h.before,after:h.after,reason:h.reason,result:'SUCCESS',
+   provenance:'SHA256_CHAIN_VERIFIED',historical:true});
+ }
+ for(let i=0;i<fixture.b04.history.length;i++){
+  const h=fixture.b04.history[i];
+  if(!h||!['adminNote','attendanceAndProgress'].includes(h.field)||
+     !/^SIM-\d{3}$/.test(h.id)||h.actor!=='OWNER'||
+     typeof h.before!=='string'||typeof h.after!=='string'||
+     typeof h.reason!=='string'||Number.isNaN(Date.parse(h.at)))
+   throw Error('B12近期參與者歷程格式不一致');
+  const key=h.id+'|'+h.field;
+  if(b04Last.has(key)&&b04Last.get(key)!==h.before)
+   throw Error('B12近期參與者前後值不連續');
+  b04Last.set(key,h.after);
+  events.push({id:'B04-'+String(i+1).padStart(6,'0'),module:'B04',
+   actor:'OWNER',at:h.at,action:h.field,target:h.id,
+   before:h.before,after:h.after,reason:h.reason,result:'SUCCESS',
+   provenance:'BOUNDED_LEGACY_HISTORY',historical:true});
+ }
+ for(const [key,after] of b04Last){
+  const [id,field]=key.split('|'),current=field==='adminNote'?
+   (fixture.b04.notes[id]||''):(()=>{
+    const a=fixture.b02&&fixture.b02.attendance&&fixture.b02.attendance[id];
+    return a?a.attendance+' / '+a.progress+(a.note?' / '+a.note:''):
+     'PENDING / NOT_STARTED';
+   })();
+  if(current!==after)throw Error('B12近期參與者最後前後值與目前資料不符');
+ }
+ for(let i=0;i<fixture.b05.history.length;i++){
+  const h=fixture.b05.history[i];
+  if(!h||!['CLOSE','REOPEN'].includes(h.action)||h.actor!=='OWNER'||
+     !/^SIM-SLOT-E[12]-[A-Z]$/.test(h.slotId)||
+     !['OPEN','CLOSED'].includes(h.before)||
+     !['OPEN','CLOSED'].includes(h.after)||
+     (h.action==='CLOSE'&&!(h.before==='OPEN'&&h.after==='CLOSED'))||
+     (h.action==='REOPEN'&&!(h.before==='CLOSED'&&h.after==='OPEN'))||
+     Number.isNaN(Date.parse(h.at)))
+   throw Error('B12近期場次結案歷程格式或狀態不一致');
+  if(b05Last.has(h.slotId)&&b05Last.get(h.slotId)!==h.before)
+   throw Error('B12近期場次前後值不連續');
+  b05Last.set(h.slotId,h.after);
+  events.push({id:'B05-'+String(i+1).padStart(6,'0'),module:'B05',
+   actor:'OWNER',at:h.at,action:h.action,target:h.slotId,
+   before:h.before,after:h.after,reason:h.reason,result:'SUCCESS',
+   provenance:'BOUNDED_LEGACY_HISTORY',historical:true});
+ }
+ for(const [id,after] of b05Last){
+  const current=fixture.b02&&fixture.b02.sessions&&fixture.b02.sessions[id];
+  if((current?current.status:'OPEN')!==after)
+   throw Error('B12近期場次最後前後值與目前資料不符');
+ }
+ for(let i=0;i<fixture.notifications.length;i++){
+  const n=fixture.notifications[i];
+  if(n&&n.status==='SIM_FAILED'){
+   if(!/^SIM-\d{3}$/.test(n.id)||n.lastError!=='SIMULATED_FAILURE')
+    throw Error('B12虛構失敗狀態資料不合法');
+   events.push({id:'B08-SNAPSHOT-'+String(i+1).padStart(6,'0'),
+    module:'B08',actor:'OWNER',at:null,action:'SIM_NOTIFY_FAILURE',
+    target:n.id,before:null,after:{status:n.status,attempts:n.attempts},
+    reason:'虛構通知失敗的目前狀態；不是歷史事件',
+    result:'SIM_FAILED_SNAPSHOT',provenance:'CURRENT_SNAPSHOT_ONLY',historical:false});
+  }
+ }
+ return events.sort((a,b)=>(a.at||'9999').localeCompare(b.at||'9999')||
+  a.id.localeCompare(b.id));
+}
+function study1B12AuditPage_(fixture,b06,query){
+ if(!query||typeof query!=='object'||Array.isArray(query)||
+    Object.keys(query).sort().join(',')!==
+    'after,expectedB06Revision,expectedFixtureRevision,limit,module,result,search,snapshotHash'||
+    query.expectedB06Revision!==b06.revision||
+    query.expectedFixtureRevision!==fixture.revision||
+    !Number.isSafeInteger(query.limit)||query.limit<1||query.limit>30||
+    !['ALL','B04','B05','B06','B08'].includes(query.module)||
+    !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT'].includes(query.result)||
+    typeof query.search!=='string'||query.search.length>60||
+    /[<>\\u0000-\u001f]/.test(query.search)||
+    typeof query.after!=='string'||query.after.length>40||
+    typeof query.snapshotHash!=='string')
+  throw Error('B12稽核查詢、版本或分頁參數不合法');
+ const all=study1B12AuditBuild_(fixture,b06);
+ const q=query.search.trim().toLowerCase();
+ const filtered=all.filter(e=>
+  (query.module==='ALL'||e.module===query.module)&&
+  (query.result==='ALL'||e.result===query.result)&&
+  (!q||[e.id,e.module,e.action,e.target,e.reason,e.result].join(' ').toLowerCase().includes(q)));
+ const snapshotHash=study1UnifiedStoreHash_([
+  fixture.revision,b06.revision,b06.head,query.module,query.result,q,all]);
+ let start=0;
+ if(query.after){
+  if(query.snapshotHash!==snapshotHash)
+   throw Error('B12稽核快照已變更，必須從第一頁重查');
+  const idx=filtered.findIndex(e=>e.id===query.after);
+  if(idx<0)throw Error('B12稽核游標不存在或已失效');
+  start=idx+1;
+ }else if(query.snapshotHash&&query.snapshotHash!==snapshotHash)
+  throw Error('B12稽核快照已變更');
+ const selected=filtered.slice(start,start+query.limit);
+ return {mode:'SYNTHETIC_AUDIT_ONLY',formalExport:false,
+  completeImmutableArchive:false,b06ChainVerified:true,
+  legacyHistoryBounded:true,fixtureRevision:fixture.revision,
+  b06Revision:b06.revision,snapshotHash,total:filtered.length,
+  items:JSON.parse(JSON.stringify(selected)),
+  nextAfter:start+selected.length<filtered.length?
+   selected[selected.length-1].id:null};
+}
+/* The only B12 read endpoint is the SAME private original GAS site. */
+function study1UnifiedB12AuditPage(query){
+ study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_READ');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(8000))throw Error('B12稽核讀取鎖定中');
+ try{
+  study1SandboxBookingFlags_();
+  const props=PropertiesService.getScriptProperties();
+  const fBytes=props.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_);
+  const bBytes=props.getProperty(STUDY1_B06_TASK_KEY_);
+  const fixture=study1UnifiedRead_(),b06=study1B06Read_();
+  const result=study1B12AuditPage_(fixture,b06,query);
+  if(props.getProperty(STUDY1_UNIFIED_FIXTURE_KEY_)!==fBytes||
+     props.getProperty(STUDY1_B06_TASK_KEY_)!==bBytes)
+   throw Error('B12稽核讀取過程發現競寫，已拒絕回傳');
+  return result;
+ }finally{lock.releaseLock();}
+}
+/* No CSV, audit download or role self-service is approved. */
+function study1UnifiedB12Export(){
+ study1UnifiedRoleAuthorise_('OWNER','EXPORT_AUDIT');
+ throw Error('B12正式或測試稽核匯出未獲授權');
+}
+/**
+ * Rejection diagnostics contain no request payload, participant content,
+ * reason text, OTP, or personal identifiers. Execution log ONLY; not B12
+ * permanent storage and never reported as successfully committed history.
+ */
+function study1B12FailureDiagnostic_(module,error){
+ if(!['B06','UNIFIED'].includes(module))
+  throw Error('B12異常模組未核准');
+ const msg=String(error&&error.message||'');
+ const code=/狀態不明|恢復|回復失敗/.test(msg)?'UNCERTAIN_WRITE':
+  /競寫|版本|請求識別碼/.test(msg)?'CONFLICT':
+  /容量|上限/.test(msg)?'LIMIT_REJECTED':'INVALID_REJECTED';
+ const event={schema:'STUDY1_B12_DIAGNOSTIC_V1',mode:'SYNTHETIC_ONLY',
+  module,code,result:'REJECTED',persistedInB12:false};
+ if(typeof console!=='undefined'&&typeof console.warn==='function')
+  console.warn('STUDY1_B12_REJECTION '+JSON.stringify(event));
+ return event;
+}
+
+/**
  * Byte-verified one-page synthetic PDF. It is NOT an REC consent document.
  * The actual approved REC PDF bytes are absent and remain inaccessible.
  */
