@@ -900,7 +900,12 @@ function b09Render(){
  if(!model){b09Clear_('無授權資料快照，報表已清空');return;}
  try{
   const start=$('b09Start').value,end=$('b09End').value;
-  const result=b09Compute_(model,$('b09Scope').value||'ALL',
+  const admin=adminScopeEffective_('B09'),local=$('b09Scope').value||'ALL';
+  if(admin===null||!['ALL','E1','E2'].includes(local)||
+   (admin!=='ALL'&&local!=='ALL'&&admin!==local))
+   throw Error('B09本頁細項篩選與B11後台管理範圍不一致；請調整本頁覆寫');
+  const effective=admin==='ALL'?local:admin;
+  const result=b09Compute_(model,effective,
    $('b09Phase').value||'ALL',start,end);
   const metrics=$('b09Metrics');metrics.replaceChildren();
   const items=[
@@ -1201,12 +1206,16 @@ function b01Render(){
   model.applications.every(a=>a&&typeof a.id==='string'&&typeof a.phase==='string')&&
   model.b06.tasks.every(t=>t&&typeof t.status==='string');
  if(!safe){b01Clear('資料或安全設定未核實；不顯示統計。');return;}
- const applications=model.applications,slots=model.slots;
+ const scope=typeof adminScopeEffective_==='function'?adminScopeEffective_('B01'):'ALL';
+ if(scope===null){b01Clear('後台B01範圍不合法；不顯示統計。');return;}
+ const applications=model.applications.filter(a=>scope==='ALL'||a.experiment===scope),
+  slots=model.slots.filter(s=>scope==='ALL'||s.experiment===scope);
  const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
  const today=new Date(Date.now()+28800000).toISOString().slice(0,10);
  const todays=slots.filter(s=>s.when.slice(0,10)===today&&
   model.b02.sessions[s.id]?.status!=='CANCELLED');
- const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN');
+ const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN'&&
+  (scope==='ALL'||t.experiment===scope||t.experiment==='ALL'));
  const pending=applications.filter(a=>{if(a.phase==='CANCELLED'||!a.slotId)return false;const slot=slots.find(s=>s.id===a.slotId);if(!slot||model.b02.sessions[slot.id]?.status==='CANCELLED')return false;const attendance=model.b02.attendance[a.id];return !attendance||attendance.attendance==='PENDING';});
  const entries=[['不重複申請代碼',unique.size,'申請代碼不代表獨立參與者'],
   ['預約／申請紀錄',applications.length,'不等於獨立參與者人數'],
@@ -1242,7 +1251,8 @@ function b01Render(){
   const detail=document.createElement('small');detail.textContent=note;
   box.append(title,number,detail);cards.append(box);
  }
- $('b01Status').textContent='已依目前虛構資料快照更新｜正式研究目標與完成率：未核准，不計算。';
+ $('b01Status').textContent='已依目前虛構資料快照更新｜檢視範圍 '+scope+
+ '｜正式研究目標與完成率：未核准，不計算。';
 }
 
 
@@ -1337,7 +1347,16 @@ function calOpen(mode,id,person){
  calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
 }
 function calendarRender(){
- if(!calAllowed()){$('calDescription').textContent='載入虛構資料中；尚不能操作。';return;}
+ if(!calAllowed()||adminScopeEffective_('B02')===null){
+  $('calBoard').replaceChildren();
+  $('calDescription').textContent='載入虛構資料或後台檢視範圍中；尚不能操作。';return;
+ }
+ if(cal.id){
+  const selected=model.slots.find(s=>s.id===cal.id);
+  if(selected&&!adminScopeMatch_('B02',selected.experiment)){
+   cal.mode='CLOSED';cal.id=null;cal.person=null;
+  }
+ }
  if(!cal.initialized){
   cal.initialized=true;
   const first=model.slots.find(s=>s.when.slice(0,10)>=calToday())||model.slots[0];
@@ -1352,7 +1371,8 @@ function calendarRender(){
   cell.append(calElem('strong',date+'（'+['日','一','二','三','四','五','六'][calUTC(date).getUTCDay()]+'）'));
   const found=model.slots.filter(s=>{
    const m=calMeta(s);
-   return s.when.startsWith(date)&&(exp==='ALL'||exp===s.experiment)&&
+   return s.when.startsWith(date)&&adminScopeMatch_('B02',s.experiment)&&
+    (exp==='ALL'||exp===s.experiment)&&
     (state==='ALL'||state===m.status)&&
     (!q||[s.id,s.experiment,m.title,m.place].join(' ').toLowerCase().includes(q));
   }).sort((a,b)=>a.when.localeCompare(b.when));
@@ -1372,7 +1392,7 @@ function calendarRender(){
   if(!found.length)cell.append(calElem('span','無符合場次','calEmpty'));
   el.append(cell);
  }
- $('calDescription').textContent=total+' 個符合條件的虛構場次｜'+days[0]+
+ $('calDescription').textContent=total+' 個符合條件的虛構場次｜B11視圖 '+adminScopeEffective_('B02')+'｜'+days[0]+
   (days.length>1?' ～ '+days[days.length-1]:'')+'｜本測試資料上限8個時段';
  calendarPanel();
 }
@@ -1809,13 +1829,14 @@ function b03Latest(a){
 function b03Rows(){
  if(!model||!model.b02||!model.b04)return [];
  const q=$('b03Search').value.trim().toLowerCase(),
-  exp=$('b03Experiment').value,elig=$('b03Eligibility').value,
+  exp=$('b03Experiment').value,scope=adminScopeEffective_('B03'),elig=$('b03Eligibility').value,
   stage=$('b03Stage').value,att=$('b03Attendance').value,
   booking=$('b03Booking').value,order=$('b03Sort').value;
  const result=model.applications.filter(a=>{
   const attendance=model.b02.attendance[a.id]?.attendance||'PENDING';
   const eligible=a.eligible===true?'PASS':a.eligible===false?'FAIL':'PENDING';
   if(q&&![a.id,a.experiment,a.slotId||''].join(' ').toLowerCase().includes(q))return false;
+  if(scope===null||!adminScopeMatch_('B03',a.experiment))return false;
   if(exp!=='ALL'&&a.experiment!==exp)return false;
   if(elig!=='ALL'&&eligible!==elig)return false;
   if(stage!=='ALL'&&b03Category(a)!==stage)return false;
@@ -1842,8 +1863,9 @@ function b03Render(){
  $('b03ListMode').setAttribute('aria-pressed',String(b03.mode==='list'));
  $('b03BoardMode').setAttribute('aria-pressed',String(b03.mode==='board'));
  $('b03Empty').hidden=rows.length!==0;
- $('bookingSummary').textContent='顯示 '+rows.length+'／共 '+model.applications.length+
-  ' 筆｜僅呈現目前可核實資料，正式真人資料尚未啟用';
+ const scopedTotal=model.applications.filter(a=>adminScopeMatch_('B03',a.experiment)).length;
+ $('bookingSummary').textContent='顯示 '+rows.length+'／本頁範圍 '+scopedTotal+
+  ' 筆｜檢視 '+adminScopeEffective_('B03')+'｜正式真人資料尚未啟用';
  for(const a of rows){
   const slot=model.slots.find(x=>x.id===a.slotId),
    ap=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
@@ -2162,7 +2184,8 @@ function b06Render(){
   $('b06Save').disabled=true;b06Message('B06權限或資料格式無法核對，已停用操作。',true);
   return;
  }
- const all=model.b06.tasks,unarchived=all.filter(t=>!t.archived),
+ const all=model.b06.tasks.filter(t=>adminScopeMatch_('B06',t.experiment,true)),
+  unarchived=all.filter(t=>!t.archived),
   opened=unarchived.filter(t=>t.status==='OPEN');
  $('b06Overview').textContent='人工待辦：未完成 '+opened.length+
   ' 件｜已完成 '+(unarchived.length-opened.length)+
@@ -2176,8 +2199,8 @@ function b06Render(){
   (exp==='ALL'||t.experiment===exp||t.experiment==='ALL')&&
   (!query||[t.id,t.title,t.description,t.relationId].join(' ').toLowerCase().includes(query))
  ).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
- $('b06Count').textContent='顯示 '+visible.length+'／共 '+all.length+
-  ' 件人工待辦｜待辦修訂版 '+model.b06.revision;
+ $('b06Count').textContent='顯示 '+visible.length+'／本頁範圍 '+all.length+
+  ' 件人工待辦｜檢視 '+adminScopeEffective_('B06')+'｜待辦修訂版 '+model.b06.revision;
  $('b06Empty').hidden=visible.length!==0;
  const target=$('b06List');target.replaceChildren();
  for(const t of visible){
@@ -2205,7 +2228,10 @@ function b06Render(){
   box.append(actionBox);target.append(box);
  }
  const history=$('b06History');history.replaceChildren();
- const events=model.b06.audit.filter(e=>!b06.historyId||e.taskId===b06.historyId);
+ const allowedIds=new Set(all.map(t=>t.id));
+ if(b06.historyId&&!allowedIds.has(b06.historyId))b06.historyId=null;
+ const events=model.b06.audit.filter(e=>allowedIds.has(e.taskId)&&
+  (!b06.historyId||e.taskId===b06.historyId));
  $('b06HistoryScope').textContent=b06.historyId?'待辦 '+b06.historyId:'全部待辦';
  for(const h of events.slice().reverse())history.append(calElem('div',b06EventText(h),'b06Event'));
  if(!events.length)history.append(calElem('p','目前無可核實歷程。','small'));
@@ -2271,22 +2297,26 @@ function b08Render(){
   $('b08Summary').textContent='通知索引重複，已停止操作';
   b08Message('B08通知索引衝突，請重新讀取。',true);return;
  }
+ const scopedRows=rows.filter(n=>{
+  const a=model.applications.find(x=>x.id===n.id);
+  return adminScopeMatch_('B08',a.experiment);
+ });
  const search=$('b08Search').value.trim().toLowerCase().slice(0,60),
   experiment=$('b08Experiment').value||'ALL',
   event=$('b08Event').value||'ALL',
   status=$('b08StatusFilter').value||'ALL';
- const visible=rows.filter(n=>{
+ const visible=scopedRows.filter(n=>{
   const a=model.applications.find(x=>x.id===n.id);
   return (experiment==='ALL'||a.experiment===experiment)&&
    (event==='ALL'||n.event===event)&&
    (status==='ALL'||n.status===status)&&
    (!search||(n.id+' '+n.event+' '+n.text).toLowerCase().includes(search));
  }).slice().reverse();
- const failed=rows.filter(n=>n.status==='SIM_FAILED').length,
-  pending=rows.filter(n=>n.status==='SIM_PENDING').length,
-  simulated=rows.filter(n=>n.status==='SIM_DELIVERED').length;
- $('b08Summary').textContent='目前顯示 '+visible.length+'／既有 '+rows.length+
-  ' 筆｜待模擬 '+pending+'｜模擬失敗 '+failed+
+ const failed=scopedRows.filter(n=>n.status==='SIM_FAILED').length,
+  pending=scopedRows.filter(n=>n.status==='SIM_PENDING').length,
+  simulated=scopedRows.filter(n=>n.status==='SIM_DELIVERED').length;
+ $('b08Summary').textContent='目前顯示 '+visible.length+'／本頁範圍 '+scopedRows.length+
+  ' 筆｜檢視 '+adminScopeEffective_('B08')+'｜待模擬 '+pending+'｜模擬失敗 '+failed+
   '｜模擬交付成功 '+simulated+'｜全部為虛構通知，無真實寄送';
  for(const n of visible){
   const a=model.applications.find(x=>x.id===n.id);
@@ -2319,7 +2349,8 @@ function b08Attempt(index,result){
  if(!model||busy||model.mode!=='TEST'||model.open!==false||
   model.consentReady!==false||!['FAIL','SIM_OK'].includes(result))return;
  const n=model.notifications.find(row=>row.index===index);
- if(!n||n.status==='SIM_DELIVERED'||n.attempts>=3)return;
+ if(!n||n.status==='SIM_DELIVERED'||n.attempts>=3||
+   !adminScopeMatch_('B08',model.applications.find(a=>a.id===n.id)?.experiment))return;
  // The existing server verifies owner/closed flags, CAS, request id, index,
  // attempt ceiling and real-delivery prohibition BEFORE any fixture write.
  const cmd={action:'ADMIN_NOTIFY_ATTEMPT',payload:{index,result},
