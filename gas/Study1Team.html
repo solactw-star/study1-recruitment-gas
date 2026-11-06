@@ -185,9 +185,23 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 #b01Module{scroll-margin-top:24px} .b01Cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
 .b01Card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#f6faf8}.b01Card strong{display:block;font-size:25px}
 .b01Links{display:flex;gap:10px;flex-wrap:wrap}.b01Links a{padding:9px 13px;border:1px solid var(--line);border-radius:9px;color:var(--teal)}
+/* B09 read-only REPORT: same owner TEST snapshot, no export or side effects. */
+#b09Module{scroll-margin-top:24px}
+.b09Filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.b09Filters label{font-size:13px;font-weight:700}
+.b09Metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin:14px 0}
+.b09Metric{border:1px solid var(--line);border-radius:10px;background:#f6faf8;padding:12px}
+.b09Metric strong{display:block;font-size:22px;margin:3px 0}
+.b09TableWrap{width:100%;overflow-x:auto}
+.b09Table{border-collapse:collapse;width:100%;min-width:610px}
+.b09Table th,.b09Table td{padding:10px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}
+.b09Table th{background:#f2f8f5}
+@media(max-width:800px){.b09Filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.b09Filters{grid-template-columns:1fr}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#b01Module">研究總覽</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -200,6 +214,24 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p id="b01Status" role="status" aria-live="polite">正在核對研究安全設定與資料…</p>
  <div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
  <div class="b01Links"><a href="#calendarModule">查看研究行事曆</a><a href="#b03Module">查看參與者名單</a><a href="#b06Module">查看人工待辦</a></div>
+</section>
+
+<section class="panel" id="b09Module" aria-labelledby="b09Heading">
+ <span class="tag">B09｜統計報表（P2-05）</span><h2 id="b09Heading">虛構資料研究階段與場次日期統計</h2>
+ <p class="sub">與B01、B02、B03、B04、B05、B06及B08共用同一份原網站隔離測試快照。申請記錄沒有可信的報名日期，因此日期篩選<strong>只限制場次日期與關聯出席／施測</strong>，不推算報名趨勢、歷史階段完成或真人參與者人數。</p>
+ <div class="b09Filters">
+  <label for="b09Scope">實驗範圍<select id="b09Scope"><option value="ALL">實驗一＋二</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <label for="b09Phase">目前申請階段<select id="b09Phase"><option value="ALL">全部目前狀態</option><option value="STARTED">已開始</option><option value="INELIGIBLE">初篩未通過</option><option value="SCREENED">初篩已完成</option><option value="OTP_SENT">虛構驗證碼待核</option><option value="VERIFIED">虛構驗證完成</option><option value="HELD">虛構暫留</option><option value="CONSENTED">虛構同意示範</option><option value="CONFIRMED">虛構預約成立</option><option value="CANCELLED">已取消申請</option></select></label>
+  <label for="b09Start">場次起始日期（臺灣）<input id="b09Start" type="date"></label>
+  <label for="b09End">場次結束日期（含當日）<input id="b09End" type="date"></label>
+ </div>
+ <div class="b06Actions"><button type="button" id="b09Apply" class="secondary">重新計算</button><button type="button" id="b09Reset" class="secondary">清除篩選</button><span id="b09Status" role="status" aria-live="polite" class="small">尚未核對虛構資料。</span></div>
+ <div id="b09Metrics" class="b09Metrics" aria-label="統計數值、分子、分母與排除條件"></div>
+ <h3>依實驗統計（不重複虛構申請代碼）</h3>
+ <div class="b09TableWrap"><table class="b09Table"><thead><tr><th scope="col">實驗</th><th scope="col">申請代碼／全期</th><th scope="col">初篩通過／已評估</th><th scope="col">未取消且具場次關聯／期間</th><th scope="col">預約成立／期間</th><th scope="col">出席／期間</th><th scope="col">施測行政完成／期間</th></tr></thead><tbody id="b09ByExperiment"></tbody></table></div>
+ <h3>按場次日期分布（不是報名日期趨勢）</h3>
+ <div class="b09TableWrap"><table class="b09Table"><thead><tr><th scope="col">臺灣場次日期</th><th scope="col">未取消場次</th><th scope="col">有效關聯申請代碼</th><th scope="col">預約成立</th><th scope="col">出席（含遲到）</th><th scope="col">施測行政完成</th></tr></thead><tbody id="b09Trend"></tbody></table></div>
+ <p id="b09Notes" class="small">報名日期、候補紀錄、正式研究目標、真人身分去重與正式匯出均尚未核准或沒有資料，不以0代替缺值。</p>
 </section>
 
 <section class="panel" id="calendarModule" aria-labelledby="calHeading">
@@ -535,11 +567,206 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- displaySlots();displayWeeks();b01Render();calendarRender();profileRender();b05Render();
+ displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
+
+/* B09: purely derived from the already owner-authorized TEST view.
+ * No GAS RPC, download, storage key, or synthetic registration-date inference. */
+function b09DateValid_(value){
+ if(value==='')return true;
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+ const d=new Date(value+'T00:00:00Z');
+ return !Number.isNaN(d.getTime())&&d.toISOString().slice(0,10)===value;
+}
+function b09Compute_(data,scope,phase,start,end){
+ const phases=['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD',
+  'CONSENTED','CONFIRMED','CANCELLED'];
+ if(!data||data.mode!=='TEST'||data.open!==false||
+  data.consentReady!==false||!data.formalReadiness||
+  data.formalReadiness.activationAllowed!==false||!data.formalPorts||
+  data.formalPorts.activated!==false||
+  !['ALL','E1','E2'].includes(scope)||!['ALL',...phases].includes(phase)||
+  !b09DateValid_(start)||!b09DateValid_(end)||(start&&end&&start>end)||
+  !Array.isArray(data.applications)||data.applications.length>8||
+  !Array.isArray(data.slots)||data.slots.length>8||!data.b02||
+  !data.b02.sessions||!data.b02.attendance||!data.b06||
+  !Array.isArray(data.b06.tasks)||!Array.isArray(data.notifications))
+  throw Error('B09範圍、日期、來源或正式安全門檻不合法');
+ const slotMap=new Map(),appMap=new Map(),attendance=data.b02.attendance;
+ for(const slot of data.slots){
+  const day=typeof slot.when==='string'?slot.when.slice(0,10):'';
+  if(!slot||!/^SIM-SLOT-E[12]-[A-Z]$/.test(slot.id)||
+   !['E1','E2'].includes(slot.experiment)||
+   !slot.id.startsWith('SIM-SLOT-'+slot.experiment+'-')||
+   !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(slot.when)||
+   !b09DateValid_(day)||!Number.isFinite(Date.parse(slot.when.replace(' ','T')+':00+08:00'))||
+   slotMap.has(slot.id)||!Number.isSafeInteger(slot.capacity)||
+   slot.capacity<1||slot.capacity>20)
+   throw Error('B09場次來源日期、實驗、容量或代碼不一致');
+  slotMap.set(slot.id,slot);
+ }
+ for(const [id,meta] of Object.entries(data.b02.sessions)){
+  if(!slotMap.has(id)||!meta||!['OPEN','CANCELLED','CLOSED'].includes(meta.status))
+   throw Error('B09場次管理來源無法核實');
+ }
+ for(const app of data.applications){
+  if(!app||!/^SIM-\d{3}$/.test(app.id)||appMap.has(app.id)||
+   !['E1','E2'].includes(app.experiment)||!phases.includes(app.phase)||
+   ![null,true,false].includes(app.eligible)||
+   (app.slotId!==null&&(!slotMap.has(app.slotId)||
+    slotMap.get(app.slotId).experiment!==app.experiment)))
+   throw Error('B09申請代碼、階段、資格或場次關聯無法核實');
+  appMap.set(app.id,app);
+ }
+ for(const [id,a] of Object.entries(attendance)){
+  if(!appMap.has(id)||!a||
+   !['PENDING','PRESENT','LATE','ABSENT'].includes(a.attendance)||
+   !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(a.progress))
+   throw Error('B09出席及施測來源無法核實');
+ }
+ for(const task of data.b06.tasks){
+  if(!task||!/^SIM-TASK-\d{6}$/.test(task.id)||
+   !['ALL','E1','E2'].includes(task.experiment)||
+   !['OPEN','DONE'].includes(task.status)||typeof task.archived!=='boolean')
+   throw Error('B09待辦來源無法核實');
+ }
+ for(const n of data.notifications){
+  if(!n||!appMap.has(n.id)||
+   !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(n.status))
+   throw Error('B09通知來源無法核實');
+ }
+ const exps=scope==='ALL'?['E1','E2']:[scope];
+ const byExperiment=[];
+ const trend=new Map();
+ const allSlots=data.slots.filter(s=>exps.includes(s.experiment)&&
+   (!start||s.when.slice(0,10)>=start)&&(!end||s.when.slice(0,10)<=end));
+ for(const s of allSlots){
+  const day=s.when.slice(0,10);
+  if(!trend.has(day))trend.set(day,{date:day,sessions:0,associated:0,
+   confirmed:0,present:0,complete:0});
+  if(data.b02.sessions[s.id]?.status!=='CANCELLED')trend.get(day).sessions++;
+ }
+ for(const exp of exps){
+  const apps=data.applications.filter(a=>a.experiment===exp&&
+   (phase==='ALL'||a.phase===phase));
+  const relevant=allSlots.filter(s=>s.experiment===exp);
+  const liveSlots=relevant.filter(s=>data.b02.sessions[s.id]?.status!=='CANCELLED');
+  const liveIds=new Set(liveSlots.map(s=>s.id));
+  const linked=apps.filter(a=>a.phase!=='CANCELLED'&&a.slotId&&liveIds.has(a.slotId));
+  const confirmed=linked.filter(a=>a.phase==='CONFIRMED');
+  const present=linked.filter(a=>['PRESENT','LATE'].includes(attendance[a.id]?.attendance));
+  const marked=linked.filter(a=>['PRESENT','LATE','ABSENT'].includes(attendance[a.id]?.attendance));
+  const complete=linked.filter(a=>attendance[a.id]?.progress==='COMPLETE');
+  const screened=apps.filter(a=>typeof a.eligible==='boolean');
+  const passed=screened.filter(a=>a.eligible===true);
+  for(const a of linked){
+   const slot=slotMap.get(a.slotId),day=slot.when.slice(0,10),item=trend.get(day);
+   item.associated++;
+   if(a.phase==='CONFIRMED')item.confirmed++;
+   if(['PRESENT','LATE'].includes(attendance[a.id]?.attendance))item.present++;
+   if(attendance[a.id]?.progress==='COMPLETE')item.complete++;
+  }
+  byExperiment.push({experiment:exp,applications:apps.length,screened:screened.length,
+   passed:passed.length,ineligible:screened.length-passed.length,
+   sessions:liveSlots.length,cancelledSessions:relevant.length-liveSlots.length,
+   linked:linked.length,confirmed:confirmed.length,present:present.length,
+   attendanceRecorded:marked.length,absent:linked.filter(a=>attendance[a.id]?.attendance==='ABSENT').length,
+   complete:complete.length,
+   phases:Object.fromEntries(phases.map(p=>[p,apps.filter(a=>a.phase===p).length]))});
+ }
+ const sum=key=>byExperiment.reduce((n,g)=>n+g[key],0);
+ const relevantApps=data.applications.filter(a=>exps.includes(a.experiment));
+ const activeTasks=data.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN'&&
+  (t.experiment==='ALL'||exps.includes(t.experiment))).length;
+ const failedNotifications=data.notifications.filter(n=>n.status==='SIM_FAILED'&&
+  exps.includes(appMap.get(n.id).experiment)).length;
+ return {byExperiment,trend:[...trend.values()].sort((a,b)=>a.date.localeCompare(b.date)),
+  applications:sum('applications'),screened:sum('screened'),passed:sum('passed'),
+  sessions:sum('sessions'),cancelledSessions:sum('cancelledSessions'),
+  linked:sum('linked'),confirmed:sum('confirmed'),present:sum('present'),
+  attendanceRecorded:sum('attendanceRecorded'),complete:sum('complete'),
+  absent:sum('absent'),activeTasks,failedNotifications,
+  // Existing summary B01's all-time record count must stay consistent.
+  allTimeApplicationCodes:new Set(relevantApps.map(a=>a.id)).size,
+  scope,phase,start,end};
+}
+function b09Rate_(numerator,denominator){
+ return denominator?numerator+'/'+denominator+'（'+
+  (numerator*100/denominator).toFixed(1)+'%）':'—（分母0，不計比例）';
+}
+function b09Clear_(msg){
+ $('b09Metrics').replaceChildren();$('b09ByExperiment').replaceChildren();
+ $('b09Trend').replaceChildren();$('b09Status').textContent=msg;
+}
+function b09Render(){
+ if(!model){b09Clear_('無授權資料快照，報表已清空');return;}
+ try{
+  const start=$('b09Start').value,end=$('b09End').value;
+  const result=b09Compute_(model,$('b09Scope').value||'ALL',
+   $('b09Phase').value||'ALL',start,end);
+  const metrics=$('b09Metrics');metrics.replaceChildren();
+  const items=[
+   ['全期目前階段申請代碼',result.applications,'單位：不重複虛構申請代碼；不依場次日期過濾'],
+   ['初篩通過／已評估',b09Rate_(result.passed,result.screened),
+    '分母：此實驗與目前階段條件中，已有初篩布林結果的申請代碼'],
+   ['期間未取消場次',result.sessions,'單位：場次ID；不計取消場次'],
+   ['期間具有效場次關聯代碼',result.linked,'單位：申請代碼；排除取消申請／取消場次／無關聯'],
+   ['期間已成立預約',b09Rate_(result.confirmed,result.linked),
+    '分母：期間內未取消且有未取消場次關聯的申請代碼'],
+   ['期間出席（含遲到）',b09Rate_(result.present,result.linked),
+    '分母：期間有效關聯申請代碼；缺出席資料不是缺席'],
+   ['期間施測行政進度完成',b09Rate_(result.complete,result.linked),
+    '分母：期間有效關聯申請代碼；不是正式研究完成率'],
+   ['期間已記錄出席結果',b09Rate_(result.attendanceRecorded,result.linked),
+    '包含出席、遲到、缺席；未記錄不當作缺席'],
+   ['期間取消場次',result.cancelledSessions,'單位：場次ID；不計入有效預約分母'],
+   ['目前未完成人工待辦',result.activeTasks,'B06現況；不受場次日期與申請階段限制'],
+   ['目前虛構通知失敗',result.failedNotifications,'B08現況；不受場次日期與申請階段限制']
+  ];
+  for(const [label,value,note] of items){
+   const card=calElem('div',undefined,'b09Metric');
+   card.append(calElem('span',label),calElem('strong',String(value)),
+    calElem('small',note));metrics.append(card);
+  }
+  const table=$('b09ByExperiment');table.replaceChildren();
+  for(const x of result.byExperiment){
+   const tr=calElem('tr');
+   for(const cell of [x.experiment,x.applications,b09Rate_(x.passed,x.screened),
+     x.linked,x.confirmed,x.present,x.complete])
+    tr.append(calElem('td',String(cell)));
+   table.append(tr);
+  }
+  const trend=$('b09Trend');trend.replaceChildren();
+  for(const t of result.trend){
+   const tr=calElem('tr');
+   for(const cell of [t.date,t.sessions,t.associated,t.confirmed,t.present,t.complete])
+    tr.append(calElem('td',String(cell)));
+   trend.append(tr);
+  }
+  if(!result.trend.length){
+   const tr=calElem('tr');const td=calElem('td',
+    '所選日期沒有可核實的虛構場次，不能據此推定沒有申請。');
+   td.colSpan=6;tr.append(td);trend.append(tr);
+  }
+  $('b09Status').textContent='已核對同一 TEST 快照｜實驗：'+result.scope+
+   '｜目前階段：'+result.phase+'｜場次日期：'+(result.start||'不限')+
+   ' 至 '+(result.end||'不限')+'｜已核實修訂版 '+model.revision;
+  $('b09Notes').textContent='方法：全期申請／初篩不套用場次日期；期間數字只用場次日期與目前場次關聯。每個申請代碼每個實驗只計一次；此系統沒有跨申請代碼的真人身分去重、可信報名時間、候補狀態、正式完成認定或核准目標。B06/B08只顯示目前現況。正式CSV／XLSX匯出與資料讀寫一律未開放。';
+ }catch(error){
+  b09Clear_('B09來源或日期範圍無法核實，報表已清空：'+String(error.message||error));
+ }
+}
+$('b09Apply').addEventListener('click',b09Render);
+$('b09Reset').addEventListener('click',()=>{
+ for(const id of ['b09Scope','b09Phase'])$(id).value='ALL';
+ $('b09Start').value='';$('b09End').value='';b09Render();
+});
+for(const id of ['b09Scope','b09Phase'])$(id).addEventListener('change',b09Render);
+for(const id of ['b09Start','b09End'])$(id).addEventListener('change',b09Render);
+
 function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
