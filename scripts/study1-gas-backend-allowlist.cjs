@@ -184,6 +184,11 @@ function assertUnifiedFlow(source){
    "if(beforeBytes!==initialStored)",
    "study1UnifiedRestoreOwnedWrite_(prop,STUDY1_UNIFIED_FIXTURE_KEY_,beforeBytes,stored)",
    "throw Error('資料寫入狀態不明或發生競寫",
+   "const STUDY1_B01_LAYOUT_KEY_='STUDY1_B01_OWNER_LAYOUT_V1'",
+   "function study1UnifiedB01LayoutGet(){","function study1UnifiedB01LayoutSave(command){",
+   "study1B01LayoutVerify_(state)",
+   "props.setProperty(STUDY1_B01_LAYOUT_KEY_,raw)",
+   "study1UnifiedRestoreOwnedWrite_(props,STUDY1_B01_LAYOUT_KEY_,before,raw)",
    "const STUDY1_B06_TASK_KEY_='STUDY1_B06_TASKS_V1'",
    "function study1UnifiedB06Command(command)",
    "function study1B06Apply_(state,command,source,now)",
@@ -225,6 +230,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1UnifiedB11FormalPublish_',
   'study1B07Initial_','study1B07Verify_','study1B07PendingSummary_',
+  'study1B01LayoutInitial_','study1B01LayoutVerify_','study1B01LayoutRead_',
+  'study1B01LayoutView_','study1UnifiedB01LayoutGet','study1UnifiedB01LayoutSave',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
   'study1B12AuditBuild_','study1B12AuditPage_',
@@ -318,6 +325,10 @@ function assertTeamHtml(html){
     !html.includes('id="b01LayoutPanel"')||
     !html.includes('id="b01LayoutControls"')||
     !html.includes('id="b01LayoutReset"')||
+    !html.includes('id="b01LayoutSave"')||
+    !html.includes("function b01LayoutSave_()")||
+    !html.includes("study1UnifiedB01LayoutGet()")||
+    !html.includes("study1UnifiedB01LayoutSave({order,hidden,")||
     !html.includes('function b01LayoutRender_()')||
     !html.includes("b01LayoutReset').addEventListener('click'")||
     !html.includes('只調整目前OWNER管理頁的排列及可見性')||
