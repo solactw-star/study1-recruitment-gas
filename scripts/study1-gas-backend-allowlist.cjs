@@ -292,6 +292,12 @@ function assertTeamHtml(html){
     !html.includes("adminScopeMatch_('B08',a.experiment)")||
     !html.includes("adminScopeEffective_('B09')")||
     !html.includes('後台研究範圍不合法')||
+    !html.includes('id="b07Module"')||!html.includes('id="b07Rows"')||
+    !html.includes('id="b07History"')||!html.includes('id="b07Experiment"')||
+    !html.includes("function b07Valid_()")||
+    !html.includes("function b07Save_(id,status,reason)")||
+    !html.includes("action:'ADMIN_B07_REVIEW'")||
+    !html.includes('正式補貼核准／金額／發放：全部未啟用')||
     !html.includes('id="b01LayoutPanel"')||
     !html.includes('id="b01LayoutControls"')||
     !html.includes('id="b01LayoutReset"')||
