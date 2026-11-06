@@ -116,7 +116,7 @@ test('B01 derived summary reconciles bookings, attendance, progress and anomalie
 
 test('B01 rejects malformed cross-module snapshots without showing stale cards',()=>{
  const vm=require('node:vm');
- const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\\nfunction load(){',html.indexOf('function b01Clear(')));
+ const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
  const cards={children:[{old:true}],replaceChildren(){this.children=[];},append(node){this.children.push(node);}};
  const status={textContent:'previous successful snapshot'};
  const context={model:{mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
