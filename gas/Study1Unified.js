@@ -136,6 +136,12 @@ function study1UnifiedNotify_(s,a,event){
   text:'〔SIM '+labels[event]+'〕'+s.config.emailTemplate+'（僅預覽，未寄送）',
   status:'SIM_PENDING',attempts:0,lastError:null});
 }
+/* B11 formal publication is explicitly forbidden until REC, data governance,
+ * real roles and content approval are independently verified. Private GAS
+ * function names ending in _ cannot be called from google.script.run. */
+function study1UnifiedB11FormalPublish_(){
+ throw Error('B11正式網站發布未經REC及資料權責核准，拒絕執行');
+}
 function study1UnifiedProductionAdapter_(){
  // Explicit fail-closed contract for the future approved production adapter.
  // No Sheets, Drive, Mail, real participant or REC operation is possible here.
@@ -1287,7 +1293,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -1464,6 +1470,43 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     reason:p.reason.trim(),actor:'OWNER',at:new Date(now).toISOString()});
   s.b04.history=s.b04.history.slice(-30);
   return;
+ }
+ /* Atomic B11 configuration change to the existing synthetic fixture.
+  * The top-level transaction already checks owner, CLOSED flags, ScriptLock,
+  * expectedRevision, idempotency, rollback and post-write readback. */
+ if(action==='ADMIN_B11_SETTINGS'){
+  if(Object.keys(p).sort().join(',')!=='modes,release,scope,site'||
+    p.release!=='TEST_ONLY'||!['E1','E2','ALL'].includes(p.scope)||
+    !p.modes||typeof p.modes!=='object'||Array.isArray(p.modes))
+   throw Error('B11僅允許指定實驗範圍的虛構設定，不允許正式發布');
+  const selected=p.scope==='ALL'?['E1','E2']:[p.scope];
+  if(Object.keys(p.modes).sort().join(',')!==selected.slice().sort().join(','))
+   throw Error('B11實驗範圍與修改欄位不一致');
+  const nextRecruitment=JSON.parse(JSON.stringify(s.recruitment));
+  for(const exp of selected){
+   const mode=p.modes[exp];
+   if(typeof mode!=='string'||!['DEMO_OPEN','COMING_SOON','HIDDEN'].includes(mode))
+    throw Error('B11只能選擇已核准的虛構網站顯示模式');
+   nextRecruitment[exp]={year:exp==='E1'?2026:2027,mode};
+  }
+  study1UnifiedValidateRecruitment_(nextRecruitment);
+  let nextConfig=s.config;
+  if(p.site!==null){
+   if(!p.site||typeof p.site!=='object'||Array.isArray(p.site)||
+     Object.keys(p.site).sort().join(',')!=='emailTemplate,notice,title'||
+     typeof p.site.title!=='string'||p.site.title.length>160||
+     typeof p.site.notice!=='string'||p.site.notice.length>200||
+     typeof p.site.emailTemplate!=='string'||p.site.emailTemplate.length>200||
+     Object.values(p.site).some(x=>/[<>]/.test(x)))
+    throw Error('B11虛構全站文字草稿欄位不合法');
+   nextConfig={title:p.site.title,notice:p.site.notice,
+     emailTemplate:p.site.emailTemplate};
+  }
+  if(JSON.stringify(nextRecruitment)===JSON.stringify(s.recruitment)&&
+     JSON.stringify(nextConfig)===JSON.stringify(s.config))
+   throw Error('B11沒有實質設定變更，無需新增測試交易');
+  s.recruitment=nextRecruitment;s.config=nextConfig;
+  return; // Explicit TEST_ONLY; no REC, approval, real mail, or deployment.
  }
  if(action==='ADMIN_EDIT'){
   if(Object.keys(p).sort().join(',')!=='emailTemplate,notice,title'||
