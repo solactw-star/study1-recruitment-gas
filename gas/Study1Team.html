@@ -169,11 +169,21 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b12Values pre{white-space:pre-wrap;word-break:break-word;margin:6px 0;font-size:12px}
 @media(max-width:760px){.b12Tools{grid-template-columns:1fr 1fr}.b12Values{grid-template-columns:1fr}}
 @media(max-width:480px){.b12Tools{grid-template-columns:1fr}}
+/* B08: existing bounded synthetic notification source, no live delivery */
+#b08Module{scroll-margin-top:24px}
+.b08Tools{display:grid;grid-template-columns:1.6fr repeat(3,minmax(0,1fr));gap:10px}
+.b08Tools label{font-size:13px;font-weight:700}
+.b08List{display:grid;gap:12px;margin:14px 0}
+.b08Card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;overflow-wrap:anywhere}
+.b08Card p{margin:5px 0 10px;font-size:13px;white-space:pre-wrap}
+.b08Content{background:#f5faf8;border:1px solid var(--line);border-radius:8px;padding:12px;white-space:pre-wrap;word-break:break-word;font-size:13px}
+@media(max-width:780px){.b08Tools{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.b08Tools{grid-template-columns:1fr}}
 
 
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -425,6 +435,22 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p class="small">目前原 GAS owner 僅管理虛構資料；PI／RA正式帳號、真人個資及大量持久化資料庫尚待正式授權。封存不刪除紀錄、不自動寄信。</p>
 </section>
 
+<section class="panel" id="b08Module" aria-labelledby="b08Heading">
+ <span class="tag">B08｜虛構通知管理（P2-03）</span>
+ <h2 id="b08Heading">通知狀態、原內容及人工模擬重試</h2>
+ <p class="sub">僅使用原 GAS owner 的既有 TEST 通知紀錄，最多15筆，與研究首頁示範流程共用來源。所有操作都不會發信；「模擬交付成功」不等於信件真正寄送、送達或閱讀，也不自動建立B06待辦。</p>
+ <div class="b08Tools">
+  <label for="b08Search">虛構代碼或原通知內容<input id="b08Search" type="search" maxlength="60" placeholder="例如：SIM-001／確認"></label>
+  <label for="b08Experiment">實驗<select id="b08Experiment"><option value="ALL">兩者</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <label for="b08Event">事件<select id="b08Event"><option value="ALL">全部</option><option value="CONFIRM">確認</option><option value="MOVE">改期</option><option value="CANCEL">取消</option></select></label>
+  <label for="b08StatusFilter">模擬狀態<select id="b08StatusFilter"><option value="ALL">全部</option><option value="SIM_PENDING">待模擬</option><option value="SIM_FAILED">模擬失敗</option><option value="SIM_DELIVERED">模擬交付成功</option></select></label>
+ </div>
+ <p id="b08Summary" class="small" aria-live="polite">載入虛構通知紀錄中…</p>
+ <div id="b08List" class="b08List" aria-label="虛構通知紀錄、內容、失敗原因及操作"></div>
+ <p id="b08Message" class="small" role="status" aria-live="polite">這裡不支援真實寄送、匯出或自動補寄。</p>
+ <p class="small">原始通知文字於建立當下封存，日後修改頁面通知範本不回寫舊文字。這是有上限的示範資料，尚無正式範本版本核准、寄送服務回執、送達證據或保存政策。</p>
+</section>
+
 <section class="panel" id="b12Module" aria-labelledby="b12Heading">
  <span class="tag">B12｜原網站唯讀稽核</span><h2 id="b12Heading">虛構資料操作歷程與異常狀態</h2>
  <p class="sub">僅原 GAS owner 可以查詢。B02只保留動作、時間與虛構代碼；B04／B05為有限前後值歷程；B06的SHA256鏈可驗證。跨來源對照找不到事件可能只是截斷，不可推定遭刪除。B08顯示虛構通知失敗<strong>現況</strong>，並非歷史事件。沒有正式稽核匯出或永久不可改寫庫。</p>
@@ -498,7 +524,7 @@ function render(data){
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
  displaySlots();displayWeeks();calendarRender();profileRender();b05Render();
- b03Render();b06Render();
+ b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
@@ -1489,6 +1515,110 @@ function b06Init(){
 }
 b06Init();
 
+
+
+/* B08 only reuses the existing owner-guarded synthetic command and 15-row
+ * notification snapshot. No new endpoint, recipient information or mail port. */
+function b08Message(text,error=false){
+ $('b08Message').textContent=text;
+ $('b08Message').style.color=error?'#ac3530':'#476f68';
+}
+function b08StatusName(status){
+ return {SIM_PENDING:'待模擬處理（未寄信）',
+  SIM_FAILED:'模擬失敗（未寄信）',
+  SIM_DELIVERED:'模擬交付成功（未寄信／非送達證明）'}[status]||'未知狀態';
+}
+function b08Render(){
+ if(!model)return;
+ const target=$('b08List');target.replaceChildren();
+ const rows=model.notifications;
+ if(!Array.isArray(rows)||rows.length>15||!Array.isArray(model.applications)||
+  rows.some(n=>!n||!/^SIM-\d{3}$/.test(n.id)||
+   !Number.isSafeInteger(n.index)||n.index<0||n.index>14||
+   !['CONFIRM','MOVE','CANCEL'].includes(n.event)||
+   !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(n.status)||
+   !Number.isSafeInteger(n.attempts)||n.attempts<0||n.attempts>3||
+   typeof n.text!=='string'||n.text.length>650||
+   !n.text.includes('（僅預覽，未寄送）')||
+   (n.lastError!==null&&n.lastError!=='SIMULATED_FAILURE')||
+   (n.status==='SIM_FAILED'&&n.lastError!=='SIMULATED_FAILURE')||
+   !model.applications.some(a=>a.id===n.id&&['E1','E2'].includes(a.experiment)))){
+  $('b08Summary').textContent='通知來源或狀態無法核實，停止顯示及操作';
+  b08Message('B08來源資料驗證失敗；請核對原示範資料，不得模擬重試。',true);
+  return;
+ }
+ const seen=new Set();
+ if(rows.some(n=>seen.has(n.index)||(seen.add(n.index),false))){
+  $('b08Summary').textContent='通知索引重複，已停止操作';
+  b08Message('B08通知索引衝突，請重新讀取。',true);return;
+ }
+ const search=$('b08Search').value.trim().toLowerCase().slice(0,60),
+  experiment=$('b08Experiment').value||'ALL',
+  event=$('b08Event').value||'ALL',
+  status=$('b08StatusFilter').value||'ALL';
+ const visible=rows.filter(n=>{
+  const a=model.applications.find(x=>x.id===n.id);
+  return (experiment==='ALL'||a.experiment===experiment)&&
+   (event==='ALL'||n.event===event)&&
+   (status==='ALL'||n.status===status)&&
+   (!search||(n.id+' '+n.event+' '+n.text).toLowerCase().includes(search));
+ }).slice().reverse();
+ const failed=rows.filter(n=>n.status==='SIM_FAILED').length,
+  pending=rows.filter(n=>n.status==='SIM_PENDING').length,
+  simulated=rows.filter(n=>n.status==='SIM_DELIVERED').length;
+ $('b08Summary').textContent='目前顯示 '+visible.length+'／既有 '+rows.length+
+  ' 筆｜待模擬 '+pending+'｜模擬失敗 '+failed+
+  '｜模擬交付成功 '+simulated+'｜全部為虛構通知，無真實寄送';
+ for(const n of visible){
+  const a=model.applications.find(x=>x.id===n.id);
+  const card=calElem('article',undefined,'b08Card');
+  card.append(calElem('strong',n.id+'｜'+a.experiment+'｜'+
+   ({CONFIRM:'確認',MOVE:'改期',CANCEL:'取消'}[n.event])),
+   calElem('p',b08StatusName(n.status)+'｜虛構嘗試 '+n.attempts+'/3｜來源序號 '+n.index,'small'));
+  card.append(calElem('div',n.text,'b08Content'));
+  if(n.lastError==='SIMULATED_FAILURE')
+   card.append(calElem('p','最近一次結果：SIMULATED_FAILURE（純測試錯誤，不是郵件服務回執）','small'));
+  const canAttempt=!busy&&n.status!=='SIM_DELIVERED'&&n.attempts<3;
+  const controls=calElem('div',undefined,'b06Actions');
+  for(const [result,label] of [['FAIL','模擬失敗'],['SIM_OK','模擬交付成功（不寄信）']]){
+   const button=calElem('button',label,'secondary');
+   button.type='button';button.disabled=!canAttempt;
+   button.addEventListener('click',()=>b08Attempt(n.index,result));
+   controls.append(button);
+  }
+  if(n.status==='SIM_DELIVERED')
+   controls.append(calElem('span','模擬流程已結束，不可再次嘗試','small'));
+  else if(n.attempts>=3)
+   controls.append(calElem('span','已達三次模擬上限，不可再次嘗試','small'));
+  card.append(controls);target.append(card);
+ }
+ if(!visible.length)target.append(calElem('p',
+  rows.length?'沒有符合篩選條件的虛構通知。':
+  '目前沒有虛構通知；原研究首頁 Demo 完成虛構預約操作後才會產生，絕不自動寄信。','small'));
+}
+function b08Attempt(index,result){
+ if(!model||busy||model.mode!=='TEST'||model.open!==false||
+  model.consentReady!==false||!['FAIL','SIM_OK'].includes(result))return;
+ const n=model.notifications.find(row=>row.index===index);
+ if(!n||n.status==='SIM_DELIVERED'||n.attempts>=3)return;
+ // The existing server verifies owner/closed flags, CAS, request id, index,
+ // attempt ceiling and real-delivery prohibition BEFORE any fixture write.
+ const cmd={action:'ADMIN_NOTIFY_ATTEMPT',payload:{index,result},
+  requestId:'REQ-SIM-B08_'+Date.now()+'_'+Math.floor(Math.random()*1e6),
+  expectedRevision:model.revision};
+ setBusy(true);b08Render();
+ b08Message('執行虛構通知狀態模擬，沒有連接寄信服務。');
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data))b08Message('已回讀更新後虛構狀態；沒有寄送真實郵件。');
+ }).withFailureHandler(error=>{
+  setBusy(false);b08Render();
+  b08Message('模擬未完成：'+String(error.message||error)+
+   '。如遇競寫請重新載入，不推定狀態已成功。',true);
+ }).study1UnifiedPreviewCommand(cmd);
+}
+for(const id of ['b08Experiment','b08Event','b08StatusFilter'])
+ $(id).addEventListener('change',b08Render);
+$('b08Search').addEventListener('input',b08Render);
 
 /* B12: display object fields via textContent, never a JSON editor or HTML injection. */
 function b12ValueText(value){
