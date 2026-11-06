@@ -693,3 +693,26 @@ test('B11 rejects publishing, scoped tamper, invalid content, no-op, stale CAS a
   assert.equal(untrusted.writes,0);
  }
 });
+
+test('B07 TEST item: E1/E2 stage, classification and duplicate prevention on original owner key',()=>{
+ const x=setup();x.cmd('START',{experiment:'E1'});x.cmd('START',{experiment:'E2'});
+ const before=x.read(),writes=x.writes;
+ const a=x.cmd('ADMIN_B07_RECORD',{operation:'CREATE',applicationId:'SIM-001',
+  experiment:'E1',stage:'E1_SESSION',item:'TRANSPORT_DEMO',
+  status:'PENDING_REVIEW',notes:'測試行政標記',reason:'人工建立虛構測試'});
+ assert.equal(a.b07.records.length,1);assert.equal(a.b07.records[0].id,'SIM-B07-001');
+ assert.equal(a.b07.records[0].amount,null);assert.equal(a.b07.records[0].receiptRef,null);
+ assert.equal(a.b07.records[0].approval,'PENDING');assert.equal(a.b07.payoutEnabled,false);
+ assert.equal(a.b07.formalAmountsVerified,false);assert.equal(a.b07.history.length,1);
+ assert.equal(a.b07.history[0].before,null);assert.equal(a.b07.history[0].after.status,'PENDING_REVIEW');
+ assert.equal(x.writes,writes+1);
+ assert.throws(()=>x.cmd('ADMIN_B07_RECORD',{operation:'CREATE',applicationId:'SIM-001',
+  experiment:'E1',stage:'E1_SESSION',item:'TRANSPORT_DEMO',
+  status:'PENDING_REVIEW',notes:'第二筆',reason:'不應重複建立'}),/重複/);
+ assert.throws(()=>x.cmd('ADMIN_B07_RECORD',{operation:'CREATE',applicationId:'SIM-002',
+  experiment:'E2',stage:'E1_SESSION',item:'PARTICIPATION_DEMO',
+  status:'PENDING_REVIEW',notes:'錯誤階段',reason:'禁止跨實驗操作'}));
+ assert.equal(x.writes,writes+1);
+ assert.equal(x.p.get('OPEN'),'false');assert.equal(x.p.get('CONSENT_READY'),'false');
+ assert.equal(x.p.has('STUDY1_B07_PAYMENTS_V1'),false);
+});
