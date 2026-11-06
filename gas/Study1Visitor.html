@@ -41,6 +41,24 @@ label.check input{width:21px;height:21px;margin-top:5px;accent-color:var(--sea);
 .receipt h2{color:#17604c}dl{display:grid;grid-template-columns:120px 1fr;gap:9px;margin:15px 0}dt{font-weight:800}dd{margin:0}
 footer{max-width:1010px;margin:auto;padding:20px 18px 42px;text-align:center;color:var(--muted);font-size:13px}
 a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding:10px 18px;text-decoration:none;font-weight:700}
+
+/* V05 synthetic date and session picker uses the same owner-only view. */
+.v05Calendar{margin:12px 0 18px;border:1px solid var(--line);padding:13px;border-radius:14px;background:#f8fcfa}
+.v05MonthBar{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.v05MonthBar strong{font-size:17px}
+.v05MonthBar button{min-height:44px;padding:7px 12px}
+.v05Grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.v05Weekday{text-align:center;font-weight:700;font-size:12px;color:var(--muted);padding:6px 0}
+.v05Day{min-width:0;min-height:44px;padding:5px 0;border-radius:8px;font-size:14px;background:#fff;border:1px solid var(--line);color:var(--sea)}
+.v05Day[aria-pressed="true"]{background:var(--sea);color:#fff}
+.v05Day:disabled{background:#f2f4f3;color:#79858a;opacity:1}
+.v05Blank{min-height:44px}
+.v05SlotCards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+.v05SlotCard{min-width:0;min-height:85px;text-align:left;padding:12px;background:white;color:var(--ink);border:2px solid var(--line);border-radius:12px;overflow-wrap:anywhere}
+.v05SlotCard[aria-pressed="true"]{border-color:var(--sea);background:#eaf7f3}
+.v05SlotCard strong,.v05SlotCard small{display:block}
+.v05SlotCard small{font-size:13px;font-weight:400}
+@media(max-width:540px){.v05SlotCards{grid-template-columns:1fr}.v05MonthBar{gap:5px}.v05MonthBar button{padding:7px}.v05Calendar{padding:8px}.v05Grid{gap:2px}.v05Day{font-size:13px}}
 @media(max-width:700px){.two{grid-template-columns:1fr}.shell{padding:0 12px 40px}.maincard{padding:20px}.study-card{min-height:0}dl{grid-template-columns:95px 1fr}nav{align-items:flex-start}}
 </style>
 </head>
@@ -75,9 +93,16 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <div id="otpInputWrap" hidden><div class="box"><strong>示範驗證碼：00000000</strong><p>這組虛構代碼只用來演示驗證流程，並非正式信箱驗證。</p></div>
 <label for="otpInput" class="field">請輸入八位驗證碼</label><input id="otpInput" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="請輸入 8 位數字">
 <div class="actionrow"><button id="otpVerify" type="button">驗證並選擇時段</button><button id="otpPaste" type="button" class="ghost">填入示範碼</button></div></div></section>
-<section class="step" id="step-slots" hidden><span class="tag">STEP 04 · 預約時間</span><h2>選擇方便參與的時段</h2><p class="lead">即時顯示示範時段及可預約名額，預約時由伺服器再次確認剩餘容量。</p>
-<label class="field" for="slot">可選擇的時段</label><select id="slot"></select>
-<div class="actionrow"><button id="hold" type="button">保留此時段並繼續</button></div><p class="help">示範時段不會占用正式研究名額。</p></section>
+<section class="step" id="step-slots" hidden><span class="tag">STEP 04 · 預約時間</span><h2>選擇方便參與的時段</h2><p class="lead">以下僅為OWNER可見的虛構預約時段。先選擇臺灣日期，再選擇當日場次；提交時原GAS仍會重新檢查容量及研究安全限制。</p>
+<div class="v05Calendar" aria-label="虛構時段月份與日期">
+ <div class="v05MonthBar"><button type="button" class="ghost" id="v05Prev" disabled>上一個有時段的月份</button><strong id="v05Month" aria-live="polite">日期尚未核實</strong><button type="button" class="ghost" id="v05Next" disabled>下一個有時段的月份</button></div>
+ <div id="v05Dates" class="v05Grid" role="group" aria-label="選擇可預約的虛構日期"></div>
+</div>
+<p id="v05Status" class="help" role="status" aria-live="polite">請先核對日期來源。</p>
+<div id="v05Choices" class="v05SlotCards" role="group" aria-label="當日可預約的虛構時段"></div>
+<label class="field" for="slot">當日虛構場次（可使用鍵盤與選單操作）</label><select id="slot"></select>
+<div class="actionrow"><button id="hold" type="button" disabled>保留此虛構時段並繼續</button></div>
+<p class="help">未列出的日期不代表沒有申請者。若來源或日期異常，所有選擇會停用；虛構操作不會占用正式研究名額。</p></section>
 <section class="step" id="step-consent" hidden><span class="tag">STEP 05 · 同意說明</span><h2>了解研究與參與者權益</h2>
 <p class="lead" id="consentStudyTitle">您正在體驗研究同意程序。</p>
 <div class="box warn"><strong>文件用途聲明</strong><p>目前只有「虛構的 PDF 示例」，不是倫理審查核准的正式研究參與同意書。下方的確認不是法律或研究上有效的電子簽署。</p></div>
@@ -126,6 +151,7 @@ function safePreview(response){
 }
 function refuseReply(message){
  busy=false;model=null;selected=null;pending=null;
+ v05Clear_('安全來源已拒絕，虛構日期與時段已清空。');
  $('chooseE1').disabled=true;$('chooseE2').disabled=true;
  setStatus(message,true);
 }
@@ -149,6 +175,143 @@ const makeOptions=(node,slots)=>{
  slots.forEach(s=>{const o=document.createElement('option');o.value=s.id;o.textContent=s.when+' · 尚有 '+s.remaining+' 個名額';node.appendChild(o);});
  if(slots.some(s=>s.id===prev))node.value=prev;
 };
+/* V05: read-only calendar from the owner-authorized TEST snapshot.
+ * Never infer availability from a different source or write to storage. */
+const v05State={application:null,month:null,date:null,slot:null};
+function v05Clear_(reason){
+ v05State.application=null;v05State.month=null;v05State.date=null;v05State.slot=null;
+ $('v05Dates').replaceChildren();$('v05Choices').replaceChildren();
+ $('slot').replaceChildren();$('hold').disabled=true;
+ $('v05Prev').disabled=true;$('v05Next').disabled=true;
+ $('v05Month').textContent='日期尚未核實';$('v05Status').textContent=reason;
+}
+function v05Read_(response,a){
+ if(!safePreview(response)||response.formalPorts?.activated!==false||
+   !a||a.phase!=='VERIFIED'||a.eligible!==true||
+   !['E1','E2'].includes(a.experiment)||
+   response.recruitment?.[a.experiment]?.mode!=='DEMO_OPEN'||
+   !response.b02?.sessions||typeof response.b02.sessions!=='object'||
+   Array.isArray(response.b02.sessions))return null;
+ const ids=new Set(),out=[];
+ for(const s of response.slots){
+  if(!s||!/^SIM-SLOT-E[12]-[A-H]$/.test(s.id)||ids.has(s.id)||
+     !['E1','E2'].includes(s.experiment)||
+     !Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>20||
+     !Number.isSafeInteger(s.remaining)||s.remaining<0||s.remaining>s.capacity||
+     typeof s.bookable!=='boolean'||typeof s.when!=='string')
+    return null;
+  ids.add(s.id);
+  if(!/^20\d{2}-(0[1-9]|1[0-2])-([0-2]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/.test(s.when))return null;
+  const start=Date.parse(s.when.replace(' ','T')+':00+08:00');
+  if(!Number.isFinite(start)||
+    new Date(start+28800000).toISOString().slice(0,16)!==s.when.replace(' ','T'))
+   return null;
+  const meta=response.b02.sessions[s.id];
+  if(meta!==undefined&&(!meta||typeof meta!=='object'||Array.isArray(meta)))return null;
+  const status=meta?.status||'OPEN';
+  if(!['OPEN','CANCELLED','CLOSED'].includes(status)||
+    (s.bookable&&status!=='OPEN'))return null;
+  if(meta?.minutes!==undefined&&
+    (!Number.isSafeInteger(meta.minutes)||meta.minutes<15||meta.minutes>480))return null;
+  if(s.experiment!==a.experiment||!s.bookable||s.remaining===0)continue;
+  if(start<=Date.now())return null;
+  const end=meta?.minutes?
+    new Date(start+meta.minutes*60000+28800000).toISOString().slice(0,16).replace('T',' ')+'（臺灣）':
+    '未提供，待正式來源核對';
+  out.push({id:s.id,day:s.when.slice(0,10),month:s.when.slice(0,7),
+    time:s.when.slice(11)+'（臺灣）',remaining:s.remaining,
+    title:typeof meta?.title==='string'&&meta.title.trim()?'〔SIM〕'+meta.title:'虛構預約場次',
+    place:typeof meta?.place==='string'&&meta.place.trim()?'〔SIM〕'+meta.place:'虛構地點未提供',
+    end});
+ }
+ return out.sort((x,y)=>x.day.localeCompare(y.day)||x.time.localeCompare(y.time));
+}
+function v05Render_(a){
+ const slots=v05Read_(model,a);
+ if(slots===null){
+  v05Clear_('日期、容量、管理模式或場次來源無法核實，已拒絕選擇。');
+  return;
+ }
+ if(v05State.application!==a.id){
+  v05State.application=a.id;v05State.month=null;v05State.date=null;v05State.slot=null;
+ }
+ const months=[...new Set(slots.map(s=>s.month))];
+ if(!months.length){
+  $('v05Dates').replaceChildren();$('v05Choices').replaceChildren();
+  $('slot').replaceChildren();$('hold').disabled=true;
+  $('v05Month').textContent='沒有可核實的虛構場次';
+  $('v05Prev').disabled=true;$('v05Next').disabled=true;
+  $('v05Status').textContent='這項實驗目前沒有可核實的虛構可預約日期，不能推定沒有申請者。';
+  return;
+ }
+ if(!months.includes(v05State.month))v05State.month=months[0];
+ const days=[...new Set(slots.filter(s=>s.month===v05State.month).map(s=>s.day))];
+ if(!days.includes(v05State.date)){v05State.date=days[0];v05State.slot=null;}
+ const mi=months.indexOf(v05State.month);
+ $('v05Month').textContent=v05State.month.replace('-',' 年 ')+' 月（虛構）';
+ $('v05Prev').disabled=busy||mi===0;
+ $('v05Next').disabled=busy||mi===months.length-1;
+ const grid=$('v05Dates');grid.replaceChildren();
+ for(const name of ['一','二','三','四','五','六','日']){
+  const d=document.createElement('span');d.className='v05Weekday';d.textContent='週'+name;grid.append(d);
+ }
+ const [year,month]=v05State.month.split('-').map(Number);
+ const lead=(new Date(Date.UTC(year,month-1,1)).getUTCDay()+6)%7;
+ for(let i=0;i<lead;i++){
+  const cell=document.createElement('span');cell.className='v05Blank';grid.append(cell);
+ }
+ const count=new Date(Date.UTC(year,month,0)).getUTCDate();
+ for(let day=1;day<=count;day++){
+  const date=v05State.month+'-'+String(day).padStart(2,'0');
+  const n=slots.filter(s=>s.day===date).length;
+  const btn=document.createElement('button');btn.type='button';
+  btn.className='v05Day';btn.textContent=String(day);
+  btn.disabled=busy||n===0;btn.setAttribute('aria-pressed',String(date===v05State.date));
+  btn.setAttribute('aria-label',date+'：'+n+' 個可核實虛構時段');
+  btn.addEventListener('click',()=>{
+   if(busy||!n)return;
+   v05State.date=date;v05State.slot=null;v05Render_(current());
+  });grid.append(btn);
+ }
+ const daySlots=slots.filter(s=>s.day===v05State.date);
+ if(!daySlots.some(s=>s.id===v05State.slot))v05State.slot=daySlots[0]?.id||null;
+ // The original select stays the keyboard and screen-reader fallback.
+ makeOptions($('slot'),daySlots.map(s=>({id:s.id,when:s.day+' '+s.time.slice(0,5),remaining:s.remaining})));
+ $('slot').value=v05State.slot||'';
+ $('slot').disabled=busy||!daySlots.length;
+ $('hold').disabled=busy||!daySlots.length;
+ const cards=$('v05Choices');cards.replaceChildren();
+ for(const s of daySlots){
+  const card=document.createElement('button');card.type='button';card.className='v05SlotCard';
+  card.disabled=busy;card.setAttribute('aria-pressed',String(s.id===v05State.slot));
+  const title=document.createElement('strong');title.textContent=s.time+'｜尚餘 '+s.remaining+' 名（虛構）';
+  const details=document.createElement('small');
+  details.textContent=s.title+'；地點：'+s.place+'；結束：'+s.end;
+  card.append(title,details);
+  card.addEventListener('click',()=>{
+   if(busy)return;
+   v05State.slot=s.id;v05Render_(current());
+  });cards.append(card);
+ }
+ $('v05Status').textContent=v05State.date+'：'+daySlots.length+
+  ' 個可核實的虛構場次；選擇後由原GAS再次檢查容量。';
+}
+$('v05Prev').addEventListener('click',()=>{
+ if(busy)return;const a=current(),s=v05Read_(model,a);if(!s)return;
+ const months=[...new Set(s.map(x=>x.month))],idx=months.indexOf(v05State.month);
+ if(idx>0){v05State.month=months[idx-1];v05State.date=null;v05State.slot=null;v05Render_(a);}
+});
+$('v05Next').addEventListener('click',()=>{
+ if(busy)return;const a=current(),s=v05Read_(model,a);if(!s)return;
+ const months=[...new Set(s.map(x=>x.month))],idx=months.indexOf(v05State.month);
+ if(idx>=0&&idx<months.length-1){
+  v05State.month=months[idx+1];v05State.date=null;v05State.slot=null;v05Render_(a);
+ }
+});
+$('slot').addEventListener('change',()=>{
+ if(busy)return;v05State.slot=$('slot').value;v05Render_(current());
+});
+
 /* V06 confirmation summary never authorizes a real participant booking.
  * Only the server-owned, owner-only TEST view supplies these values. */
 function v06Preview_(response,a){
@@ -223,7 +386,7 @@ function render(){
   if(settings.mode==='DEMO_OPEN')activeOptions++;
  }
  $('noAvailable').hidden=activeOptions>0;
- if(!a){setStatus('請選擇目前開放體驗的實驗。');return;}
+ if(!a){v05Clear_('請先選擇示範實驗並完成驗證。');setStatus('請選擇目前開放體驗的實驗。');return;}
  const q=model.policy.screening.questions;
  for(const [id,key] of [['qAdult','adult'],['qCycu','cycu'],['qNoDx','diagnosed'],['qNoTreatment','treatment'],['qNoPractice','frequentPractice'],['qNoE1','joinedE1']]){
   $(id).textContent=q[key];
@@ -233,8 +396,8 @@ function render(){
  $('otpInputWrap').hidden=a.phase!=='OTP_SENT';
  $('otpVerify').disabled=busy||a.phase!=='OTP_SENT';
  $('consentStudyTitle').textContent=studyName(a.experiment)+'｜同意說明流程示範';
+ v05Render_(a);
  const available=model.slots.filter(s=>s.experiment===a.experiment&&s.bookable&&s.remaining>0);
- makeOptions($('slot'),available);$('hold').disabled=busy||available.length===0;
  const other=available.filter(s=>s.id!==a.slotId);makeOptions($('moveSlot'),other);
  $('move').disabled=busy||a.phase!=='CONFIRMED'||other.length===0;
  $('cancel').disabled=busy||!['CONFIRMED'].includes(a.phase);
@@ -306,7 +469,7 @@ $('screenNext').addEventListener('click',()=>{
 $('otpSend').addEventListener('click',()=>{const a=current();if(a)issue('OTP_REQUEST',{id:a.id});});
 $('otpPaste').addEventListener('click',()=>{$('otpInput').value='00000000';});
 $('otpVerify').addEventListener('click',()=>{const a=current();if(a)issue('OTP_VERIFY',{id:a.id,code:$('otpInput').value.trim()});});
-$('hold').addEventListener('click',()=>{const a=current();if(a&&$('slot').value)issue('HOLD',{id:a.id,slotId:$('slot').value});});
+$('hold').addEventListener('click',()=>{const a=current(),slots=v05Read_(model,a);if(a&&slots&&slots.some(s=>s.id===$('slot').value&&s.day===v05State.date))issue('HOLD',{id:a.id,slotId:$('slot').value});});
 $('readPdf').addEventListener('change',render);$('agree').addEventListener('change',render);
 $('review').addEventListener('click',()=>{
  const a=current();if(!a||!$('readPdf').checked)return;
