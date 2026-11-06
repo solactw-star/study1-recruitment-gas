@@ -608,6 +608,7 @@ function study1B12AuditBuild_(fixture,b06){
     !fixture.b05||!Array.isArray(fixture.b05.history)||
     !Array.isArray(fixture.notifications))
   throw Error('B12虛構稽核來源格式不合法');
+ study1B07PendingSummary_(fixture); // fail closed on forged B07 source
  const events=[],b04Last=new Map(),b05Last=new Map();
  // B02 has only a 12-entry event-only ring; its absence is not evidence of
  // missing committed state or proof of corruption. Never fabricate a diff.
@@ -688,6 +689,14 @@ function study1B12AuditBuild_(fixture,b06){
   if((current?current.status:'OPEN')!==after)
    throw Error('B12近期場次最後前後值與目前資料不符');
  }
+ // B07: bounded before/after TEST corrections, never fabricated payments.
+ for(let i=0;i<fixture.b07.itemHistory.length;i++){
+  const h=fixture.b07.itemHistory[i];
+  events.push({id:'B07-'+String(i+1).padStart(6,'0'),module:'B07',
+   actor:'OWNER',at:h.at,action:'ADMIN_B07_ITEM_REVIEW',target:h.id+':'+h.stage,
+   before:{stage:h.stage,status:h.from},after:{stage:h.stage,status:h.to},
+   reason:h.reason,result:'SUCCESS',provenance:'BOUNDED_PENDING_HISTORY',historical:true});
+ }
  for(let i=0;i<fixture.notifications.length;i++){
   const n=fixture.notifications[i];
   if(n&&n.status==='SIM_FAILED'){
@@ -711,7 +720,7 @@ function study1B12AuditPage_(fixture,b06,query){
     query.expectedB06Revision!==b06.revision||
     query.expectedFixtureRevision!==fixture.revision||
     !Number.isSafeInteger(query.limit)||query.limit<1||query.limit>30||
-    !['ALL','B02','B04','B05','B06','B08'].includes(query.module)||
+    !['ALL','B02','B04','B05','B06','B07','B08'].includes(query.module)||
     !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT'].includes(query.result)||
     !(query.sort===undefined||['ASC','DESC'].includes(query.sort))||
     typeof query.search!=='string'||query.search.length>60||
@@ -720,6 +729,7 @@ function study1B12AuditPage_(fixture,b06,query){
     typeof query.snapshotHash!=='string')
   throw Error('B12稽核查詢、版本或分頁參數不合法');
  const all=study1B12AuditBuild_(fixture,b06);
+ const b07Summary=study1B07PendingSummary_(fixture);
  // Cross-module mirrors are a consistency signal, not a complete ledger.
  // A missing mirror may mean old entries were trimmed by different ring caps.
  const b02=fixture.b02.history,b04=fixture.b04.history,b05=fixture.b05.history;
@@ -766,6 +776,8 @@ function study1B12AuditPage_(fixture,b06,query){
   text:'B04已達30筆保留上限，更早的前後值可能已截斷'});
  if(b05.length===32)warnings.push({code:'B05_CAP',severity:'LIMITED',
   text:'B05已達32筆保留上限，更早的結案紀錄可能已截斷'});
+ if(fixture.b07.itemHistory.length===32)warnings.push({code:'B07_CAP',severity:'LIMITED',
+  text:'B07已達32筆保留上限，更早的TEST更正可能已截斷'});
  const noMirror=check.b02B05NoMirror+check.b05B02NoMirror+
   check.b04AttendanceB02NoMirror;
  if(noMirror)warnings.push({code:'MIRROR_NOT_FOUND',severity:'REVIEW',
@@ -779,8 +791,10 @@ function study1B12AuditPage_(fixture,b06,query){
   sources:[{module:'B02',retained:b02.length,limit:12,provenance:'BOUNDED_EVENT_ONLY'},
    {module:'B04',retained:b04.length,limit:30,provenance:'BOUNDED_LEGACY_HISTORY'},
    {module:'B05',retained:b05.length,limit:32,provenance:'BOUNDED_LEGACY_HISTORY'},
-   {module:'B06',retained:b06.audit.length,limit:200,provenance:'SHA256_CHAIN_VERIFIED'}],
-  crossChecks:check,warnings};
+   {module:'B06',retained:b06.audit.length,limit:200,provenance:'SHA256_CHAIN_VERIFIED'},
+   {module:'B07',retained:fixture.b07.itemHistory.length,limit:32,
+    provenance:'BOUNDED_PENDING_HISTORY'}],
+  b07Summary,crossChecks:check,warnings};
  const direction=query.sort===undefined?'ASC':query.sort; // legacy cursors remain ASC
  const q=query.search.trim().toLowerCase();
  const filtered=all.filter(e=>
@@ -1011,6 +1025,29 @@ function study1UnifiedValidateResearch_(v){
  * A REVIEW_PENDING label is not REC/PI approval or payment eligibility. */
 const STUDY1_B07_STAGES_={E1:['SINGLE_SESSION'],
  E2:['PRETEST','INTERVENTION_8W','POSTTEST']};
+/** Canonical B07 TEST pending-only counts, not entitlements or payments. */
+function study1B07PendingSummary_(s){
+ study1B07Verify_(s);
+ const zero=()=>({total:0,unrecorded:0,sourcePending:0,documentsPending:0,piReviewPending:0});
+ const byExperiment={E1:zero(),E2:zero()};
+ const byStage={SINGLE_SESSION:zero(),PRETEST:zero(),INTERVENTION_8W:zero(),POSTTEST:zero()};
+ const fields={UNRECORDED:'unrecorded',SOURCE_PENDING:'sourcePending',
+  DOCUMENTS_PENDING:'documentsPending',PI_REVIEW_PENDING:'piReviewPending'};
+ for(const a of s.applications){
+  if(!a||!/^SIM-[0-9]{3}$/.test(a.id)||!STUDY1_B07_STAGES_[a.experiment])
+   throw Error('B07階段統計申請來源不合法');
+  for(const stage of STUDY1_B07_STAGES_[a.experiment]){
+   const field=fields[s.b07.itemReviews[a.id+':'+stage]?.status||'UNRECORDED'];
+   if(!field)throw Error('B07階段統計出現非待核狀態');
+   for(const count of [byExperiment[a.experiment],byStage[stage]]){count.total++;count[field]++;}
+  }
+ }
+ const total=zero();
+ for(const exp of ['E1','E2'])
+  for(const field of Object.keys(total))total[field]+=byExperiment[exp][field];
+ return {mode:'SYNTHETIC_PENDING_ONLY',approved:false,payment:false,
+  total,byExperiment,byStage,historyRetained:s.b07.itemHistory.length,historyLimit:32};
+}
 function study1B07Initial_(){return {reviews:{},history:[],itemReviews:{},itemHistory:[]};}
 function study1B07Verify_(s){
  const b=s.b07,allowed=['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
@@ -1356,6 +1393,7 @@ function study1UnifiedView_(s){
   b04:JSON.parse(JSON.stringify(s.b04||{notes:{},history:[]})),
   b05:JSON.parse(JSON.stringify(s.b05||{closures:{},history:[]})),
   b07:JSON.parse(JSON.stringify(s.b07||study1B07Initial_())),
+  b07Summary:study1B07PendingSummary_(s),
   b06:{...study1B06Read_(),formalPersistence:false},
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
