@@ -188,7 +188,7 @@ function assertUnifiedFlow(source){
    "b06:{...study1B06Read_(),formalPersistence:false}",
    "function study1UnifiedB12AuditPage(query)",
    "study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_READ')",
-   "study1UnifiedB12Export(){",
+   "study1UnifiedB12Export_(){",
    "study1UnifiedRoleAuthorise_('OWNER','EXPORT_AUDIT')",
    "function study1B12AuditPage_(fixture,b06,query)",
    "study1B06Verify_(b06)",
@@ -216,7 +216,7 @@ function assertUnifiedFlow(source){
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
   'study1B12AuditBuild_','study1B12AuditPage_',
-  'study1UnifiedB12AuditPage','study1UnifiedB12Export',
+  'study1UnifiedB12AuditPage','study1UnifiedB12Export_',
   'study1B12FailureDiagnostic_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
