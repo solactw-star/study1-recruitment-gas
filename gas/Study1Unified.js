@@ -1009,14 +1009,19 @@ function study1UnifiedValidateResearch_(v){
 /* B07 synthetic compensation-administration PREPARATION ONLY.
  * No amount, reimbursement, proof file, payee, transfer or approval field.
  * A REVIEW_PENDING label is not REC/PI approval or payment eligibility. */
-function study1B07Initial_(){return {reviews:{},history:[]};}
+const STUDY1_B07_STAGES_={E1:['SINGLE_SESSION'],
+ E2:['PRETEST','INTERVENTION_8W','POSTTEST']};
+function study1B07Initial_(){return {reviews:{},history:[],itemReviews:{},itemHistory:[]};}
 function study1B07Verify_(s){
  const b=s.b07,allowed=['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
  if(!b||typeof b!=='object'||Array.isArray(b)||
-    Object.keys(b).sort().join(',')!=='history,reviews'||
+    Object.keys(b).sort().join(',')!=='history,itemHistory,itemReviews,reviews'||
     !b.reviews||typeof b.reviews!=='object'||Array.isArray(b.reviews)||
     !Array.isArray(b.history)||b.history.length>12||
-    Object.keys(b.reviews).length>8)
+    Object.keys(b.reviews).length>8||
+    !b.itemReviews||typeof b.itemReviews!=='object'||Array.isArray(b.itemReviews)||
+    !Array.isArray(b.itemHistory)||b.itemHistory.length>32||
+    Object.keys(b.itemReviews).length>24)
   throw Error('B07虛構行政準備資料結構異常');
  for(const [id,x] of Object.entries(b.reviews)){
   if(!/^SIM-[0-9]{3}$/.test(id)||
@@ -1046,6 +1051,40 @@ function study1B07Verify_(s){
  for(const [id,e] of last)
   if(b.reviews[id]?.status!==e.to||b.reviews[id]?.at!==e.at)
    throw Error('B07最近歷程與目前行政狀態不一致');
+ // Every TEST ledger item is uniquely defined by an existing SIM code plus a valid stage.
+ const validItem=(id,stage)=>{
+  const a=s.applications.find(x=>x.id===id);
+  return !!(a&&STUDY1_B07_STAGES_[a.experiment]?.includes(stage));
+ };
+ for(const [key,x] of Object.entries(b.itemReviews)){
+  const parts=key.split(':');
+  if(parts.length!==2||!/^SIM-[0-9]{3}$/.test(parts[0])||
+     !validItem(parts[0],parts[1])||!x||typeof x!=='object'||
+     Object.keys(x).sort().join(',')!=='actor,at,status'||
+     x.actor!=='OWNER'||!allowed.includes(x.status)||
+     typeof x.at!=='string'||Number.isNaN(Date.parse(x.at))||
+     new Date(x.at).toISOString()!==x.at)
+   throw Error('B07階段項目與虛構申請來源不一致');
+ }
+ const lastItem=new Map();
+ for(const e of b.itemHistory){
+  if(!e||typeof e!=='object'||Array.isArray(e)||
+     Object.keys(e).sort().join(',')!=='actor,at,from,id,reason,stage,to'||
+     !/^SIM-[0-9]{3}$/.test(e.id)||!validItem(e.id,e.stage)||
+     e.actor!=='OWNER'||!(e.from==='UNRECORDED'||allowed.includes(e.from))||
+     !allowed.includes(e.to)||e.from===e.to||
+     !['SOURCE_CHECK','DOCUMENT_CHECK','PI_REVIEW_REQUEST'].includes(e.reason)||
+     typeof e.at!=='string'||Number.isNaN(Date.parse(e.at))||
+     new Date(e.at).toISOString()!==e.at)
+   throw Error('B07階段項目更正歷程不合法');
+  const key=e.id+':'+e.stage,previous=lastItem.get(key);
+  if(previous&&previous.to!==e.from)
+   throw Error('B07階段項目歷程前後狀態不連續');
+  lastItem.set(key,e);
+ }
+ for(const [key,e] of lastItem)
+  if(b.itemReviews[key]?.status!==e.to||b.itemReviews[key]?.at!==e.at)
+   throw Error('B07階段項目最近歷程與目前狀態不一致');
  return true;
 }
 function study1UnifiedInitial_(){
@@ -1091,6 +1130,10 @@ function study1UnifiedRead_(){
  if(s&&!s.b04)s.b04={notes:{},history:[]}; // non-writing B04 migration
  if(s&&!s.b05)s.b05={closures:{},history:[]}; // non-writing B05 migration
  if(s&&!s.b07)s.b07=study1B07Initial_(); // non-writing B07 owner TEST migration
+ if(s&&s.b07&&!Object.prototype.hasOwnProperty.call(s.b07,'itemReviews')&&
+    !Object.prototype.hasOwnProperty.call(s.b07,'itemHistory')){
+  s.b07.itemReviews={};s.b07.itemHistory=[]; // non-writing old B07 ledger migration
+ }
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -1339,7 +1382,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE','ADMIN_B07_REVIEW'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE','ADMIN_B07_REVIEW','ADMIN_B07_ITEM_REVIEW'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -1500,6 +1543,26 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   s.b02.history.push({action:p.action==='CLOSE'?'ADMIN_CLOSE':'ADMIN_REOPEN',at,ids:[slot.id]});
   s.b02.history=s.b02.history.slice(-12);
   return;
+ }
+
+ if(action==='ADMIN_B07_ITEM_REVIEW'){
+  if(Object.keys(p).sort().join(',')!=='id,reason,stage,status'||
+     typeof p.id!=='string'||!/^SIM-[0-9]{3}$/.test(p.id)||
+     !s.applications.some(a=>a.id===p.id&&
+      STUDY1_B07_STAGES_[a.experiment]?.includes(p.stage))||
+     !['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'].includes(p.status)||
+     !['SOURCE_CHECK','DOCUMENT_CHECK','PI_REVIEW_REQUEST'].includes(p.reason))
+   throw Error('B07階段項目僅允許既有虛構申請的待核分類，禁止金額或付款');
+  study1B07Verify_(s);
+  const key=p.id+':'+p.stage;
+  const previous=s.b07.itemReviews[key]?.status||'UNRECORDED';
+  if(previous===p.status)throw Error('B07階段項目未變更，禁止重複項目事件');
+  const at=new Date(now).toISOString();
+  s.b07.itemReviews[key]={status:p.status,actor:'OWNER',at};
+  s.b07.itemHistory.push({id:p.id,stage:p.stage,from:previous,to:p.status,
+   reason:p.reason,actor:'OWNER',at});
+  s.b07.itemHistory=s.b07.itemHistory.slice(-32);
+  return; // No amounts, payee/payer, entitlement, receipt, or payment.
  }
 
  if(action==='ADMIN_B07_REVIEW'){
