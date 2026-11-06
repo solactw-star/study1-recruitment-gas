@@ -169,6 +169,15 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b12Values pre{white-space:pre-wrap;word-break:break-word;margin:6px 0;font-size:12px}
 @media(max-width:760px){.b12Tools{grid-template-columns:1fr 1fr}.b12Values{grid-template-columns:1fr}}
 @media(max-width:480px){.b12Tools{grid-template-columns:1fr}}
+/* B11: owner-only TEST setting comparison; no new server authority or export. */
+#b11Module{scroll-margin-top:20px}
+.b11Diff{display:grid;gap:8px;margin:12px 0}
+.b11Change{border:1px solid var(--line);border-radius:9px;padding:10px;background:#f5faf8}
+.b11Change strong{display:block;font-size:13px;margin-bottom:6px}
+.b11Values{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.b11Values pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px;margin:3px 0;padding:7px;border-radius:7px;background:#fff}
+@media(max-width:600px){.b11Values{grid-template-columns:1fr}}
+
 /* B08: existing bounded synthetic notification source, no live delivery */
 #b08Module{scroll-margin-top:24px}
 .b08Tools{display:grid;grid-template-columns:1.6fr repeat(3,minmax(0,1fr));gap:10px}
@@ -208,7 +217,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定預覽</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -419,6 +428,18 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <section class="panel" aria-labelledby="weeksHeading"><h2 id="weeksHeading">實驗二｜八週營運安排</h2>
 <p class="sub">先規劃日期與備註。正式團課、居家練習、分組及出缺席流程仍以核准的研究文件為準。</p>
 <div id="weekRows"></div><button id="saveWeeks" type="button" disabled>儲存八週規劃</button></section>
+<section class="panel" id="b11Module" aria-labelledby="b11Heading">
+ <span class="tag">B11｜系統設定（僅虛構資料）</span><h2 id="b11Heading">設定修改預覽與差異確認</h2>
+ <p class="sub">上方現有五種示範設定的「儲存」會先產生修改前／修改後差異。只有同一 OWNER 核對後按「確認套用虛構設定」，才會使用原 GAS 版本檢查提交。修改後內容、競寫或任何失敗都會阻擋提交，錯誤後重新讀取原權威 TEST 快照。這裡不開放正式網站發布、REC 核准、真人資料或匯出。</p>
+ <p id="b11Status" role="status" aria-live="polite" class="small">尚無待確認變更；正式 OPEN 與 CONSENT_READY 保持關閉。</p>
+ <div id="b11Diff" class="b11Diff" aria-label="設定修改前後差異"></div>
+ <div class="b06Actions">
+  <button id="b11Apply" type="button" disabled>確認套用虛構設定</button>
+  <button id="b11Cancel" type="button" class="secondary" disabled>取消此次預覽</button>
+ </div>
+ <p class="small">本區只能更新原資料中的示範顯示、網站文字、研究介紹草稿、虛構場次或八週安排；不會啟用正式招募、寄信或建立新資料表。</p>
+</section>
+
 <section class="panel" id="b03Module" aria-labelledby="bookingsHeading">
  <div class="calTop"><div><span class="tag">B03｜參與者管理</span>
  <h2 id="bookingsHeading">參與者名單與流程看板</h2>
@@ -533,9 +554,9 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-let model=null,busy=false,requestId=null;
+let model=null,busy=false,requestId=null,b11Pending=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen','b06Save'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen','b06Save'])$(id).disabled=value||!model;$('b11Apply').disabled=value||!b11Pending;$('b11Cancel').disabled=value||!b11Pending;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -566,10 +587,10 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');
+  model=null;b11Clear_('管理權限或正式關閉狀態無法核實，已清除設定預覽。',true);b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
- model=data;setBusy(false);
+ model=data;b11Clear_('已讀取原 OWNER-only TEST 設定；修改後按上方儲存先檢視差異。');setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
  $('siteTitle').value=data.config.title;$('siteNotice').value=data.config.notice;
  $('emailTemplate').value=data.config.emailTemplate;
@@ -867,19 +888,194 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b09Clear_('資料載入失敗；B09報表已清空。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b11Clear_('讀取設定失敗，已清除B11預覽。',true);b01Clear('資料載入失敗；研究摘要已清除。');b09Clear_('資料載入失敗；B09報表已清空。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
-function save(action,payload){
- if(busy||!model)return;
- const id='REQ-SIM-TEAM_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
- setBusy(true);message('儲存中，正在檢查時段與版本…');
- google.script.run.withSuccessHandler(data=>{
-  if(render(data))message('已儲存到本網站示範設定。正式招募仍關閉。');
- })
- .withFailureHandler(e=>{setBusy(false);message('未儲存：'+String(e.message||e)+'。請確認欄位或重新載入。',true);})
- .study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
+/* B11 works solely on existing owner-authorized TEST snapshot and existing
+ * ADMIN_* commands. The server's CAS, ScriptLock and CLOSED checks remain final.
+ * A preview is never a permission grant and never performs a write. */
+const b11Actions=['ADMIN_RECRUITMENT','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_E2_WEEKS'];
+const b11Labels={ADMIN_RECRUITMENT:'實驗一／二示範顯示',
+ ADMIN_EDIT:'網站展示文字及虛構通知範本',ADMIN_RESEARCH:'實驗研究介紹草稿',
+ ADMIN_SLOTS:'虛構預約場次',ADMIN_E2_WEEKS:'實驗二八週規劃'};
+function b11Safe_(data){
+ return !!(data&&data.mode==='TEST'&&data.open===false&&
+  data.consentReady===false&&data.formalReadiness?.activationAllowed===false&&
+  data.formalPorts?.activated===false&&Number.isSafeInteger(data.revision)&&
+  data.revision>=0&&data.config&&data.recruitment&&data.definitions&&
+  Array.isArray(data.slots)&&Array.isArray(data.e2Operations?.weeks));
 }
+function b11Clear_(text,error=false){
+ b11Pending=null;$('b11Diff').replaceChildren();
+ $('b11Apply').disabled=true;$('b11Cancel').disabled=true;
+ $('b11Status').textContent=text;
+ $('b11Status').className=error?'err':'small';
+}
+function b11Normalize_(action,value){
+ if(!b11Actions.includes(action)||!value||typeof value!=='object')
+  throw Error('B11設定種類或草稿不合法');
+ if(action==='ADMIN_SLOTS'){
+  if(!Array.isArray(value))throw Error('B11場次結構不合法');
+  const out={};for(const s of value){
+   if(!s||typeof s.id!=='string'||Object.prototype.hasOwnProperty.call(out,s.id))
+    throw Error('B11場次代碼重複或缺失');
+   out[s.id]={experiment:s.experiment,when:s.when,capacity:s.capacity};
+  }
+  return out;
+ }
+ if(action==='ADMIN_E2_WEEKS'){
+  if(!Array.isArray(value))throw Error('B11週次結構不合法');
+  const out={};for(const w of value){
+   if(!w||!Number.isSafeInteger(w.week)||Object.prototype.hasOwnProperty.call(out,w.week))
+    throw Error('B11週次重複或缺失');
+   out['第'+w.week+'週']={date:w.date,notes:w.notes};
+  }
+  return out;
+ }
+ if(action==='ADMIN_RESEARCH'){
+  const out={};for(const exp of ['E1','E2']){
+   if(!value[exp])throw Error('B11研究介紹缺少實驗');
+   const r=value[exp];out[exp]={label:r.label,duration:r.duration,
+    procedure:r.procedure,compensation:r.compensation};
+  }return out;
+ }
+ if(action==='ADMIN_RECRUITMENT'){
+  const out={};for(const exp of ['E1','E2']){
+   if(!value[exp])throw Error('B11示範顯示缺少實驗');
+   out[exp]={year:value[exp].year,mode:value[exp].mode};
+  }return out;
+ }
+ return {title:value.title,notice:value.notice,emailTemplate:value.emailTemplate};
+}
+function b11Source_(action,data){
+ if(!b11Safe_(data))throw Error('B11原快照未核實');
+ const root=action==='ADMIN_RECRUITMENT'?data.recruitment:
+  action==='ADMIN_EDIT'?data.config:
+  action==='ADMIN_RESEARCH'?data.definitions:
+  action==='ADMIN_SLOTS'?data.slots:data.e2Operations.weeks;
+ return b11Normalize_(action,root);
+}
+function b11Desired_(action,payload){
+ if(!payload||typeof payload!=='object')throw Error('B11草稿缺失');
+ const value=action==='ADMIN_RECRUITMENT'?payload.settings:
+  action==='ADMIN_RESEARCH'?payload.research:
+  action==='ADMIN_SLOTS'?payload.slots:
+  action==='ADMIN_E2_WEEKS'?payload.weeks:payload;
+ return b11Normalize_(action,value);
+}
+function b11Current_(action){
+ if(action==='ADMIN_RECRUITMENT')return {settings:teamSettings()};
+ if(action==='ADMIN_EDIT')return {title:$('siteTitle').value,
+  notice:$('siteNotice').value,emailTemplate:$('emailTemplate').value};
+ if(action==='ADMIN_RESEARCH'){
+  const research={};for(const exp of ['E1','E2']){
+   const p=exp.toLowerCase();research[exp]={label:$(p+'Label').value,
+    duration:$(p+'Duration').value,procedure:$(p+'Procedure').value,
+    compensation:$(p+'Compensation').value};
+  }return {research};
+ }
+ if(action==='ADMIN_SLOTS')return {slots:[
+  ...document.querySelectorAll('#slotRows [data-slot-id]')].map(row=>({
+   id:row.dataset.slotId,experiment:row.dataset.experiment,
+   when:row.querySelector('[data-role="when"]').value.replace('T',' '),
+   capacity:Number(row.querySelector('[data-role="capacity"]').value)
+  }))};
+ if(action==='ADMIN_E2_WEEKS')return {weeks:[
+  ...document.querySelectorAll('#weekRows [data-week]')].map(row=>({
+   week:Number(row.dataset.week),date:row.querySelector('[data-role="date"]').value||null,
+   notes:row.querySelector('[data-role="notes"]').value
+  }))};
+ throw Error('B11未核准設定種類');
+}
+function b11Flat_(obj,prefix='',out={}){
+ if(obj&&typeof obj==='object'){
+  for(const key of Object.keys(obj).sort())
+   b11Flat_(obj[key],prefix?prefix+'.'+key:key,out);
+ }else out[prefix]=obj===null?'（未填）':obj===undefined?'（無來源）':String(obj);
+ return out;
+}
+function b11Review_(action,payload){
+ if(busy||!b11Safe_(model)||!b11Actions.includes(action)){
+  b11Clear_('B11未取得安全的OWNER TEST快照，禁止預覽及提交。',true);return;
+ }
+ try{
+  const before=b11Source_(action,model),after=b11Desired_(action,payload);
+  const a=b11Flat_(before),b=b11Flat_(after);
+  const fields=[...new Set([...Object.keys(a),...Object.keys(b)])].sort();
+  const changed=fields.filter(k=>a[k]!==b[k]);
+  b11Clear_('正在準備同一資料版本的變更差異。');
+  if(!changed.length){
+   $('b11Status').textContent='B11沒有實際設定差異，不會建立寫入。';
+   return;
+  }
+  if(JSON.stringify(payload).length>1600)throw Error('B11草稿超過既有伺服器指令容量');
+  b11Pending={action,payload:JSON.parse(JSON.stringify(payload)),
+   revision:model.revision,source:JSON.stringify(before),target:JSON.stringify(after)};
+  for(const field of changed){
+   const card=calElem('div',undefined,'b11Change');
+   card.append(calElem('strong',field));
+   const values=calElem('div',undefined,'b11Values');
+   values.append(calElem('pre','修改前：'+(a[field]===undefined?'（無來源）':a[field])),
+    calElem('pre','修改後：'+(b[field]===undefined?'（移除）':b[field])));
+   card.append(values);$('b11Diff').append(card);
+  }
+  $('b11Apply').disabled=false;$('b11Cancel').disabled=false;
+  $('b11Status').textContent='B11｜'+b11Labels[action]+'｜來源版本 '+model.revision+
+   '｜共 '+changed.length+' 個欄位變更。尚未寫入，請核對後確認。';
+ }catch(error){b11Clear_('B11無法安全產生差異：'+String(error.message||error),true);}
+}
+function b11Recover_(reason){
+ b11Clear_(reason+'；未確認儲存，正在重新讀取原設定…',true);
+ setBusy(true);
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data)){
+   b11Clear_(reason+'；已重新讀取最新OWNER TEST設定。原草稿沒有自動重送，請重新修改並預覽。',true);
+   message('設定未確認儲存；已回復最新權威快照：'+reason,true);
+  }
+ }).withFailureHandler(error=>{
+  model=null;b11Clear_(reason+'；重新讀取亦失敗，已停止所有設定操作。'+String(error.message||error),true);
+  b01Clear('來源失效，已清空摘要');b09Clear_('來源失效，已清空報表');
+  setBusy(true);message('未儲存，無法安全回復設定，請稍後重新載入。',true);
+ }).study1UnifiedPreviewGet();
+}
+function b11Commit_(){
+ if(!b11Pending||busy)return;
+ const pending=b11Pending;
+ try{
+  if(!b11Safe_(model)||model.revision!==pending.revision||
+     JSON.stringify(b11Source_(pending.action,model))!==pending.source||
+     JSON.stringify(b11Desired_(pending.action,b11Current_(pending.action)))!==pending.target)
+   throw Error('設定草稿或來源版本已變更，請重新預覽');
+ }catch(error){
+  b11Clear_('B11未提交：'+String(error.message||error),true);return;
+ }
+ b11Clear_('B11已確認預覽，正在使用原GAS版本鎖核對及儲存。');
+ const id='REQ-SIM-B11_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ setBusy(true);
+ google.script.run.withSuccessHandler(data=>{
+  let valid=false;
+  try{
+   valid=b11Safe_(data)&&data.revision===pending.revision+1&&
+    JSON.stringify(b11Source_(pending.action,data))===pending.target;
+  }catch(error){valid=false;}
+  if(!valid){
+   b11Recover_('伺服器回應版本或新值與確認草稿不一致');
+   return;
+  }
+  if(render(data)){
+   b11Clear_('B11已回讀來源版本 '+data.revision+'，確認本次虛構設定已儲存；正式招募仍關閉。');
+   message('已核實並儲存原網站TEST設定，正式招募保持關閉。');
+  }
+ }).withFailureHandler(error=>{
+  b11Recover_('原GAS拒絕提交／版本競寫／儲存失敗：'+String(error.message||error));
+ }).study1UnifiedPreviewCommand({action:pending.action,payload:pending.payload,
+  requestId:id,expectedRevision:pending.revision});
+}
+$('b11Apply').addEventListener('click',b11Commit_);
+$('b11Cancel').addEventListener('click',()=>
+ b11Clear_('已取消B11預覽，沒有向原GAS送出寫入；可繼續編輯再預覽。'));
+
+function save(action,payload){b11Review_(action,payload);}
 function teamSettings(){return {
  E1:{year:2026,mode:$('modeE1').value},E2:{year:2027,mode:$('modeE2').value}
 };}
