@@ -265,6 +265,13 @@ function assertVisitorHtml(html){
     !html.includes('id="screenNext"')||!html.includes('id="otpSend"')||
     !html.includes('id="otpVerify"')||!html.includes('id="hold"')||
     !html.includes('id="review"')||!html.includes('id="finish"')||
+    !html.includes('id="v05Dates"')||
+    !html.includes('id="v05Choices"')||
+    !html.includes('id="v05Prev"')||
+    !html.includes('id="v05Next"')||
+    !html.includes('function v05Read_(response,a)')||
+    !html.includes('function v05Render_(a)')||
+    !html.includes('v05Read_(model,a)')||
     !html.includes('id="receiptId"')||
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand(envelope)')||
