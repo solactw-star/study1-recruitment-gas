@@ -185,7 +185,10 @@ function assertUnifiedFlow(source){
    "props.setProperty(STUDY1_B06_TASK_KEY_,packed)",
    "if(props.getProperty(STUDY1_B06_TASK_KEY_)!==initial)",
    "study1UnifiedAssertOwner_();","study1SandboxBookingFlags_();",
-   "b06:{...study1B06Read_(),formalPersistence:false}" ])
+   "b06:{...study1B06Read_(),formalPersistence:false}",
+   "function study1UnifiedB12Query(query)",
+   "study1UnifiedRoleAuthorise_('OWNER','SYNTHETIC_READ')",
+   "study1B06Verify_(tasks)" ])
   if(!source.includes(token))throw Error('Unreviewed unified workflow change: '+token);
  const expected=new Set([
   'study1UnifiedDefinitions_','study1UnifiedInitial_','study1UnifiedAssertOwner_',
@@ -205,7 +208,8 @@ function assertUnifiedFlow(source){
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
   'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
-  'study1B06Read_','study1B06Apply_','study1UnifiedB06Command']);
+  'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
+  'study1UnifiedB12Events_','study1UnifiedB12Page_','study1UnifiedB12Query']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==expected.size||new Set(functions).size!==expected.size||
    functions.some(name=>!expected.has(name)))throw Error('Unreviewed unified workflow endpoint');
@@ -259,6 +263,8 @@ function assertTeamHtml(html){
     !html.includes("save('ADMIN_RECRUITMENT'")||
     !html.includes('id="b06Module"')||!html.includes('id="b06Form"')||
     !html.includes('id="b06History"')||!html.includes('study1UnifiedB06Command(')||
+    !html.includes('id="b12Module"')||!html.includes('id="b12Events"')||
+    !html.includes('id="b12Integrity"')||!html.includes('study1UnifiedB12Query(request)')||
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
     !html.includes('正式收件開關保持鎖定')||
