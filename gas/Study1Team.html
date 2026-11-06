@@ -162,6 +162,22 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:900px){.b06Tools,.b06Fields{grid-template-columns:repeat(2,minmax(0,1fr))}.b06Wide{grid-column:span 2}}
 @media(max-width:550px){.b06Tools,.b06Fields{grid-template-columns:1fr}.b06Wide{grid-column:span 1}}
 
+
+/* B12 owner-only synthetic audit: explicit source integrity and accessible page controls. */
+#b12Module{scroll-margin-top:24px}
+.b12Tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.b12Tools label{font-size:13px;font-weight:700}
+.b12Events{display:grid;gap:10px;margin:14px 0}
+.b12Event{padding:13px;border:1px solid var(--line);border-radius:12px;background:#fff;overflow-wrap:anywhere}
+.b12Event p{margin:5px 0;font-size:13px}
+.b12Event dl{display:grid;grid-template-columns:minmax(100px,1fr) 2fr 2fr;gap:4px 8px;font-size:12px;margin:8px 0}
+.b12Event dt,.b12Event dd{margin:0;padding:5px 7px;background:#f2f7f5;white-space:pre-wrap;overflow-wrap:anywhere}
+.b12Event dt{font-weight:700}
+.b12Pager{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.b12Integrity{padding:10px;border-radius:10px;background:#eef4f2;color:#1c5044}
+.b12Integrity.b12Error{background:#fff1ee;color:#a52e2d;border:2px solid #a52e2d}
+@media(max-width:650px){.b12Tools{grid-template-columns:1fr}.b12Event dl{grid-template-columns:1fr}}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
 <div><a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
@@ -413,7 +429,25 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   <span id="b06HistoryScope" class="small">全部待辦</span></div>
  <div id="b06History" class="b06Audit" aria-label="待辦更動前後值、原因及操作時間"></div>
  <p id="b06Message" class="small" role="status" aria-live="polite"></p>
- <p class="small">目前原 GAS owner 僅管理虛構資料；PI／RA正式帳號、真人個資及大量持久化資料庫尚待正式授權。封存不刪除紀錄、不自動寄信。</p>
+ <p class="small">目前原 GAS owner 僅管理虛構資料；PI／RA正式帳號、真人個資及大量持久化資料庫尚待正式授權。封存不刪除紀錄、不自動寄信。<a href="#b12Module">前往 B12 操作稽核檢視</a></p>
+</section>
+
+
+<section class="panel" id="b12Module" aria-labelledby="b12Heading">
+ <span class="tag">B12｜操作稽核 · 唯讀</span><h2 id="b12Heading">操作稽核檢視</h2>
+ <p class="sub">僅原研究團隊 OWNER 可查詢虛構資料；不提供匯出、刪改、真人紀錄或正式 PI／RA 登入。B06 具有完整驗證鏈；B02–B05 舊歷程有限且部分更正文字已遮蔽。</p>
+ <div class="b12Tools">
+  <label for="b12Source">來源模組<select id="b12Source"><option value="ALL">全部</option><option value="B02">B02 行事曆</option><option value="B04">B04 行政更正</option><option value="B05">B05 結案</option><option value="B06">B06 待辦</option></select></label>
+  <label for="b12Sort">時間排序<select id="b12Sort"><option value="DESC">最新在前</option><option value="ASC">最早在前</option></select></label>
+  <label for="b12Search">搜尋虛構代碼／操作<input id="b12Search" type="search" maxlength="50" placeholder="SIM- 或 CREATE"></label>
+ </div>
+ <div class="b12Pager"><button type="button" id="b12Query" class="secondary">查詢稽核</button>
+  <button type="button" id="b12Next" class="secondary" disabled>下一頁</button>
+  <span id="b12Count" class="small">尚未查詢</span></div>
+ <p id="b12Integrity" class="b12Integrity" role="status" aria-live="polite">待查核；稽核鏈異常時停止顯示任何事件。</p>
+ <p id="b12Limit" class="small">來源證據限制：B02–B05歷史僅保留有限筆數，部分事件沒有前後值或獨立防竄改鏈；不能當作完整永久稽核。</p>
+ <div id="b12Events" class="b12Events" aria-label="稽核查詢結果、事件前後差異"></div>
+ <p class="small">操作原因與前後差異僅按各來源已保留之可用欄位呈現；此頁不提供正式匯出或真實研究資料讀取。</p>
 </section>
 
 <section class="panel" aria-labelledby="approvalHeading"><h2 id="approvalHeading">正式上線前需完成</h2>
@@ -1460,6 +1494,96 @@ function b06Init(){
  b06Reset();
 }
 b06Init();
+
+
+/* B12 synthetic-only read-only RPC: server checks OWNER, CLOSED flags, source bytes and B06 SHA chain. */
+const b12={snapshot:'',after:'',loading:false,token:0,page:0};
+function b12Status(text,error=false){
+ const el=$('b12Integrity');el.textContent=text;
+ el.className='b12Integrity'+(error?' b12Error':'');
+}
+function b12Clear(text){
+ b12.snapshot='';b12.after='';b12.page=0;
+ $('b12Events').replaceChildren();$('b12Next').disabled=true;
+ $('b12Count').textContent='尚無可驗證的結果';
+ if(text)b12Status(text,true);
+}
+function b12Fields(row,box){
+ if(!Array.isArray(row.diff)||row.diff.length===0){
+  box.append(calElem('p','此來源沒有可核實的完整前後值。','small'));return;
+ }
+ const dl=calElem('dl');
+ for(const item of row.diff){
+  const label=calElem('dt',item.field);
+  const before=calElem('dd','原值：'+String(item.before));
+  const after=calElem('dd','新值：'+String(item.after));
+  dl.append(label,before,after);
+ }
+ box.append(dl);
+}
+function b12Render(data,appendPage){
+ if(!data||data.schema!=='STUDY1_B12_READONLY_V1'||data.mode!=='SYNTHETIC_ONLY'||
+    data.integrity!=='B06_CHAIN_VERIFIED'||data.exportAllowed!==false||
+    data.formalData!==false||typeof data.snapshotHash!=='string'||
+    !/^[a-f0-9]{64}$/.test(data.snapshotHash)||
+    !Number.isSafeInteger(data.total)||!Array.isArray(data.items)||
+    !Array.isArray(data.warnings)||typeof data.revision!=='number'||
+    (appendPage&&b12.snapshot!==data.snapshotHash)){
+  b12Clear('B12結果格式、版本或稽核狀態異常；拒絕顯示。');return false;
+ }
+ const target=$('b12Events');
+ if(!appendPage)target.replaceChildren();
+ for(const row of data.items){
+  if(!row||!['B02','B04','B05','B06'].includes(row.module)||
+     typeof row.at!=='string'||typeof row.id!=='string'||
+     typeof row.subject!=='string'||typeof row.action!=='string'||
+     !Array.isArray(row.diff)){
+   b12Clear('B12來源事件格式異常，已拒絕顯示。');return false;
+  }
+  const box=calElem('article',undefined,'b12Event');
+  box.append(calElem('strong',row.module+'｜'+row.action+'｜'+row.subject),
+   calElem('p','時間：'+row.at+'｜操作者：'+row.actor+'｜證據：'+row.quality,'small'),
+   calElem('p','原因：'+row.reason,'small'));
+  b12Fields(row,box);target.append(box);
+ }
+ b12.snapshot=data.snapshotHash;b12.after=data.nextAfter||'';
+ b12.page+=1;$('b12Next').disabled=!b12.after;
+ $('b12Count').textContent='第 '+b12.page+' 頁｜符合 '+data.total+' 筆｜本頁 '+data.items.length+
+  ' 筆｜來源版號 '+data.revision+'/'+data.b06Revision;
+ b12Status('B06 稽核SHA鏈已驗證。本頁僅供已授權 OWNER 查閱。'+data.warnings.join('；'));
+ if(!target.children.length)target.append(calElem('p','無符合條件的虛構稽核事件。','small'));
+ return true;
+}
+function b12Load(next=false){
+ if(b12.loading||!model||busy||model.mode!=='TEST'||model.open!==false||
+   model.consentReady!==false||model.formalReadiness?.activationAllowed!==false){
+  b12Clear('未核實原研究團隊OWNER權限及關閉狀態，無法查詢。');return;
+ }
+ const request={module:$('b12Source').value,sort:$('b12Sort').value,
+  term:$('b12Search').value.trim(),limit:10,
+  after:next?b12.after:'',snapshotHash:next?b12.snapshot:''};
+ if(next&&(!request.after||!request.snapshotHash))return;
+ b12.loading=true;const token=++b12.token;
+ $('b12Query').disabled=true;$('b12Next').disabled=true;
+ b12Status('查核來源版本、完整稽核鏈與唯讀分頁中…');
+ google.script.run.withSuccessHandler(result=>{
+  if(token!==b12.token)return;
+  b12.loading=false;$('b12Query').disabled=false;
+  b12Render(result,next);
+ }).withFailureHandler(e=>{
+  if(token!==b12.token)return;
+  b12.loading=false;$('b12Query').disabled=false;
+  b12Clear('稽核鏈異常／來源競寫或查詢被拒絕：'+String(e.message||e)+'。請重新查詢。');
+ }).study1UnifiedB12Query(request);
+}
+$('b12Query').addEventListener('click',()=>b12Load(false));
+$('b12Next').addEventListener('click',()=>b12Load(true));
+for(const id of ['b12Source','b12Sort','b12Search']){
+ $(id).addEventListener(id==='b12Search'?'input':'change',()=>{
+  b12.token++;b12.loading=false;$('b12Query').disabled=false;
+  b12Clear('查詢條件已變更；請重新查詢以取得一致快照。');
+ });
+}
 
 $('refresh').addEventListener('click',load);load();
 })();
