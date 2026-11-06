@@ -1130,3 +1130,75 @@ test('B10 field with declared SHA stays unverified, and denied owner read clears
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
+
+
+test('B01 OWNER-only dashboard hides and reorders source-derived cards without RPC or writes',()=>{
+ const srv=server(),before=srv.writes,team=page(srv,'team');
+ const cards=team.get('b01Cards'),tools=team.get('b01LayoutControls');
+ assert.equal(cards.children.length,13);
+ assert.equal(tools.children.length,13);
+ const original=cards.children.map(c=>c.children[0].textContent);
+ const values=Object.fromEntries(cards.children.map(c=>[c.children[0].textContent,c.children[1].textContent]));
+ assert.equal(team.get('b01LayoutReset').disabled,false);
+ const first=tools.children[0];
+ first.children[1].handlers.click(); // hide only first card
+ assert.equal(cards.children[0].hidden,true);
+ assert.equal(team.get('b01LayoutControls').children[0].children[1].textContent,'顯示');
+ assert.match(team.get('b01LayoutStatus').textContent,/顯示 12／13 張/);
+ team.get('b01LayoutControls').children[0].children[3].handlers.click(); // move down
+ assert.equal(cards.children[0].children[0].textContent,original[1]);
+ assert.equal(cards.children[1].children[0].textContent,original[0]);
+ assert.equal(cards.children[1].hidden,true);
+ const nextValues=Object.fromEntries(cards.children.map(c=>[c.children[0].textContent,c.children[1].textContent]));
+ assert.deepEqual(nextValues,values,'layout must never alter the thirteen statistical values');
+ assert.deepEqual(team.calls.filter(x=>x!=='READ'),[]);
+ assert.equal(srv.writes,before);
+ team.click('refresh');
+ assert.equal(cards.children[0].children[0].textContent,original[1]);
+ assert.equal(cards.children[1].children[0].textContent,original[0]);
+ assert.equal(cards.children[1].hidden,true,'same page reload retains session-only preference');
+ team.set('adminScopeGlobal','E2');team.change('adminScopeGlobal');
+ assert.equal(cards.children[0].children[0].textContent,original[1]);
+ assert.equal(cards.children[1].hidden,true,'global experiment scope still inherits card layout');
+ team.click('b01LayoutReset');
+ assert.deepEqual(cards.children.map(c=>c.children[0].textContent),original);
+ assert.ok(cards.children.every(c=>!c.hidden),'reset restores all cards');
+ assert.match(team.get('b01LayoutStatus').textContent,/顯示 13／13 張/);
+ assert.equal(srv.writes,before);
+ closed(srv);
+});
+
+test('B01 dashboard layout never persists to other owner tabs or changes visitor preview',()=>{
+ const srv=server(),a=page(srv,'team'),start=srv.writes;
+ a.get('b01LayoutControls').children[0].children[1].handlers.click();
+ a.get('b01LayoutControls').children[0].children[3].handlers.click();
+ const b=page(srv,'team');
+ assert.equal(a.get('b01Cards').children[0].children[0].textContent,
+  b.get('b01Cards').children[1].children[0].textContent);
+ assert.equal(b.get('b01Cards').children[0].hidden,false);
+ assert.ok(b.get('b01Cards').children.every(c=>!c.hidden));
+ const visitor=page(srv,'visitor');
+ assert.equal(srv.writes,start);
+ assert.ok(visitor.calls.every(x=>x==='READ'));
+ closed(srv);
+});
+
+test('B01 owner denial or unsafe global view clears layout and keeps controls locked',()=>{
+ const srv=server(),team=page(srv,'team'),initial=srv.writes;
+ team.get('b01LayoutControls').children[0].children[1].handlers.click();
+ assert.equal(team.get('b01Cards').children[0].hidden,true);
+ team.set('adminScopeGlobal','NOT_A_SCOPE');team.change('adminScopeGlobal');
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(team.get('b01LayoutControls').children.length,0);
+ assert.equal(team.get('b01LayoutReset').disabled,true);
+ assert.match(team.get('b01LayoutStatus').textContent,/管理範圍不合法/);
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner access revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b01LayoutControls').children.length,0);
+ assert.equal(team.get('b01LayoutReset').disabled,true);
+ assert.equal(team.get('b01Cards').children.length,0);
+ assert.equal(srv.writes,initial);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
