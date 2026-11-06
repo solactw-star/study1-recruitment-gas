@@ -438,3 +438,18 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `BLOCKERS`：仍缺正式資料provider與容量、跨多key真正原子交易／一致性、經核准的參與者資料備份與恢復、不可改寫的長期稽核、REC與身分權限／撤權、保存刪除規範。當次程式碼稽核SHA鏈是**一致性偵測而非可信外部簽章**；不因此放行正式PI／RA權限、正式Sheet或寄信。
 - `NEXT_ACTION`：按最新main核對其他PR與競寫，續做未授權資料無外部副作用的安全驗證與原網站模組；如要正式資料備份／真PI／RA權限，先取得REC及資料治理核准。維持 `OPEN=false`、`CONSENT_READY=false`、有效部署 `MYSELF`、E2於2027年前不招募且不自動開放。
 - `WRITE_OWNER=original GitHub main + same-ID GAS safe auto-sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; REAL_UI_AND_FORMAL_DATA_BLOCKED`。
+
+## 三十七、B12操作稽核唯讀查詢、失敗診斷與原GAS V63回讀（2026-11-06）
+
+- `TASK_DOMAIN=Study1 recruitment website / B12 audit`，以2026-11-06當次驗證之最新正式主分支與第17、31–36節為依據。僅增量修改唯一原Repository `solactw-star/study1-recruitment-gas`、原GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`及原`/exec`。本輪沒有建立平行網站、資料表、B12 ScriptProperties key、正式資料庫或資料搬遷；保存原B02–B06歷程與現有模式。
+- `COMPLETED`（B12來源驗證）：`gas/Study1Unified.js` 新增**唯讀合成稽核查詢投影**，在回傳前完整核查B06現有SHA256鏈、請求指紋、現有待辦的前後態、操作類型及時間順序；沿用第36節較嚴的B06回放規則，不重建或改寫歷史。B04管理與B05結案的原有**有限近期歷程**依欄位／場次核對相鄰前後值與目前虛構資料；區別標示`BOUNDED_LEGACY_HISTORY`，**不聲稱這些紀錄具完整SHA鏈或長期永久性**。B06標`SHA256_CHAIN_VERIFIED`，也不等於有外部數位簽章。
+- `COMPLETED`（查詢分頁及介面）：原`gas/Study1Team.html`新增B12專區，按模組B04／B05／B06／B08、結果及關鍵字查詢，顯示操作者、時間、操作、資料對象、原因、結果、原值／新值與來源驗證級別。後端`study1UnifiedB12AuditPage`由原Apps Script active/effective owner、`OPEN=false`、`CONSENT_READY=false`、ScriptLock及兩個既有資料key的讀前／讀後位元組一致性保護。每頁最多30筆；游標與SHA256全量快照、篩選及雙資料修訂版本綁定；錯誤游標／競寫／未核准查詢欄位直接拒絕。
+- `COMPLETED`（異常與失敗）：既有虛構通知的`SIM_FAILED`僅作`CURRENT_SNAPSHOT_ONLY`顯示，明標**目前失敗狀態而非具時間的歷史事件**。B06與統一虛構交易被拒絕時，產生不含原操作payload／理由文字／聯絡資訊的分類`STUDY1_B12_DIAGNOSTIC_V1`執行記錄（例如版本衝突、容量拒絕、資料狀態不明）；不在B06或B12歷史內虛構「已提交事件」。這些執行記錄**未配置長期不可變外部稽核庫／保存保證**；本輪不因此假稱失敗已永久稽核入庫。
+- `EXPORT_DENIED`：原正式adapter `exportAudit`持續`FORMAL_BLOCKED`；B12匯出只存在私有拒絕函式，不暴露新的client可呼叫匯出endpoint，不提供CSV／下載按鈕。PI／RA名稱仍僅為虛構測試標籤，並非登入授權；僅核准owner可查閱隔離虛構資料。
+- `SOURCE_PR=65`（已合併）；`SOURCE_COMMIT=92a3a26e61db266dcf817eaeba262d0c8f1d8609`；增量修改`gas/Study1Unified.js`、`gas/Study1Team.html`、`scripts/study1-gas-backend-allowlist.cjs`、`tests/public-global-surface.test.cjs`並新增唯一專責測試`tests/study1-b12-audit.test.cjs`。隔離PR CI `42188643755`、合併main CI `42188905559`均通過**513 PASS／0 FAIL**；已保留V62原有B06回放與預寫入備份約束。測試含SHA變造、B04/B05連續性、雙revision快照分頁、失敗快照來源標示、拒絕操作遮蔽診斷、惡意查詢、未授權身分／開關、寫入次數維持0及新增GAS client端點白名單。
+- `GAS_SYNC_VERIFIED=true`：沿用既有workflow `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42188905561`，完整原GAS預寫入備份Drive ID `1vnY0Te7RWnUeag6-a9kUUVfWYzn5ZhDm`；原遠端HEAD SHA256 `35029993f95a876240e0ff0b59eafc1e3d539710e81706867ed16a5ef4acc82d`，核對原部署`AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s`由**V62→V63**，`DEPLOYMENT_AFTER_UPDATE=63`且`SYNC_VERIFIED=true`；完整GAS HEAD SHA256 `0767992c93cf1e08223c1dfdec0577e40ce5bd7857e3f0700f5f0e98e2b6602e`。原Script ID、版本化`/exec`和有效`MYSELF`權限均保留（未部署HEAD manifest中的`ANYONE_ANONYMOUS`不等同實際版本化部署存取權）。
+- `SAFETY`：仍為`OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2不自動招募；正式資料提供者、真正PI／RA登入與撤權、REC電子同意、真實郵件、正式匯出及真人研究資料均未開放。不讀寫正式研究Sheets、正式REC或實際參與者資訊。
+- `LAST_VERIFIED_STEP=main code merge, 513/513 CI, same-ID original GAS V63 version+SHA256+MYSELF readback`；`MAIN_SYNC_VERIFIED=true`、`GAS_SYNC_VERIFIED=true`、`PRODUCTION_STORAGE_CONNECTED=false`、`B12_FORMAL_IMMUTABLE_AUDIT=false`、`SELF_UI_3PASS=NOT_VERIFIED`、`USER_UAT_PENDING_BY_USER_REQUEST=true`、`FORMAL_READY=false`。
+- `BLOCKERS`：未有核准之跨期間不可變稽核保存服務、完整B02–B11正式行為歷史、真PI／RA授權與撤權、法定保存／刪除及REC核准、外部資料provider／正式容量、原owner實際瀏覽器操作驗證。B12目前只投影可驗證的隔離來源，不把短期／未保存診斷當成正式完整稽核。
+- `NEXT_ACTION`：每輪先查最新main、原部署及並行排程，持續改善仍不接觸真人資料的B12跨模組操作來源一致性或其他已核准B01–B12功能；要接正式長期稽核、真實資料或匯出必須另有REC／資料權責核准。依使用者決策不要求本輪人工驗收。
+- `WRITE_OWNER=GitHub main + original GAS safe-sync workflow`；`SYNC_STATUS=MAIN_SYNC_VERIFIED + GAS_SYNC_VERIFIED; FORMAL_AUDIT_AND_REAL_UI_BLOCKED`。
