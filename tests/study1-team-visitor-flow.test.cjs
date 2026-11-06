@@ -1055,3 +1055,96 @@ test('B11 forbidden owner and OPEN/CONSENT flags keep all six scoped panels empt
   assert.equal(srv.store.has('STUDY1_B11_SCOPE_V1'),false);
  }
 });
+
+test('B10 original owner-only document index lists six TEST metadata records, no real PDF or mutating RPC',()=>{
+ const srv=server(),writes=srv.writes,team=page(srv,'team');
+ const rows=team.get('b10Rows').children;
+ assert.equal(rows.length,6,'two experiments by consent, screening and research-copy classes');
+ assert.match(team.get('b10Status').textContent,/顯示 6／6 項虛構中繼資料/);
+ assert.match(team.get('b10Coverage').textContent,/REC_DRAFT_ONLY.*PENDING/);
+ assert.equal(rows.filter(row=>/REC_DRAFT_ONLY｜PENDING/.test(row.children[2].textContent)).length,6);
+ assert.equal(rows.filter(row=>/未取得正式原檔位元組/.test(row.children[4].textContent)).length,6);
+ assert.equal(rows[0].children[1].textContent,srv.read().policy.consent.E1.version);
+ assert.equal(rows[1].children[1].textContent,srv.read().policy.screening.mappings.E1.version);
+ assert.match(rows[2].children[1].textContent,/尚無獨立版本/);
+ for(const id of ['b10FormalView','b10Sign','b10Export'])
+  assert.equal(team.get(id).disabled,true,id+' remains hard-disabled');
+ assert.deepEqual(team.calls,['READ'],'B10 needs no second server endpoint');
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.store.has('STUDY1_B10_DOCUMENTS_V1'),false);
+ assert.equal(srv.store.get('OPEN'),'false');
+ assert.equal(srv.store.get('CONSENT_READY'),'false');
+ closed(srv);
+});
+test('B10 E1/E2 provenance and reference-version compare never infer approval or verified history',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E2'});
+ const state=srv.ctx.study1UnifiedRead_();
+ const a=state.applications;
+ a[0].screeningVersion=state.policy.screening.mappings.E1.version;
+ a[0].screeningSource='REC_DRAFT_ONLY';
+ a[0].consentVersion=state.policy.consent.E1.version;
+ a[1].screeningVersion='PENDING_OLDER_RULES_V1';
+ a[1].screeningSource='REC_DRAFT_ONLY';
+ a[1].consentVersion='PENDING_OLDER_CONSENT_V1';
+ srv.store.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(state));
+ const team=page(srv,'team'),writes=srv.writes;
+ assert.equal(team.get('b10Rows').children.length,6);
+ const e1Consent=team.get('b10Rows').children[0];
+ assert.match(e1Consent.children[3].textContent,/相同 1｜不同 1｜未記錄 0/);
+ const e1Screening=team.get('b10Rows').children[1];
+ assert.match(e1Screening.children[3].textContent,/相同 1｜不同 1｜未記錄 0/);
+ assert.match(team.get('b10Rows').children[5].children[3].textContent,/無獨立版本/);
+ team.set('b10Compare','DIFFERENT');team.change('b10Compare');
+ assert.equal(team.get('b10Rows').children.length,2);
+ assert.equal(team.get('b10Rows').children[0].children[0].textContent,'E1｜同意版本資訊');
+ team.set('b10Experiment','E2');team.change('b10Experiment');
+ assert.equal(team.get('b10Rows').children.length,1,'no mismatch in E2: display an empty-result row');
+ assert.match(team.get('b10Rows').children[0].children[0].textContent,/沒有可核實/);
+ team.set('b10Compare','NO_VERSION');team.change('b10Compare');
+ team.set('b10Type','RESEARCH');team.change('b10Type');
+ assert.equal(team.get('b10Rows').children.length,1);
+ assert.match(team.get('b10Rows').children[0].children[0].textContent,/E2｜研究介紹草稿/);
+ assert.match(team.get('b10Status').textContent,/正式核准 0 項/);
+ assert.equal(srv.writes,writes);
+ team.click('refresh');
+ assert.equal(team.get('b10Experiment').value,'E2');
+ assert.equal(team.get('b10Type').value,'RESEARCH');
+ assert.equal(team.get('b10Rows').children.length,1);
+ assert.equal(srv.writes,writes);
+ const second=page(srv,'team');
+ assert.equal(second.get('b10Rows').children.length,6,'new owner page defaults ALL');
+ assert.equal(srv.read().governance.documents.E1.approved,false);
+ closed(srv);
+});
+test('B10 forged approval, mismatched declared SHA, malformed source or revoked owner clear stale records',()=>{
+ const srv=server(),team=page(srv,'team'),writes=srv.writes;
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ assert.equal(team.get('b10Rows').children.length,6);
+ const tamper=mutate=>{
+  srv.ctx.study1UnifiedPreviewGet=()=>{
+   const v=original();mutate(v);return v;
+  };
+  team.click('refresh');
+  assert.equal(team.get('b10Rows').children.length,0,'cannot show stale or forged formal documents');
+  assert.match(team.get('b10Status').textContent,/索引已清空/);
+  assert.equal(team.get('b10Export').disabled,true);
+  srv.ctx.study1UnifiedPreviewGet=original;
+  team.click('refresh');
+  assert.equal(team.get('b10Rows').children.length,6);
+ };
+ tamper(v=>{v.governance.documents.E1.approved=true;});
+ tamper(v=>{v.governance.documents.E2.declaredSha256='f'.repeat(64);});
+ tamper(v=>{v.policy.screening.mappings.E2.source='REC_APPROVED';});
+ tamper(v=>{v.policy.consent.E1.approval='APPROVED';});
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('synthetic owner session revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b10Rows').children.length,0);
+ assert.match(team.get('b10Status').textContent,/索引已清空/);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(srv.writes,writes);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
