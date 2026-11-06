@@ -185,6 +185,10 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 #b01Module{scroll-margin-top:24px} .b01Cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:16px 0}
 .b01Card{border:1px solid var(--line);border-radius:12px;padding:14px;background:#f6faf8}.b01Card strong{display:block;font-size:25px}
 .b01Links{display:flex;gap:10px;flex-wrap:wrap}.b01Links a{padding:9px 13px;border:1px solid var(--line);border-radius:9px;color:var(--teal)}
+.b01LayoutTools{border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0;background:#f7fbfa}
+.b01LayoutRow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line)}
+.b01LayoutRow span{flex:1;min-width:170px;font-size:13px}
+.b01LayoutRow button{font-size:12px;padding:5px 9px;width:auto}
 /* B09 read-only REPORT: same owner TEST snapshot, no export or side effects. */
 #b09Module{scroll-margin-top:24px}
 .b09Filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
@@ -253,7 +257,13 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p class="sub">僅彙整同一份已授權的虛構資料快照；非正式招募數據。人數與預約人次分開計算，正式目標及完成率尚未核准。</p>
  <p id="b01Status" role="status" aria-live="polite">正在核對研究安全設定與資料…</p>
 <div class="adminScopeLocal" aria-label="B01本頁範圍覆寫"><label for="adminScopeB01">B01 本頁範圍</label><select id="adminScopeB01"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB01" aria-live="polite">繼承全域</span></div>
- <div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
+ <details id="b01LayoutPanel" class="b01LayoutTools"><summary>自訂本頁資訊卡順序與顯示</summary>
+ <p class="small">只調整目前OWNER管理頁的排列及可見性；不改統計數字、GAS資料、權限或研究程序。重新開啟新管理頁會回到預設。</p>
+ <p id="b01LayoutStatus" class="small" aria-live="polite">待安全來源載入後可調整卡片。</p>
+ <button type="button" id="b01LayoutReset" class="secondary" disabled>恢復全部13張預設卡片</button>
+ <div id="b01LayoutControls" aria-label="資訊卡可見性與排序操作"></div>
+</details>
+<div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
  <div class="b01Links"><a href="#calendarModule">查看研究行事曆</a><a href="#b03Module">查看參與者名單</a><a href="#b06Module">查看人工待辦</a></div>
 </section>
 
@@ -653,7 +663,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
+  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
@@ -666,7 +676,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- adminScopeLabels_();b11Load_();b10Render_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
+ adminScopeLabels_();b11Load_();b10Render_();displaySlots();displayWeeks();b01Render();b01LayoutRender_();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
@@ -721,7 +731,7 @@ function adminScopeChanged_(module){
  const affected=module==='GLOBAL'?adminScopeModules:[module];
  if(!affected.every(m=>adminScopeEffective_(m)!==null)){
   model=null;setBusy(true);adminScopeClearAll_();
-  b01Clear('管理範圍不合法；研究總覽已清空。');
+  b01Clear('管理範圍不合法；研究總覽已清空。');b01LayoutClear_('管理範圍不合法，卡片設定已清除。');
   b09Clear_('管理範圍不合法；報表已清空。');
   adminScopeLabels_();return;
  }
@@ -748,7 +758,7 @@ function adminScopeChanged_(module){
  }
  adminScopeLabels_();
  if(!model||busy){adminScopeClearAll_();return;}
- if(affected.includes('B01'))b01Render();
+ if(affected.includes('B01')){b01Render();b01LayoutRender_();}
  if(affected.includes('B02'))calendarRender();
  if(affected.includes('B03'))b03Render();
  if(affected.includes('B06'))b06Render();
@@ -1294,6 +1304,81 @@ $('b10Experiment').addEventListener('change',b10Render_);
 $('b10Reset').addEventListener('click',()=>{$('b10Experiment').value='ALL';b10Render_();});
 
 
+/* B01 P2-05: session-only OWNER layout preference, not a persisted
+ * configuration or permission. Each label is present in B01's audited count
+ * list; changing layout never recalculates or writes source metrics. */
+const b01Layout={order:[],hidden:new Set()};
+function b01LayoutClear_(messageText){
+ b01Layout.order=[];b01Layout.hidden.clear();
+ $('b01LayoutControls').replaceChildren();
+ $('b01LayoutReset').disabled=true;
+ $('b01LayoutStatus').textContent=messageText;
+}
+function b01LayoutRender_(){
+ const target=$('b01Cards'),control=$('b01LayoutControls'),
+  source=[...target.children];
+ control.replaceChildren();
+ if(!model||busy||source.length!==13){
+  b01LayoutClear_('資料或管理權限未核實，卡片排序與顯示操作已鎖定。');
+  return;
+ }
+ const ids=source.map(card=>card.children[0]?.textContent);
+ if(ids.some(k=>typeof k!=='string'||!k)||new Set(ids).size!==13){
+  b01Clear('卡片來源不一致；停止顯示研究摘要。');
+  b01LayoutClear_('資料來源不一致，拒絕保留舊的排序。');
+  return;
+ }
+ if(b01Layout.order.length!==13||
+    b01Layout.order.some((k,i)=>!ids.includes(k)||
+      b01Layout.order.indexOf(k)!==i)){
+  b01Layout.order=ids.slice();b01Layout.hidden.clear();
+ }
+ const ordered=b01Layout.order.map(key=>source.find(card=>card.children[0].textContent===key));
+ target.replaceChildren(...ordered);
+ ordered.forEach((card,i)=>{
+  const key=b01Layout.order[i],hidden=b01Layout.hidden.has(key);
+  card.hidden=hidden;
+  const line=document.createElement('div');line.className='b01LayoutRow';
+  const name=document.createElement('span');name.textContent=key;
+  const show=document.createElement('button');show.type='button';
+  show.className='secondary';show.textContent=hidden?'顯示':'隱藏';
+  show.setAttribute('aria-label',(hidden?'顯示':'隱藏')+'「'+key+'」卡片');
+  show.addEventListener('click',()=>{
+   if(!model||busy)return;
+   if(b01Layout.hidden.has(key))b01Layout.hidden.delete(key);
+   else b01Layout.hidden.add(key);
+   b01LayoutRender_();
+  });
+  const up=document.createElement('button');up.type='button';
+  up.className='secondary';up.textContent='上移';up.disabled=i===0;
+  up.setAttribute('aria-label','上移「'+key+'」');
+  up.addEventListener('click',()=>{
+   if(!model||busy||i===0)return;
+   [b01Layout.order[i-1],b01Layout.order[i]]=
+    [b01Layout.order[i],b01Layout.order[i-1]];
+   b01LayoutRender_();
+  });
+  const down=document.createElement('button');down.type='button';
+  down.className='secondary';down.textContent='下移';down.disabled=i===ordered.length-1;
+  down.setAttribute('aria-label','下移「'+key+'」');
+  down.addEventListener('click',()=>{
+   if(!model||busy||i===ordered.length-1)return;
+   [b01Layout.order[i+1],b01Layout.order[i]]=
+    [b01Layout.order[i],b01Layout.order[i+1]];
+   b01LayoutRender_();
+  });
+  line.append(name,show,up,down);control.append(line);
+ });
+ const visible=13-b01Layout.hidden.size;
+ $('b01LayoutStatus').textContent='本頁顯示 '+visible+'／13 張；順序已套用。只更動目前頁面，不會寫入GAS。';
+ $('b01LayoutReset').disabled=false;
+}
+$('b01LayoutReset').addEventListener('click',()=>{
+ if(!model||busy)return;
+ b01Layout.order=[];b01Layout.hidden.clear();
+ b01Render();b01LayoutRender_();
+});
+
 function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
@@ -1362,7 +1447,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
