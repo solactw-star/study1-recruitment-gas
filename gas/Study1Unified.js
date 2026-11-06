@@ -589,18 +589,39 @@ function study1UnifiedB06Command(command){
 /**
  * B12: read-only audit projection on top of EXISTING synthetic fixture and B06
  * history. No additional ScriptProperties key, migration or real data adapter.
- * B06 has a SHA chain; legacy B04/B05 have bounded, non-chained history.
+ * B06 has a SHA chain; legacy B02/B04/B05 have bounded, non-chained history.
  * A simulated failed notification is a CURRENT STATUS SNAPSHOT, never a
  * fabricated historical audit event.
  */
 function study1B12AuditBuild_(fixture,b06){
  study1B06Verify_(b06);
  if(!fixture||!Number.isSafeInteger(fixture.revision)||fixture.revision<0||
+    !fixture.b02||!Array.isArray(fixture.b02.history)||
+    fixture.b02.history.length>12||
     !fixture.b04||!Array.isArray(fixture.b04.history)||
     !fixture.b05||!Array.isArray(fixture.b05.history)||
     !Array.isArray(fixture.notifications))
   throw Error('B12虛構稽核來源格式不合法');
  const events=[],b04Last=new Map(),b05Last=new Map();
+ // B02 has only a 12-entry event-only ring; its absence is not evidence of
+ // missing committed state or proof of corruption. Never fabricate a diff.
+ for(let i=0;i<fixture.b02.history.length;i++){
+  const h=fixture.b02.history[i],slotAction=['CREATE','UPDATE','CANCEL',
+   'ADMIN_CLOSE','ADMIN_REOPEN'].includes(h?.action);
+  if(!h||typeof h.at!=='string'||Number.isNaN(Date.parse(h.at))||
+     new Date(h.at).toISOString()!==h.at||
+     !['CREATE','UPDATE','CANCEL','ATTEND','ADMIN_CLOSE','ADMIN_REOPEN'].includes(h.action)||
+     !Array.isArray(h.ids)||!h.ids.length||h.ids.length>8||
+     h.ids.some(id=>typeof id!=='string'||
+       !(slotAction?/^SIM-SLOT-E[12]-[A-Z]$/:/^SIM-\d{3}$/).test(id))||
+     (['ATTEND','ADMIN_CLOSE','ADMIN_REOPEN'].includes(h.action)&&h.ids.length!==1))
+   throw Error('B12行事曆有限歷程動作、代碼或時間不一致');
+  events.push({id:'B02-'+String(i+1).padStart(6,'0'),module:'B02',
+   actor:'OWNER',at:h.at,action:h.action,target:h.ids.join(', '),
+   before:null,after:{affectedIds:h.ids.slice()},
+   reason:'原B02僅保存操作類型、虛構代碼與時間；無前後值可供重建',
+   result:'SUCCESS',provenance:'BOUNDED_EVENT_ONLY',historical:true});
+ }
  let b06At='';
  for(const h of b06.audit){
   if(h.at<b06At||(h.action==='CREATE'&&h.before!==null)||
@@ -693,6 +714,67 @@ function study1B12AuditPage_(fixture,b06,query){
     typeof query.snapshotHash!=='string')
   throw Error('B12稽核查詢、版本或分頁參數不合法');
  const all=study1B12AuditBuild_(fixture,b06);
+ // Cross-module mirrors are a consistency signal, not a complete ledger.
+ // A missing mirror may mean old entries were trimmed by different ring caps.
+ const b02=fixture.b02.history,b04=fixture.b04.history,b05=fixture.b05.history;
+ const mirrorAction=h=>h.action==='CLOSE'?'ADMIN_CLOSE':'ADMIN_REOPEN';
+ const sameSlot=(h,id,at)=>h.at===at&&h.ids.includes(id);
+ // Conflicting action in a retained matching slot/time pair is a provable
+ // contradiction. Absence of a counterpart is NOT (legacy truncation).
+ for(const h of b05){
+  const paired=b02.filter(e=>['ADMIN_CLOSE','ADMIN_REOPEN'].includes(e.action)&&
+    sameSlot(e,h.slotId,h.at));
+  if(paired.length&&!paired.some(e=>e.action===mirrorAction(h)))
+   throw Error('B12 B02／B05 同時點操作類型互相矛盾，拒絕查詢');
+ }
+ for(const h of b02.filter(e=>['ADMIN_CLOSE','ADMIN_REOPEN'].includes(e.action))){
+  const paired=b05.filter(e=>e.slotId===h.ids[0]&&e.at===h.at);
+  if(paired.length&&!paired.some(e=>mirrorAction(e)===h.action))
+   throw Error('B12 B02／B05 原場次稽核鏡像互相矛盾，拒絕查詢');
+ }
+ const check={b02B05Matched:0,b02B05NoMirror:0,
+  b05B02NoMirror:0,b04AttendanceB02NoMirror:0,b02AttendanceNotProvable:0};
+ for(const h of b02){
+  if(['ADMIN_CLOSE','ADMIN_REOPEN'].includes(h.action)){
+   if(b05.some(e=>e.slotId===h.ids[0]&&e.at===h.at&&mirrorAction(e)===h.action))
+    check.b02B05Matched++;
+   else check.b02B05NoMirror++;
+  }else if(h.action==='ATTEND'){
+   if(!b04.some(e=>e.field==='attendanceAndProgress'&&
+      e.id===h.ids[0]&&e.at===h.at))check.b02AttendanceNotProvable++;
+  }
+ }
+ for(const h of b05){
+  if(!b02.some(e=>e.at===h.at&&e.action===mirrorAction(h)&&
+    e.ids.includes(h.slotId)))check.b05B02NoMirror++;
+ }
+ for(const h of b04.filter(e=>e.field==='attendanceAndProgress')){
+  if(!b02.some(e=>e.action==='ATTEND'&&e.at===h.at&&e.ids.includes(h.id)))
+   check.b04AttendanceB02NoMirror++;
+ }
+ const warnings=[{code:'BOUNDED_NOT_FULL',severity:'INFO',
+  text:'B02／B04／B05是有限近期歷程，沒有完整交易稽核鏈；未出現某筆不代表該操作從未發生'}];
+ if(b02.length===12)warnings.push({code:'B02_CAP',severity:'LIMITED',
+  text:'B02已達12筆保留上限，更早的操作可能已被環狀截斷'});
+ if(b04.length===30)warnings.push({code:'B04_CAP',severity:'LIMITED',
+  text:'B04已達30筆保留上限，更早的前後值可能已截斷'});
+ if(b05.length===32)warnings.push({code:'B05_CAP',severity:'LIMITED',
+  text:'B05已達32筆保留上限，更早的結案紀錄可能已截斷'});
+ const noMirror=check.b02B05NoMirror+check.b05B02NoMirror+
+  check.b04AttendanceB02NoMirror;
+ if(noMirror)warnings.push({code:'MIRROR_NOT_FOUND',severity:'REVIEW',
+  text:'跨B02／B04／B05部分保留歷程無法找到對照事件（'+noMirror+
+   '處）；可能為舊版或截斷紀錄，請人工比對，不能直接認定遺失或遭修改'});
+ if(check.b02AttendanceNotProvable)warnings.push({
+  code:'ATTEND_NO_CHANGE_UNPROVABLE',severity:'LIMITED',
+  text:'有'+check.b02AttendanceNotProvable+
+   '筆B02出席操作無同時點B04更動；原系統未改值時不寫B04歷程，不能判為遺漏'});
+ const coverage={scope:'BOUNDED_SYNTHETIC_SNAPSHOT',complete:false,
+  sources:[{module:'B02',retained:b02.length,limit:12,provenance:'BOUNDED_EVENT_ONLY'},
+   {module:'B04',retained:b04.length,limit:30,provenance:'BOUNDED_LEGACY_HISTORY'},
+   {module:'B05',retained:b05.length,limit:32,provenance:'BOUNDED_LEGACY_HISTORY'},
+   {module:'B06',retained:b06.audit.length,limit:200,provenance:'SHA256_CHAIN_VERIFIED'}],
+  crossChecks:check,warnings};
  const direction=query.sort===undefined?'ASC':query.sort; // legacy cursors remain ASC
  const q=query.search.trim().toLowerCase();
  const filtered=all.filter(e=>
@@ -703,7 +785,7 @@ function study1B12AuditPage_(fixture,b06,query){
  // UI must be tied to its own snapshot so a cursor cannot cross directions.
  if(direction==='DESC')filtered.reverse();
  const snapshotHash=study1UnifiedStoreHash_([
-  fixture.revision,b06.revision,b06.head,query.module,query.result,q,direction,all]);
+  fixture.revision,b06.revision,b06.head,query.module,query.result,q,direction,all,coverage]);
  let start=0;
  if(query.after){
   if(query.snapshotHash!==snapshotHash)
@@ -717,7 +799,7 @@ function study1B12AuditPage_(fixture,b06,query){
  return {mode:'SYNTHETIC_AUDIT_ONLY',formalExport:false,
   completeImmutableArchive:false,b06ChainVerified:true,
   legacyHistoryBounded:true,fixtureRevision:fixture.revision,
-  b06Revision:b06.revision,snapshotHash,total:filtered.length,
+  b06Revision:b06.revision,snapshotHash,coverage,total:filtered.length,
   items:JSON.parse(JSON.stringify(selected)),
   nextAfter:start+selected.length<filtered.length?
    selected[selected.length-1].id:null};
