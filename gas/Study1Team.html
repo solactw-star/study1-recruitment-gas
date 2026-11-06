@@ -696,7 +696,7 @@ function adminScopeClearAll_(){
 function adminScopeChanged_(module){
  const affected=module==='GLOBAL'?adminScopeModules:[module];
  if(!affected.every(m=>adminScopeEffective_(m)!==null)){
-  adminScopeClearAll_();
+  model=null;setBusy(true);adminScopeClearAll_();
   b01Clear('管理範圍不合法；研究總覽已清空。');
   b09Clear_('管理範圍不合法；報表已清空。');
   adminScopeLabels_();return;
@@ -1864,8 +1864,8 @@ function b03Render(){
  $('b03BoardMode').setAttribute('aria-pressed',String(b03.mode==='board'));
  $('b03Empty').hidden=rows.length!==0;
  const scopedTotal=model.applications.filter(a=>adminScopeMatch_('B03',a.experiment)).length;
- $('bookingSummary').textContent='顯示 '+rows.length+'／本頁範圍 '+scopedTotal+
-  ' 筆｜檢視 '+adminScopeEffective_('B03')+'｜正式真人資料尚未啟用';
+ $('bookingSummary').textContent='顯示 '+rows.length+'／共 '+scopedTotal+
+  ' 筆｜本頁範圍 '+adminScopeEffective_('B03')+'｜正式真人資料尚未啟用';
  for(const a of rows){
   const slot=model.slots.find(x=>x.id===a.slotId),
    ap=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
@@ -2199,8 +2199,8 @@ function b06Render(){
   (exp==='ALL'||t.experiment===exp||t.experiment==='ALL')&&
   (!query||[t.id,t.title,t.description,t.relationId].join(' ').toLowerCase().includes(query))
  ).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
- $('b06Count').textContent='顯示 '+visible.length+'／本頁範圍 '+all.length+
-  ' 件人工待辦｜檢視 '+adminScopeEffective_('B06')+'｜待辦修訂版 '+model.b06.revision;
+ $('b06Count').textContent='顯示 '+visible.length+'／共 '+all.length+
+  ' 件人工待辦｜本頁範圍 '+adminScopeEffective_('B06')+'｜待辦修訂版 '+model.b06.revision;
  $('b06Empty').hidden=visible.length!==0;
  const target=$('b06List');target.replaceChildren();
  for(const t of visible){
@@ -2315,7 +2315,7 @@ function b08Render(){
  const failed=scopedRows.filter(n=>n.status==='SIM_FAILED').length,
   pending=scopedRows.filter(n=>n.status==='SIM_PENDING').length,
   simulated=scopedRows.filter(n=>n.status==='SIM_DELIVERED').length;
- $('b08Summary').textContent='目前顯示 '+visible.length+'／本頁範圍 '+scopedRows.length+
+ $('b08Summary').textContent='目前顯示 '+visible.length+'／既有本頁範圍 '+scopedRows.length+
   ' 筆｜檢視 '+adminScopeEffective_('B08')+'｜待模擬 '+pending+'｜模擬失敗 '+failed+
   '｜模擬交付成功 '+simulated+'｜全部為虛構通知，無真實寄送';
  for(const n of visible){
