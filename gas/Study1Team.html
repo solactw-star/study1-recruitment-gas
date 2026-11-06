@@ -912,7 +912,7 @@ function b01Render(){
 
 /* B11: draft comparisons never persist; only one explicitly reviewed
  * TEST_ONLY command uses the existing server-side ScriptLock, CAS and owner. */
-const b11={preview:null,revision:null,fingerprint:null,mustReload:false};
+const b11={preview:null,revision:null,mustReload:false};
 function b11Safe_(){
  return model&&model.mode==='TEST'&&model.open===false&&
   model.consentReady===false&&model.formalReadiness&&
@@ -929,7 +929,7 @@ function b11Status_(text,error=false){
  $('b11Status').style.color=error?'#ac3530':'#476f68';
 }
 function b11Clear_(text){
- b11.preview=null;b11.revision=null;b11.fingerprint=null;
+ b11.preview=null;b11.revision=null;
  $('b11Diff').replaceChildren();
  $('b11Demo').textContent='尚無可核實的設定預覽。';
  $('b11Apply').disabled=true;
@@ -991,8 +991,19 @@ function b11Collect_(){
    throw Error('全站草稿字數或安全字元不符');
  }
  const payload={scope,modes,site,release:'TEST_ONLY'};
- if(JSON.stringify(payload).length>760)throw Error('虛構設定預覽超過可稽核容量');
+ if(site!==null&&site.title.length+site.notice.length+
+  site.emailTemplate.length>560)throw Error('虛構設定預覽超過可稽核容量');
  return payload;
+}
+function b11Equals_(a,b){
+ if(!a||!b||a.scope!==b.scope||a.release!==b.release||
+  (a.site===null)!==(b.site===null))return false;
+ for(const exp of ['E1','E2']){
+  if((a.modes[exp]||null)!==(b.modes[exp]||null))return false;
+ }
+ if(a.site!==null&&['title','notice','emailTemplate'].some(k=>a.site[k]!==b.site[k]))
+  return false;
+ return true;
 }
 function b11Diff_(payload){
  const rows=[];
@@ -1029,7 +1040,7 @@ function b11Preview_(){
    '\n實驗一：'+previewRecruitment.E1+'｜實驗二：'+previewRecruitment.E2+
    '\n正式收件：CLOSED｜REC：PENDING｜通知：DISABLED';
   b11.preview=payload;b11.revision=model.revision;
-  b11.fingerprint=JSON.stringify(payload);
+  // Stage holds the exact reviewed values; a changed field cannot be reused.
   $('b11Revision').textContent='草稿鎖定原資料修訂版 '+b11.revision+
    '｜如原網站其他頁籤先寫入，本次應由伺服器拒絕。';
   b11Status_('已預覽 '+diff.length+' 項差異；只有 TEST 模式可以一次套用，正式發布永遠禁止。');
@@ -1042,7 +1053,7 @@ function b11Apply_(){
  try{current=b11Collect_();}catch(e){
   b11Clear_('B11草稿驗證失敗，必須重新預覽。');return;
  }
- if(model.revision!==b11.revision||JSON.stringify(current)!==b11.fingerprint){
+ if(model.revision!==b11.revision||!b11Equals_(current,b11.preview)){
   b11Clear_('設定或原始版本已改變，請重新預覽後再送出。');return;
  }
  const command={action:'ADMIN_B11_SETTINGS',payload:current,
