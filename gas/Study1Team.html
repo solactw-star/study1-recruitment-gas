@@ -198,6 +198,13 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b09Table th{background:#f2f8f5}
 @media(max-width:800px){.b09Filters{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:480px){.b09Filters{grid-template-columns:1fr}}
+.b09Visual{display:grid;gap:10px;margin:12px 0}
+.b09Day{padding:12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.b09Day strong{display:block;margin-bottom:7px}
+.b09BarRow{display:grid;grid-template-columns:minmax(155px,1fr) 3fr;gap:10px;align-items:center;margin:6px 0;font-size:12px}
+.b09BarTrack{height:12px;border-radius:8px;background:#e8f0ed;overflow:hidden}
+.b09BarFill{height:100%;background:var(--teal);border-radius:8px}
+@media(max-width:550px){.b09BarRow{grid-template-columns:1fr;gap:3px}}
 
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
@@ -231,6 +238,9 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div class="b09TableWrap"><table class="b09Table"><thead><tr><th scope="col">實驗</th><th scope="col">申請代碼／全期</th><th scope="col">初篩通過／已評估</th><th scope="col">未取消且具場次關聯／期間</th><th scope="col">預約成立／期間</th><th scope="col">出席／期間</th><th scope="col">施測行政完成／期間</th></tr></thead><tbody id="b09ByExperiment"></tbody></table></div>
  <h3>按場次日期分布（不是報名日期趨勢）</h3>
  <div class="b09TableWrap"><table class="b09Table"><thead><tr><th scope="col">臺灣場次日期</th><th scope="col">未取消場次</th><th scope="col">有效關聯申請代碼</th><th scope="col">預約成立</th><th scope="col">出席（含遲到）</th><th scope="col">施測行政完成</th></tr></thead><tbody id="b09Trend"></tbody></table></div>
+ <h3>場次日期圖像比較（不是報名趨勢）</h3>
+ <p class="small">每根橫條為當日虛構場次、有效關聯申請代碼或施測行政進度完成紀錄數；同圖依當次最高筆數縮放。比例不代表正式研究完成率。</p>
+ <div id="b09Visual" class="b09Visual" aria-label="場次日期視覺比較，附數值及項目標籤"></div>
  <p id="b09Notes" class="small">報名日期、候補紀錄、正式研究目標、真人身分去重與正式匯出均尚未核准或沒有資料，不以0代替缺值。</p>
 </section>
 
@@ -694,13 +704,40 @@ function b09Compute_(data,scope,phase,start,end){
   allTimeApplicationCodes:new Set(relevantApps.map(a=>a.id)).size,
   scope,phase,start,end};
 }
+function b09Visualize_(rows){
+ const panel=$('b09Visual');panel.replaceChildren();
+ if(!rows.length){
+  panel.append(calElem('p','所選範圍沒有可核實的虛構場次日期；不能推定沒有申請。','small'));
+  return;
+ }
+ const max=Math.max(1,...rows.flatMap(r=>[r.sessions,r.associated,r.complete]));
+ for(const r of rows){
+  const day=calElem('div',undefined,'b09Day');
+  day.append(calElem('strong',r.date+'｜依場次日期'));
+  for(const [label,count] of [
+   ['未取消場次',r.sessions],
+   ['有效關聯申請代碼',r.associated],
+   ['施測行政進度完成',r.complete]
+  ]){
+   const line=calElem('div',undefined,'b09BarRow');
+   const caption=calElem('span',label+'：'+count+' 筆');
+   const track=calElem('div',undefined,'b09BarTrack');
+   const fill=calElem('div',undefined,'b09BarFill');
+   fill.style.width=(count*100/max).toFixed(1)+'%';
+   fill.setAttribute('aria-hidden','true');
+   track.append(fill);line.append(caption,track);day.append(line);
+  }
+  panel.append(day);
+ }
+}
 function b09Rate_(numerator,denominator){
  return denominator?numerator+'/'+denominator+'（'+
   (numerator*100/denominator).toFixed(1)+'%）':'—（分母0，不計比例）';
 }
 function b09Clear_(msg){
  $('b09Metrics').replaceChildren();$('b09ByExperiment').replaceChildren();
- $('b09Trend').replaceChildren();$('b09Status').textContent=msg;
+ $('b09Trend').replaceChildren();$('b09Visual').replaceChildren();
+ $('b09Status').textContent=msg;
 }
 function b09Render(){
  if(!model){b09Clear_('無授權資料快照，報表已清空');return;}
@@ -752,6 +789,7 @@ function b09Render(){
     '所選日期沒有可核實的虛構場次，不能據此推定沒有申請。');
    td.colSpan=6;tr.append(td);trend.append(tr);
   }
+  b09Visualize_(result.trend);
   $('b09Status').textContent='已核對同一 TEST 快照｜實驗：'+result.scope+
    '｜目前階段：'+result.phase+'｜場次日期：'+(result.start||'不限')+
    ' 至 '+(result.end||'不限')+'｜已核實修訂版 '+model.revision;
