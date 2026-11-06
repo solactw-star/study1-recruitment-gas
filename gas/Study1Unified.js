@@ -1054,6 +1054,20 @@ function study1UnifiedB07Validate_(b,apps){
  }
  return b;
 }
+function study1UnifiedB07Apply_(s,p,now){
+ const create=p.operation==='CREATE',correct=p.operation==='CORRECT';
+ if(!create&&!correct||Object.keys(p).sort().join(',')!==
+  (create?'applicationId,experiment,item,notes,operation,reason,stage,status':
+   'id,notes,operation,reason,status')||
+  typeof p.reason!=='string'||p.reason.trim().length<4||
+  p.reason.length>120||/[<>]/.test(p.reason)||
+  typeof p.notes!=='string'||p.notes.length>120||/[<>]/.test(p.notes)||
+  !['PENDING_REVIEW','REVIEWED_TEST','CORRECTION_REQUIRED'].includes(p.status))
+  throw Error('B07行政操作格式不合法或缺少有效更正原因');
+ const b=s.b07,at=new Date(now).toISOString();
+ study1UnifiedB07Validate_(b,s.applications);
+ /* B07_OPERATION_SLOT */
+}
 function study1UnifiedInitial_(){
  return {schemaVersion:1,revision:0,config:{
   title:'Study 1｜正式網站整合流程（測試資料模式）',
@@ -1529,7 +1543,7 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   * The top-level transaction already checks owner, CLOSED flags, ScriptLock,
   * expectedRevision, idempotency, rollback and post-write readback. */
  if(action==='ADMIN_B07_RECORD'){
-  throw Error('B07虛構行政操作尚未完成核對');
+  study1UnifiedB07Apply_(s,p,now);return;
  }
  if(action==='ADMIN_B11_SETTINGS'){
   if(Object.keys(p).sort().join(',')!=='modes,release,scope,site'||
