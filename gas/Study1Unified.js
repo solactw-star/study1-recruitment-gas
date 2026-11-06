@@ -1009,6 +1009,51 @@ function study1UnifiedValidateResearch_(v){
 function study1UnifiedB07Initial_(){
  return {schema:'B07_TEST_ADMIN_V1',records:[],history:[],historyDropped:0};
 }
+
+function study1UnifiedB07Validate_(b,apps){
+ if(!b||b.schema!=='B07_TEST_ADMIN_V1'||!Array.isArray(b.records)||
+  b.records.length>12||!Array.isArray(b.history)||b.history.length>24||
+  !Number.isSafeInteger(b.historyDropped)||b.historyDropped<0||
+  Object.keys(b).sort().join(',')!=='history,historyDropped,records,schema')
+  throw Error('B07虛構補貼行政資料格式不合法');
+ const ids=new Set(),keys=new Set(),valid=['PENDING_REVIEW','REVIEWED_TEST','CORRECTION_REQUIRED'];
+ for(const r of b.records){
+  if(!r||Object.keys(r).sort().join(',')!=='amount,applicationId,approval,experiment,id,item,notes,receiptRef,stage,status,updatedAt'||
+   !/^SIM-B07-\d{3}$/.test(r.id)||ids.has(r.id)||
+   !/^SIM-\d{3}$/.test(r.applicationId)||!['E1','E2'].includes(r.experiment)||
+   !(r.experiment==='E1'?r.stage==='E1_SESSION':
+      ['E2_PRE','E2_INTERVENTION','E2_POST'].includes(r.stage))||
+   !['TRANSPORT_DEMO','PARTICIPATION_DEMO'].includes(r.item)||
+   !valid.includes(r.status)||r.approval!=='PENDING'||r.amount!==null||
+   r.receiptRef!==null||typeof r.notes!=='string'||r.notes.length>120||
+   /[<>]/.test(r.notes)||typeof r.updatedAt!=='string'||
+   Number.isNaN(Date.parse(r.updatedAt))||
+   !apps.some(a=>a.id===r.applicationId&&a.experiment===r.experiment))
+   throw Error('B07虛構項目、狀態或申請關聯不合法');
+  ids.add(r.id);
+  const key=[r.applicationId,r.stage,r.item].join('|');
+  if(keys.has(key))throw Error('B07重複虛構申請補貼項目');
+  keys.add(key);
+ }
+ let prev='';
+ for(const h of b.history){
+  if(!h||Object.keys(h).sort().join(',')!=='action,actor,after,at,before,id,reason'||
+   !ids.has(h.id)||!['CREATE','CORRECT'].includes(h.action)||
+   h.actor!=='OWNER'||typeof h.at!=='string'||Number.isNaN(Date.parse(h.at))||
+   h.at<prev||typeof h.reason!=='string'||h.reason.trim().length<4||
+   h.reason.length>120||/[<>]/.test(h.reason)||
+   !h.after||Object.keys(h.after).sort().join(',')!=='notes,status'||
+   !valid.includes(h.after.status)||typeof h.after.notes!=='string'||
+   h.after.notes.length>120||(h.action==='CREATE')!==(h.before===null)||
+   (h.before!==null&&
+    (Object.keys(h.before).sort().join(',')!=='notes,status'||
+     !valid.includes(h.before.status)||typeof h.before.notes!=='string'||
+     h.before.status===h.after.status&&h.before.notes===h.after.notes)))
+   throw Error('B07更正歷程、原值與原因不合法');
+  prev=h.at;
+ }
+ return b;
+}
 function study1UnifiedInitial_(){
  return {schemaVersion:1,revision:0,config:{
   title:'Study 1｜正式網站整合流程（測試資料模式）',
