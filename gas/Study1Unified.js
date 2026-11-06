@@ -705,7 +705,7 @@ function study1B12AuditPage_(fixture,b06,query){
     query.expectedB06Revision!==b06.revision||
     query.expectedFixtureRevision!==fixture.revision||
     !Number.isSafeInteger(query.limit)||query.limit<1||query.limit>30||
-    !['ALL','B04','B05','B06','B08'].includes(query.module)||
+    !['ALL','B02','B04','B05','B06','B08'].includes(query.module)||
     !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT'].includes(query.result)||
     !(query.sort===undefined||['ASC','DESC'].includes(query.sort))||
     typeof query.search!=='string'||query.search.length>60||
