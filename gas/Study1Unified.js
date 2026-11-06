@@ -702,7 +702,7 @@ function study1UnifiedB12AuditPage(query){
  }finally{lock.releaseLock();}
 }
 /* No CSV, audit download or role self-service is approved. */
-function study1UnifiedB12Export(){
+function study1UnifiedB12Export_(){
  study1UnifiedRoleAuthorise_('OWNER','EXPORT_AUDIT');
  throw Error('B12正式或測試稽核匯出未獲授權');
 }
