@@ -269,6 +269,11 @@ function assertTeamHtml(html){
     !html.includes('id="modeE2"')||!html.includes('id="saveResearch"')||
     !html.includes('id="saveSlots"')||!html.includes('id="saveWeeks"')||
     !html.includes("save('ADMIN_RECRUITMENT'")||
+    !html.includes('id="b09Module"')||!html.includes('id="b09Metrics"')||
+    !html.includes('id="b09ByExperiment"')||!html.includes('id="b09Trend"')||
+    !html.includes('function b09Compute_(data,scope,phase,start,end)')||
+    !html.includes('沒有跨申請代碼的真人身分去重')||
+    !html.includes('正式CSV／XLSX匯出與資料讀寫一律未開放')||
     !html.includes('id="b06Module"')||!html.includes('id="b06Form"')||
     !html.includes('id="b06History"')||!html.includes('study1UnifiedB06Command(')||
     !html.includes('id="b08Module"')||!html.includes('id="b08List"')||
