@@ -1277,7 +1277,7 @@ function study1UnifiedView_(s){
    holdUntil:a.holdUntil,
    holdExpired:['HELD','CONSENTED'].includes(a.phase)&&Number.isFinite(a.holdUntil)&&a.holdUntil<=Date.now(),
    signatureDemo:a.signatureDemo})),
-  notifications:s.notifications.slice(-6).map((n,i)=>({...n,index:s.notifications.length-Math.min(s.notifications.length,6)+i})),
+  notifications:s.notifications.slice(-15).map((n,i)=>({...n,index:s.notifications.length-Math.min(s.notifications.length,15)+i})),
   fixtureOtp:'00000000'};
 }
 function study1UnifiedRequireCommand_(command){
