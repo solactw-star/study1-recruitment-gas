@@ -196,6 +196,7 @@ function v05Read_(response,a){
  for(const s of response.slots){
   if(!s||!/^SIM-SLOT-E[12]-[A-H]$/.test(s.id)||ids.has(s.id)||
      !['E1','E2'].includes(s.experiment)||
+     !s.id.startsWith('SIM-SLOT-'+s.experiment+'-')||
      !Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>20||
      !Number.isSafeInteger(s.remaining)||s.remaining<0||s.remaining>s.capacity||
      typeof s.bookable!=='boolean'||typeof s.when!=='string')
