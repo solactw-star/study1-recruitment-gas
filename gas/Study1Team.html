@@ -1576,6 +1576,25 @@ function b07Valid_(data=model){
  return true;
 }
 /* Independently check B07 pending SIM classifications against original GAS. */
+function b07SummaryEquals_(actual,expected){
+ const keys=['total','unrecorded','sourcePending','documentsPending','piReviewPending'];
+ const shape=keys.slice().sort().join(',');
+ const count=(a,b)=>!!(a&&b&&typeof a==='object'&&!Array.isArray(a)&&
+  Object.keys(a).sort().join(',')===shape&&keys.every(k=>
+  Number.isSafeInteger(a[k])&&a[k]>=0&&a[k]===b[k]));
+ const exps=['E1','E2'],stages=['SINGLE_SESSION','PRETEST','INTERVENTION_8W','POSTTEST'];
+ return !!(actual&&expected&&typeof expected==='object'&&!Array.isArray(expected)&&
+  Object.keys(expected).sort().join(',')==='approved,byExperiment,byStage,historyLimit,historyRetained,mode,payment,total'&&
+  expected.mode==='SYNTHETIC_PENDING_ONLY'&&expected.approved===false&&expected.payment===false&&
+  expected.historyLimit===32&&Number.isSafeInteger(expected.historyRetained)&&
+  expected.historyRetained===actual.historyRetained&&
+  count(expected.total,actual.total)&&
+  expected.byExperiment&&Object.keys(expected.byExperiment).sort().join(',')==='E1,E2'&&
+  exps.every(k=>count(expected.byExperiment[k],actual.byExperiment[k]))&&
+  expected.byStage&&Object.keys(expected.byStage).sort().join(',')===
+   'INTERVENTION_8W,POSTTEST,PRETEST,SINGLE_SESSION'&&
+  stages.every(k=>count(expected.byStage[k],actual.byStage[k])));
+}
 function b07SummaryVerified_(data){
  if(!b07Valid_(data)||!data.b07Summary)throw Error('B07待核來源無法核實');
  const zero=()=>({total:0,unrecorded:0,sourcePending:0,documentsPending:0,piReviewPending:0});
@@ -1597,7 +1616,7 @@ function b07SummaryVerified_(data){
   for(const field of Object.keys(total))total[field]+=byExperiment[exp][field];
  const summary={mode:'SYNTHETIC_PENDING_ONLY',approved:false,payment:false,
   total,byExperiment,byStage,historyRetained:data.b07.itemHistory.length,historyLimit:32};
- if(JSON.stringify(summary)!==JSON.stringify(data.b07Summary))
+ if(!b07SummaryEquals_(summary,data.b07Summary))
   throw Error('B07原GAS與管理頁逐階段計數不一致，拒絕展示');
  return summary;
 }
@@ -2977,8 +2996,8 @@ function b12Reset(){
 }
 function b12Render(page,after){
  let b07Consistent=false;
- try{b07Consistent=JSON.stringify(b07SummaryVerified_(model))===
-  JSON.stringify(page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
+ try{b07Consistent=b07SummaryEquals_(b07SummaryVerified_(model),
+  page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
  const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
  const b07EventsSafe=page?.items?.every(e=>e.module!=='B07'||
   (e.action==='ADMIN_B07_ITEM_REVIEW'&&e.provenance==='BOUNDED_PENDING_HISTORY'&&
