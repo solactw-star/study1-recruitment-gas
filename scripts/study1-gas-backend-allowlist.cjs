@@ -290,6 +290,12 @@ function assertTeamHtml(html){
     !html.includes('id="b10Module"')||!html.includes('id="b10Rows"')||
     !html.includes('id="b10Experiment"')||!html.includes('id="b10Warning"')||
     !html.includes("function b10Rows_(data)")||
+    !html.includes('id="b10RefRows"')||!html.includes('id="b10RefFilter"')||
+    !html.includes('id="b10RefStatus"')||
+    !html.includes("function b10References_(data)")||
+    !html.includes("function b10RenderReferences_(data,experiment)")||
+    !html.includes("a.screeningSource!=='REC_DRAFT_ONLY'")||
+    !html.includes('分母為各實驗目前全部不重複申請代碼')||
     !html.includes("function b10Render_()")||
     !html.includes("g.subjectExport!=='FORMAL_BLOCKED'")||
     !html.includes("prov.recApprovalVerified!==false")||

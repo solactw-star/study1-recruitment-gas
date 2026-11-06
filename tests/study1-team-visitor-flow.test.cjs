@@ -1130,3 +1130,103 @@ test('B10 field with declared SHA stays unverified, and denied owner read clears
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
+
+test('B10 synthetic reference reconciliation shows four groups with correct empty denominators and no writes',()=>{
+ const srv=server(),before=srv.writes,team=page(srv,'team');
+ assert.equal(team.get('b10Rows').children.length,6,'original six source rows preserved');
+ assert.equal(team.get('b10RefRows').children.length,4,'two TEST reference classes per experiment');
+ for(const row of team.get('b10RefRows').children){
+  assert.equal(row.children.length,6);
+  assert.deepEqual(row.children.slice(2).map(x=>x.textContent),['0','0','0','0']);
+  assert.equal(row.children[0].tagName,'td');
+ }
+ assert.match(team.get('b10RefStatus').textContent,/4／4組TEST版本引用/);
+ assert.match(team.get('b10RefStatus').textContent,/非正式受試者/);
+ assert.equal(srv.writes,before);
+ assert.deepEqual(team.calls,['READ']);
+ assert.equal(srv.store.has('STUDY1_B10_REFERENCES_V1'),false);
+ closed(srv);
+});
+test('B10 reference comparison counts current TEST version same/different/unrecorded with exact E1 E2 denominators',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E2'});
+ const state=srv.ctx.study1UnifiedRead_(),[a,b,c]=state.applications;
+ a.screeningVersion=state.policy.screening.mappings.E1.version;
+ a.screeningSource='REC_DRAFT_ONLY';
+ a.consentVersion=state.policy.consent.E1.version;
+ b.screeningVersion='PENDING_E1_LEGACY_RULES_V1';
+ b.screeningSource='REC_DRAFT_ONLY';
+ b.consentVersion='PENDING_E1_LEGACY_CONSENT_V1';
+ b.phase='CANCELLED';
+ srv.store.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(state));
+ const team=page(srv,'team'),writes=srv.writes;
+ assert.equal(team.get('b10Rows').children.length,6);
+ const refs=team.get('b10RefRows').children;
+ assert.equal(refs.length,4);
+ for(const row of refs.slice(0,2))
+  assert.deepEqual(row.children.slice(2).map(x=>x.textContent),['1','1','0','2']);
+ for(const row of refs.slice(2))
+  assert.deepEqual(row.children.slice(2).map(x=>x.textContent),['0','0','1','1']);
+ team.set('b10RefFilter','DIFFERENT');team.change('b10RefFilter');
+ assert.equal(team.get('b10RefRows').children.length,2,'only E1 outdated version references');
+ assert.match(team.get('b10RefRows').children[0].children[0].textContent,/E1/);
+ team.set('b10Experiment','E2');team.change('b10Experiment');
+ assert.equal(team.get('b10RefRows').children.length,1,'explicit empty result row, not false formal null history');
+ assert.match(team.get('b10RefRows').children[0].children[0].textContent,/沒有符合的虛構引用版號/);
+ team.set('b10RefFilter','MISSING');team.change('b10RefFilter');
+ assert.equal(team.get('b10RefRows').children.length,2);
+ assert.match(team.get('b10RefRows').children[0].children[0].textContent,/E2/);
+ assert.equal(team.get('b10Rows').children.length,3);
+ team.click('refresh');
+ assert.equal(team.get('b10RefRows').children.length,2);
+ assert.equal(team.get('b10RefFilter').value,'MISSING');
+ const other=page(srv,'team');
+ assert.equal(other.get('b10RefRows').children.length,4,'new browser page starts unfiltered');
+ team.click('b10Reset');
+ assert.equal(team.get('b10Rows').children.length,6);
+ assert.equal(team.get('b10RefRows').children.length,4);
+ assert.equal(team.get('b10RefFilter').value,'ALL');
+ assert.equal(srv.writes,writes,'all filtering is strictly read-only');
+ assert.equal(srv.store.get('OPEN'),'false');
+ assert.equal(srv.store.get('CONSENT_READY'),'false');
+ closed(srv);
+});
+test('B10 malformed or duplicate TEST application refs fail closed and erase both source and comparison tables',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes,original=srv.ctx.study1UnifiedPreviewGet;
+ assert.equal(team.get('b10Rows').children.length,6);
+ const one=srv.command('START',{experiment:'E1'});
+ assert.equal(one.applications.length,1);
+ const tamper=mutate=>{
+  srv.ctx.study1UnifiedPreviewGet=()=>{const v=original();mutate(v);return v;};
+  team.click('refresh');
+  assert.equal(team.get('b10Rows').children.length,0);
+  assert.equal(team.get('b10RefRows').children.length,0);
+  assert.match(team.get('b10Status').textContent,/B10拒絕顯示/);
+  assert.match(team.get('b10RefStatus').textContent,/對照已清空/);
+  srv.ctx.study1UnifiedPreviewGet=original;
+  team.click('refresh');
+  assert.equal(team.get('b10Rows').children.length,6);
+ };
+ tamper(v=>{v.applications.push({...v.applications[0]});});
+ tamper(v=>{v.applications[0].consentVersion='REC_APPROVED';});
+ tamper(v=>{v.applications[0].screeningVersion='PENDING_E1_RULES_V1';
+   v.applications[0].screeningSource='REC_APPROVED';});
+ team.set('b10RefFilter','UNSUPPORTED');
+ team.change('b10RefFilter');
+ assert.equal(team.get('b10Rows').children.length,0);
+ assert.equal(team.get('b10RefRows').children.length,0);
+ team.set('b10RefFilter','ALL');
+ team.click('refresh');
+ assert.equal(team.get('b10RefRows').children.length,4);
+ const writes=srv.writes;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner access revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b10Rows').children.length,0);
+ assert.equal(team.get('b10RefRows').children.length,0);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(srv.writes,writes);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});

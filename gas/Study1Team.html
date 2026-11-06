@@ -233,6 +233,12 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b10Table{border-collapse:collapse;min-width:720px;width:100%}
 .b10Table th,.b10Table td{padding:10px;border-bottom:1px solid var(--line);font-size:13px;text-align:left;vertical-align:top;overflow-wrap:anywhere}
 .b10Warn{padding:12px;background:#fff4e5;border-left:4px solid #b88646;border-radius:6px;font-size:13px}
+.b10Refs{margin:16px 0}
+.b10RefsTable{width:100%;min-width:650px;border-collapse:collapse}
+.b10RefsTable th,.b10RefsTable td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:13px;vertical-align:top}
+.b10RefsTable th{background:#f2f8f5}
+.b10Refs label{font-size:13px;font-weight:700;display:block;max-width:330px}
+
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
 <div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#b10Module">文件來源</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
@@ -588,6 +594,19 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div class="b10TableWrap"><table class="b10Table">
   <thead><tr><th scope="col">實驗</th><th scope="col">文件類型</th><th scope="col">原TEST版本欄位</th><th scope="col">來源與核准狀態</th><th scope="col">缺少的正式證據</th></tr></thead>
   <tbody id="b10Rows"></tbody></table></div>
+ <div class="b10Refs" aria-labelledby="b10RefHeading">
+  <h3 id="b10RefHeading">虛構申請引用版號對照（不是正式文件歷程）</h3>
+  <p class="small">僅比對同一份目前的TEST快照中，E1／E2虛構申請所記錄的版號與目前草稿欄位。包含已取消的申請代碼；每個申請代碼在各實驗只計一次。申請代碼不能代表獨立真人，版本相同也不能證明已核准、看過或簽署正式文件。</p>
+  <label for="b10RefFilter">版本引用篩選
+   <select id="b10RefFilter"><option value="ALL">全部類型</option><option value="DIFFERENT">有不同版號</option><option value="REFERENCED">有引用版號</option><option value="MISSING">有未記錄版號</option></select>
+  </label>
+  <p id="b10RefStatus" class="small" role="status" aria-live="polite">尚未核對虛構申請引用。</p>
+  <div class="b10TableWrap"><table class="b10RefsTable">
+   <thead><tr><th scope="col">實驗／類型</th><th scope="col">目前草稿版號</th><th scope="col">相同</th><th scope="col">不同</th><th scope="col">未記錄</th><th scope="col">分母：目前虛構申請代碼</th></tr></thead>
+   <tbody id="b10RefRows"></tbody>
+  </table></div>
+  <p class="small">這些數字是目前狀態，不是歷史版本變更、同意書閱覽、研究人員簽署或有效REC核准證據。研究介紹草稿目前沒有獨立的申請引用版號，故不得將它的引用次數填成0。</p>
+ </div>
  <p id="b10Warning" class="b10Warn" role="status">正式REC來源ID、原始PDF位元組、來源雜湊核對、研究人員預簽及授權提供／簽署歷程均尚未證實；此表不包含正式原文或任何核准決策。</p>
  <p class="small">狀態展示不是正式文件庫。B10文件版本管理、舊簽署版本不可覆寫、提供副本與通知稽核須待正式REC及資料權責核准，不能由虛構欄位自動放行。</p>
 </section>
@@ -1220,6 +1239,8 @@ for(const id of ['b11Title','b11Notice','b11Email']){
  * preview. No FILE/DOCUMENT APIs, new GAS RPC, network or storage writes. */
 function b10Clear_(text,error=false){
  $('b10Rows').replaceChildren();
+ $('b10RefRows').replaceChildren();
+ $('b10RefStatus').textContent='B10引用版號來源未經核實，對照已清空。';
  $('b10Status').textContent=text;
  $('b10Status').className=error?'err':'small';
  $('b10Warning').textContent='來源尚未核實。正式REC原始文件與簽署／副本提供權限均未開放。';
@@ -1269,6 +1290,76 @@ function b10Rows_(data){
  }
  return rows;
 }
+
+/* B10 second-stage accounting: application references in the SAME OWNER TEST
+ * snapshot only. No consent PDF, verified participant, immutable history or
+ * new document/data provider is inferred from string-version matching. */
+function b10References_(data){
+ if(!data||!Array.isArray(data.applications)||data.applications.length>8||
+  !data.policy||!data.policy.consent||!data.policy.screening||
+  !data.policy.screening.mappings)
+  throw Error('B10虛構申請引用來源缺失或容量不合法');
+ const seen=new Set(),groups={E1:[],E2:[]};
+ const stages=['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED',
+  'HELD','CONSENTED','CONFIRMED','CANCELLED'];
+ for(const a of data.applications){
+  if(!a||typeof a!=='object'||!/^SIM-\d{3}$/.test(a.id)||
+   seen.has(a.id)||!['E1','E2'].includes(a.experiment)||
+   !stages.includes(a.phase))
+   throw Error('B10虛構申請代碼、實驗或目前階段無法核實');
+  seen.add(a.id);
+  for(const key of ['consentVersion','screeningVersion']){
+   if(a[key]!==null&&a[key]!==undefined&&
+    (typeof a[key]!=='string'||!/^PENDING_[A-Z0-9_]{3,64}$/.test(a[key])))
+    throw Error('B10虛構文件引用版號格式不合法');
+  }
+  if(a.screeningVersion!==null&&a.screeningVersion!==undefined&&
+   a.screeningSource!=='REC_DRAFT_ONLY')
+   throw Error('B10虛構初篩引用版號的來源不可信');
+  groups[a.experiment].push(a);
+ }
+ const result=[];
+ for(const exp of ['E1','E2']){
+  for(const [type,key,version] of [
+   ['SCREENING','screeningVersion',data.policy.screening.mappings[exp]?.version],
+   ['CONSENT','consentVersion',data.policy.consent[exp]?.version]]){
+   if(typeof version!=='string'||!/^PENDING_[A-Z0-9_]{3,64}$/.test(version))
+    throw Error('B10目前草稿版號不合法');
+   const apps=groups[exp],referenced=apps.filter(a=>typeof a[key]==='string'),
+    same=referenced.filter(a=>a[key]===version).length;
+   result.push({experiment:exp,type,version,denominator:apps.length,
+    same,different:referenced.length-same,missing:apps.length-referenced.length,
+    referenced:referenced.length});
+  }
+ }
+ return result;
+}
+function b10RenderReferences_(data,experiment){
+ const filter=$('b10RefFilter').value||'ALL';
+ if(!['ALL','DIFFERENT','REFERENCED','MISSING'].includes(filter))
+  throw Error('B10引用篩選值不合法');
+ const result=b10References_(data),visible=result.filter(row=>
+   (experiment==='ALL'||experiment===row.experiment)&&
+   (filter==='ALL'||filter==='DIFFERENT'&&row.different>0||
+    filter==='REFERENCED'&&row.referenced>0||
+    filter==='MISSING'&&row.missing>0));
+ const target=$('b10RefRows');target.replaceChildren();
+ for(const r of visible){
+  const tr=calElem('tr'),label=r.type==='SCREENING'?'初篩規則':'同意版本欄位';
+  for(const field of [r.experiment+'｜'+label,r.version,r.same,
+   r.different,r.missing,r.denominator])
+   tr.append(calElem('td',String(field)));
+  target.append(tr);
+ }
+ if(!visible.length){
+  const tr=calElem('tr'),td=calElem('td',
+   '目前篩選沒有符合的虛構引用版號；不代表不存在正式REC或歷史紀錄。');
+  td.colSpan=6;tr.append(td);target.append(tr);
+ }
+ $('b10RefStatus').textContent='已核對'+visible.length+'／'+
+  (experiment==='ALL'?4:2)+'組TEST版本引用｜'+(experiment==='ALL'?'E1＋E2':experiment)+
+  '｜含已取消的虛構申請；分母為各實驗目前全部不重複申請代碼，非正式受試者。';
+}
 function b10Render_(){
  const box=$('b10Experiment');
  if(!['ALL','E1','E2'].includes(box.value))box.value='ALL';
@@ -1285,13 +1376,17 @@ function b10Render_(){
   $('b10Status').textContent='已與原OWNER-only TEST快照交叉核對：'+
    rows.length+' 筆欄位索引（'+(box.value==='ALL'?'E1＋E2':box.value)+
    '），0 筆已核准正式文件。無讀取／匯出／簽署操作。';
+  b10RenderReferences_(model,box.value);
   $('b10Warning').textContent='正式來源文件ID及原始位元組仍未接入；系統記錄的版本字串與宣稱SHA均未經正式證據核驗，不可據此認定REC核准或文件適用。';
  }catch(error){
   b10Clear_('B10拒絕顯示：'+String(error.message||error),true);
  }
 }
 $('b10Experiment').addEventListener('change',b10Render_);
-$('b10Reset').addEventListener('click',()=>{$('b10Experiment').value='ALL';b10Render_();});
+$('b10RefFilter').addEventListener('change',b10Render_);
+$('b10Reset').addEventListener('click',()=>{
+ $('b10Experiment').value='ALL';$('b10RefFilter').value='ALL';b10Render_();
+});
 
 
 function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
