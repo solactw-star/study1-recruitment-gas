@@ -1078,6 +1078,8 @@ function study1B07Verify_(s){
      new Date(e.at).toISOString()!==e.at)
    throw Error('B07階段項目更正歷程不合法');
   const key=e.id+':'+e.stage,previous=lastItem.get(key);
+  if(!previous&&b.itemHistory.length<32&&e.from!=='UNRECORDED')
+   throw Error('B07階段項目初始更正值不一致');
   if(previous&&previous.to!==e.from)
    throw Error('B07階段項目歷程前後狀態不連續');
   lastItem.set(key,e);
