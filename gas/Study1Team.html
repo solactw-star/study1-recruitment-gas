@@ -1767,7 +1767,8 @@ function b07ItemSave_(id,stage,status,reason){
 $('b07Experiment').addEventListener('change',b07Render_);
 $('b07Reset').addEventListener('click',()=>{$('b07Experiment').value='ALL';b07Render_();});
 
-function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
+function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;
+ $('b01B07Consistency').textContent='B07來源或數量未核實，不顯示待核統計。';}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
  const safe=model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
@@ -1784,6 +1785,11 @@ function b01Render(){
  if(!safe){b01Clear('資料或安全設定未核實；不顯示統計。');return;}
  const scope=typeof adminScopeEffective_==='function'?adminScopeEffective_('B01'):'ALL';
  if(scope===null){b01Clear('後台B01範圍不合法；不顯示統計。');return;}
+ let summary;
+ try{summary=b07SummaryVerified_(model);}catch(error){
+  b01Clear('B07逐階段待核數量與原GAS來源不一致；拒絕研究總覽：'+String(error.message||error));return;
+ }
+ const pendingB07=scope==='ALL'?summary.total:summary.byExperiment[scope];
  const applications=model.applications.filter(a=>scope==='ALL'||a.experiment===scope),
   slots=model.slots.filter(s=>scope==='ALL'||s.experiment===scope);
  const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
@@ -1827,6 +1833,8 @@ function b01Render(){
   const detail=document.createElement('small');detail.textContent=note;
   box.append(title,number,detail);cards.append(box);
  }
+ $('b01B07Consistency').textContent='B07純TEST逐階段一致性通過｜'+scope+'｜'+
+  b07CountText_(pendingB07)+'｜非核准金額、資格或付款。';
  $('b01Status').textContent='已依目前虛構資料快照更新｜檢視範圍 '+scope+
  '｜正式研究目標與完成率：未核准，不計算。';
 }
@@ -2968,7 +2976,17 @@ function b12Reset(){
  $('b12Coverage').textContent='來源覆蓋情形待查；舊歷程沒有完整稽核保證。';
 }
 function b12Render(page,after){
- if(!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
+ let b07Consistent=false;
+ try{b07Consistent=JSON.stringify(b07SummaryVerified_(model))===
+  JSON.stringify(page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
+ const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
+ const b07EventsSafe=page?.items?.every(e=>e.module!=='B07'||
+  (e.action==='ADMIN_B07_ITEM_REVIEW'&&e.provenance==='BOUNDED_PENDING_HISTORY'&&
+   e.historical===true&&e.result==='SUCCESS'&&e.actor==='OWNER'&&
+   e.before?.stage===e.after?.stage&&b07StageNames[e.after?.stage]&&
+   pendingStatuses.includes(e.before?.status)&&e.before?.status!==e.after?.status&&
+   Object.keys(b07Statuses).includes(e.after?.status)&&Object.keys(b07Reasons).includes(e.reason)));
+ if(!b07Consistent||b07EventsSafe!==true||!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
     page.formalExport!==false||page.completeImmutableArchive!==false||
     page.b06ChainVerified!==true||page.legacyHistoryBounded!==true||
     !page.coverage||page.coverage.scope!=='BOUNDED_SYNTHETIC_SNAPSHOT'||
@@ -2990,7 +3008,8 @@ function b12Render(page,after){
  const coverage=page.coverage;
  $('b12Coverage').textContent='可見保留量：'+coverage.sources.map(s=>
   s.module+' '+s.retained+'／最多'+s.limit+'筆').join('；')+
-  '。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
+  '。B07逐階段分類：'+b07CountText_(coverage.b07Summary.total)+
+  '（僅TEST）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
  for(const item of page.items){
   const box=calElem('article',undefined,'b12Event');
