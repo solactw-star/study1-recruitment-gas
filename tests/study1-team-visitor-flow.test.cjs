@@ -136,6 +136,10 @@ function page(server,kind){
    try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB06Command(c))));}
    catch(e){failures.push(String(e.message||e));failure(e);}
   },
+  study1UnifiedB12Query(q){calls.push('B12_READ');
+   try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB12Query(q))));}
+   catch(e){failures.push(String(e.message||e));failure(e);}
+  },
   study1UnifiedPreviewCommand(c){calls.push(c.action);
    try{
     const result=server.ctx.study1UnifiedPreviewCommand(c);
@@ -511,4 +515,51 @@ test('B06 original team GUI manually creates, completes, reopens, edits, archive
  assert.ok(srv.writes>=before+6);
  assert.equal(srv.read().revision,0,'B06 never changes old B02-B05 shared revision');
  closed(srv);
+});
+
+test('B12 original team UI loads verified synthetic audit with filters, diffs and stable pages',()=>{
+ const s=server(),base=s.read(),rid=n=>'REQ-SIM-B12BROWSER'+String(n).padStart(8,'0');
+ const task={title:'虛構行政事項',description:'純虛構測試',assignee:'',
+  dueDate:'',experiment:'ALL',relationType:'NONE',relationId:'',reason:'人工記錄虛構事項'};
+ const create=s.ctx.study1UnifiedB06Command({action:'CREATE',payload:task,
+  expectedRevision:0,requestId:rid(1)});
+ const id=create.b06.tasks[0].id;
+ s.ctx.study1UnifiedB06Command({action:'COMPLETE',
+  payload:{id,reason:'人員完成虛構事項'},expectedRevision:1,requestId:rid(2)});
+ const team=page(s,'team'),writes=s.writes;
+ team.set('b12Source','B06');team.set('b12Sort','ASC');
+ team.click('b12Query');
+ assert.equal(team.failures.length,0);
+ assert.match(team.get('b12Integrity').textContent,/稽核SHA鏈已驗證/);
+ assert.match(team.get('b12Count').textContent,/符合 2 筆/);
+ const rendered=team.get('b12Events').children;
+ assert.equal(rendered.length,2);
+ assert.match(rendered[0].children[0].textContent,/CREATE/);
+ assert.match(rendered[1].children[0].textContent,/COMPLETE/);
+ const diff=rendered[1].children.find(x=>x.tagName==='dl');
+ assert.ok(diff);assert.ok(diff.children.some(x=>/原值：OPEN/.test(x.textContent)));
+ assert.equal(team.get('b12Next').disabled,true);
+ team.set('b12Search','INVALID_CODE');
+ team.get('b12Search').handlers.input();
+ assert.equal(team.get('b12Events').children.length,0);
+ team.click('b12Query');
+ assert.match(team.get('b12Count').textContent,/符合 0 筆/);
+ assert.equal(s.writes,writes,'B12 query is read-only');
+ closed(s);
+});
+
+test('B12 team UI fails closed on malformed server reply or tampered B06 audit',()=>{
+ const s=server(),t=page(s,'team'),before=s.writes;
+ const original=s.ctx.study1UnifiedB12Query;
+ s.ctx.study1UnifiedB12Query=()=>({schema:'STUDY1_B12_READONLY_V1',mode:'SYNTHETIC_ONLY',
+  integrity:'CHAIN_FAILED',exportAllowed:false,formalData:false,
+  items:[],warnings:[],total:0,snapshotHash:'a'.repeat(64),revision:0});
+ t.click('b12Query');
+ assert.match(t.get('b12Integrity').textContent,/異常|拒絕/);
+ assert.equal(t.get('b12Events').children.length,0);
+ s.ctx.study1UnifiedB12Query=original;
+ t.click('b12Query');
+ assert.match(t.get('b12Integrity').textContent,/已驗證/);
+ assert.equal(s.writes,before);
+ closed(s);
 });
