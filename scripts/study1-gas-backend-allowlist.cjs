@@ -274,6 +274,19 @@ function assertTeamHtml(html){
     !html.includes('id="modeE2"')||!html.includes('id="saveResearch"')||
     !html.includes('id="saveSlots"')||!html.includes('id="saveWeeks"')||
     !html.includes("save('ADMIN_RECRUITMENT'")||
+    !html.includes('id="adminScopeGlobal"')||
+    !['B01','B02','B03','B06','B08','B09'].every(module=>
+      html.includes('id="adminScope'+module+'"')&&
+      html.includes('id="adminScopeHint'+module+'"'))||
+    !html.includes("function adminScopeEffective_(module)")||
+    !html.includes("function adminScopeClearAll_()")||
+    !html.includes("adminScopeInit_();$('refresh')")||
+    !html.includes("adminScopeMatch_('B02',s.experiment)")||
+    !html.includes("adminScopeMatch_('B03',a.experiment)")||
+    !html.includes("adminScopeMatch_('B06',t.experiment,true)")||
+    !html.includes("adminScopeMatch_('B08',a.experiment)")||
+    !html.includes("adminScopeEffective_('B09')")||
+    !html.includes('後台研究範圍不合法')||
     !html.includes('id="b11Module"')||!html.includes('id="b11Diff"')||
     !html.includes('id="b11Demo"')||!html.includes('id="b11Scope"')||
     !html.includes('id="b11Publish" type="button" class="secondary" disabled')||

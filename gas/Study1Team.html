@@ -206,6 +206,14 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b09BarFill{height:100%;background:var(--teal);border-radius:8px}
 @media(max-width:550px){.b09BarRow{grid-template-columns:1fr;gap:3px}}
 
+/* B11 scoped administrative views: local browser session only, no server state. */
+.adminScopeGlobal{border:1px solid var(--line);border-radius:12px;padding:14px;background:#f0f7f3}
+.adminScopeGlobal label,.adminScopeLocal label{font-size:13px;font-weight:700}
+.adminScopeGlobal select{max-width:330px}
+.adminScopeLocal{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:10px 0}
+.adminScopeLocal select{max-width:225px}
+.adminScopeLocal span{font-size:12px;color:var(--muted)}
+@media(max-width:500px){.adminScopeLocal{display:block}.adminScopeLocal select{max-width:none}}
 /* B11: owner-only draft comparison in the existing site, no formal publish. */
 #b11Module{scroll-margin-top:24px}
 .b11Tools{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -224,12 +232,19 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
 <div class="warn"><strong>正式研究招募仍關閉</strong><p>這裡只管理虛構示範資料；變更「可體驗報名」不代表開放真人招募。實驗二預計 2027 年進行，2026 年不招募。REC 核准、研究團隊角色權限及正式個資服務仍須另行驗證。</p></div>
-<p id="b06Overview" class="small" aria-live="polite">人工待辦：載入中…</p><p id="status" role="status" aria-live="polite">正在核對研究團隊管理權限…</p><button class="secondary" id="refresh" type="button">重新載入設定</button></div>
+<div class="adminScopeGlobal" aria-label="B11全域研究後台管理範圍">
+ <label for="adminScopeGlobal">全域後台研究檢視範圍（只影響本次管理頁面）</label>
+ <select id="adminScopeGlobal"><option value="ALL">實驗一＋實驗二</option><option value="E1">只看實驗一</option><option value="E2">只看實驗二</option></select>
+ <p id="adminScopeStatus" class="small" role="status" aria-live="polite">預設兩個實驗；每個模組可暫時覆寫，不儲存到原GAS。</p>
+ <p class="small">此為OWNER瀏覽器內的臨時唯讀檢視條件，並非PI／RA權限，也不影響正式收件、資料寫入權限、參與者網站實驗顯示或研究程序；完整原始資料不會因切換被刪除。</p>
+ </div>
+ <p id="b06Overview" class="small" aria-live="polite">人工待辦：載入中…</p><p id="status" role="status" aria-live="polite">正在核對研究團隊管理權限…</p><button class="secondary" id="refresh" type="button">重新載入設定</button></div>
 
 <section class="panel" id="b01Module" aria-labelledby="b01Heading">
  <span class="tag">B01｜研究總覽</span><h2 id="b01Heading">研究進度與今日工作</h2>
  <p class="sub">僅彙整同一份已授權的虛構資料快照；非正式招募數據。人數與預約人次分開計算，正式目標及完成率尚未核准。</p>
  <p id="b01Status" role="status" aria-live="polite">正在核對研究安全設定與資料…</p>
+<div class="adminScopeLocal" aria-label="B01本頁範圍覆寫"><label for="adminScopeB01">B01 本頁範圍</label><select id="adminScopeB01"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB01" aria-live="polite">繼承全域</span></div>
  <div id="b01Cards" class="b01Cards" aria-label="研究摘要"></div>
  <div class="b01Links"><a href="#calendarModule">查看研究行事曆</a><a href="#b03Module">查看參與者名單</a><a href="#b06Module">查看人工待辦</a></div>
 </section>
@@ -237,7 +252,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <section class="panel" id="b09Module" aria-labelledby="b09Heading">
  <span class="tag">B09｜統計報表（P2-05）</span><h2 id="b09Heading">虛構資料研究階段與場次日期統計</h2>
  <p class="sub">與B01、B02、B03、B04、B05、B06及B08共用同一份原網站隔離測試快照。申請記錄沒有可信的報名日期，因此日期篩選<strong>只限制場次日期與關聯出席／施測</strong>，不推算報名趨勢、歷史階段完成或真人參與者人數。</p>
- <div class="b09Filters">
+ <div class="adminScopeLocal" aria-label="B09本頁範圍覆寫"><label for="adminScopeB09">B09 本頁範圍</label><select id="adminScopeB09"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB09" aria-live="polite">繼承全域</span></div>
+<div class="b09Filters">
   <label for="b09Scope">實驗範圍<select id="b09Scope"><option value="ALL">實驗一＋二</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
   <label for="b09Phase">目前申請階段<select id="b09Phase"><option value="ALL">全部目前狀態</option><option value="STARTED">已開始</option><option value="INELIGIBLE">初篩未通過</option><option value="SCREENED">初篩已完成</option><option value="OTP_SENT">虛構驗證碼待核</option><option value="VERIFIED">虛構驗證完成</option><option value="HELD">虛構暫留</option><option value="CONSENTED">虛構同意示範</option><option value="CONFIRMED">虛構預約成立</option><option value="CANCELLED">已取消申請</option></select></label>
   <label for="b09Start">場次起始日期（臺灣）<input id="b09Start" type="date"></label>
@@ -259,7 +275,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div class="calTop"><div><span class="tag">B02 · 隔離測試</span><h2 id="calHeading">整合式研究行事曆</h2>
  <p class="sub">日／週／月、場次及參與者快速面板。僅虛構資料，與本頁示範時段共用資料來源。</p></div>
  <button type="button" class="secondary" id="calNew" disabled>＋新增測試場次</button></div>
- <div class="calTools">
+ <div class="adminScopeLocal" aria-label="B02本頁範圍覆寫"><label for="adminScopeB02">B02 本頁範圍</label><select id="adminScopeB02"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB02" aria-live="polite">繼承全域</span></div>
+<div class="calTools">
   <button type="button" class="secondary" id="calPrev" aria-label="前一期" disabled>〈</button>
   <button type="button" class="secondary" id="calToday" disabled>今天</button>
   <button type="button" class="secondary" id="calNext" aria-label="後一期" disabled>〉</button>
@@ -466,7 +483,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div class="calTop"><div><span class="tag">B03｜參與者管理</span>
  <h2 id="bookingsHeading">參與者名單與流程看板</h2>
  <p class="sub">清單與看板使用同一份資料、同一組篩選及排序。未核准真人資料前，只顯示已存在的虛構紀錄。</p></div></div>
- <div class="b03Tools">
+ <div class="adminScopeLocal" aria-label="B03本頁範圍覆寫"><label for="adminScopeB03">B03 本頁範圍</label><select id="adminScopeB03"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB03" aria-live="polite">繼承全域</span></div>
+<div class="b03Tools">
   <label for="b03Search">搜尋參與者代碼<input id="b03Search" type="search" maxlength="60" placeholder="輸入SIM代碼或場次代碼"></label>
   <label for="b03Experiment">實驗<select id="b03Experiment"><option value="ALL">兩者</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
   <label for="b03Eligibility">資格<select id="b03Eligibility"><option value="ALL">全部</option><option value="PASS">初篩通過</option><option value="FAIL">初篩未通過</option><option value="PENDING">未核定</option></select></label>
@@ -500,7 +518,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <section class="panel" id="b06Module" aria-labelledby="b06Heading">
  <span class="tag">B06｜人工行政待辦</span><h2 id="b06Heading">共用待辦管理</h2>
  <p class="sub">所有事項由研究人員手動新增，不由其他模組自動產生。只分未完成／已完成；封存獨立紀錄，保留操作前後值。</p>
- <div class="b06Tools">
+ <div class="adminScopeLocal" aria-label="B06本頁範圍覆寫"><label for="adminScopeB06">B06 本頁範圍</label><select id="adminScopeB06"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB06" aria-live="polite">繼承全域</span></div>
+<div class="b06Tools">
   <label for="b06Search">搜尋<input id="b06Search" type="search" placeholder="標題、備註或代碼"></label>
   <label for="b06Status">完成狀態<select id="b06Status"><option value="ALL">全部</option><option value="OPEN">未完成</option><option value="DONE">已完成</option></select></label>
   <label for="b06Archive">封存狀態<select id="b06Archive"><option value="ACTIVE">未封存</option><option value="ARCHIVED">已封存</option><option value="ALL">全部</option></select></label>
@@ -536,7 +555,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <span class="tag">B08｜虛構通知管理（P2-03）</span>
  <h2 id="b08Heading">通知狀態、原內容及人工模擬重試</h2>
  <p class="sub">僅使用原 GAS owner 的既有 TEST 通知紀錄，最多15筆，與研究首頁示範流程共用來源。所有操作都不會發信；「模擬交付成功」不等於信件真正寄送、送達或閱讀，也不自動建立B06待辦。</p>
- <div class="b08Tools">
+ <div class="adminScopeLocal" aria-label="B08本頁範圍覆寫"><label for="adminScopeB08">B08 本頁範圍</label><select id="adminScopeB08"><option value="INHERIT">繼承全域</option><option value="ALL">臨時看兩者</option><option value="E1">臨時只看實驗一</option><option value="E2">臨時只看實驗二</option></select><span id="adminScopeHintB08" aria-live="polite">繼承全域</span></div>
+<div class="b08Tools">
   <label for="b08Search">虛構代碼或原通知內容<input id="b08Search" type="search" maxlength="60" placeholder="例如：SIM-001／確認"></label>
   <label for="b08Experiment">實驗<select id="b08Experiment"><option value="ALL">兩者</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
   <label for="b08Event">事件<select id="b08Event"><option value="ALL">全部</option><option value="CONFIRM">確認</option><option value="MOVE">改期</option><option value="CANCEL">取消</option></select></label>
@@ -611,7 +631,7 @@ function render(data){
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
   model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
-  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
+  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -622,10 +642,103 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- b11Load_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
+ adminScopeLabels_();b11Load_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
+}
+
+
+/* B11 shared owner administrative VIEW only. The selection is in-memory within
+ * this one browser page; it cannot grant permissions, publish or mutate TEST.
+ * Distinct from B11's existing scoped setting-draft editor. */
+const adminScopeModules=['B01','B02','B03','B06','B08','B09'];
+function adminScopeEffective_(module){
+ if(!adminScopeModules.includes(module))return null;
+ const global=$('adminScopeGlobal').value||'ALL',
+  local=$('adminScope'+module).value||'INHERIT';
+ if(!['ALL','E1','E2'].includes(global)||
+  !['INHERIT','ALL','E1','E2'].includes(local))return null;
+ return local==='INHERIT'?global:local;
+}
+function adminScopeMatch_(module,experiment,shared=false){
+ const scope=adminScopeEffective_(module);
+ return scope!==null&&(scope==='ALL'||scope===experiment||
+  (shared&&experiment==='ALL'));
+}
+function adminScopeLabels_(){
+ const global=$('adminScopeGlobal').value;
+ $('adminScopeStatus').textContent=['ALL','E1','E2'].includes(global)?
+  '本次原網站後台檢視：'+global+'｜下列六個模組可各自繼承或暫時覆寫；不修改GAS資料、正式網站或權限。':
+  '後台研究範圍不合法；已停止顯示虛構管理資料。';
+ for(const mod of adminScopeModules){
+  const local=$('adminScope'+mod).value||'INHERIT';
+  const actual=adminScopeEffective_(mod);
+  $('adminScopeHint'+mod).textContent=actual===null?'範圍無法核實；停止顯示':
+   local==='INHERIT'?'繼承全域 → '+actual:
+   '本頁臨時覆寫 → '+actual;
+ }
+}
+function adminScopeClearAll_(){
+ $('calBoard').replaceChildren();
+ $('calSessionDetail').replaceChildren();
+ $('calDescription').textContent='管理授權或範圍無法核實，已清除場次檢視。';
+ $('entries').replaceChildren();$('b03Board').replaceChildren();
+ $('bookingSummary').textContent='管理授權或範圍無法核實，名單已清空。';
+ $('b06List').replaceChildren();$('b06History').replaceChildren();
+ $('b06Count').textContent='B06管理資料已清除，無法執行操作。';
+ $('b06Overview').textContent='人工待辦：待權限核實';
+ $('b06Save').disabled=true;
+ $('b08List').replaceChildren();
+ $('b08Summary').textContent='B08管理資料已清除，無法執行模擬重試。';
+ $('adminScopeStatus').textContent='尚未取得安全資料快照；後台範圍檢視已清除。';
+}
+function adminScopeChanged_(module){
+ const affected=module==='GLOBAL'?adminScopeModules:[module];
+ if(!affected.every(m=>adminScopeEffective_(m)!==null)){
+  model=null;setBusy(true);adminScopeClearAll_();
+  b01Clear('管理範圍不合法；研究總覽已清空。');
+  b09Clear_('管理範圍不合法；報表已清空。');
+  adminScopeLabels_();return;
+ }
+ for(const mod of affected){
+  const old={B02:'calExperiment',B03:'b03Experiment',
+   B06:'b06Scope',B08:'b08Experiment',B09:'b09Scope'}[mod];
+  if(old)$(old).value='ALL';
+ }
+ // Ensure an off-scope modal, profile or manual-edit draft cannot survive a
+ // scope switch and accidentally show or apply an out-of-view item.
+ if(affected.includes('B02')){
+  cal.mode='CLOSED';cal.id=null;cal.person=null;
+ }
+ if(affected.includes('B03')){
+  profile.open=false;$('profileModule').hidden=true;
+  $('teamMain').classList.remove('b04Open');
+ }
+ if(affected.includes('B06')){
+  b06.historyId=null;b06Reset();
+ }
+ if(affected.includes('B02')||affected.includes('B03')){
+  b05.open=false;$('b05Module').hidden=true;
+  $('teamMain').classList.remove('b05Open');
+ }
+ adminScopeLabels_();
+ if(!model||busy){adminScopeClearAll_();return;}
+ if(affected.includes('B01'))b01Render();
+ if(affected.includes('B02'))calendarRender();
+ if(affected.includes('B03'))b03Render();
+ if(affected.includes('B06'))b06Render();
+ if(affected.includes('B08'))b08Render();
+ if(affected.includes('B09'))b09Render();
+}
+function adminScopeInit_(){
+ $('adminScopeGlobal').value='ALL';
+ for(const mod of adminScopeModules){
+  $('adminScope'+mod).value='INHERIT';
+  $('adminScope'+mod).addEventListener('change',()=>adminScopeChanged_(mod));
+ }
+ $('adminScopeGlobal').addEventListener('change',()=>adminScopeChanged_('GLOBAL'));
+ adminScopeLabels_();
 }
 
 /* B09: purely derived from the already owner-authorized TEST view.
@@ -787,7 +900,12 @@ function b09Render(){
  if(!model){b09Clear_('無授權資料快照，報表已清空');return;}
  try{
   const start=$('b09Start').value,end=$('b09End').value;
-  const result=b09Compute_(model,$('b09Scope').value||'ALL',
+  const admin=adminScopeEffective_('B09'),local=$('b09Scope').value||'ALL';
+  if(admin===null||!['ALL','E1','E2'].includes(local)||
+   (admin!=='ALL'&&local!=='ALL'&&admin!==local))
+   throw Error('B09本頁細項篩選與B11後台管理範圍不一致；請調整本頁覆寫');
+  const effective=admin==='ALL'?local:admin;
+  const result=b09Compute_(model,effective,
    $('b09Phase').value||'ALL',start,end);
   const metrics=$('b09Metrics');metrics.replaceChildren();
   const items=[
@@ -1088,12 +1206,16 @@ function b01Render(){
   model.applications.every(a=>a&&typeof a.id==='string'&&typeof a.phase==='string')&&
   model.b06.tasks.every(t=>t&&typeof t.status==='string');
  if(!safe){b01Clear('資料或安全設定未核實；不顯示統計。');return;}
- const applications=model.applications,slots=model.slots;
+ const scope=typeof adminScopeEffective_==='function'?adminScopeEffective_('B01'):'ALL';
+ if(scope===null){b01Clear('後台B01範圍不合法；不顯示統計。');return;}
+ const applications=model.applications.filter(a=>scope==='ALL'||a.experiment===scope),
+  slots=model.slots.filter(s=>scope==='ALL'||s.experiment===scope);
  const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
  const today=new Date(Date.now()+28800000).toISOString().slice(0,10);
  const todays=slots.filter(s=>s.when.slice(0,10)===today&&
   model.b02.sessions[s.id]?.status!=='CANCELLED');
- const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN');
+ const active=model.b06.tasks.filter(t=>!t.archived&&t.status==='OPEN'&&
+  (scope==='ALL'||t.experiment===scope||t.experiment==='ALL'));
  const pending=applications.filter(a=>{if(a.phase==='CANCELLED'||!a.slotId)return false;const slot=slots.find(s=>s.id===a.slotId);if(!slot||model.b02.sessions[slot.id]?.status==='CANCELLED')return false;const attendance=model.b02.attendance[a.id];return !attendance||attendance.attendance==='PENDING';});
  const entries=[['不重複申請代碼',unique.size,'申請代碼不代表獨立參與者'],
   ['預約／申請紀錄',applications.length,'不等於獨立參與者人數'],
@@ -1129,14 +1251,15 @@ function b01Render(){
   const detail=document.createElement('small');detail.textContent=note;
   box.append(title,number,detail);cards.append(box);
  }
- $('b01Status').textContent='已依目前虛構資料快照更新｜正式研究目標與完成率：未核准，不計算。';
+ $('b01Status').textContent='已依目前虛構資料快照更新｜檢視範圍 '+scope+
+ '｜正式研究目標與完成率：未核准，不計算。';
 }
 
 
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
@@ -1224,7 +1347,16 @@ function calOpen(mode,id,person){
  calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
 }
 function calendarRender(){
- if(!calAllowed()){$('calDescription').textContent='載入虛構資料中；尚不能操作。';return;}
+ if(!calAllowed()||adminScopeEffective_('B02')===null){
+  $('calBoard').replaceChildren();
+  $('calDescription').textContent='載入虛構資料或後台檢視範圍中；尚不能操作。';return;
+ }
+ if(cal.id){
+  const selected=model.slots.find(s=>s.id===cal.id);
+  if(selected&&!adminScopeMatch_('B02',selected.experiment)){
+   cal.mode='CLOSED';cal.id=null;cal.person=null;
+  }
+ }
  if(!cal.initialized){
   cal.initialized=true;
   const first=model.slots.find(s=>s.when.slice(0,10)>=calToday())||model.slots[0];
@@ -1232,14 +1364,16 @@ function calendarRender(){
  }
  const days=calRange(),el=$('calBoard');el.replaceChildren();
  el.style.setProperty('--day-count',days.length===1?'1':'7');
- const exp=$('calExperiment').value,state=$('calStatus').value,q=$('calSearch').value.trim().toLowerCase();
+ const exp=$('calExperiment').value||'ALL',state=$('calStatus').value||'ALL',
+  q=$('calSearch').value.trim().toLowerCase();
  let total=0;
  for(const date of days){
   const cell=calElem('div',undefined,'calDay');
   cell.append(calElem('strong',date+'（'+['日','一','二','三','四','五','六'][calUTC(date).getUTCDay()]+'）'));
   const found=model.slots.filter(s=>{
    const m=calMeta(s);
-   return s.when.startsWith(date)&&(exp==='ALL'||exp===s.experiment)&&
+   return s.when.startsWith(date)&&adminScopeMatch_('B02',s.experiment)&&
+    (exp==='ALL'||exp===s.experiment)&&
     (state==='ALL'||state===m.status)&&
     (!q||[s.id,s.experiment,m.title,m.place].join(' ').toLowerCase().includes(q));
   }).sort((a,b)=>a.when.localeCompare(b.when));
@@ -1259,7 +1393,7 @@ function calendarRender(){
   if(!found.length)cell.append(calElem('span','無符合場次','calEmpty'));
   el.append(cell);
  }
- $('calDescription').textContent=total+' 個符合條件的虛構場次｜'+days[0]+
+ $('calDescription').textContent=total+' 個符合條件的虛構場次｜B11視圖 '+adminScopeEffective_('B02')+'｜'+days[0]+
   (days.length>1?' ～ '+days[days.length-1]:'')+'｜本測試資料上限8個時段';
  calendarPanel();
 }
@@ -1696,13 +1830,14 @@ function b03Latest(a){
 function b03Rows(){
  if(!model||!model.b02||!model.b04)return [];
  const q=$('b03Search').value.trim().toLowerCase(),
-  exp=$('b03Experiment').value,elig=$('b03Eligibility').value,
+  exp=$('b03Experiment').value,scope=adminScopeEffective_('B03'),elig=$('b03Eligibility').value,
   stage=$('b03Stage').value,att=$('b03Attendance').value,
   booking=$('b03Booking').value,order=$('b03Sort').value;
  const result=model.applications.filter(a=>{
   const attendance=model.b02.attendance[a.id]?.attendance||'PENDING';
   const eligible=a.eligible===true?'PASS':a.eligible===false?'FAIL':'PENDING';
   if(q&&![a.id,a.experiment,a.slotId||''].join(' ').toLowerCase().includes(q))return false;
+  if(scope===null||!adminScopeMatch_('B03',a.experiment))return false;
   if(exp!=='ALL'&&a.experiment!==exp)return false;
   if(elig!=='ALL'&&eligible!==elig)return false;
   if(stage!=='ALL'&&b03Category(a)!==stage)return false;
@@ -1729,8 +1864,9 @@ function b03Render(){
  $('b03ListMode').setAttribute('aria-pressed',String(b03.mode==='list'));
  $('b03BoardMode').setAttribute('aria-pressed',String(b03.mode==='board'));
  $('b03Empty').hidden=rows.length!==0;
- $('bookingSummary').textContent='顯示 '+rows.length+'／共 '+model.applications.length+
-  ' 筆｜僅呈現目前可核實資料，正式真人資料尚未啟用';
+ const scopedTotal=model.applications.filter(a=>adminScopeMatch_('B03',a.experiment)).length;
+ $('bookingSummary').textContent='顯示 '+rows.length+'／共 '+scopedTotal+
+  ' 筆｜本頁範圍 '+adminScopeEffective_('B03')+'｜正式真人資料尚未啟用';
  for(const a of rows){
   const slot=model.slots.find(x=>x.id===a.slotId),
    ap=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
@@ -2049,7 +2185,8 @@ function b06Render(){
   $('b06Save').disabled=true;b06Message('B06權限或資料格式無法核對，已停用操作。',true);
   return;
  }
- const all=model.b06.tasks,unarchived=all.filter(t=>!t.archived),
+ const all=model.b06.tasks.filter(t=>adminScopeMatch_('B06',t.experiment,true)),
+  unarchived=all.filter(t=>!t.archived),
   opened=unarchived.filter(t=>t.status==='OPEN');
  $('b06Overview').textContent='人工待辦：未完成 '+opened.length+
   ' 件｜已完成 '+(unarchived.length-opened.length)+
@@ -2064,7 +2201,7 @@ function b06Render(){
   (!query||[t.id,t.title,t.description,t.relationId].join(' ').toLowerCase().includes(query))
  ).sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)||a.id.localeCompare(b.id));
  $('b06Count').textContent='顯示 '+visible.length+'／共 '+all.length+
-  ' 件人工待辦｜待辦修訂版 '+model.b06.revision;
+  ' 件人工待辦｜本頁範圍 '+adminScopeEffective_('B06')+'｜待辦修訂版 '+model.b06.revision;
  $('b06Empty').hidden=visible.length!==0;
  const target=$('b06List');target.replaceChildren();
  for(const t of visible){
@@ -2092,7 +2229,10 @@ function b06Render(){
   box.append(actionBox);target.append(box);
  }
  const history=$('b06History');history.replaceChildren();
- const events=model.b06.audit.filter(e=>!b06.historyId||e.taskId===b06.historyId);
+ const allowedIds=new Set(all.map(t=>t.id));
+ if(b06.historyId&&!allowedIds.has(b06.historyId))b06.historyId=null;
+ const events=model.b06.audit.filter(e=>allowedIds.has(e.taskId)&&
+  (!b06.historyId||e.taskId===b06.historyId));
  $('b06HistoryScope').textContent=b06.historyId?'待辦 '+b06.historyId:'全部待辦';
  for(const h of events.slice().reverse())history.append(calElem('div',b06EventText(h),'b06Event'));
  if(!events.length)history.append(calElem('p','目前無可核實歷程。','small'));
@@ -2158,22 +2298,26 @@ function b08Render(){
   $('b08Summary').textContent='通知索引重複，已停止操作';
   b08Message('B08通知索引衝突，請重新讀取。',true);return;
  }
+ const scopedRows=rows.filter(n=>{
+  const a=model.applications.find(x=>x.id===n.id);
+  return adminScopeMatch_('B08',a.experiment);
+ });
  const search=$('b08Search').value.trim().toLowerCase().slice(0,60),
   experiment=$('b08Experiment').value||'ALL',
   event=$('b08Event').value||'ALL',
   status=$('b08StatusFilter').value||'ALL';
- const visible=rows.filter(n=>{
+ const visible=scopedRows.filter(n=>{
   const a=model.applications.find(x=>x.id===n.id);
   return (experiment==='ALL'||a.experiment===experiment)&&
    (event==='ALL'||n.event===event)&&
    (status==='ALL'||n.status===status)&&
    (!search||(n.id+' '+n.event+' '+n.text).toLowerCase().includes(search));
  }).slice().reverse();
- const failed=rows.filter(n=>n.status==='SIM_FAILED').length,
-  pending=rows.filter(n=>n.status==='SIM_PENDING').length,
-  simulated=rows.filter(n=>n.status==='SIM_DELIVERED').length;
- $('b08Summary').textContent='目前顯示 '+visible.length+'／既有 '+rows.length+
-  ' 筆｜待模擬 '+pending+'｜模擬失敗 '+failed+
+ const failed=scopedRows.filter(n=>n.status==='SIM_FAILED').length,
+  pending=scopedRows.filter(n=>n.status==='SIM_PENDING').length,
+  simulated=scopedRows.filter(n=>n.status==='SIM_DELIVERED').length;
+ $('b08Summary').textContent='目前顯示 '+visible.length+'／既有本頁範圍 '+scopedRows.length+
+  ' 筆｜檢視 '+adminScopeEffective_('B08')+'｜待模擬 '+pending+'｜模擬失敗 '+failed+
   '｜模擬交付成功 '+simulated+'｜全部為虛構通知，無真實寄送';
  for(const n of visible){
   const a=model.applications.find(x=>x.id===n.id);
@@ -2206,7 +2350,8 @@ function b08Attempt(index,result){
  if(!model||busy||model.mode!=='TEST'||model.open!==false||
   model.consentReady!==false||!['FAIL','SIM_OK'].includes(result))return;
  const n=model.notifications.find(row=>row.index===index);
- if(!n||n.status==='SIM_DELIVERED'||n.attempts>=3)return;
+ if(!n||n.status==='SIM_DELIVERED'||n.attempts>=3||
+   !adminScopeMatch_('B08',model.applications.find(a=>a.id===n.id)?.experiment))return;
  // The existing server verifies owner/closed flags, CAS, request id, index,
  // attempt ceiling and real-delivery prohibition BEFORE any fixture write.
  const cmd={action:'ADMIN_NOTIFY_ATTEMPT',payload:{index,result},
@@ -2319,6 +2464,6 @@ for(const id of ['b12ModuleFilter','b12Result','b12Limit','b12Sort'])
  $(id).addEventListener('change',b12Reset);
 $('b12Search').addEventListener('input',b12Reset);
 
-$('refresh').addEventListener('click',load);load();
+adminScopeInit_();$('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
