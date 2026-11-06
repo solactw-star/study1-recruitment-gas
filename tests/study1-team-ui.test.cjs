@@ -112,3 +112,27 @@ test('B01 derived summary reconciles bookings, attendance, progress and anomalie
  assert.equal(nodes.b01Cards.children.length,0,'unsafe reload must erase prior summary');
  assert.match(nodes.b01Status.textContent,/不顯示統計/);
 });
+
+
+test('B01 rejects malformed cross-module snapshots without showing stale cards',()=>{
+ const vm=require('node:vm');
+ const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\\nfunction load(){',html.indexOf('function b01Clear(')));
+ const cards={children:[{old:true}],replaceChildren(){this.children=[];},append(node){this.children.push(node);}};
+ const status={textContent:'previous successful snapshot'};
+ const context={model:{mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
+  slots:[{id:'S1',when:null}],applications:[{id:'A1',phase:'CONFIRMED'}],
+  b02:{sessions:{},attendance:{}},b06:{tasks:[]}},
+  $:id=>id==='b01Cards'?cards:status,Date,Set,document:{createElement(){throw Error('unsafe render');}}};
+ vm.createContext(context);
+ assert.doesNotThrow(()=>vm.runInContext(source+';b01Render();',context));
+ assert.equal(cards.children.length,0);
+ assert.match(status.textContent,/不顯示統計/);
+ context.model.slots=[{id:'S1',when:'2026-11-06 09:00'}];
+ context.model.applications=[null];
+ assert.doesNotThrow(()=>vm.runInContext('b01Render()',context));
+ assert.equal(cards.children.length,0);
+ context.model.applications=[{id:'A1',phase:'CONFIRMED'}];
+ context.model.b06.tasks=[null];
+ assert.doesNotThrow(()=>vm.runInContext('b01Render()',context));
+ assert.equal(cards.children.length,0);
+});
