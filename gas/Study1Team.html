@@ -427,11 +427,11 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 
 <section class="panel" id="b12Module" aria-labelledby="b12Heading">
  <span class="tag">B12｜原網站唯讀稽核</span><h2 id="b12Heading">虛構資料操作歷程與異常狀態</h2>
- <p class="sub">僅原 GAS owner 可以查詢。B06 的 SHA256 鏈可驗證；B04／B05 僅保留原有限歷程。B08 顯示虛構通知的失敗<strong>現況</strong>，不是憑空補建歷史事件。沒有正式稽核匯出或永久不可改寫庫。</p>
+ <p class="sub">僅原 GAS owner 可以查詢。B02只保留動作、時間與虛構代碼；B04／B05為有限前後值歷程；B06的SHA256鏈可驗證。跨來源對照找不到事件可能只是截斷，不可推定遭刪除。B08顯示虛構通知失敗<strong>現況</strong>，並非歷史事件。沒有正式稽核匯出或永久不可改寫庫。</p>
  <div class="b12Tools">
   <label for="b12Search">關鍵字<input type="search" id="b12Search" maxlength="60" placeholder="代碼、動作或原因"></label>
   <label for="b12Sort">時間排序<select id="b12Sort"><option value="DESC">最新在前</option><option value="ASC">最早在前</option></select></label>
-  <label for="b12ModuleFilter">模組<select id="b12ModuleFilter"><option value="ALL">全部</option><option value="B06">B06 待辦</option><option value="B04">B04 管理</option><option value="B05">B05 場次</option><option value="B08">B08 虛構失敗</option></select></label>
+  <label for="b12ModuleFilter">模組<select id="b12ModuleFilter"><option value="ALL">全部</option><option value="B02">B02 行事曆</option><option value="B06">B06 待辦</option><option value="B04">B04 管理</option><option value="B05">B05 場次</option><option value="B08">B08 虛構失敗</option></select></label>
   <label for="b12Result">結果<select id="b12Result"><option value="ALL">全部</option><option value="SUCCESS">成功</option><option value="SIM_FAILED_SNAPSHOT">虛構失敗狀態</option></select></label>
   <label for="b12Limit">每頁筆數<select id="b12Limit"><option value="10">10</option><option value="20">20</option><option value="30">30</option></select></label>
  </div>
@@ -439,6 +439,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   <button type="button" id="b12Prev" class="secondary" disabled>上一頁</button>
   <button type="button" id="b12Next" class="secondary" disabled>下一頁</button>
   <span id="b12Status" class="small" role="status" aria-live="polite">請按「查詢稽核」；正式匯出未核准。</span></div>
+ <p id="b12Coverage" class="small" role="status" aria-live="polite">來源覆蓋情形待查；舊歷程沒有完整稽核保證。</p>
  <div id="b12List" class="b12Events" aria-label="稽核來源、時間、前後值及結果"></div>
  <p class="small">拒絕操作僅記錄不含輸入內容的執行診斷，不能當成持久稽核歷史；無CSV、檔案下載或匯出權限。</p>
 </section>
@@ -1507,11 +1508,15 @@ function b12Reset(){
  b12.cursor='';b12.hash='';b12.history=[];b12.next=null;b12.page=0;
  $('b12Prev').disabled=true;$('b12Next').disabled=true;
  $('b12List').replaceChildren();
+ $('b12Coverage').textContent='來源覆蓋情形待查；舊歷程沒有完整稽核保證。';
 }
 function b12Render(page,after){
  if(!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
     page.formalExport!==false||page.completeImmutableArchive!==false||
     page.b06ChainVerified!==true||page.legacyHistoryBounded!==true||
+    !page.coverage||page.coverage.scope!=='BOUNDED_SYNTHETIC_SNAPSHOT'||
+    page.coverage.complete!==false||
+    !Array.isArray(page.coverage.sources)||!Array.isArray(page.coverage.warnings)||
     page.fixtureRevision!==model.revision||page.b06Revision!==model.b06.revision||
     !Array.isArray(page.items)||page.items.length>30||
     typeof page.snapshotHash!=='string'||!page.snapshotHash){
@@ -1523,6 +1528,12 @@ function b12Render(page,after){
  $('b12Next').disabled=!page.nextAfter;
  b12Status('已核實 '+page.items.length+'／'+page.total+' 筆符合條件｜目前頁 '+b12.page+
   '｜只顯示既有虛構歷程，不提供匯出。',false);
+ // Show coverage on every filtered page; never hide truncated or unmatched
+ // legacy source events merely because the selected page has zero items.
+ const coverage=page.coverage;
+ $('b12Coverage').textContent='可見保留量：'+coverage.sources.map(s=>
+  s.module+' '+s.retained+'／最多'+s.limit+'筆').join('；')+
+  '。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
  for(const item of page.items){
   const box=calElem('article',undefined,'b12Event');
