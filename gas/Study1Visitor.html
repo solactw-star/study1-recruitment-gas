@@ -162,6 +162,7 @@ function refuseReply(message){
  $('v07Rescan').disabled=false;
  v05Clear_('安全來源已拒絕，虛構日期與時段已清空。');
  $('chooseE1').disabled=true;$('chooseE2').disabled=true;
+ v07Lock_();
  setStatus(message,true);
 }
 const current=()=>model&&model.applications.find(a=>a.id===selected);
