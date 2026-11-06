@@ -1538,3 +1538,80 @@ test('B01 preference endpoint revocation clears cached cards even when main TEST
  assert.equal(team.get('b01LayoutSave').disabled,true);
  closed(srv);
 });
+
+function v07VerifiedVisitor_(srv){
+ const v=page(srv,'visitor');
+ v.click('chooseE1');
+ for(const id of ['adult','cycu','noDx','noTreatment','noPractice'])v.get(id).checked=true;
+ v.click('screenNext');v.click('otpSend');v.click('otpPaste');v.click('otpVerify');
+ assert.equal(srv.read().applications[0].phase,'VERIFIED');
+ assert.equal(v.get('hold').disabled,false);
+ return v;
+}
+test('V07 network timeout AFTER committed synthetic HOLD shows source current state but never retries',()=>{
+ const srv=server(),v=v07VerifiedVisitor_(srv),start=srv.writes;
+ const original=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  const applied=original(c);
+  if(c.action==='HOLD')throw Error('synthetic timeout after commit');
+  return applied;
+ };
+ v.click('hold');
+ assert.equal(srv.read().applications[0].phase,'HELD');
+ assert.equal(srv.writes,start+1,'exactly one committed synthetic HOLD');
+ assert.match(v.get('v07Result').textContent,/已有暫留|已有暫留或後續進度/);
+ assert.match(v.get('v07Result').textContent,/無法證明剛才那次提交成功/);
+ assert.equal(v.get('hold').disabled,true);
+ assert.equal(v.get('v07Rescan').disabled,false);
+ assert.equal(v.calls.filter(c=>c==='HOLD').length,1);
+ const before=srv.writes;
+ v.click('v07Rescan');
+ assert.equal(srv.writes,before,'rescan is readonly; cannot replay');
+ assert.equal(v.get('v07Rescan').disabled,true);
+ assert.equal(v.get('hold').disabled,true,'already HELD cannot HOLD again');
+ assert.equal(v.calls.filter(c=>c==='HOLD').length,1);
+ assert.equal(srv.store.get('OPEN'),'false');
+ assert.equal(srv.store.get('CONSENT_READY'),'false');
+ srv.ctx.study1UnifiedPreviewCommand=original;closed(srv);
+});
+test('V07 timeout BEFORE write stays unknown and locks all actions until explicit readonly rescan',()=>{
+ const srv=server(),v=v07VerifiedVisitor_(srv),start=srv.writes;
+ const original=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action==='HOLD')throw Error('synthetic timeout with no commit');
+  return original(c);
+ };
+ v.click('hold');
+ assert.equal(srv.read().applications[0].phase,'VERIFIED');
+ assert.equal(srv.writes,start);
+ assert.match(v.get('v07Result').textContent,/結果未知/);
+ assert.doesNotMatch(v.get('v07Result').textContent,/已成立虛構預約/);
+ assert.equal(v.get('hold').disabled,true);
+ assert.equal(v.get('chooseE1').disabled,true);
+ assert.equal(v.get('v07Rescan').disabled,false);
+ assert.equal(v.calls.filter(c=>c==='HOLD').length,1);
+ v.click('v07Rescan');
+ assert.equal(srv.writes,start);
+ assert.equal(v.get('hold').disabled,false,'fresh verified user-initiated rescan unlocks');
+ assert.equal(v.calls.filter(c=>c==='HOLD').length,1);
+ srv.ctx.study1UnifiedPreviewCommand=original;closed(srv);
+});
+test('V07 loss of owner authority on recovery clears all booking actions without guessing a result',()=>{
+ const srv=server(),v=v07VerifiedVisitor_(srv),start=srv.writes;
+ const write=srv.ctx.study1UnifiedPreviewCommand,read=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action==='HOLD')throw Error('synthetic ambiguous error');
+  return write(c);
+ };
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner access revoked');};
+ v.click('hold');
+ assert.equal(v.get('hold').disabled,true);
+ assert.equal(v.get('confirm').disabled,true);
+ assert.equal(v.get('chooseE1').disabled,true);
+ assert.match(v.get('v07Result').textContent,/狀態未知/);
+ assert.equal(v.get('v07Rescan').disabled,false);
+ assert.equal(srv.writes,start);
+ srv.ctx.study1UnifiedPreviewGet=read;
+ srv.ctx.study1UnifiedPreviewCommand=write;
+ closed(srv);
+});
