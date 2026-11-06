@@ -4,11 +4,33 @@
 const fs=require('node:fs'),path=require('node:path');
 const core=require('./study1-gas-index-preview.cjs');
 const backend=require('./study1-gas-backend-allowlist.cjs');
+const driveBackup=require('./study1-gas-drive-backup.cjs');
 const id=core.SCRIPT_ID;
 const ensure=(v,message)=>{if(!v)throw Error(message)};
 const snapPath=()=>path.join(process.env.RUNNER_TEMP,'study1-auto-index-snapshot.json');
 const fields=f=>({name:f.name,type:f.type,source:f.source});
 const same=(a,b)=>core.digest(a)===core.digest(b);
+/**
+ * Bind the verified private Drive backup to EXACTLY the pre-write remote HEAD,
+ * deployment, and source snapshot to be used by this workflow invocation.
+ * A valid Drive file with a valid SHA is not enough if it belongs to another run.
+ */
+function assertBackupBinding(snapshot){
+ ensure(snapshot&&Array.isArray(snapshot.original?.files),'Missing original GAS HEAD');
+ ensure(core.digest(snapshot.original.files)===snapshot.remoteSha256,
+  'Prewrite backup original GAS HEAD digest mismatch');
+ if(snapshot.approvedSourceChanged||snapshot.deploymentChanged){
+  ensure(snapshot.backup&&/^[a-f0-9]{64}$/.test(snapshot.backup.sha256||'')&&
+   typeof snapshot.backup.id==='string','Missing verified private Drive backup');
+  const prewrite={...snapshot};delete prewrite.backup;
+  ensure(driveBackup.sha256(JSON.stringify(prewrite,null,2))===snapshot.backup.sha256,
+   'Private Drive backup not bound to exact prewrite snapshot');
+  ensure(snapshot.deployment?.deploymentId===snapshot.deploymentId&&
+   snapshot.deployment?.deploymentConfig?.versionNumber===snapshot.oldVersion,
+   'Prewrite backup deployment and version mismatch');
+ }
+ return true;
+}
 function targetDeployment(deployments){
  const d=deployments.filter(z=>z?.deploymentConfig?.scriptId===id&&
   Number.isInteger(z.deploymentConfig.versionNumber)&&z.deploymentConfig.versionNumber>0&&
@@ -71,6 +93,7 @@ async function prepare(api,indexSource,websiteSource,adminScript,adminHtml,unifi
   snapshot.backup=await api.backupToDrive(snapshot);
   console.log('Verified 828 Drive backup ID:',snapshot.backup.id);
  }
+ assertBackupBinding(snapshot);
  fs.writeFileSync(snapPath(),JSON.stringify(snapshot,null,2),{mode:0o600});
  console.log('GAS remote HEAD SHA256:',snapshot.remoteSha256);
  console.log('GAS proposed HEAD SHA256:',snapshot.desiredSha256);
@@ -103,6 +126,7 @@ async function apply(api,indexSource,websiteSource,adminScript,adminHtml,unified
  s.otpThrottleSha256===core.sha(otpThrottle)&&s.otpTransactionSha256===core.sha(otpTransaction)&&
  s.bookingHoldTransactionSha256===core.sha(bookingHoldTransaction)&&
  s.fixtureAdapterSha256===core.sha(fixtureAdapter),'Snapshot mismatch');
+ assertBackupBinding(s);
  core.assertIndex(indexSource);backend.assertClosedWebsite(websiteSource);backend.assertAdminSandbox(adminScript);backend.assertAdminHtml(adminHtml);backend.assertUnifiedFlow(unifiedScript);backend.assertUnifiedHtml(unifiedHtml);backend.assertOtpCore(otpCore);backend.assertBookingCore(bookingCore);
  backend.assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle');
  backend.assertTransactionKernel(otpTransaction,'85e554cab2c6767fd80545b8c6e573c99e750a9e','OtpTransaction');
@@ -212,4 +236,4 @@ async function main(){
  return apply(api,indexSource,websiteSource,adminScript,adminHtml,unifiedScript,unifiedHtml,otpCore,bookingCore,otpThrottle,otpTransaction,bookingHoldTransaction,fixtureAdapter,s);
 }
 if(require.main===module)main().catch(e=>{console.error('AUTO_GAS_SYNC_BLOCKED: '+e.message);process.exitCode=1});
-module.exports={assertEvent,targetDeployment,compareNoIndex,compareUnapproved,waitForVersion,prepare,apply,fields};
+module.exports={assertEvent,targetDeployment,assertBackupBinding,compareNoIndex,compareUnapproved,waitForVersion,prepare,apply,fields};

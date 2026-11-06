@@ -375,9 +375,9 @@ function study1B06Verify_(s){
   s.revision>200||s.tasks.length>100)
   throw Error('B06待辦儲存版本或格式不一致');
  const ids=new Set(),latest=new Map(),reqIds=new Set();
+ const taskShape='archived,assignee,createdAt,description,dueDate,experiment,id,relationId,relationType,status,title,updatedAt';
  for(const t of s.tasks){
-  if(!t||Object.keys(t).sort().join(',')!==
-   'archived,assignee,createdAt,description,dueDate,experiment,id,relationId,relationType,status,title,updatedAt'||
+  if(!t||Object.keys(t).sort().join(',')!==taskShape||
     !/^SIM-TASK-\d{6}$/.test(t.id)||ids.has(t.id)||
     !['OPEN','DONE'].includes(t.status)||typeof t.archived!=='boolean'||
     !['','PI','RA'].includes(t.assignee)||
@@ -391,7 +391,7 @@ function study1B06Verify_(s){
    throw Error('B06待辦紀錄不合法');
   ids.add(t.id);
  }
- let prev='GENESIS';
+ let prev='GENESIS',previousAt='',createdCount=0;
  const lastTaskState=new Map();
  for(let i=0;i<s.audit.length;i++){
   const h=s.audit[i];
@@ -414,11 +414,42 @@ function study1B06Verify_(s){
   const beforeHash=h.before===null?null:study1UnifiedStoreHash_(h.before);
   const earlier=lastTaskState.has(h.taskId)?lastTaskState.get(h.taskId):null;
   if(beforeHash!==earlier)throw Error('B06稽核前後態不連續');
+  // Verify the entire event history as a real state transition, not merely a rehashed JSON chain.
+  if(h.at<previousAt)throw Error('B06稽核事件時間順序倒退');
+  previousAt=h.at;
+  if(Object.keys(h.after).sort().join(',')!==taskShape||
+     (h.before!==null&&Object.keys(h.before).sort().join(',')!==taskShape))
+   throw Error('B06歷史快照包含未核准欄位');
+  if(h.action==='CREATE'){
+   createdCount++;
+   if(h.before!==null||h.taskId!=='SIM-TASK-'+String(createdCount).padStart(6,'0')||
+      h.after.createdAt!==h.at||h.after.status!=='OPEN'||h.after.archived!==false)
+    throw Error('B06建立事件序號或初始狀態不連續');
+  }else if(h.before===null||!lastTaskState.has(h.taskId)||
+           h.after.createdAt!==h.before.createdAt)
+   throw Error('B06非建立事件缺少有效前態');
+  if(h.after.updatedAt!==h.at)throw Error('B06稽核事件與資料更新時間不一致');
+  if(h.action==='EDIT'&&(h.before.status!==h.after.status||
+     h.before.archived!==h.after.archived))
+   throw Error('B06編輯不得變更完成或封存狀態');
+  if(h.action==='COMPLETE'&&
+     (h.before.status!=='OPEN'||h.after.status!=='DONE'||h.before.archived||h.after.archived))
+   throw Error('B06完成事件狀態轉移不合法');
+  if(h.action==='REOPEN'&&
+     (h.before.status!=='DONE'||h.after.status!=='OPEN'||h.before.archived||h.after.archived))
+   throw Error('B06重開事件狀態轉移不合法');
+  if(h.action==='ARCHIVE'&&(h.before.archived||!h.after.archived||
+     h.before.status!==h.after.status))
+   throw Error('B06封存事件狀態轉移不合法');
+  if(h.action==='RESTORE'&&(!h.before.archived||h.after.archived||
+     h.before.status!==h.after.status))
+   throw Error('B06還原封存事件狀態轉移不合法');
   reqIds.add(h.requestId);latest.set(h.taskId,study1UnifiedStoreHash_(h.after));
   lastTaskState.set(h.taskId,study1UnifiedStoreHash_(h.after));
   prev=h.digest;
  }
  if(prev!==s.head||ids.size!==latest.size||
+   createdCount!==s.tasks.length||s.next!==createdCount+1||
    s.tasks.some(t=>latest.get(t.id)!==study1UnifiedStoreHash_(t))||
    s.requests.some(r=>!r||typeof r.fingerprint!=='string'||
     !/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(r.id)))
@@ -451,7 +482,9 @@ function study1B06Apply_(state,command,source,now){
  const s=JSON.parse(JSON.stringify(state));
  const action=command.action,p=command.payload;
  let task,previous=null,reason;
- const at=new Date(now).toISOString();
+ // Event timestamps remain monotonic even if host clock is adjusted backwards.
+ const at=new Date(Math.max(now,state.audit.length?
+  Date.parse(state.audit[state.audit.length-1].at):0)).toISOString();
  if(action==='CREATE'||action==='EDIT'){
   const payload=action==='EDIT'?p.data:p;
   if(action==='EDIT'&&Object.keys(p).sort().join(',')!=='data,id')

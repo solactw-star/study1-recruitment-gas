@@ -62,3 +62,30 @@ test('Deployment readback rejects unexpected version advancement without overwri
  const fake={getDeployment:async()=>({deploymentConfig:{versionNumber:5}})};
  await assert.rejects(sync.waitForVersion(fake,'a',3,3,async()=>{}),/Unexpected deployment/);
 });
+
+test('prewrite backup binds the exact prior GAS source bytes and original deployment',()=>{
+ const core=require('../scripts/study1-gas-index-preview.cjs');
+ const backup=require('../scripts/study1-gas-drive-backup.cjs');
+ const original={files:[
+  {name:'appsscript',type:'JSON',source:'{"webapp":{"access":"ANYONE_ANONYMOUS"}}'},
+  {name:'Website',type:'SERVER_JS',source:'function closedPreview(){}'}
+ ]};
+ const base={scriptId,triggerSha:'a'.repeat(40),original,
+  remoteSha256:core.digest(original.files),
+  deploymentId:dep.deploymentId,oldVersion:dep.deploymentConfig.versionNumber,
+  deployment:dep,approvedSourceChanged:true,deploymentChanged:true};
+ const attached={...base,backup:{id:'A'.repeat(28),
+  sha256:backup.sha256(JSON.stringify(base,null,2))}};
+ assert.equal(sync.assertBackupBinding(attached),true);
+ assert.throws(()=>sync.assertBackupBinding({...attached,
+  original:{files:[...original.files,{name:'Other',type:'SERVER_JS',source:'foreign'}]}}),
+ /original GAS HEAD digest/);
+ assert.throws(()=>sync.assertBackupBinding({...attached,
+  backup:{...attached.backup,sha256:'e'.repeat(64)}}),/not bound to exact prewrite/);
+ const wrongVersion={...base,oldVersion:base.oldVersion+1};
+ assert.throws(()=>sync.assertBackupBinding({...wrongVersion,
+  backup:{id:attached.backup.id,sha256:backup.sha256(JSON.stringify(wrongVersion,null,2))}}),
+ /deployment and version mismatch/);
+ assert.equal(sync.assertBackupBinding({...base,approvedSourceChanged:false,
+  deploymentChanged:false}),true,'no content change does not require a new Drive backup');
+});
