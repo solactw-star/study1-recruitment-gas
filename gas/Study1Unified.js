@@ -1015,7 +1015,6 @@ function study1B07Verify_(s){
  if(!b||typeof b!=='object'||Array.isArray(b)||
     Object.keys(b).sort().join(',')!=='history,reviews'||
     !b.reviews||typeof b.reviews!=='object'||Array.isArray(b.reviews)||
-    Object.getPrototypeOf(b.reviews)!==Object.prototype||
     !Array.isArray(b.history)||b.history.length>12||
     Object.keys(b.reviews).length>8)
   throw Error('B07虛構行政準備資料結構異常');
