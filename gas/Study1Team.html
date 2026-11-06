@@ -631,7 +631,7 @@ function render(data){
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
   model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
-  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
+  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -642,10 +642,103 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- b11Load_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
+ adminScopeLabels_();b11Load_();displaySlots();displayWeeks();b01Render();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
+}
+
+
+/* B11 shared owner administrative VIEW only. The selection is in-memory within
+ * this one browser page; it cannot grant permissions, publish or mutate TEST.
+ * Distinct from B11's existing scoped setting-draft editor. */
+const adminScopeModules=['B01','B02','B03','B06','B08','B09'];
+function adminScopeEffective_(module){
+ if(!adminScopeModules.includes(module))return null;
+ const global=$('adminScopeGlobal').value||'ALL',
+  local=$('adminScope'+module).value||'INHERIT';
+ if(!['ALL','E1','E2'].includes(global)||
+  !['INHERIT','ALL','E1','E2'].includes(local))return null;
+ return local==='INHERIT'?global:local;
+}
+function adminScopeMatch_(module,experiment,shared=false){
+ const scope=adminScopeEffective_(module);
+ return scope!==null&&(scope==='ALL'||scope===experiment||
+  (shared&&experiment==='ALL'));
+}
+function adminScopeLabels_(){
+ const global=$('adminScopeGlobal').value;
+ $('adminScopeStatus').textContent=['ALL','E1','E2'].includes(global)?
+  '本次原網站後台檢視：'+global+'｜下列六個模組可各自繼承或暫時覆寫；不修改GAS資料、正式網站或權限。':
+  '後台研究範圍不合法；已停止顯示虛構管理資料。';
+ for(const mod of adminScopeModules){
+  const local=$('adminScope'+mod).value||'INHERIT';
+  const actual=adminScopeEffective_(mod);
+  $('adminScopeHint'+mod).textContent=actual===null?'範圍無法核實；停止顯示':
+   local==='INHERIT'?'繼承全域 → '+actual:
+   '本頁臨時覆寫 → '+actual;
+ }
+}
+function adminScopeClearAll_(){
+ $('calBoard').replaceChildren();
+ $('calSessionDetail').replaceChildren();
+ $('calDescription').textContent='管理授權或範圍無法核實，已清除場次檢視。';
+ $('entries').replaceChildren();$('b03Board').replaceChildren();
+ $('bookingSummary').textContent='管理授權或範圍無法核實，名單已清空。';
+ $('b06List').replaceChildren();$('b06History').replaceChildren();
+ $('b06Count').textContent='B06管理資料已清除，無法執行操作。';
+ $('b06Overview').textContent='人工待辦：待權限核實';
+ $('b06Save').disabled=true;
+ $('b08List').replaceChildren();
+ $('b08Summary').textContent='B08管理資料已清除，無法執行模擬重試。';
+ $('adminScopeStatus').textContent='尚未取得安全資料快照；後台範圍檢視已清除。';
+}
+function adminScopeChanged_(module){
+ const affected=module==='GLOBAL'?adminScopeModules:[module];
+ if(!affected.every(m=>adminScopeEffective_(m)!==null)){
+  adminScopeClearAll_();
+  b01Clear('管理範圍不合法；研究總覽已清空。');
+  b09Clear_('管理範圍不合法；報表已清空。');
+  adminScopeLabels_();return;
+ }
+ for(const mod of affected){
+  const old={B02:'calExperiment',B03:'b03Experiment',
+   B06:'b06Scope',B08:'b08Experiment',B09:'b09Scope'}[mod];
+  if(old)$(old).value='ALL';
+ }
+ // Ensure an off-scope modal, profile or manual-edit draft cannot survive a
+ // scope switch and accidentally show or apply an out-of-view item.
+ if(affected.includes('B02')){
+  cal.mode='CLOSED';cal.id=null;cal.person=null;
+ }
+ if(affected.includes('B03')){
+  profile.open=false;$('profileModule').hidden=true;
+  $('teamMain').classList.remove('b04Open');
+ }
+ if(affected.includes('B06')){
+  b06.historyId=null;b06Reset();
+ }
+ if(affected.includes('B02')||affected.includes('B03')){
+  b05.open=false;$('b05Module').hidden=true;
+  $('teamMain').classList.remove('b05Open');
+ }
+ adminScopeLabels_();
+ if(!model||busy){adminScopeClearAll_();return;}
+ if(affected.includes('B01'))b01Render();
+ if(affected.includes('B02'))calendarRender();
+ if(affected.includes('B03'))b03Render();
+ if(affected.includes('B06'))b06Render();
+ if(affected.includes('B08'))b08Render();
+ if(affected.includes('B09'))b09Render();
+}
+function adminScopeInit_(){
+ $('adminScopeGlobal').value='ALL';
+ for(const mod of adminScopeModules){
+  $('adminScope'+mod).value='INHERIT';
+  $('adminScope'+mod).addEventListener('change',()=>adminScopeChanged_(mod));
+ }
+ $('adminScopeGlobal').addEventListener('change',()=>adminScopeChanged_('GLOBAL'));
+ adminScopeLabels_();
 }
 
 /* B09: purely derived from the already owner-authorized TEST view.
@@ -1156,7 +1249,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
@@ -2339,6 +2432,6 @@ for(const id of ['b12ModuleFilter','b12Result','b12Limit','b12Sort'])
  $(id).addEventListener('change',b12Reset);
 $('b12Search').addEventListener('input',b12Reset);
 
-$('refresh').addEventListener('click',load);load();
+adminScopeInit_();$('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
