@@ -816,6 +816,17 @@ test('B07 E1 one-time and E2 pretest, eight-week intervention and posttest ledge
   ['SIM-001:SINGLE_SESSION',...stages.map(x=>'SIM-002:'+x)].sort());
  assert.equal(m.b07.itemHistory.length,4);
  assert.deepEqual(m.b07.itemHistory.map(h=>h.from),Array(4).fill('UNRECORDED'));
+ assert.equal(m.b07Summary.mode,'SYNTHETIC_PENDING_ONLY');
+ assert.equal(m.b07Summary.total.total,4);
+ assert.equal(m.b07Summary.total.unrecorded,0);
+ assert.equal(m.b07Summary.total.sourcePending,2);
+ assert.equal(m.b07Summary.total.documentsPending,1);
+ assert.equal(m.b07Summary.total.piReviewPending,1);
+ assert.equal(m.b07Summary.byExperiment.E1.total,1);
+ assert.equal(m.b07Summary.byExperiment.E2.total,3);
+ assert.equal(m.b07Summary.historyRetained,4);
+ assert.equal(m.b07Summary.payment,false);
+ assert.equal(m.b07Summary.approved,false);
  assert.equal(s.p.has('STUDY1_B07_PAYMENT_LEDGER'),false);
  assert.equal(JSON.stringify(m.b07).includes('amount'),false);
  assert.equal(JSON.stringify(m.b07).includes('PAID'),false);
