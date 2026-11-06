@@ -494,7 +494,12 @@ function b01Render(){
  const safe=model&&model.mode==='TEST'&&model.open===false&&model.consentReady===false&&
   model.formalReadiness&&model.formalReadiness.activationAllowed===false&&
   Array.isArray(model.slots)&&Array.isArray(model.applications)&&model.b02&&
-  model.b02.sessions&&model.b02.attendance&&model.b06&&Array.isArray(model.b06.tasks);
+  model.b02.sessions&&typeof model.b02.sessions==='object'&&!Array.isArray(model.b02.sessions)&&
+  model.b02.attendance&&typeof model.b02.attendance==='object'&&!Array.isArray(model.b02.attendance)&&
+  model.b06&&Array.isArray(model.b06.tasks)&&
+  model.slots.every(s=>s&&typeof s.id==='string'&&typeof s.when==='string'&&/^\d{4}-\d{2}-\d{2}/.test(s.when))&&
+  model.applications.every(a=>a&&typeof a.id==='string'&&typeof a.phase==='string')&&
+  model.b06.tasks.every(t=>t&&typeof t.status==='string');
  if(!safe){b01Clear('資料或安全設定未核實；不顯示統計。');return;}
  const applications=model.applications,slots=model.slots;
  const unique=new Set(applications.map(a=>a.id).filter(id=>typeof id==='string'&&id.length>0));
