@@ -1006,6 +1006,9 @@ function study1UnifiedValidateResearch_(v){
  }
  return true;
 }
+function study1UnifiedB07Initial_(){
+ return {schema:'B07_TEST_ADMIN_V1',records:[],history:[],historyDropped:0};
+}
 function study1UnifiedInitial_(){
  return {schemaVersion:1,revision:0,config:{
   title:'Study 1｜正式網站整合流程（測試資料模式）',
