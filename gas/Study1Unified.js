@@ -1066,7 +1066,26 @@ function study1UnifiedB07Apply_(s,p,now){
   throw Error('B07行政操作格式不合法或缺少有效更正原因');
  const b=s.b07,at=new Date(now).toISOString();
  study1UnifiedB07Validate_(b,s.applications);
- /* B07_OPERATION_SLOT */
+ if(create){
+  if(p.status!=='PENDING_REVIEW'||!/^SIM-\d{3}$/.test(p.applicationId)||
+   !['E1','E2'].includes(p.experiment)||
+   !(p.experiment==='E1'?p.stage==='E1_SESSION':
+    ['E2_PRE','E2_INTERVENTION','E2_POST'].includes(p.stage))||
+   !['TRANSPORT_DEMO','PARTICIPATION_DEMO'].includes(p.item)||
+   !s.applications.some(a=>a.id===p.applicationId&&a.experiment===p.experiment)||
+   b.records.length>=12||b.records.some(r=>r.applicationId===p.applicationId&&
+    r.stage===p.stage&&r.item===p.item))
+   throw Error('B07虛構申請或項目重複、階段不符或容量已滿');
+  const id='SIM-B07-'+String(b.records.length+1).padStart(3,'0');
+  b.records.push({id,applicationId:p.applicationId,experiment:p.experiment,
+   stage:p.stage,item:p.item,status:p.status,amount:null,receiptRef:null,
+   approval:'PENDING',notes:p.notes,updatedAt:at});
+  b.history.push({id,action:'CREATE',actor:'OWNER',at,before:null,
+   after:{status:p.status,notes:p.notes},reason:p.reason.trim()});
+ }else{
+  /* B07_CORRECTION_SLOT */
+ }
+ /* B07_POST_SLOT */
 }
 function study1UnifiedInitial_(){
  return {schemaVersion:1,revision:0,config:{
