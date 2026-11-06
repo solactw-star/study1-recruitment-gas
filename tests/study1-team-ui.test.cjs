@@ -137,6 +137,22 @@ test('B01 rejects malformed cross-module snapshots without showing stale cards',
  assert.equal(cards.children.length,0);
 });
 
+test('B01 accepts valid Taiwan morning sessions without UTC date rollover',()=>{
+ const vm=require('node:vm');
+ const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\\nfunction load(){',html.indexOf('function b01Clear(')));
+ const cards={children:[],replaceChildren(){this.children=[];},append(n){this.children.push(n);}};
+ const status={textContent:''};
+ const snapshot={mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
+  slots:[{id:'S1',when:'2026-11-06 00:30'},{id:'S2',when:'2026-11-06 07:30'}],
+  applications:[],b02:{sessions:{},attendance:{}},b06:{tasks:[]}};
+ const context={model:snapshot,$:id=>id==='b01Cards'?cards:status,Date,Set,
+  document:{createElement(tag){return {tag,textContent:'',children:[],append(...items){this.children.push(...items);}};}}};
+ vm.createContext(context);
+ assert.doesNotThrow(()=>vm.runInContext(source+';b01Render();',context));
+ assert.equal(cards.children.length,13,'valid early-morning sessions must render the full summary');
+ assert.match(status.textContent,/未核准，不計算/);
+});
+
 test('B01 refuses duplicate identifiers and impossible Taiwan dates rather than reporting misleading totals',()=>{
  const vm=require('node:vm');
  const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
