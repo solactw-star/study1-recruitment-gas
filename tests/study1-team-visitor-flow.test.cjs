@@ -199,7 +199,7 @@ test('Cross-page: real team Save button persists TEST settings; reopening visito
  team.set('modeE1','COMING_SOON');team.set('modeE2','COMING_SOON');
  clickB11Save(team,'saveModes');
  assert.equal(team.failures.length,0);
- assert.match(team.get('status').textContent,/已儲存/);
+ assert.match(team.get('status').textContent,/已核實並儲存/);
  assert.equal(s.read().recruitment.E1.mode,'COMING_SOON');
  const closedVisitor=page(s,'visitor');
  assert.equal(closedVisitor.get('chooseE1').disabled,true);
