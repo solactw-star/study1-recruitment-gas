@@ -596,6 +596,11 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div id="b07Rows" class="b07Rows" aria-label="B07虛構代碼待核行政狀態"></div>
  <h3>最近的虛構行政準備狀態變更（有限歷程）</h3>
  <div id="b07History" aria-label="B07有限近期人工狀態歷程"></div>
+ <h3>逐階段虛構補貼項目台帳（不記金額）</h3>
+ <p class="sub">E1：單次研究；E2：前測、八週介入、後測。每個階段獨立待核，沒有核准金額、應付款或付款。更正逐項保留原狀態、新狀態、原因與時間；同一代碼和階段只允許一筆目前狀態。</p>
+ <div id="b07ItemRows" class="b07Rows" aria-label="B07 E1 E2逐階段純TEST項目"></div>
+ <h3>階段項目更正前後值（最近32筆，非永久稽核）</h3>
+ <div id="b07ItemHistory" aria-label="B07逐階段TEST更正歷程"></div>
  <p class="warn">正式補貼項目、研究階段、金額、適用資格、憑證與發放狀態皆待最新REC及權責核准。不會因本頁標記為「待PI查核」就視為已審核，亦不會寄送通知、扣款或發放。</p>
 </section>
 
@@ -1505,26 +1510,63 @@ const b07Statuses={SOURCE_PENDING:'核准來源待核',
  DOCUMENTS_PENDING:'必要文件待核',PI_REVIEW_PENDING:'待PI人工查核'};
 const b07Reasons={SOURCE_CHECK:'核對來源依據',
  DOCUMENT_CHECK:'核對必要文件類別',PI_REVIEW_REQUEST:'提交人工查核需求'};
+const b07Stages={E1:['SINGLE_SESSION'],E2:['PRETEST','INTERVENTION_8W','POSTTEST']};
+const b07StageNames={SINGLE_SESSION:'單次研究',PRETEST:'前測',
+ INTERVENTION_8W:'八週介入',POSTTEST:'後測'};
 function b07Clear_(text){
  $('b07Rows').replaceChildren();$('b07History').replaceChildren();
+ $('b07ItemRows').replaceChildren();$('b07ItemHistory').replaceChildren();
  $('b07Status').textContent=text;
 }
 function b07Valid_(){
- const b=model?.b07;
- return !!(model&&model.mode==='TEST'&&model.open===false&&
-  model.consentReady===false&&model.formalReadiness?.activationAllowed===false&&
-  model.formalPorts?.activated===false&&Array.isArray(model.applications)&&
-  b&&b.reviews&&typeof b.reviews==='object'&&!Array.isArray(b.reviews)&&
-  Array.isArray(b.history)&&b.history.length<=12&&
-  Object.entries(b.reviews).every(([id,x])=>
-   /^SIM-[0-9]{3}$/.test(id)&&model.applications.some(a=>a.id===id)&&
-   x?.actor==='OWNER'&&Object.keys(b07Statuses).includes(x.status)&&
-   typeof x.at==='string'&&!Number.isNaN(Date.parse(x.at)))&&
-  b.history.every(h=>h&&h.actor==='OWNER'&&
-   model.applications.some(a=>a.id===h.id)&&
-   Object.keys(b07Statuses).includes(h.to)&&
-   (h.from==='UNRECORDED'||Object.keys(b07Statuses).includes(h.from))&&
-   Object.keys(b07Reasons).includes(h.reason)));
+ const b=model?.b07,apps=model?.applications;
+ if(!(model&&model.mode==='TEST'&&model.open===false&&
+   model.consentReady===false&&model.formalReadiness?.activationAllowed===false&&
+   model.formalPorts?.activated===false&&Array.isArray(apps)&&
+   new Set(apps.map(a=>a?.id)).size===apps.length&&
+   b&&typeof b==='object'&&!Array.isArray(b)&&
+   Object.keys(b).sort().join(',')==='history,itemHistory,itemReviews,reviews'&&
+   b.reviews&&typeof b.reviews==='object'&&!Array.isArray(b.reviews)&&
+   Array.isArray(b.history)&&b.history.length<=12&&
+   b.itemReviews&&typeof b.itemReviews==='object'&&!Array.isArray(b.itemReviews)&&
+   Object.keys(b.itemReviews).length<=24&&Array.isArray(b.itemHistory)&&
+   b.itemHistory.length<=32))return false;
+ const validStage=(id,stage)=>{
+  const a=apps.find(x=>x.id===id);
+  return !!(a&&b07Stages[a.experiment]?.includes(stage));
+ };
+ if(!Object.entries(b.reviews).every(([id,x])=>
+     /^SIM-[0-9]{3}$/.test(id)&&apps.some(a=>a.id===id)&&
+     x?.actor==='OWNER'&&Object.keys(x).sort().join(',')==='actor,at,status'&&
+     Object.keys(b07Statuses).includes(x.status)&&
+     typeof x.at==='string'&&!Number.isNaN(Date.parse(x.at)))||
+    !b.history.every(h=>h&&h.actor==='OWNER'&&
+     apps.some(a=>a.id===h.id)&&Object.keys(b07Statuses).includes(h.to)&&
+     (h.from==='UNRECORDED'||Object.keys(b07Statuses).includes(h.from))&&
+     Object.keys(b07Reasons).includes(h.reason)))return false;
+ for(const [key,x] of Object.entries(b.itemReviews)){
+  const parts=key.split(':');
+  if(parts.length!==2||!/^SIM-[0-9]{3}$/.test(parts[0])||
+     !validStage(parts[0],parts[1])||!x||
+     Object.keys(x).sort().join(',')!=='actor,at,status'||
+     x.actor!=='OWNER'||!Object.keys(b07Statuses).includes(x.status)||
+     typeof x.at!=='string'||Number.isNaN(Date.parse(x.at)))return false;
+ }
+ const last=new Map();
+ for(const h of b.itemHistory){
+  if(!h||Object.keys(h).sort().join(',')!=='actor,at,from,id,reason,stage,to'||
+     !validStage(h.id,h.stage)||h.actor!=='OWNER'||
+     !Object.keys(b07Statuses).includes(h.to)||
+     !(h.from==='UNRECORDED'||Object.keys(b07Statuses).includes(h.from))||
+     h.from===h.to||!Object.keys(b07Reasons).includes(h.reason)||
+     typeof h.at!=='string'||Number.isNaN(Date.parse(h.at)))return false;
+  const key=h.id+':'+h.stage,prev=last.get(key);
+  if(prev&&prev.to!==h.from)return false;
+  last.set(key,h);
+ }
+ for(const [key,h] of last)
+  if(b.itemReviews[key]?.status!==h.to||b.itemReviews[key]?.at!==h.at)return false;
+ return true;
 }
 function b07Render_(){
  const filter=$('b07Experiment');
@@ -1575,6 +1617,44 @@ function b07Render_(){
    '｜'+b07Reasons[h.reason]+'｜OWNER','b07History'));
  }
  if(!history.children.length)history.append(calElem('p','無保留的虛構狀態變更紀錄；不代表完整歷史。','small'));
+ const itemRows=$('b07ItemRows'),itemHistory=$('b07ItemHistory');
+ itemRows.replaceChildren();itemHistory.replaceChildren();
+ for(const a of visible)for(const stage of b07Stages[a.experiment]||[]){
+  const key=a.id+':'+stage,r=model.b07.itemReviews[key],
+   row=calElem('div',undefined,'b07Row');
+  row.append(calElem('strong',a.id+'｜'+a.experiment+'｜'+b07StageNames[stage]+
+   '｜'+(r?b07Statuses[r.status]:'尚未記錄（待核）'),'b07RowTitle'));
+  const fields=calElem('div',undefined,'b07Fields');
+  const stateLabel=calElem('label','該階段待核狀態');
+  const state=document.createElement('select');
+  state.setAttribute('aria-label',key+'待核狀態');
+  for(const [value,title] of Object.entries(b07Statuses)){
+   const opt=calElem('option',title);opt.value=value;state.append(opt);
+  }
+  state.value=r?.status||'SOURCE_PENDING';stateLabel.append(state);
+  const reasonLabel=calElem('label','該階段更正原因');
+  const reason=document.createElement('select');reason.setAttribute('aria-label',key+'更正原因');
+  for(const [value,title] of Object.entries(b07Reasons)){
+   const opt=calElem('option',title);opt.value=value;reason.append(opt);
+  }
+  reason.value='SOURCE_CHECK';reasonLabel.append(reason);
+  const save=calElem('button','保存本階段TEST待核項目','secondary');save.type='button';
+  save.disabled=busy||!!r&&r.status===state.value;
+  state.addEventListener('change',()=>{save.disabled=busy||!!r&&r.status===state.value;});
+  save.addEventListener('click',()=>{
+   if(busy||!b07Valid_()||save.disabled)return;
+   b07ItemSave_(a.id,stage,state.value,reason.value);
+  });
+  fields.append(stateLabel,reasonLabel,save);row.append(fields);itemRows.append(row);
+ }
+ for(const h of model.b07.itemHistory.filter(h=>
+  visible.some(a=>a.id===h.id)).slice(-32).reverse()){
+  itemHistory.append(calElem('div',h.at+'｜'+h.id+'｜'+b07StageNames[h.stage]+
+   '｜'+(b07Statuses[h.from]||'原未記錄')+' → '+b07Statuses[h.to]+
+   '｜原因：'+b07Reasons[h.reason]+'｜OWNER','b07History'));
+ }
+ if(!itemRows.children.length)itemRows.append(calElem('p','此範圍沒有可列示的虛構階段項目。','small'));
+ if(!itemHistory.children.length)itemHistory.append(calElem('p','目前沒有保留的階段更正；不是永久歷史。','small'));
  if(!list.children.length)list.append(calElem('p','目前範圍沒有虛構申請代碼；可從原參與者 Demo 建立，不可直接輸入真人身分。','small'));
  $('b07Status').textContent='目前可見 '+visible.length+' 個虛構申請代碼｜已記錄待核狀態 '+
   visible.filter(a=>!!model.b07.reviews[a.id]).length+
@@ -1618,6 +1698,31 @@ function b07Save_(id,status,reason){
    b07Recover_('原GAS版本競寫或提交失敗：'+String(error.message||error)))
  .study1UnifiedPreviewCommand({action:'ADMIN_B07_REVIEW',
   payload:{id,status,reason},requestId,expectedRevision:expected});
+}
+function b07ItemSave_(id,stage,status,reason){
+ if(busy||!b07Valid_()||!model.applications.some(a=>
+    a.id===id&&b07Stages[a.experiment]?.includes(stage))||
+    !Object.keys(b07Statuses).includes(status)||
+    !Object.keys(b07Reasons).includes(reason))return;
+ const key=id+':'+stage,previous=model.b07.itemReviews[key]?.status||'UNRECORDED';
+ if(previous===status){message('同一階段狀態未變更，不會重複記錄。');return;}
+ const expected=model.revision;
+ const requestId='REQ-SIM-B07ITEM_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ setBusy(true);b07Clear_('逐階段TEST更正正在檢查版本鎖及原GAS回讀…');
+ google.script.run.withSuccessHandler(data=>{
+  const r=data?.b07?.itemReviews?.[key],hist=data?.b07?.itemHistory,
+    h=Array.isArray(hist)?hist[hist.length-1]:null;
+  if(!data||data.mode!=='TEST'||data.open!==false||data.consentReady!==false||
+     data.formalReadiness?.activationAllowed!==false||
+     data.revision!==expected+1||r?.status!==status||r?.actor!=='OWNER'||
+     !h||h.id!==id||h.stage!==stage||h.from!==previous||h.to!==status||
+     h.reason!==reason||h.at!==r.at)
+   return b07Recover_('階段項目或更正前後值回讀不一致');
+  if(render(data))message('已回讀此純TEST階段項目；未建立任何金額或付款。');
+ }).withFailureHandler(error=>
+  b07Recover_('階段項目競寫或提交失敗：'+String(error.message||error)))
+ .study1UnifiedPreviewCommand({action:'ADMIN_B07_ITEM_REVIEW',
+   payload:{id,stage,status,reason},requestId,expectedRevision:expected});
 }
 $('b07Experiment').addEventListener('change',b07Render_);
 $('b07Reset').addEventListener('click',()=>{$('b07Experiment').value='ALL';b07Render_();});
