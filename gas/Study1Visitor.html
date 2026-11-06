@@ -540,7 +540,7 @@ function issue(action,payload,onSuccess){
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
   if(!safePreview(response)||!v07ConfirmResponse_(action,payload,response,priorRevision)){
-   refuseReply('示範操作回應與原GAS安全來源或預期狀態不一致，已停止操作；請重新核對。');return;
+   refuseReply('示範操作回應無法驗證：原GAS安全來源或預期狀態不一致；請重新載入頁面並以V07唯讀核對，已停止操作。');return;
   }
   busy=false;model=response;pending=null;
   v07.blocked=false;v07.last=null;
