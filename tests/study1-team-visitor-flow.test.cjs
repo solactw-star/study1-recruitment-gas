@@ -702,3 +702,51 @@ test('B09 malformed date, inverted period, tampered model, and failed authorized
  srv.ctx.study1UnifiedPreviewGet=originalRead;
  closed(srv);
 });
+
+test('B09 session-date visualization reuses verified summary without new RPC or writes',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const state=srv.ctx.study1UnifiedRead_(),a=state.applications[0],slot=state.slots.find(x=>x.experiment==='E1');
+ Object.assign(a,{phase:'CONFIRMED',eligible:true,slotId:slot.id});
+ state.b02.attendance[a.id]={attendance:'PRESENT',progress:'COMPLETE',note:''};
+ srv.store.set('STUDY1_UNIFIED_FIXTURE_V1',JSON.stringify(state));
+ const writes=srv.writes,team=page(srv,'team'),viz=team.get('b09Visual');
+ assert.ok(viz.children.length>=1);
+ const selected=viz.children.find(day=>day.children[0].textContent.includes(slot.when.slice(0,10)));
+ assert.ok(selected,'the linked synthetic slot date appears in visual series');
+ assert.equal(selected.children.length,4,'date plus exactly three source-derived metrics');
+ assert.match(selected.children[1].children[0].textContent,/未取消場次：\d+ 筆/);
+ assert.match(selected.children[2].children[0].textContent,/有效關聯申請代碼：1 筆/);
+ assert.match(selected.children[3].children[0].textContent,/施測行政進度完成：1 筆/);
+ for(const day of viz.children)for(const line of day.children.slice(1)){
+  const fill=line.children[1].children[0];
+  assert.ok(/^\d+\.\d%$/.test(fill.style.width));
+  assert.ok(parseFloat(fill.style.width)>=0&&parseFloat(fill.style.width)<=100);
+  assert.equal(fill.attributes['aria-hidden'],'true');
+ }
+ assert.equal(team.calls.filter(x=>x!=='READ').length,0);
+ assert.equal(srv.writes,writes,'visual report must not change the existing TEST fixture');
+ assert.equal(srv.store.has('STUDY1_B09_CHART_V1'),false);
+ closed(srv);
+});
+
+test('B09 trend graph empties for no session dates and clears on invalid date or denied read',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ assert.ok(team.get('b09Visual').children.length>0);
+ team.set('b09Start','2099-01-01');team.change('b09Start');
+ assert.equal(team.get('b09Visual').children.length,1);
+ assert.match(team.get('b09Visual').children[0].textContent,/沒有可核實的虛構場次日期/);
+ team.set('b09Start','2027-02-30');team.change('b09Start');
+ assert.equal(team.get('b09Visual').children.length,0);
+ assert.equal(team.get('b09Metrics').children.length,0);
+ assert.match(team.get('b09Status').textContent,/報表已清空/);
+ team.click('b09Reset');
+ assert.ok(team.get('b09Visual').children.length>0);
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b09Visual').children.length,0);
+ assert.equal(team.get('b09Trend').children.length,0);
+ assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
