@@ -136,3 +136,27 @@ test('B01 rejects malformed cross-module snapshots without showing stale cards',
  assert.doesNotThrow(()=>vm.runInContext('b01Render()',context));
  assert.equal(cards.children.length,0);
 });
+
+test('B01 refuses duplicate identifiers and impossible Taiwan dates rather than reporting misleading totals',()=>{
+ const vm=require('node:vm');
+ const source=html.slice(html.indexOf('function b01Clear('),html.indexOf('\nfunction load(){',html.indexOf('function b01Clear(')));
+ const cards={children:[{stale:true}],replaceChildren(){this.children=[];},append(n){this.children.push(n);}};
+ const status={textContent:''};
+ const snapshot={mode:'TEST',open:false,consentReady:false,formalReadiness:{activationAllowed:false},
+  slots:[{id:'S1',when:'2026-11-06 09:00'}],
+  applications:[{id:'A1',phase:'CONFIRMED',slotId:'S1'}],
+  b02:{sessions:{S1:{status:'OPEN'}},attendance:{}},b06:{tasks:[]}};
+ const context={model:snapshot,$:id=>id==='b01Cards'?cards:status,Date,Set,
+  document:{createElement(){return {append(){},textContent:''};}}};
+ vm.createContext(context);
+ for(const changed of [
+  {...snapshot,slots:[{id:'S1',when:'2026-02-30 09:00'}]},
+  {...snapshot,slots:[{id:'S1',when:'2026-11-06 09:00'},{id:'S1',when:'2026-11-07 09:00'}]},
+  {...snapshot,applications:[{id:'A1',phase:'CONFIRMED'},{id:'A1',phase:'CONFIRMED'}]}
+ ]){
+  cards.children=[{stale:true}];context.model=changed;
+  assert.doesNotThrow(()=>vm.runInContext(source+';b01Render();',context));
+  assert.equal(cards.children.length,0);
+  assert.match(status.textContent,/不顯示統計/);
+ }
+});
