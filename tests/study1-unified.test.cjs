@@ -693,3 +693,104 @@ test('B11 rejects publishing, scoped tamper, invalid content, no-op, stale CAS a
   assert.equal(untrusted.writes,0);
  }
 });
+
+
+test('B07 only records pending synthetic source checks, without money, payments, or second storage keys',()=>{
+ const s=setup(),start=s.read();
+ assert.deepEqual(JSON.parse(JSON.stringify(start.b07)),{reviews:{},history:[]});
+ assert.equal(s.writes,0);
+ s.cmd('START',{experiment:'E1'});
+ const before=s.writes;
+ const old=s.read().revision;
+ let m=s.cmd('ADMIN_B07_REVIEW',{id:'SIM-001',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'},
+  old,'REQ-SIM-B07CHECK001');
+ assert.equal(m.revision,old+1);
+ assert.equal(m.b07.reviews['SIM-001'].status,'SOURCE_PENDING');
+ assert.equal(m.b07.history[0].from,'UNRECORDED');
+ assert.equal(m.b07.history[0].to,'SOURCE_PENDING');
+ assert.equal(m.b07.history[0].actor,'OWNER');
+ assert.equal(s.writes,before+1);
+ assert.equal(s.p.size,3);
+ assert.equal(s.p.has('STUDY1_B07_PAYMENTS_V1'),false);
+ assert.equal(JSON.stringify(m.b07).includes('amount'),false);
+ assert.equal(JSON.stringify(m.b07).includes('PAID'),false);
+ assert.equal(m.open,false);assert.equal(m.consentReady,false);
+ const replay=s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'},
+  old,'REQ-SIM-B07CHECK001');
+ assert.equal(replay.deduplicated,true);
+ assert.equal(s.writes,before+1,'replay cannot create duplicate B07 events');
+ for(const status of ['PAID','APPROVED','DISBURSED',null]){
+  assert.throws(()=>s.cmd('ADMIN_B07_REVIEW',
+   {id:'SIM-001',status,reason:'SOURCE_CHECK'}),/B07只能記錄/);
+ }
+ assert.throws(()=>s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'SOURCE_PENDING',reason:'SOURCE_CHECK',amount:200}),/B07只能記錄/);
+ assert.throws(()=>s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'}),/沒有實際變更/);
+ assert.equal(s.writes,before+1);
+});
+
+test('B07 owner CAS prevents stale review and validates recent before/after consistency',()=>{
+ const s=setup();s.cmd('START',{experiment:'E2'});
+ const stale=s.read().revision;
+ let m=s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'DOCUMENTS_PENDING',reason:'DOCUMENT_CHECK'},stale);
+ assert.equal(m.b07.reviews['SIM-001'].status,'DOCUMENTS_PENDING');
+ assert.throws(()=>s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'PI_REVIEW_PENDING',reason:'PI_REVIEW_REQUEST'},stale),/版本已變更/);
+ m=s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'PI_REVIEW_PENDING',reason:'PI_REVIEW_REQUEST'});
+ assert.equal(m.b07.history.length,2);
+ assert.equal(m.b07.history[1].from,'DOCUMENTS_PENDING');
+ assert.equal(m.b07.history[1].to,'PI_REVIEW_PENDING');
+ const before=s.writes;
+ assert.throws(()=>s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-999',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'}),/B07只能記錄/);
+ assert.equal(s.writes,before);
+ assert.equal(s.read().b07.reviews['SIM-001'].status,'PI_REVIEW_PENDING');
+});
+
+test('B07 old owner fixture migrates on read only, and tampered pending records fail closed',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});
+ let stored=JSON.parse(s.ctx.study1UnifiedStoredDecode_(
+  s.p.get('STUDY1_UNIFIED_FIXTURE_V1')));
+ delete stored.b07;
+ s.p.set('STUDY1_UNIFIED_FIXTURE_V1',
+  s.ctx.study1UnifiedStoredEncode_(JSON.stringify(stored)));
+ const before=s.writes;
+ assert.deepEqual(JSON.parse(JSON.stringify(s.read().b07)),{reviews:{},history:[]});
+ assert.equal(s.writes,before,'read-only schema migration cannot write fixture');
+ let m=s.cmd('ADMIN_B07_REVIEW',
+  {id:'SIM-001',status:'SOURCE_PENDING',reason:'SOURCE_CHECK'});
+ assert.equal(m.b07.reviews['SIM-001'].status,'SOURCE_PENDING');
+ const clean=JSON.parse(s.ctx.study1UnifiedStoredDecode_(
+  s.p.get('STUDY1_UNIFIED_FIXTURE_V1')));
+ for(const mutated of [
+  {...clean,b07:{reviews:{'SIM-001':{actor:'OWNER',status:'PAID',at:'2026-11-06T11:00:00.000Z'}},
+     history:clean.b07.history}},
+  {...clean,b07:{reviews:clean.b07.reviews,history:[{...clean.b07.history[0],to:'APPROVED'}]}},
+  {...clean,b07:{reviews:{'SIM-999':clean.b07.reviews['SIM-001']},history:[]}}
+ ]){
+  s.p.set('STUDY1_UNIFIED_FIXTURE_V1',
+   s.ctx.study1UnifiedStoredEncode_(JSON.stringify(mutated)));
+  assert.throws(()=>s.read(),/B07/);
+ }
+ s.p.set('STUDY1_UNIFIED_FIXTURE_V1',
+  s.ctx.study1UnifiedStoredEncode_(JSON.stringify(clean)));
+ assert.equal(s.read().b07.reviews['SIM-001'].status,'SOURCE_PENDING');
+});
+
+test('B07 bounded pending review history retains final state and remains nonfinancial',()=>{
+ const s=setup();s.cmd('START',{experiment:'E1'});
+ const statuses=['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
+ for(let i=0;i<15;i++)s.cmd('ADMIN_B07_REVIEW',{
+  id:'SIM-001',status:statuses[i%3],reason:'SOURCE_CHECK'});
+ const view=s.read();
+ assert.equal(view.b07.history.length,12);
+ assert.equal(view.b07.history[0].from,'PI_REVIEW_PENDING');
+ assert.equal(view.b07.reviews['SIM-001'].status,'PI_REVIEW_PENDING');
+ assert.equal(view.b07.history[11].to,view.b07.reviews['SIM-001'].status);
+ assert.equal(view.b07.history[11].at,view.b07.reviews['SIM-001'].at);
+ assert.equal(view.revision,16);
+});

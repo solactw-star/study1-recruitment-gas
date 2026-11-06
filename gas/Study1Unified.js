@@ -1006,6 +1006,48 @@ function study1UnifiedValidateResearch_(v){
  }
  return true;
 }
+/* B07 synthetic compensation-administration PREPARATION ONLY.
+ * No amount, reimbursement, proof file, payee, transfer or approval field.
+ * A REVIEW_PENDING label is not REC/PI approval or payment eligibility. */
+function study1B07Initial_(){return {reviews:{},history:[]};}
+function study1B07Verify_(s){
+ const b=s.b07,allowed=['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
+ if(!b||typeof b!=='object'||Array.isArray(b)||
+    Object.keys(b).sort().join(',')!=='history,reviews'||
+    !b.reviews||typeof b.reviews!=='object'||Array.isArray(b.reviews)||
+    !Array.isArray(b.history)||b.history.length>12||
+    Object.keys(b.reviews).length>8)
+  throw Error('B07虛構行政準備資料結構異常');
+ for(const [id,x] of Object.entries(b.reviews)){
+  if(!/^SIM-[0-9]{3}$/.test(id)||
+     !s.applications.some(a=>a.id===id)||!x||
+     Object.keys(x).sort().join(',')!=='actor,at,status'||
+     x.actor!=='OWNER'||!allowed.includes(x.status)||
+     typeof x.at!=='string'||Number.isNaN(Date.parse(x.at))||
+     new Date(x.at).toISOString()!==x.at)
+   throw Error('B07行政狀態與原虛構申請來源不一致');
+ }
+ for(const e of b.history){
+  if(!e||Object.keys(e).sort().join(',')!=='actor,at,from,id,reason,to'||
+     !/^SIM-[0-9]{3}$/.test(e.id)||!s.applications.some(a=>a.id===e.id)||
+     e.actor!=='OWNER'||!(e.from==='UNRECORDED'||allowed.includes(e.from))||
+     !allowed.includes(e.to)||e.from===e.to||
+     !['SOURCE_CHECK','DOCUMENT_CHECK','PI_REVIEW_REQUEST'].includes(e.reason)||
+     typeof e.at!=='string'||Number.isNaN(Date.parse(e.at))||
+     new Date(e.at).toISOString()!==e.at)
+   throw Error('B07虛構行政更正歷程不合法');
+ }
+ const last=new Map();
+ for(const e of b.history){
+  const previous=last.get(e.id);
+  if(previous&&previous.to!==e.from)throw Error('B07同一代碼歷程前後狀態不連續');
+  last.set(e.id,e);
+ }
+ for(const [id,e] of last)
+  if(b.reviews[id]?.status!==e.to||b.reviews[id]?.at!==e.at)
+   throw Error('B07最近歷程與目前行政狀態不一致');
+ return true;
+}
 function study1UnifiedInitial_(){
  return {schemaVersion:1,revision:0,config:{
   title:'Study 1｜正式網站整合流程（測試資料模式）',
@@ -1020,7 +1062,8 @@ function study1UnifiedInitial_(){
    {id:'SIM-SLOT-E2-B',experiment:'E2',when:'2027-01-08 14:00',capacity:2}
   ],e2Weeks:study1UnifiedE2Weeks_(),applications:[],requests:[],notifications:[],
    b02:{sessions:{},attendance:{},history:[]},
-    b04:{notes:{},history:[]},b05:{closures:{},history:[]}};
+    b04:{notes:{},history:[]},b05:{closures:{},history:[]},
+    b07:study1B07Initial_()};
 }
 /** Server-side role boundary for the existing OWNER-only synthetic routes.
  * Synthetic PI/RA audit labels never authenticate a user or grant a role.
@@ -1047,6 +1090,7 @@ function study1UnifiedRead_(){
  if(s&&!s.b02)s.b02={sessions:{},attendance:{},history:[]}; // non-writing TEST migration
  if(s&&!s.b04)s.b04={notes:{},history:[]}; // non-writing B04 migration
  if(s&&!s.b05)s.b05={closures:{},history:[]}; // non-writing B05 migration
+ if(s&&!s.b07)s.b07=study1B07Initial_(); // non-writing B07 owner TEST migration
  if(s&&s.policy&&s.policy.screening&&!s.policy.screening.mappings)
   s.policy.screening.mappings=study1UnifiedPolicy_().screening.mappings;
  if(s&&Array.isArray(s.notifications))s.notifications.forEach(n=>{
@@ -1133,6 +1177,7 @@ function study1UnifiedRead_(){
     typeof h.handoff!=='string'||h.handoff.length>250||/[<>]/.test(h.handoff)))
   throw Error('B05近期結案操作歷程不合法');
 
+ study1B07Verify_(s);
  study1UnifiedValidateE2Weeks_(s.e2Weeks);
  for(const n of s.notifications){
   if(!n||!/^SIM-[0-9]{3}$/.test(n.id)||!['CONFIRM','MOVE','CANCEL'].includes(n.event)||
@@ -1265,6 +1310,7 @@ function study1UnifiedView_(s){
   b02:JSON.parse(JSON.stringify(s.b02||{sessions:{},attendance:{},history:[]})),
   b04:JSON.parse(JSON.stringify(s.b04||{notes:{},history:[]})),
   b05:JSON.parse(JSON.stringify(s.b05||{closures:{},history:[]})),
+  b07:JSON.parse(JSON.stringify(s.b07||study1B07Initial_())),
   b06:{...study1B06Read_(),formalPersistence:false},
   e2Operations:{mode:'TEST_PLANNING',approval:'PENDING',groupAllocation:'PENDING_PI',
    realAttendance:'DISABLED',pretest:'PENDING_DATE',posttest:'PENDING_DATE',
@@ -1293,7 +1339,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE','ADMIN_B07_REVIEW'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -1454,6 +1500,25 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   s.b02.history.push({action:p.action==='CLOSE'?'ADMIN_CLOSE':'ADMIN_REOPEN',at,ids:[slot.id]});
   s.b02.history=s.b02.history.slice(-12);
   return;
+ }
+
+ if(action==='ADMIN_B07_REVIEW'){
+  // These are pending document/source checks, NEVER a financial status.
+  if(Object.keys(p).sort().join(',')!=='id,reason,status'||
+     typeof p.id!=='string'||!/^SIM-[0-9]{3}$/.test(p.id)||
+     !s.applications.some(a=>a.id===p.id)||
+     !['SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'].includes(p.status)||
+     !['SOURCE_CHECK','DOCUMENT_CHECK','PI_REVIEW_REQUEST'].includes(p.reason))
+    throw Error('B07只能記錄既有虛構代碼的待核行政準備狀態');
+  study1B07Verify_(s);
+  const previous=s.b07.reviews[p.id]?.status||'UNRECORDED';
+  if(previous===p.status)throw Error('B07狀態沒有實際變更，拒絕重複行政紀錄');
+  const at=new Date(now).toISOString();
+  s.b07.reviews[p.id]={status:p.status,actor:'OWNER',at};
+  s.b07.history.push({id:p.id,from:previous,to:p.status,
+   reason:p.reason,actor:'OWNER',at});
+  s.b07.history=s.b07.history.slice(-12);
+  return; // No money, approved amounts, receipts, identity, files or payment.
  }
 
  if(action==='ADMIN_B04_NOTE'){
@@ -1834,6 +1899,7 @@ function study1UnifiedPreviewCommand(command){
   study1UnifiedValidatePolicy_(next.policy);study1UnifiedValidateResearch_(next.research);
   study1UnifiedValidateSlots_(next.slots);study1UnifiedValidateE2Weeks_(next.e2Weeks);
   study1UnifiedValidateRecruitment_(next.recruitment);
+  study1B07Verify_(next);
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);

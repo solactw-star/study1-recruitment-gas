@@ -1301,3 +1301,83 @@ test('B01 owner denial or unsafe global view clears layout and keeps controls lo
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
+
+
+test('B07 original owner management page records pending synthetic state without a payment or export',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E2'});
+ const baseline=srv.writes,team=page(srv,'team');
+ assert.equal(team.get('b07Rows').children.length,2);
+ assert.equal(team.get('b07History').children.length,1);
+ assert.match(team.get('b07Status').textContent,/正式補貼核准／金額／發放：全部未啟用/);
+ const e1=team.get('b07Rows').children[0],fields=e1.children[1],
+  status=fields.children[0].children[0],reason=fields.children[1].children[0],
+  save=fields.children[2];
+ assert.equal(status.value,'SOURCE_PENDING');
+ assert.equal(reason.value,'SOURCE_CHECK');
+ assert.equal(save.disabled,false);
+ assert.equal(srv.writes,baseline,'view cannot write source');
+ status.value='DOCUMENTS_PENDING';status.handlers.change();
+ reason.value='DOCUMENT_CHECK';save.handlers.click();
+ assert.equal(srv.writes,baseline+1);
+ assert.equal(srv.read().b07.reviews['SIM-001'].status,'DOCUMENTS_PENDING');
+ assert.equal(srv.read().b07.history.length,1);
+ assert.equal(team.get('b07History').children.length,1);
+ assert.match(team.get('status').textContent,/未記錄任何正式補貼發放/);
+ assert.equal(team.calls.includes('ADMIN_B07_REVIEW'),true);
+ assert.doesNotMatch(teamHtml,/id="b07Pay"|id="b07Amount"|id="b07Export"|id="b07Receipt"/);
+ team.set('b07Experiment','E2');team.change('b07Experiment');
+ assert.equal(team.get('b07Rows').children.length,1);
+ assert.match(team.get('b07Rows').children[0].children[0].textContent,/SIM-002/);
+ team.click('b07Reset');
+ assert.equal(team.get('b07Rows').children.length,2);
+ team.set('adminScopeGlobal','E1');team.change('adminScopeGlobal');
+ assert.equal(team.get('b07Rows').children.length,1);
+ assert.equal(srv.writes,baseline+1);
+ closed(srv);
+});
+
+test('B07 CAS stale second owner tab automatically rereads authoritative state, never replays',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const a=page(srv,'team'),b=page(srv,'team');
+ const aFields=a.get('b07Rows').children[0].children[1];
+ aFields.children[0].children[0].value='SOURCE_PENDING';
+ aFields.children[2].handlers.click();
+ const current=srv.read().revision,writes=srv.writes;
+ const bFields=b.get('b07Rows').children[0].children[1];
+ bFields.children[0].children[0].value='DOCUMENTS_PENDING';
+ bFields.children[0].children[0].handlers.change();
+ bFields.children[1].children[0].value='DOCUMENT_CHECK';
+ bFields.children[2].handlers.click();
+ assert.equal(srv.read().revision,current,'stale tab cannot create B07 event');
+ assert.equal(srv.writes,writes);
+ assert.equal(b.get('b07Rows').children.length,1);
+ assert.match(b.get('status').textContent,/提交結果未確認/);
+ assert.equal(b.get('b07Rows').children[0].children[1].children[0].children[0].value,'SOURCE_PENDING');
+ assert.equal(b.get('b07History').children.length,1);
+ assert.ok(b.calls.filter(x=>x==='READ').length>=2);
+ closed(srv);
+});
+
+test('B07 spoofed formal approval or denied owner read clears pending-only viewer without writes',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const team=page(srv,'team'),before=srv.writes;
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{
+  const s=original();
+  s.b07.reviews['SIM-001']={actor:'OWNER',status:'PAID',
+   at:'2026-11-06T12:00:00.000Z'};
+  return s;
+ };
+ team.click('refresh');
+ assert.equal(team.get('b07Rows').children.length,0);
+ assert.match(team.get('b07Status').textContent,/拒絕顯示/);
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner revoked');};
+ team.click('refresh');
+ assert.equal(team.get('b07Rows').children.length,0);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.match(team.get('b07Status').textContent,/B07資料已清空/);
+ assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});

@@ -169,6 +169,16 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b12Values pre{white-space:pre-wrap;word-break:break-word;margin:6px 0;font-size:12px}
 @media(max-width:760px){.b12Tools{grid-template-columns:1fr 1fr}.b12Values{grid-template-columns:1fr}}
 @media(max-width:480px){.b12Tools{grid-template-columns:1fr}}
+/* B07 pending-only synthetic administrative preparation; no compensation values. */
+#b07Module{scroll-margin-top:24px}
+.b07Rows{display:grid;gap:10px;margin:12px 0}
+.b07Row{border:1px solid var(--line);background:#f7faf9;border-radius:12px;padding:12px}
+.b07RowTitle{display:block;font-weight:750;margin-bottom:8px}
+.b07Fields{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.b07Fields label{font-size:13px;font-weight:700}
+.b07History{border-top:1px solid var(--line);padding:7px 0;font-size:13px;overflow-wrap:anywhere}
+@media(max-width:720px){.b07Fields{grid-template-columns:1fr}}
+
 /* B08: existing bounded synthetic notification source, no live delivery */
 #b08Module{scroll-margin-top:24px}
 .b08Tools{display:grid;grid-template-columns:1.6fr repeat(3,minmax(0,1fr));gap:10px}
@@ -245,7 +255,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 
 </style></head><body>
 <header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#b10Module">文件來源</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#b10Module">文件來源</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b07Module">補貼行政待核</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -575,6 +585,20 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p class="small">目前原 GAS owner 僅管理虛構資料；PI／RA正式帳號、真人個資及大量持久化資料庫尚待正式授權。封存不刪除紀錄、不自動寄信。</p>
 </section>
 
+<section class="panel" id="b07Module" aria-labelledby="b07Heading">
+ <span class="tag">B07｜研究補貼行政準備（僅虛構代碼）</span>
+ <h2 id="b07Heading">待核對資料狀態與人工追蹤</h2>
+ <p class="sub">本區只能替既有 SIM 虛構申請代碼記錄「來源待核／文件待核／待 PI 查核」三種未完成的行政準備狀態，並保留最多12筆近期人工變更。不是金額、資格核准、已發放、發放日期或付款系統；沒有補貼金額、匯款、真人憑證或報表匯出欄位。</p>
+ <div class="b10Controls"><label for="b07Experiment">檢視實驗
+ <select id="b07Experiment"><option value="ALL">依全域可見兩實驗</option><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+ <button type="button" id="b07Reset" class="secondary">顯示可見兩實驗</button></div>
+ <p id="b07Status" class="small" role="status" aria-live="polite">尚未核對 OWNER-only 測試來源。</p>
+ <div id="b07Rows" class="b07Rows" aria-label="B07虛構代碼待核行政狀態"></div>
+ <h3>最近的虛構行政準備狀態變更（有限歷程）</h3>
+ <div id="b07History" aria-label="B07有限近期人工狀態歷程"></div>
+ <p class="warn">正式補貼項目、研究階段、金額、適用資格、憑證與發放狀態皆待最新REC及權責核准。不會因本頁標記為「待PI查核」就視為已審核，亦不會寄送通知、扣款或發放。</p>
+</section>
+
 <section class="panel" id="b08Module" aria-labelledby="b08Heading">
  <span class="tag">B08｜虛構通知管理（P2-03）</span>
  <h2 id="b08Heading">通知狀態、原內容及人工模擬重試</h2>
@@ -682,7 +706,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
+  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
@@ -695,7 +719,7 @@ function render(data){
   $(prefix+'Label').value=d.label;$(prefix+'Duration').value=d.duration;
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
- adminScopeLabels_();b11Load_();b10Render_();displaySlots();displayWeeks();b01Render();b01LayoutRender_();b09Render();calendarRender();profileRender();b05Render();
+ adminScopeLabels_();b11Load_();b10Render_();b07Render_();displaySlots();displayWeeks();b01Render();b01LayoutRender_();b09Render();calendarRender();profileRender();b05Render();
  b03Render();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
@@ -750,7 +774,7 @@ function adminScopeChanged_(module){
  const affected=module==='GLOBAL'?adminScopeModules:[module];
  if(!affected.every(m=>adminScopeEffective_(m)!==null)){
   model=null;setBusy(true);adminScopeClearAll_();
-  b01Clear('管理範圍不合法；研究總覽已清空。');b01LayoutClear_('管理範圍不合法，卡片設定已清除。');
+  b07Clear_('管理範圍不合法；B07資料已清空。');b01Clear('管理範圍不合法；研究總覽已清空。');b01LayoutClear_('管理範圍不合法，卡片設定已清除。');
   b09Clear_('管理範圍不合法；報表已清空。');
   adminScopeLabels_();return;
  }
@@ -777,6 +801,7 @@ function adminScopeChanged_(module){
  }
  adminScopeLabels_();
  if(!model||busy){adminScopeClearAll_();return;}
+ if(module==='GLOBAL')b07Render_();
  if(affected.includes('B01')){b01Render();b01LayoutRender_();}
  if(affected.includes('B02'))calendarRender();
  if(affected.includes('B03'))b03Render();
@@ -1474,6 +1499,129 @@ $('b01LayoutReset').addEventListener('click',()=>{
  b01Render();b01LayoutRender_();
 });
 
+/* B07 only tracks pending synthetic administrative preparation.
+ * No formal amount/status, PII, payment adapter, evidence files or exports. */
+const b07Statuses={SOURCE_PENDING:'核准來源待核',
+ DOCUMENTS_PENDING:'必要文件待核',PI_REVIEW_PENDING:'待PI人工查核'};
+const b07Reasons={SOURCE_CHECK:'核對來源依據',
+ DOCUMENT_CHECK:'核對必要文件類別',PI_REVIEW_REQUEST:'提交人工查核需求'};
+function b07Clear_(text){
+ $('b07Rows').replaceChildren();$('b07History').replaceChildren();
+ $('b07Status').textContent=text;
+}
+function b07Valid_(){
+ const b=model?.b07;
+ return !!(model&&model.mode==='TEST'&&model.open===false&&
+  model.consentReady===false&&model.formalReadiness?.activationAllowed===false&&
+  model.formalPorts?.activated===false&&Array.isArray(model.applications)&&
+  b&&b.reviews&&typeof b.reviews==='object'&&!Array.isArray(b.reviews)&&
+  Array.isArray(b.history)&&b.history.length<=12&&
+  Object.entries(b.reviews).every(([id,x])=>
+   /^SIM-[0-9]{3}$/.test(id)&&model.applications.some(a=>a.id===id)&&
+   x?.actor==='OWNER'&&Object.keys(b07Statuses).includes(x.status)&&
+   typeof x.at==='string'&&!Number.isNaN(Date.parse(x.at)))&&
+  b.history.every(h=>h&&h.actor==='OWNER'&&
+   model.applications.some(a=>a.id===h.id)&&
+   Object.keys(b07Statuses).includes(h.to)&&
+   (h.from==='UNRECORDED'||Object.keys(b07Statuses).includes(h.from))&&
+   Object.keys(b07Reasons).includes(h.reason)));
+}
+function b07Render_(){
+ const filter=$('b07Experiment');
+ if(!['ALL','E1','E2'].includes(filter.value))filter.value='ALL';
+ if(!b07Valid_()){b07Clear_('B07來源或正式研究安全條件無法核實，已拒絕顯示與操作。');return;}
+ const global=$('adminScopeGlobal').value;
+ if(!['ALL','E1','E2'].includes(global)){
+  b07Clear_('B07後台全域範圍不合法，已清空虛構行政準備資料。');return;
+ }
+ const list=$('b07Rows'),history=$('b07History');
+ list.replaceChildren();history.replaceChildren();
+ const visible=model.applications.filter(a=>
+  (global==='ALL'||a.experiment===global)&&
+  (filter.value==='ALL'||a.experiment===filter.value));
+ for(const a of visible){
+  const r=model.b07.reviews[a.id],row=calElem('div',undefined,'b07Row');
+  row.append(calElem('strong',a.id+'｜'+a.experiment+
+   '｜'+(r?b07Statuses[r.status]:'尚無人工行政準備紀錄'),'b07RowTitle'));
+  const fields=calElem('div',undefined,'b07Fields');
+  const statusLabel=calElem('label','待核狀態');
+  const status=document.createElement('select');status.setAttribute('aria-label',a.id+'行政待核狀態');
+  for(const [value,title] of Object.entries(b07Statuses)){
+   const opt=calElem('option',title);opt.value=value;status.append(opt);
+  }
+  status.value=r?.status||'SOURCE_PENDING';statusLabel.append(status);
+  const reasonLabel=calElem('label','固定類別的人工追蹤原因');
+  const reason=document.createElement('select');reason.setAttribute('aria-label',a.id+'行政待核原因');
+  for(const [value,title] of Object.entries(b07Reasons)){
+   const opt=calElem('option',title);opt.value=value;reason.append(opt);
+  }
+  reason.value='SOURCE_CHECK';reasonLabel.append(reason);
+  const saveBtn=calElem('button','記錄虛構待核狀態','secondary');
+  saveBtn.type='button';
+  saveBtn.disabled=busy||!!r&&r.status===status.value;
+  status.addEventListener('change',()=>{saveBtn.disabled=busy||!!r&&r.status===status.value;});
+  saveBtn.addEventListener('click',()=>{
+   if(busy||!b07Valid_()||saveBtn.disabled)return;
+   b07Save_(a.id,status.value,reason.value);
+  });
+  fields.append(statusLabel,reasonLabel,saveBtn);row.append(fields);list.append(row);
+ }
+ for(const h of model.b07.history.filter(h=>
+   model.applications.some(a=>a.id===h.id&&
+    (global==='ALL'||a.experiment===global)&&
+    (filter.value==='ALL'||a.experiment===filter.value))).slice(-12).reverse()){
+  history.append(calElem('div',h.at+'｜'+h.id+'｜'+
+   (b07Statuses[h.from]||'原未記錄')+' → '+b07Statuses[h.to]+
+   '｜'+b07Reasons[h.reason]+'｜OWNER','b07History'));
+ }
+ if(!history.children.length)history.append(calElem('p','無保留的虛構狀態變更紀錄；不代表完整歷史。','small'));
+ if(!list.children.length)list.append(calElem('p','目前範圍沒有虛構申請代碼；可從原參與者 Demo 建立，不可直接輸入真人身分。','small'));
+ $('b07Status').textContent='目前可見 '+visible.length+' 個虛構申請代碼｜已記錄待核狀態 '+
+  visible.filter(a=>!!model.b07.reviews[a.id]).length+
+  ' 筆｜歷程最多保留12筆｜正式補貼核准／金額／發放：全部未啟用。';
+}
+function b07Recover_(reason){
+ b07Clear_('B07提交結果不確定：'+reason+'。重新讀取原GAS安全快照。');
+ setBusy(true);
+ google.script.run.withSuccessHandler(data=>{
+  if(render(data))message('B07提交結果未確認，已回讀最新虛構資料；請重新檢查，不會自動重送。',true);
+ }).withFailureHandler(e=>{
+  model=null;b01Clear('B07原GAS讀取失敗；研究摘要已清空。');
+  b01LayoutClear_('B07原GAS權限失效，已鎖定排序。');
+  b09Clear_('B07原GAS權限失效，已清空統計。');
+  b10Clear_('B07原GAS權限失效，已清空來源。',true);
+  b07Clear_('B07重新讀取失敗，已鎖定管理操作：'+String(e.message||e));
+  adminScopeClearAll_();setBusy(true);
+  message('B07設定未確認且無法回讀原來源；拒絕進一步操作。',true);
+ }).study1UnifiedPreviewGet();
+}
+function b07Save_(id,status,reason){
+ if(busy||!b07Valid_()||!model.applications.some(a=>a.id===id)||
+    !Object.keys(b07Statuses).includes(status)||
+    !Object.keys(b07Reasons).includes(reason))return;
+ const previous=model.b07.reviews[id]?.status||'UNRECORDED';
+ if(previous===status){message('B07待核狀態未改變，無需寫入。');return;}
+ const expected=model.revision;
+ const requestId='REQ-SIM-B07_'+Date.now()+'_'+Math.floor(Math.random()*1e7);
+ setBusy(true);b07Clear_('B07正在以原GAS OWNER版本鎖記錄待核狀態…');
+ google.script.run.withSuccessHandler(data=>{
+  const record=data?.b07?.reviews?.[id];
+  if(!data||data.mode!=='TEST'||data.open!==false||data.consentReady!==false||
+     data.formalReadiness?.activationAllowed!==false||
+     data.revision!==expected+1||record?.status!==status||
+     record?.actor!=='OWNER'||!Array.isArray(data.b07.history)||
+     data.b07.history[data.b07.history.length-1]?.id!==id||
+     data.b07.history[data.b07.history.length-1]?.to!==status)
+   return b07Recover_('修訂版或原記錄與此次人工確認不符');
+  if(render(data))message('B07已回讀最新待核行政準備狀態；未記錄任何正式補貼發放。');
+ }).withFailureHandler(error=>
+   b07Recover_('原GAS版本競寫或提交失敗：'+String(error.message||error)))
+ .study1UnifiedPreviewCommand({action:'ADMIN_B07_REVIEW',
+  payload:{id,status,reason},requestId,expectedRevision:expected});
+}
+$('b07Experiment').addEventListener('change',b07Render_);
+$('b07Reset').addEventListener('click',()=>{$('b07Experiment').value='ALL';b07Render_();});
+
 function b01Clear(reason){$('b01Cards').replaceChildren();$('b01Status').textContent=reason;}
 function b01Render(){
  const cards=$('b01Cards');cards.replaceChildren();
@@ -1542,7 +1690,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b07Clear_('無法讀取OWNER TEST來源，B07資料已清空。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){

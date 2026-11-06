@@ -161,6 +161,10 @@ function assertUnifiedFlow(source){
    "e.actor!=='OWNER'","b04:JSON.parse(JSON.stringify(s.b04",
    "if(s&&!s.b04)s.b04={notes:{},history:[]}",
    "action==='ADMIN_B05_CLOSURE'","s.b05.history.push(",
+   "action==='ADMIN_B07_REVIEW'","study1B07Verify_(s)",
+   "s.b07.reviews[p.id]=","s.b07.history.push(",
+   "if(s&&!s.b07)s.b07=study1B07Initial_()",
+   "b07:JSON.parse(JSON.stringify(s.b07",
    "s.b05.closures[slot.id]=","delete s.b05.closures[slot.id]",
    "s.b02.sessions[slot.id]={...m,status:'CLOSED'}",
    "s.b05.history=s.b05.history.slice(-32)",
@@ -218,6 +222,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
   'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1UnifiedB11FormalPublish_',
+  'study1B07Initial_','study1B07Verify_',
   'study1B06Initial_','study1B06Text_','study1B06Fields_','study1B06Verify_',
   'study1B06Read_','study1B06Apply_','study1UnifiedB06Command',
   'study1B12AuditBuild_','study1B12AuditPage_',
@@ -287,6 +292,12 @@ function assertTeamHtml(html){
     !html.includes("adminScopeMatch_('B08',a.experiment)")||
     !html.includes("adminScopeEffective_('B09')")||
     !html.includes('後台研究範圍不合法')||
+    !html.includes('id="b07Module"')||!html.includes('id="b07Rows"')||
+    !html.includes('id="b07History"')||!html.includes('id="b07Experiment"')||
+    !html.includes("function b07Valid_()")||
+    !html.includes("function b07Save_(id,status,reason)")||
+    !html.includes("action:'ADMIN_B07_REVIEW'")||
+    !html.includes('正式補貼核准／金額／發放：全部未啟用')||
     !html.includes('id="b01LayoutPanel"')||
     !html.includes('id="b01LayoutControls"')||
     !html.includes('id="b01LayoutReset"')||
