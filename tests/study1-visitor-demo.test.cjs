@@ -243,6 +243,6 @@ test('V07 exposes only safe synthetic booking-result uncertainty, GET rescan and
  assert.match(html,/結果未知/);
  assert.match(html,/時段已滿或失效/);
  assert.match(html,/資格不符/);
- assert.match(html,/不能單憑回讀/);
+ assert.match(html,/無法證明剛才那次提交成功/);
  assert.doesNotMatch(html,/\b(?:localStorage|sessionStorage|fetch|XMLHttpRequest)\b/);
 });
