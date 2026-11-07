@@ -367,6 +367,15 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
     <label class="label" for="calRepeat">新增時每週重複次數</label><select id="calRepeat"><option value="1">只新增一次</option><option value="2">連續兩週</option><option value="3">連續三週</option><option value="4">連續四週</option></select>
     <label class="label" for="calScope">編輯既有系列的範圍</label><select id="calScope"><option value="ONE">僅這一次</option><option value="FUTURE">這次及未來</option><option value="SERIES">整個系列</option></select>
     <p id="calImpact" class="calWarning">提交前會顯示受影響名單與容量檢查。</p>
+    <div id="calEditReview" class="box warn" role="region" aria-label="B02-A編輯場次影響二次核對" hidden>
+      <h4>編輯場次影響確認｜只適用虛構資料</h4>
+      <p id="calEditSummary" role="status" aria-live="polite"></p>
+      <div id="calEditRows" aria-label="各受影響場次與預約紀錄"></div>
+      <label class="check"><input type="checkbox" id="calEditAck"> 我已核對全部場次及關聯申請、變更前後容量與時段；本操作不會自動改期或通知參與者。</label>
+      <div class="calAction"><button type="button" id="calEditCommit" disabled>再次確認並儲存編輯</button>
+       <button type="button" id="calEditBack" class="secondary">返回修改欄位，不儲存</button></div>
+      <p id="calEditStatus" role="status" aria-live="polite">僅對目前來源修訂版有效。</p>
+    </div>
     <div class="calAction"><button type="submit" id="calSaveSession">確認並儲存</button><button type="button" id="calCancelEdit" class="secondary">返回場次</button></div>
    </form>
   </aside>
@@ -724,7 +733,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
+  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
@@ -791,7 +800,7 @@ function adminScopeClearAll_(){
 function adminScopeChanged_(module){
  const affected=module==='GLOBAL'?adminScopeModules:[module];
  if(!affected.every(m=>adminScopeEffective_(m)!==null)){
-  model=null;setBusy(true);adminScopeClearAll_();
+  model=null;calEditReset_('B02管理範圍不合法，編輯預覽已清除。');setBusy(true);adminScopeClearAll_();
   b07Clear_('管理範圍不合法；B07資料已清空。');b01Clear('管理範圍不合法；研究總覽已清空。');b01LayoutClear_('管理範圍不合法，卡片設定已清除。');
   b09Clear_('管理範圍不合法；報表已清空。');
   adminScopeLabels_();return;
@@ -1967,7 +1976,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');calCancelReset_('來源讀取失敗，取消預覽已清除。');b07Clear_('無法讀取OWNER TEST來源，B07資料已清空。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');calCancelReset_('來源讀取失敗，取消預覽已清除。');calEditReset_('來源讀取失敗，編輯預覽已清除。');b07Clear_('無法讀取OWNER TEST來源，B07資料已清空。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
@@ -2032,6 +2041,14 @@ const cal={id:null,person:null,mode:'CLOSED',initialized:false};
  * Only synthetic application IDs, administrative phases, attendance and
  * progress can appear here. Never cancel, rebook or notify individuals. */
 const calCancelReviewState={impact:null};
+const calEditReviewState={plan:null};
+function calEditReset_(note){
+ calEditReviewState.plan=null;
+ $('calEditReview').hidden=true;$('calEditRows').replaceChildren();
+ $('calEditAck').checked=false;$('calEditCommit').disabled=true;
+ $('calEditSummary').textContent='';
+ $('calEditStatus').textContent=note||'僅對目前來源修訂版有效。';
+}
 function calCancelReset_(messageText){
  calCancelReviewState.impact=null;
  $('calCancelReview').hidden=true;$('calCancelRows').replaceChildren();
@@ -2122,6 +2139,7 @@ function calRange(){
 }
 function calOpen(mode,id,person){
  if(mode!=='SESSION'||id!==cal.id)calCancelReset_();
+ if(mode!=='EDIT'||id!==cal.id)calEditReset_('離開編輯，確認預覽已清除。');
  cal.mode=mode;cal.id=id===undefined?cal.id:id;cal.person=person||null;
  calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
 }
@@ -2178,7 +2196,7 @@ function calendarRender(){
  calendarPanel();
 }
 function calendarPanel(){
- calCancelSync_();
+ calCancelSync_();calEditSync_();
  const frame=$('calFrame'),detail=$('calSessionDetail'),person=$('calPersonDetail'),
  form=$('calForm'),heading=$('calAsideTitle');
  frame.classList.toggle('detail',cal.mode!=='CLOSED');
@@ -2239,6 +2257,7 @@ function calendarPanel(){
 
 function calNew(day){
  if(!calAllowed()||busy)return;
+ calEditReset_();
  cal.id=null;cal.person=null;cal.mode='NEW';
  $('calEditExperiment').disabled=false;$('calEditExperiment').value=$('calExperiment').value==='E2'?'E2':'E1';
  $('calEditTitle').value='模擬研究時段';
@@ -2246,16 +2265,19 @@ function calNew(day){
  $('calEditCapacity').value='2';$('calEditMinutes').value='120';
  $('calEditPlace').value='虛構研究室';$('calRepeat').value='1';$('calRepeat').disabled=false;
  $('calScope').value='ONE';$('calScope').disabled=true;
+ $('calSaveSession').textContent='確認新增虛構場次';
  calendarRender();$('calEditTitle').focus();
 }
 function calEdit(slot){
  if(!calAllowed()||busy)return;
+ calEditReset_();
  const m=calMeta(slot);cal.id=slot.id;cal.person=null;cal.mode='EDIT';
  $('calEditExperiment').value=slot.experiment;$('calEditExperiment').disabled=true;
  $('calEditTitle').value=m.title;$('calEditWhen').value=slot.when.replace(' ','T');
  $('calEditCapacity').value=String(slot.capacity);$('calEditMinutes').value=String(m.minutes);
  $('calEditPlace').value=m.place;$('calRepeat').value='1';$('calRepeat').disabled=true;
  $('calScope').value='ONE';$('calScope').disabled=!m.group;
+ $('calSaveSession').textContent='預覽編輯影響（尚不寫入）';
  calendarRender();$('calEditTitle').focus();
 }
 function calPayload(operation){
@@ -2282,6 +2304,111 @@ function calImpact(){
  lines.push('取消時保留舊紀錄；本測試系統不會自動寄送郵件。');
  $('calImpact').textContent=lines.join('\n');
 }
+
+/* P1 B02-A: second-step TEST edit review, bound to the shared original owner
+ * snapshot. No new endpoint, store, email, identity or real REC operation. */
+function calEditBind_(values){
+ return values.map(v=>{const x=String(v);return x.length+':'+x;}).join('');
+}
+function calEditPlan_(p){
+ if(!calAllowed()||model.formalPorts?.activated!==false||
+  !Number.isSafeInteger(model.revision)||model.revision<0||
+  !Array.isArray(model.applications)||!model.b02?.sessions||
+  cal.mode!=='EDIT'||!cal.id||!p||p.operation!=='UPDATE'||p.slotId!==cal.id||
+  !['ONE','FUTURE','SERIES'].includes(p.scope)||p.repeatCount!==1||
+  !Number.isSafeInteger(p.capacity)||p.capacity<1||p.capacity>20||
+  !Number.isSafeInteger(p.minutes)||p.minutes<15||p.minutes>480||
+  typeof p.title!=='string'||p.title.length<2||p.title.length>36||/[<>]/.test(p.title)||
+  typeof p.place!=='string'||p.place.length>48||/[<>]/.test(p.place)||
+  typeof p.when!=='string'||!/^20\d\d-(0[1-9]|1[0-2])-([0-2]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/.test(p.when))
+  return null;
+ const matches=model.slots.filter(s=>s?.id===cal.id);
+ if(matches.length!==1||matches[0].experiment!==p.experiment||
+  !adminScopeMatch_('B02',p.experiment))return null;
+ const source=matches[0],meta=calMeta(source),now=Date.now();
+ const start=Date.parse(p.when.replace(' ','T')+':00+08:00');
+ if(meta.status!=='OPEN'||!Number.isFinite(start)||start<=now||
+  new Date(start+28800000).toISOString().slice(0,16)!==p.when.replace(' ','T')||
+  p.scope!=='ONE'&&p.when!==source.when)return null;
+ const dateOf=s=>Date.parse(s.when.replace(' ','T')+':00+08:00');
+ const affected=model.slots.filter(s=>s.experiment===p.experiment&&
+  (s.id===source.id||p.scope!=='ONE'&&meta.group&&calMeta(s).group===meta.group&&
+  (p.scope==='SERIES'||dateOf(s)>=dateOf(source))));
+ const impacts=affected.map(s=>calCancelImpact_(s));
+ if(!impacts.length||impacts.some(x=>!x||x.confirmed+x.holding>p.capacity))return null;
+ const originalImpact=impacts.find(x=>x.slotId===source.id);
+ if(p.when!==source.when&&originalImpact?.total)return null;
+ // The original GAS repeats this overlap/capacity validation under ScriptLock.
+ const ids=new Set(affected.map(s=>s.id));
+ const projected=model.slots.filter(s=>calMeta(s).status!=='CANCELLED').map(s=>({
+  experiment:s.experiment,when:s.id===source.id?p.when:s.when,
+  minutes:ids.has(s.id)?p.minutes:calMeta(s).minutes}));
+ for(let i=0;i<projected.length;i++)for(let j=i+1;j<projected.length;j++){
+  const a=projected[i],b=projected[j];
+  if(a.experiment!==b.experiment)continue;
+  const x=Date.parse(a.when.replace(' ','T')+':00+08:00'),
+    y=Date.parse(b.when.replace(' ','T')+':00+08:00');
+  if(!Number.isFinite(x)||!Number.isFinite(y)||
+   !Number.isSafeInteger(a.minutes)||!Number.isSafeInteger(b.minutes)||
+   x<y+b.minutes*60000&&y<x+a.minutes*60000)return null;
+ }
+ const sourceSignature=calEditBind_([model.revision,
+  calEditBind_(model.slots.map(s=>calEditBind_([s.id,s.experiment,s.when,s.capacity,
+   calMeta(s).status,calMeta(s).group,calMeta(s).title,calMeta(s).place,
+   calMeta(s).minutes]))),
+  calEditBind_(impacts.map(x=>x.signature))]);
+ const formSignature=calEditBind_([p.operation,p.slotId,p.experiment,p.title,
+  p.when,p.capacity,p.minutes,p.place,p.repeatCount,p.scope]);
+ return {revision:model.revision,slotId:source.id,
+  signature:calEditBind_([sourceSignature,formSignature,adminScopeEffective_('B02')]),
+  payload:{...p},impacts};
+}
+function calEditSync_(){
+ const draft=calEditReviewState.plan;if(!draft)return;
+ const current=calEditPlan_(calPayload('UPDATE'));
+ if(!current||current.signature!==draft.signature||
+  current.revision!==draft.revision||cal.id!==draft.slotId){
+  calEditReset_('編輯欄位、來源、權限、時段或修訂版改變；須重新核對。');
+  calMsg('編輯預覽已失效，未寫入任何場次變更。',true);
+ }
+}
+function calEditStage_(payload){
+ calEditReset_();
+ const plan=calEditPlan_(payload);
+ if(!plan){calMsg('無法核實編輯影響：日期、容量、預約、重疊或範圍有誤；未提交。',true);return;}
+ calEditReviewState.plan=plan;
+ $('calEditSummary').textContent='修訂版 '+plan.revision+'｜範圍 '+payload.scope+
+  '｜受影響 '+plan.impacts.length+' 場｜新容量 '+payload.capacity+
+  '｜新時長 '+payload.minutes+' 分鐘。';
+ for(const impact of plan.impacts){
+  const slot=model.slots.find(s=>s.id===impact.slotId),m=calMeta(slot);
+  $('calEditRows').append(calElem('p',impact.slotId+'｜時間 '+slot.when+' → '+
+   (slot.id===plan.slotId?payload.when:slot.when)+
+   '｜容量 '+slot.capacity+' → '+payload.capacity+
+   '｜時長 '+m.minutes+' → '+payload.minutes+
+   '｜活動 '+m.title+' → '+payload.title+
+   '｜地點 '+(m.place||'未填')+' → '+(payload.place||'未填')+
+   '｜已成立 '+impact.confirmed+'｜暫留 '+impact.holding+
+   '｜預約歷史 '+impact.total,'calMini'));
+  for(const a of impact.rows)$('calEditRows').append(calElem('p',
+   '　'+a.id+'｜'+a.kind+'｜出席 '+calPresence[a.attendance]+
+   '｜施測 '+calTesting[a.progress],'calMini'));
+ }
+ $('calEditReview').hidden=false;$('calEditAck').checked=false;
+ $('calEditCommit').disabled=true;
+}
+function calEditCommit_(){
+ const draft=calEditReviewState.plan;
+ if(!draft||busy||!$('calEditAck').checked||cal.mode!=='EDIT'||cal.id!==draft.slotId)return;
+ const current=calEditPlan_(calPayload('UPDATE'));
+ if(!current||current.signature!==draft.signature||current.revision!==draft.revision){
+  calEditReset_('舊預覽與來源或欄位不一致。');
+  calMsg('編輯預覽已失效；無寫入，請重新核對。',true);return;
+ }
+ const payload={...draft.payload};
+ calEditReset_('編輯已送至原GAS；結果不明時須重新讀取，禁止自動重送。');
+ calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
+}
 function calCommand(action,payload,after){
  if(!calAllowed()||busy){calMsg('資料載入中或沒有操作權限。',true);return;}
  const id='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
@@ -2291,8 +2418,9 @@ function calCommand(action,payload,after){
    calMsg('示範資料儲存成功，正式收件仍關閉。',false);}
  }).withFailureHandler(e=>{
   setBusy(false);
-  if(action==='ADMIN_B02_SLOT'&&payload.operation==='CANCEL')
-   calMsg('場次取消結果尚未確認：'+String(e.message||e)+
+  if(action==='ADMIN_B02_SLOT'&&['CANCEL','UPDATE'].includes(payload.operation))
+   calMsg((payload.operation==='CANCEL'?'場次取消結果尚未確認：':'場次編輯結果尚未確認：')+
+    String(e.message||e)+
     '。可能已寫入，請重新載入原GAS並核對場次狀態；不得直接重送。',true);
   else calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
  }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
@@ -2348,6 +2476,12 @@ function calShift(amount){
  $('calDate').value=d;calendarRender();
 }
 function calendarInit(){
+ $('calEditAck').addEventListener('change',()=>{
+  calEditSync_();
+  $('calEditCommit').disabled=busy||!calEditReviewState.plan||!$('calEditAck').checked;
+ });
+ $('calEditBack').addEventListener('click',()=>calEditReset_('已返回編輯欄位，未提交變更。'));
+ $('calEditCommit').addEventListener('click',calEditCommit_);
  $('calCancelAck').addEventListener('change',()=>{
   calCancelSync_();
   $('calCancelCommit').disabled=busy||!calCancelReviewState.impact||!$('calCancelAck').checked;
@@ -2381,13 +2515,17 @@ function calendarInit(){
    model.slots.find(s=>s.id===cal.id)?.when!==payload.when){
    calMsg('已有預約紀錄，不可直接移動場次，請先處理參與者。',true);return;
   }
+  if(editing){calEditStage_(payload);return;}
   calCommand('ADMIN_B02_SLOT',payload,data=>{
-   if(!editing){const h=data.b02.history[data.b02.history.length-1];cal.id=h?.ids[0]||null;}
+   const h=data.b02.history[data.b02.history.length-1];cal.id=h?.ids[0]||null;
    cal.mode=cal.id?'SESSION':'CLOSED';
   });
  });
- for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope'])
-  $(id).addEventListener('change',calImpact);
+ for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope',
+  'calEditTitle','calEditPlace']){
+  $(id).addEventListener('change',()=>{calEditSync_();calImpact();});
+  $(id).addEventListener('input',()=>{calEditSync_();calImpact();});
+ }
  $('calFullProfile').addEventListener('click',()=>{if(cal.person)profileOpen(cal.person,'calendar');});
  $('calSavePerson').addEventListener('click',()=>{
   if(!cal.person)return;
