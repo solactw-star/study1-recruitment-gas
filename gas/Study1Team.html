@@ -333,6 +333,16 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   <aside id="calAside" class="calAside" aria-label="場次與參與者面板" aria-live="polite">
    <div class="calTop"><h3 id="calAsideTitle">場次詳情</h3><button type="button" id="calClose" class="secondary">關閉</button></div>
    <div id="calSessionDetail"></div>
+   <div id="calCancelReview" class="box warn" role="region" aria-label="B02-A取消場次受影響預約核對" hidden>
+    <h3>取消場次前｜受影響虛構預約核對</h3>
+    <p id="calCancelSummary" class="small" role="status" aria-live="polite">尚未核實取消影響。</p>
+    <div id="calCancelRows" aria-label="受影響虛構申請清單"></div>
+    <p class="small">取消僅關閉此場次的新預約，保留既有申請與行政歷程；已成立／有效暫留需人工處理，不會自動通知、取消個別申請、改期或核准候補。</p>
+    <label class="check"><input type="checkbox" id="calCancelAck"> 我已逐筆核對受影響虛構申請，理解不會自動取消或通知。</label>
+    <div class="calAction"><button type="button" id="calCancelCommit" disabled>確認取消此虛構場次</button>
+     <button type="button" id="calCancelBack" class="secondary">返回場次，不取消</button></div>
+    <p id="calCancelStatus" class="small" role="status" aria-live="polite">此確認僅適用目前的原GAS修訂版。</p>
+   </div>
    <div id="calPersonDetail" hidden>
     <div class="calTop"><h3 id="calPersonTitle">參與者快速面板</h3><button class="secondary" type="button" id="calBackSession">返回場次</button></div>
     <p id="calPersonSummary" class="small"></p>
@@ -714,7 +724,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
+  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
@@ -1957,7 +1967,7 @@ function b01Render(){
 
 function load(){
  setBusy(true);message('讀取網站設定…');
- google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');b07Clear_('無法讀取OWNER TEST來源，B07資料已清空。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
+ google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');calCancelReset_('來源讀取失敗，取消預覽已清除。');b07Clear_('無法讀取OWNER TEST來源，B07資料已清空。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
 }
 function save(action,payload){
@@ -2018,6 +2028,76 @@ $('saveWeeks').addEventListener('click',()=>{
 
 /* B02 integrated calendar: all data comes from the existing unified TEST fixture. */
 const cal={id:null,person:null,mode:'CLOSED',initialized:false};
+/* B02-A: cancellation preflight is a snapshot-bound read-only impact view.
+ * Only synthetic application IDs, administrative phases, attendance and
+ * progress can appear here. Never cancel, rebook or notify individuals. */
+const calCancelReviewState={impact:null};
+function calCancelReset_(messageText){
+ calCancelReviewState.impact=null;
+ $('calCancelReview').hidden=true;$('calCancelRows').replaceChildren();
+ $('calCancelAck').checked=false;$('calCancelCommit').disabled=true;
+ $('calCancelSummary').textContent='尚未核實取消影響。';
+ $('calCancelStatus').textContent=messageText||'此確認僅適用目前的原GAS修訂版。';
+}
+function calCancelImpact_(requested){
+ if(!calAllowed()||model.formalPorts?.activated!==false||
+  !Number.isSafeInteger(model.revision)||model.revision<0||
+  !Array.isArray(model.applications)||!model.b02?.attendance||
+  !model.b02?.sessions||!requested||
+  !/^SIM-SLOT-E[12]-[A-H]$/.test(requested.id)||
+  new Set(model.slots.map(x=>x?.id)).size!==model.slots.length||
+  new Set(model.applications.map(x=>x?.id)).size!==model.applications.length)return null;
+ const match=model.slots.filter(s=>s.id===requested.id);
+ if(match.length!==1||match[0].experiment!==requested.experiment||
+  !['E1','E2'].includes(requested.experiment)||
+  !adminScopeMatch_('B02',requested.experiment))return null;
+ const slot=match[0],meta=calMeta(slot);
+ if(meta.status!=='OPEN'||!Number.isSafeInteger(slot.capacity)||slot.capacity<1||
+  !Number.isSafeInteger(meta.minutes)||meta.minutes<15||meta.minutes>480||
+  typeof slot.when!=='string'||typeof meta.title!=='string'||typeof meta.place!=='string')
+  return null;
+ if(!model.applications.every(a=>a&&/^SIM-\d{3}$/.test(a.id)&&
+  ['E1','E2'].includes(a.experiment)&&
+  ['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD',
+   'CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)))return null;
+ const linked=model.applications.filter(a=>a.slotId===slot.id)
+  .sort((a,b)=>a.id.localeCompare(b.id));
+ if(linked.some(a=>a.experiment!==slot.experiment))return null;
+ let confirmed=0,holding=0,expired=0,cancelled=0,other=0;
+ const rows=[],now=Date.now();
+ for(const a of linked){
+  const attend=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+  if(!attend||!Object.prototype.hasOwnProperty.call(calPresence,attend.attendance)||
+   !Object.prototype.hasOwnProperty.call(calTesting,attend.progress))return null;
+  let kind;
+  if(a.phase==='CONFIRMED'){kind='已成立：須人工協助處理';confirmed++;}
+  else if(['HELD','CONSENTED'].includes(a.phase)){
+   if(!Number.isFinite(a.holdUntil))return null;
+   if(a.holdUntil>now){kind='有效暫留：須人工確認';holding++;}
+   else{kind='已過期暫留：僅保留歷史';expired++;}
+  }else if(a.phase==='CANCELLED'){kind='申請已取消：僅保留歷史';cancelled++;}
+  else{kind='其他關聯：待人工釐清';other++;}
+  rows.push({id:a.id,phase:a.phase,kind,attendance:attend.attendance,
+   progress:attend.progress,holdUntil:a.holdUntil});
+ }
+ const signature=[model.revision,slot.id,slot.experiment,slot.when,slot.capacity,
+  meta.status,meta.title,meta.place,meta.minutes,
+  ...rows.map(a=>[a.id,a.phase,a.kind,a.attendance,a.progress,a.holdUntil].join('~'))].join('|');
+ return {revision:model.revision,slotId:slot.id,experiment:slot.experiment,
+  signature,total:rows.length,confirmed,holding,expired,cancelled,other,rows};
+}
+function calCancelSync_(){
+ const old=calCancelReviewState.impact;
+ if(!old)return;
+ const slot=model?.slots?.find(s=>s.id===old.slotId);
+ const current=slot?calCancelImpact_(slot):null;
+ if(cal.mode!=='SESSION'||cal.id!==old.slotId||!current||
+  current.revision!==old.revision||current.signature!==old.signature){
+  calCancelReset_('原GAS來源、管理範圍或修訂版變更；取消預覽已作廢。');
+  calMsg('取消預覽已失效，須重新查看受影響申請；未寫入。',true);
+ }
+}
+
 const calStates={OPEN:'開放',CANCELLED:'已取消',CLOSED:'已結案'};
 const calPresence={PENDING:'待確認',PRESENT:'已出席',LATE:'遲到',ABSENT:'缺席'};
 const calTesting={NOT_STARTED:'未開始',IN_PROGRESS:'進行中',PARTIAL:'部分完成',COMPLETE:'已完成'};
@@ -2041,11 +2121,13 @@ function calRange(){
  const length=view==='month'?42:7;return Array.from({length},(_,i)=>calAdd(monday,i));
 }
 function calOpen(mode,id,person){
+ if(mode!=='SESSION'||id!==cal.id)calCancelReset_();
  cal.mode=mode;cal.id=id===undefined?cal.id:id;cal.person=person||null;
  calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
 }
 function calendarRender(){
  if(!calAllowed()||adminScopeEffective_('B02')===null){
+  calCancelReset_('B02來源或檢視範圍不合法，取消預覽已清除。');
   $('calBoard').replaceChildren();
   $('calDescription').textContent='載入虛構資料或後台檢視範圍中；尚不能操作。';return;
  }
@@ -2096,6 +2178,7 @@ function calendarRender(){
  calendarPanel();
 }
 function calendarPanel(){
+ calCancelSync_();
  const frame=$('calFrame'),detail=$('calSessionDetail'),person=$('calPersonDetail'),
  form=$('calForm'),heading=$('calAsideTitle');
  frame.classList.toggle('detail',cal.mode!=='CLOSED');
@@ -2134,7 +2217,7 @@ function calendarPanel(){
  execute.addEventListener('click',()=>b05Open(slot.id,'calendar'));actions.append(execute);
  const edit=calElem('button','編輯場次','secondary');edit.type='button';edit.disabled=meta.status!=='OPEN';
  edit.addEventListener('click',()=>calEdit(slot));actions.append(edit);
- const cancel=calElem('button','取消場次','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
+ const cancel=calElem('button','核對取消場次影響','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
  cancel.addEventListener('click',()=>calCancel(slot));actions.append(cancel);detail.append(actions);
  detail.append(calElem('h3','本場次虛構參與者（'+apps.length+'）'));
  for(const a of apps){
@@ -2207,17 +2290,55 @@ function calCommand(action,payload,after){
   if(render(data)){if(after)after(data);calendarRender();
    calMsg('示範資料儲存成功，正式收件仍關閉。',false);}
  }).withFailureHandler(e=>{
-  setBusy(false);calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
+  setBusy(false);
+  if(action==='ADMIN_B02_SLOT'&&payload.operation==='CANCEL')
+   calMsg('場次取消結果尚未確認：'+String(e.message||e)+
+    '。可能已寫入，請重新載入原GAS並核對場次狀態；不得直接重送。',true);
+  else calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
  }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
 }
 function calCancel(slot){
- if(!calAllowed()||busy)return;
- const m=calMeta(slot),count=calApps(slot).filter(a=>a.phase!=='CANCELLED').length;
- if(!confirm('確認取消此虛構場次？\n'+slot.id+'\n受影響預約 '+count+
- ' 筆會保留歷史；不會自動寄信。'))return;
+ if(!calAllowed()||busy||calMeta(slot).status!=='OPEN')return;
+ const impact=calCancelImpact_(slot);
+ if(!impact){
+  calCancelReset_('場次或關聯資料無法核實，拒絕取消。');
+  calMsg('受影響申請資料不一致；拒絕取消，須先核對來源。',true);
+  return;
+ }
+ calCancelReviewState.impact=impact;
+ $('calCancelRows').replaceChildren();
+ $('calCancelSummary').textContent='場次 '+impact.slotId+'｜修訂版 '+impact.revision+
+  '｜關聯 '+impact.total+' 筆｜已成立 '+impact.confirmed+
+  '｜有效暫留 '+impact.holding+'｜已過期暫留 '+impact.expired+
+  '｜已取消申請 '+impact.cancelled+'｜其他待核 '+impact.other+'。';
+ for(const row of impact.rows){
+  $('calCancelRows').append(calElem('p',row.id+'｜'+row.kind+
+   '｜出席 '+calPresence[row.attendance]+
+   '｜施測 '+calTesting[row.progress],'calMini'));
+ }
+ if(!impact.total)$('calCancelRows').append(calElem('p','此場次尚無關聯虛構申請紀錄。','calMini'));
+ $('calCancelReview').hidden=false;$('calCancelAck').checked=false;
+ $('calCancelCommit').disabled=true;
+ $('calCancelStatus').textContent='請核對上列虛構申請代碼。取消只更動場次狀態，' +
+  '不取消個別預約、不寄信、不自動改期或安排候補。';
+}
+function calCancelCommit_(){
+ const prior=calCancelReviewState.impact;
+ if(!prior||busy||!$('calCancelAck').checked||
+  cal.mode!=='SESSION'||cal.id!==prior.slotId)return;
+ const slot=model?.slots?.find(s=>s.id===prior.slotId);
+ const current=slot?calCancelImpact_(slot):null;
+ if(!current||current.revision!==prior.revision||
+  current.signature!==prior.signature){
+  calCancelReset_('取消預覽所依據的場次或關聯資料已改變。');
+  calMsg('修訂版、場次資訊或預約分類已變更；取消未提交。',true);
+  return;
+ }
+ const m=calMeta(slot);
  const payload={operation:'CANCEL',slotId:slot.id,experiment:slot.experiment,
   title:m.title,when:slot.when,capacity:slot.capacity,minutes:m.minutes,place:m.place,
   repeatCount:1,scope:'ONE'};
+ calCancelReset_('取消請求已送至原GAS，等待回應；不自動重送。');
  calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
 }
 function calShift(amount){
@@ -2227,6 +2348,12 @@ function calShift(amount){
  $('calDate').value=d;calendarRender();
 }
 function calendarInit(){
+ $('calCancelAck').addEventListener('change',()=>{
+  calCancelSync_();
+  $('calCancelCommit').disabled=busy||!calCancelReviewState.impact||!$('calCancelAck').checked;
+ });
+ $('calCancelBack').addEventListener('click',()=>calCancelReset_('已返回場次，未提交取消。'));
+ $('calCancelCommit').addEventListener('click',calCancelCommit_);
  $('calNew').addEventListener('click',()=>calNew());
  $('calPrev').addEventListener('click',()=>calShift(-1));
  $('calNext').addEventListener('click',()=>calShift(1));

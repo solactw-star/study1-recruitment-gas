@@ -95,3 +95,23 @@ test('B02 rejects same-experiment overlapping sessions and preserves closed TEST
  assert.equal(state.policy.consent.E1.approval,'PENDING');
  assert.equal(state.policy.consent.E2.approval,'PENDING');
 });
+
+test('B02-A cancellation impact contract is two-stage, source-bound and does not add public writers',()=>{
+ for(const id of ['calCancelReview','calCancelSummary','calCancelRows','calCancelAck',
+  'calCancelCommit','calCancelBack','calCancelStatus'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/function calCancelImpact_\(requested\)/);
+ assert.match(html,/function calCancelSync_\(\)/);
+ assert.match(html,/function calCancelCommit_\(\)/);
+ assert.match(html,/calCancelReviewState\.impact=impact/);
+ assert.match(html,/current\.signature!==prior\.signature/);
+ assert.match(html,/current\.revision!==prior\.revision/);
+ assert.match(html,/calCancelAck'\)\.checked/);
+ assert.match(html,/calCancelReset_\('取消請求已送至原GAS/);
+ assert.match(html,/operation:'CANCEL'/);
+ assert.match(html,/scope:'ONE'/);
+ assert.match(html,/可能已寫入，請重新載入原GAS/);
+ assert.match(html,/不取消個別預約、不寄信/);
+ assert.doesNotMatch(html,/<iframe|<script[^>]+src=|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i);
+ assert.doesNotMatch(server,/function study1UnifiedB02CancelDirect\(/);
+});
