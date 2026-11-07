@@ -585,9 +585,16 @@ function v08Plan_(response,a,action,targetId){
   revision:response.revision,originId:origin.id,originWhen:origin.when,
   destinationId:target?.id||null,destinationWhen:target?.when||null,signature};
 }
+/* Two-minute bound is for the OWNER-only TEST review screen, NOT an
+ * authentication token, signed capability or formal booking deadline. */
+function v08Fresh_(draft,now){
+ return !!draft&&Number.isSafeInteger(draft.preparedAt)&&draft.preparedAt>=0&&
+  Number.isSafeInteger(now)&&now>=draft.preparedAt&&
+  now-draft.preparedAt<120000;
+}
 function v08Matches_(){
  const draft=v08.draft,a=current();
- if(!draft||busy||v07.blocked||!model||a?.id!==draft.applicationId||
+ if(!draft||!v08Fresh_(draft,Date.now())||busy||v07.blocked||!model||a?.id!==draft.applicationId||
   (draft.action==='MOVE'&&$('moveSlot').value!==draft.destinationId))return false;
  const next=v08Plan_(model,a,draft.action,draft.destinationId);
  return !!next&&next.revision===draft.revision&&next.signature===draft.signature;
@@ -609,14 +616,19 @@ function v08Preview_(action){
   setStatus('虛構預約狀態、時段容量、研究別或安全來源無法核實；沒有送出變更。',true);
   return;
  }
- v08.draft=plan;
+ const preparedAt=Date.now();
+ if(!Number.isSafeInteger(preparedAt)||preparedAt<0){
+  v08Clear_('本機時間無法核實，拒絕建立改期或取消預覽。');
+  setStatus('本機時間資料不合法；沒有送出變更。',true);return;
+ }
+ v08.draft={...plan,preparedAt};
  $('v08Action').textContent=action==='MOVE'?'虛構預約改期':'虛構預約取消';
  $('v08From').textContent=plan.originId+'｜'+plan.originWhen+'（臺灣）';
  $('v08To').textContent=action==='MOVE'?
   plan.destinationId+'｜'+plan.destinationWhen+'（臺灣）':
   '取消這筆虛構預約，保留申請與場次歷史；不發送真實通知';
  $('v08ManageStatus').textContent='已核對同一份原GAS純TEST快照及修訂版 '+plan.revision+
-  '。確認前不會改動預約；送出時仍由原GAS檢查版本、資格、時段與名額。';
+  '。本頁核對預覽僅有效2分鐘；逾期需重新核對。送出時仍由原GAS檢查版本、資格、時段與名額。';
  $('v08ManageReview').hidden=false;
  $('v08Ack').checked=false;$('v08Ack').disabled=false;
  $('v08Commit').disabled=true;$('v08Back').disabled=false;
@@ -624,8 +636,8 @@ function v08Preview_(action){
 }
 function v08Commit_(){
  if(!v08.draft||!$('v08Ack').checked||!v08Matches_()){
-  v08Clear_('確認時來源或可用名額已改變；沒有送出變更。');
-  setStatus('預約來源、時段或修訂版失效；需重新核對。',true);
+  v08Clear_('確認預覽已逾期、時鐘異常或來源已改變；沒有送出變更。');
+  setStatus('預約確認預覽過期或來源／修訂版失效；請重新核對，未送出。',true);
   return;
  }
  const draft=v08.draft;

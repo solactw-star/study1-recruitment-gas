@@ -254,7 +254,9 @@ test('P1-08 V08 in-session appointment changes require explicit TEST source prev
  assert.match(html,/function v08Matches_\(\)/);
  assert.match(html,/function v08Preview_\(action\)/);
  assert.match(html,/function v08Commit_\(\)/);
- assert.match(html,/v08\.draft=plan/);
+ assert.match(html,/v08\.draft=\{\.\.\.plan,preparedAt\}/);
+ assert.match(html,/const preparedAt=Date\.now\(\)/);
+ assert.match(html,/v08Fresh_\(draft,Date\.now\(\)\)/);
  assert.match(html,/next\.revision===draft\.revision&&next\.signature===draft\.signature/);
  assert.match(html,/v08Ack'\)\.checked/);
  assert.match(html,/v08Clear_\('V07正在回讀原GAS/);
@@ -302,4 +304,33 @@ test('P1-08 V08 source preflight rejects crossed experiments, full/past/duplicat
  assert.equal(ctx.v08Plan_(model,app,'DELETE',null),null);
  safe=false;
  assert.equal(ctx.v08Plan_(model,app,'CANCEL',null),null,'closed/unauthorized test-only source must fail');
+});
+
+test('V08 pure TEST two-minute review TTL has an exact non-inclusive boundary and rejects backward or malformed clocks',()=>{
+ const vm=require('node:vm');
+ const begin=html.indexOf('function v08Fresh_('),
+  end=html.indexOf('function v08Matches_(',begin);
+ assert.ok(begin>=0&&end>begin,'expiry guard must be present in the original owner-only visitor UI');
+ const ctx=vm.createContext({Number});
+ vm.runInContext(html.slice(begin,end),ctx,{timeout:1000});
+ const fresh=ctx.v08Fresh_;
+ const draft={preparedAt:1000000};
+ assert.equal(fresh(draft,1000000),true,'creation moment is fresh');
+ assert.equal(fresh(draft,1119999),true,'last millisecond before cutoff is fresh');
+ assert.equal(fresh(draft,1120000),false,'exact 120-second cutoff is expired');
+ assert.equal(fresh(draft,1120001),false);
+ assert.equal(fresh(draft,999999),false,'clock rollback invalidates review');
+ for(const bad of [{preparedAt:-1},{preparedAt:NaN},{preparedAt:'1000000'},
+  {preparedAt:Number.MAX_SAFE_INTEGER+1},null])
+  assert.equal(fresh(bad,1000000),false);
+ for(const bad of [NaN,Infinity,-Infinity,'1000000',Number.MAX_SAFE_INTEGER+1])
+  assert.equal(fresh(draft,bad),false);
+});
+test('V08 expiry protection remains client-only and cannot authorize the unmerged Draft #90 email capability',()=>{
+ assert.match(html,/function v08Fresh_\(draft,now\)/);
+ assert.match(html,/now-draft\.preparedAt<120000/);
+ assert.match(html,/preparedAt:?[ ,]?/);
+ assert.match(html,/本頁核對預覽僅有效2分鐘/);
+ assert.match(html,/v08Clear_\('確認預覽已逾期/);
+ assert.doesNotMatch(html,/study1V08Guard_|study1V08ConsumeAtomic_|STUDY1_V08_ENABLED_|localStorage|MailApp|GmailApp/);
 });
