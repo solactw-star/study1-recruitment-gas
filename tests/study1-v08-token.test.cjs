@@ -120,3 +120,19 @@ test('atomic storage read failure before write is fail-closed',()=>{
  assert.equal(atomic(input,1999,s.adapter).reason,'UNKNOWN_NO_RETRY');
  assert.equal(s.writes(),0);
 });
+
+test('atomic lock provider silently skips callback: fail closed',()=>{
+ const st=storeAdapter();
+ st.adapter.withExclusiveLock=()=>undefined;
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.writes(),0);
+});
+test('atomic readback detects altered authorization actions and expiry',()=>{
+ for(const change of [{actions:['CANCEL']},{expiresAt:9999}]){
+  const st=storeAdapter();
+  const original=st.adapter.read;
+  st.adapter.read=()=>{const value=original();return st.writes()?{...value,...change}:value};
+  assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_READBACK');
+  assert.equal(st.writes(),1);
+ }
+});
