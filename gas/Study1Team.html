@@ -777,7 +777,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)||!b03CrossCheck_(data)){
-  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
+  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');$('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();$('profileTimeline').replaceChildren();model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本；B10拒絕顯示。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
@@ -2955,7 +2955,7 @@ function b03Init(){
  $('b03ListMode').addEventListener('click',()=>{b03.mode='list';b03Render();});
  $('b03BoardMode').addEventListener('click',()=>{b03.mode='board';b03Render();});
  $('b03Reconcile').addEventListener('click',b03ReconcileRead_);
-  $('b03Clear').addEventListener('click',()=>{
+ $('b03Clear').addEventListener('click',()=>{
   $('b03Search').value='';
   for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
    $(id).value='ALL';
