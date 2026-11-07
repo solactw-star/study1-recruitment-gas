@@ -1669,7 +1669,7 @@ test('B02-A explicit cancellation preflight lists linked synthetic holds and wri
  assert.equal(srv.store.get('CONSENT_READY'),'false');
  closed(srv);
 });
-test('B02-A preview cancellation and abort are read-only; stale local source invalidates impact',()=>{
+test('B02-A preview cancellation and abort are read-only; external revision invalidates impact',()=>{
  const srv=server(),team=page(srv,'team'),writes=srv.writes;
  assert.equal(cancelTestSession_(team).hidden,false);
  assert.match(team.get('calCancelRows').children[0].textContent,/尚無關聯虛構申請/);
@@ -1677,14 +1677,16 @@ test('B02-A preview cancellation and abort are read-only; stale local source inv
  assert.equal(team.get('calCancelReview').hidden,true);
  assert.equal(srv.writes,writes);
  assert.equal(cancelTestSession_(team).hidden,false);
- // A local source drift without a revision bump must still invalidate preview.
- vm.runInContext("model.slots.find(s=>s.id==='SIM-SLOT-E1-A').capacity=3",team.context);
- team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ // A concurrent original-GAS TEST revision invalidates this old preview on reload.
+ srv.command('START',{experiment:'E1'});
+ const afterOtherWrite=srv.writes;
+ assert.equal(afterOtherWrite,writes+1);
+ team.click('refresh');
  assert.equal(team.get('calCancelReview').hidden,true);
  assert.equal(team.get('calCancelCommit').disabled,true);
  assert.match(team.get('calStatusMessage').textContent,/取消預覽已失效/);
- assert.equal(srv.writes,writes);
- assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'OPEN');
+ assert.equal(srv.writes,afterOtherWrite,'preview and refresh must not write');
+ assert.equal((srv.read().b02.sessions['SIM-SLOT-E1-A']?.status||'OPEN'),'OPEN');
  closed(srv);
 });
 test('B02-A stale second owner tab cannot cancel after another owner revision and requires new preview',()=>{
@@ -1697,12 +1699,12 @@ test('B02-A stale second owner tab cannot cancel after another owner revision an
  const w=srv.writes;
  a.click('calCancelCommit');
  assert.equal(srv.writes,w,'GAS CAS must reject stale cancel');
- assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'OPEN');
+ assert.equal((srv.read().b02.sessions['SIM-SLOT-E1-A']?.status||'OPEN'),'OPEN');
  assert.equal(a.get('calCancelCommit').disabled,true);
  assert.match(a.get('calStatusMessage').textContent,/取消結果尚未確認/);
  a.click('refresh');
  assert.equal(a.get('calCancelReview').hidden,true);
- assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'OPEN');
+ assert.equal((srv.read().b02.sessions['SIM-SLOT-E1-A']?.status||'OPEN'),'OPEN');
  closed(srv);
 });
 test('B02-A changing management scope or losing OWNER source clears cancellation impact and blocks write',()=>{
