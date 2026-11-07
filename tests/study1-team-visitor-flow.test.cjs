@@ -1910,11 +1910,20 @@ test('V08 local clock rollback invalidates reviewed TEST change; explicit fresh 
 
 /* B02-A P1 edit preflight is separate from the previous cancellation review.
  * Only original owner-only TEST UI + real unified server are used. */
-function b02EditReview_(team,slotId='SIM-SLOT-E1-A'){
- const model=vm.runInContext('model',team.context);
- const slot=model.slots.find(x=>x.id===slotId);
- assert.ok(slot,'known synthetic session '+slotId);
- team.context.calEdit(slot);
+function b02EditReview_(team,slotId='SIM-SLOT-E1-A',date='2027-01-05'){
+ team.set('calExperiment','ALL');team.set('calStatus','ALL');team.set('calSearch','');
+ team.set('calView','day');team.set('calDate',date);team.change('calDate');
+ const find=(root,condition)=>{
+  if(condition(root))return root;
+  for(const n of root.children||[]){const found=find(n,condition);if(found)return found;}
+  return null;
+ };
+ const card=find(team.get('calBoard'),node=>node.dataset?.sessionId===slotId);
+ assert.ok(card,'B02 calendar shows existing synthetic slot '+slotId);
+ card.handlers.click();
+ const edit=find(team.get('calSessionDetail'),node=>node.textContent==='編輯場次');
+ assert.ok(edit,'B02 original panel opens real edit form');
+ edit.handlers.click();
  return ()=>{
   const form=team.get('calForm');
   assert.equal(typeof form.handlers.submit,'function');
@@ -1969,7 +1978,7 @@ test('B02-A series edit lists every affected slot, commits once and never alters
  const create={operation:'CREATE',slotId:'',experiment:'E1',title:'另一虛構系列',
   when:'2028-02-07 10:00',capacity:2,minutes:90,place:'模擬實驗室',repeatCount:2,scope:'ONE'};
  const saved=srv.command('ADMIN_B02_SLOT',create),ids=saved.b02.history.at(-1).ids;
- const team=page(srv,'team'),before=srv.writes,review=b02EditReview_(team,ids[0]);
+ const team=page(srv,'team'),before=srv.writes,review=b02EditReview_(team,ids[0],'2028-02-07');
  team.set('calScope','SERIES');team.change('calScope');
  team.set('calEditTitle','調整後系列名稱');team.change('calEditTitle');
  assert.equal(review().hidden,false);
