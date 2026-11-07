@@ -13,7 +13,10 @@ function study1V08Guard_(record, input, now, hash, equalDigest) {
   if (!/^SIM-[0-9]{3,}$/.test(input.applicationId || '') ||
       !['E1','E2'].includes(input.experiment) || !['MOVE','CANCEL'].includes(input.action) ||
       record.applicationId !== input.applicationId || record.experiment !== input.experiment ||
-      !Array.isArray(record.actions) || !record.actions.includes(input.action))
+      !Array.isArray(record.actions) || record.actions.length < 1 || record.actions.length > 2 ||
+      record.actions.some(action => !['MOVE','CANCEL'].includes(action)) ||
+      new Set(record.actions).size !== record.actions.length ||
+      !record.actions.includes(input.action))
     return {ok:false,reason:'UNAVAILABLE'};
   const digest=hash(input.token);
   if (typeof digest !== 'string' || !/^[a-f0-9]{64}$/.test(digest) ||
