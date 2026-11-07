@@ -2413,8 +2413,8 @@ function calCommand(action,payload,after){
    calMsg('示範資料儲存成功，正式收件仍關閉。',false);}
  }).withFailureHandler(e=>{
   setBusy(false);
-  if(action==='ADMIN_B02_SLOT'&&payload.operation==='CANCEL')
-   calMsg('場次取消結果尚未確認：'+String(e.message||e)+
+  if(action==='ADMIN_B02_SLOT'&&['CANCEL','UPDATE'].includes(payload.operation))
+   calMsg('場次變更結果尚未確認：'+String(e.message||e)+
     '。可能已寫入，請重新載入原GAS並核對場次狀態；不得直接重送。',true);
   else calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
  }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
@@ -2470,6 +2470,12 @@ function calShift(amount){
  $('calDate').value=d;calendarRender();
 }
 function calendarInit(){
+ $('calEditAck').addEventListener('change',()=>{
+  calEditSync_();
+  $('calEditCommit').disabled=busy||!calEditReviewState.plan||!$('calEditAck').checked;
+ });
+ $('calEditBack').addEventListener('click',()=>calEditReset_('已返回編輯欄位，未提交變更。'));
+ $('calEditCommit').addEventListener('click',calEditCommit_);
  $('calCancelAck').addEventListener('change',()=>{
   calCancelSync_();
   $('calCancelCommit').disabled=busy||!calCancelReviewState.impact||!$('calCancelAck').checked;
@@ -2503,13 +2509,17 @@ function calendarInit(){
    model.slots.find(s=>s.id===cal.id)?.when!==payload.when){
    calMsg('已有預約紀錄，不可直接移動場次，請先處理參與者。',true);return;
   }
+  if(editing){calEditStage_(payload);return;}
   calCommand('ADMIN_B02_SLOT',payload,data=>{
-   if(!editing){const h=data.b02.history[data.b02.history.length-1];cal.id=h?.ids[0]||null;}
+   const h=data.b02.history[data.b02.history.length-1];cal.id=h?.ids[0]||null;
    cal.mode=cal.id?'SESSION':'CLOSED';
   });
  });
- for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope'])
-  $(id).addEventListener('change',calImpact);
+ for(const id of ['calEditWhen','calEditCapacity','calEditMinutes','calEditExperiment','calScope',
+  'calEditTitle','calEditPlace']){
+  $(id).addEventListener('change',()=>{calEditSync_();calImpact();});
+  $(id).addEventListener('input',()=>{calEditSync_();calImpact();});
+ }
  $('calFullProfile').addEventListener('click',()=>{if(cal.person)profileOpen(cal.person,'calendar');});
  $('calSavePerson').addEventListener('click',()=>{
   if(!cal.person)return;
