@@ -36,7 +36,9 @@ function study1V08ConsumePlan_(record,input,now,hash,equalDigest) {
 
 /**
  * Disabled synthetic-only atomic consumption adapter.
- * Caller MUST supply a real exclusive server-side lock and durable CAS store.
+ * Caller MUST supply a real exclusive server-side lock, durable CAS store and
+ * trusted server clock sampled UNDER the exclusive lock. A caller-supplied
+ * timestamp is never sufficient to extend token validity.
  * A successful CAS is not a booking mutation; this consumes only the capability.
  * An uncertain write/readback MUST remain UNKNOWN, never auto-retry.
  */
@@ -44,8 +46,11 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
   if (STUDY1_V08_ENABLED_ !== false) throw Error('V08 activation requires separate approval');
   if (!adapter || typeof adapter.withExclusiveLock !== 'function' ||
       typeof adapter.read !== 'function' || typeof adapter.compareAndSwap !== 'function' ||
-      typeof adapter.hash !== 'function' || typeof adapter.equalDigest !== 'function')
+      typeof adapter.hash !== 'function' || typeof adapter.equalDigest !== 'function' ||
+      typeof adapter.trustedNow !== 'function')
     return {ok:false,reason:'ADAPTER_UNAVAILABLE'};
+  if (!Number.isSafeInteger(now) || now < 0)
+    return {ok:false,reason:'INVALID'};
   try {
     let callbackCount = 0;
     let callbackResult;
@@ -65,22 +70,38 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
     }
     function consumeUnderLock() {
       const record=adapter.read(input && input.applicationId);
-      const plan=study1V08ConsumePlan_(record,input,now,adapter.hash,adapter.equalDigest);
+      // The CAS adapter may mutate its write payload in place. Compare the
+      // readback to a separate copied authorization snapshot, not that payload.
+      const original=record&&typeof record==='object'?
+        {...record,actions:Array.isArray(record.actions)?record.actions.slice():record.actions}:record;
+      const observedNow=adapter.trustedNow();
+      if (!Number.isSafeInteger(observedNow) || observedNow < 0 || observedNow < now)
+        return {ok:false,reason:'UNAVAILABLE'};
+      const plan=study1V08ConsumePlan_(original,input,observedNow,
+        adapter.hash,adapter.equalDigest);
       if (!plan.ok) return {ok:false,reason:plan.reason};
-      const wrote=adapter.compareAndSwap(input.applicationId,plan.expectedRevision,plan.next);
+      // Sample time again immediately before CAS. An expired capability is
+      // never consumed even if hashing or the adapter read advanced the clock.
+      const commitNow=adapter.trustedNow();
+      if (!Number.isSafeInteger(commitNow) || commitNow < observedNow ||
+          commitNow >= original.expiresAt)
+        return {ok:false,reason:'UNAVAILABLE'};
+      const proposed={...plan.next,consumedAt:commitNow,
+        actions:original.actions.slice()};
+      const wrote=adapter.compareAndSwap(input.applicationId,plan.expectedRevision,proposed);
       if (wrote !== true) return {ok:false,reason:'CONFLICT_OR_UNKNOWN'};
-      // Verify the exact committed state before acknowledging consumption.
+      // Verify the exact committed state against the independent snapshot.
       const saved=adapter.read(input.applicationId);
       if (!saved || saved.status !== 'CONSUMED' ||
           saved.revision !== plan.next.revision ||
-          saved.consumedAt !== now ||
-          saved.tokenSha256 !== record.tokenSha256 ||
-          saved.applicationId !== record.applicationId ||
-          saved.experiment !== record.experiment ||
+          saved.consumedAt !== commitNow ||
+          saved.tokenSha256 !== original.tokenSha256 ||
+          saved.applicationId !== original.applicationId ||
+          saved.experiment !== original.experiment ||
           !Array.isArray(saved.actions) ||
-          saved.actions.length !== plan.next.actions.length ||
-          saved.actions.some((action,index)=>action !== plan.next.actions[index]) ||
-          saved.expiresAt !== record.expiresAt)
+          saved.actions.length !== original.actions.length ||
+          saved.actions.some((action,index)=>action !== original.actions[index]) ||
+          saved.expiresAt !== original.expiresAt)
         return {ok:false,reason:'UNKNOWN_READBACK'};
       return {ok:true,status:'CONSUMED',revision:saved.revision};
     }
