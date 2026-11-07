@@ -145,10 +145,11 @@ test('atomic readback detects altered authorization actions and expiry',()=>{
  }
 });
 
-test('atomic rejects forged lock success without invoking callback',()=>{
+test('atomic rejects forged lock success without invoking callback or trusted clock',()=>{
  const st=storeAdapter();
  st.adapter.withExclusiveLock=()=>({ok:true,status:'CONSUMED',revision:2});
  assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.clockReads(),0,'trusted clock may be sampled only inside a real invoked callback');
  assert.equal(st.writes(),0);
 });
 test('atomic rejects a lock provider invoking callback twice',()=>{
@@ -181,6 +182,7 @@ test('atomic rejects deferred callback after lock scope exits without storage wr
  st.adapter.withExclusiveLock=fn=>{deferred=fn;return undefined};
  assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
  assert.equal(deferred().reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.clockReads(),0,'deferred callback cannot sample time outside lock scope');
  assert.equal(st.writes(),0);
 });
 
