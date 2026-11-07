@@ -115,3 +115,19 @@ test('B02-A cancellation impact contract is two-stage, source-bound and does not
  assert.doesNotMatch(html,/<iframe|<script[^>]+src=|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i);
  assert.doesNotMatch(server,/function study1UnifiedB02CancelDirect\(/);
 });
+
+test('B02-A edit is staged by a source-bound second confirmation in the original owner TEST GUI',()=>{
+ for(const id of ['calEditReview','calEditSummary','calEditRows','calEditAck',
+  'calEditCommit','calEditBack','calEditStatus'])
+  assert.match(html,new RegExp('id="'+id+'"'));
+ for(const fn of ['calEditReset_','calEditPlan_','calEditSync_','calEditStage_','calEditCommit_'])
+  assert.match(html,new RegExp('function '+fn+'\\('));
+ assert.match(html,/if\(editing\)\{calEditStage_\(payload\);return;\}/);
+ assert.match(html,/calEditReviewState\.plan=plan/);
+ assert.match(html,/calEditAck'\)\.checked/);
+ assert.match(html,/current\.signature!==draft\.signature/);
+ assert.match(html,/adminScopeEffective_\('B02'\)/);
+ assert.match(html,/\['CANCEL','UPDATE'\]\.includes\(payload\.operation\)/);
+ assert.match(html,/\.study1UnifiedPreviewCommand\(\{action,payload,requestId:id,expectedRevision:model\.revision\}\)/);
+ assert.doesNotMatch(html,/MailApp|GmailApp|fetch\s*\(|localStorage|sessionStorage/);
+});
