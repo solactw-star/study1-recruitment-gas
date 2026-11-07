@@ -49,12 +49,20 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
   try {
     let callbackCount = 0;
     let callbackResult;
-    const lockedResult = adapter.withExclusiveLock(function() {
+    let lockCallbackWindowOpen = true;
+    let lockedResult;
+    try {
+      lockedResult = adapter.withExclusiveLock(function() {
+      // A provider must not invoke the callback after its lock scope has returned.
+      if (!lockCallbackWindowOpen) return {ok:false,reason:'UNKNOWN_NO_RETRY'};
       callbackCount++;
       if (callbackCount !== 1) return {ok:false,reason:'UNKNOWN_NO_RETRY'};
       callbackResult = consumeUnderLock();
       return callbackResult;
-    });
+      });
+    } finally {
+      lockCallbackWindowOpen = false;
+    }
     function consumeUnderLock() {
       const record=adapter.read(input && input.applicationId);
       const plan=study1V08ConsumePlan_(record,input,now,adapter.hash,adapter.equalDigest);
