@@ -130,6 +130,18 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <p class="help">此確認頁面不代表已正式錄取或完成正式研究報名。</p></div>
 <h3>需要變更時間嗎？</h3><label for="moveSlot" class="field">其他可選時段</label><select id="moveSlot"></select>
 <div class="actionrow"><button id="move" class="ghost" type="button">更改示範預約時間</button><button id="cancel" class="ghost" type="button">取消示範預約</button><button id="newStart" type="button">體驗另一項實驗</button></div>
+<div id="v08ManageReview" class="box warn" role="region" aria-label="V08虛構預約改期與取消二次確認" hidden>
+<strong>V08｜虛構預約變更前核對</strong>
+<dl aria-label="虛構預約變更摘要">
+<dt>操作</dt><dd id="v08Action">尚未核對</dd>
+<dt>原場次</dt><dd id="v08From">尚未核對</dd>
+<dt>變更後</dt><dd id="v08To">尚未核對</dd>
+</dl>
+<p id="v08ManageStatus" class="help" role="status" aria-live="polite">來源尚未核實，不得提交。</p>
+<label class="check"><input type="checkbox" id="v08Ack"><span>我已核對上述虛構預約與時間，了解此操作不是正式預約，也不寄送真實通知。</span></label>
+<div class="actionrow"><button id="v08Commit" type="button" disabled>確認執行這筆虛構變更</button>
+<button id="v08Back" type="button" class="ghost">返回，不變更</button></div>
+</div>
 <p id="e2Hint" class="help" hidden>實驗二正式研究包含八週安排；本 Demo 展示前期報名與時段預約，後續團課、居家練習與分組將依核准研究流程安排。</p></section>
 <div class="box warn" aria-label="V07虛構預約結果核對">
 <strong>V07｜虛構預約結果與安全回讀</strong>
@@ -144,6 +156,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 const $=id=>document.getElementById(id);
 const phases=['choose','screen','otp','slots','consent','confirm','done'];
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
+const v08={draft:null};
  const v07={blocked:false,recovering:false,last:null,generation:0};
 const setStatus=(message,error=false)=>{$('status').textContent=message;$('status').className=error?'error':'';};
 function safePreview(response){
@@ -161,6 +174,7 @@ function refuseReply(message){
  $('v07Result').textContent='狀態未知：OWNER或研究安全來源無法核實；不能視為提交成功或失敗。';
  $('v07Rescan').disabled=false;
  v05Clear_('安全來源已拒絕，虛構日期與時段已清空。');
+ v08Clear_('OWNER或研究安全來源遭拒，變更預覽已清空。');
  $('chooseE1').disabled=true;$('chooseE2').disabled=true;
  v07Lock_();
  setStatus(message,true);
@@ -397,7 +411,7 @@ function render(){
   if(settings.mode==='DEMO_OPEN')activeOptions++;
  }
  $('noAvailable').hidden=activeOptions>0;
- if(!a){v05Clear_('請先選擇示範實驗並完成驗證。');setStatus('請選擇目前開放體驗的實驗。');return;}
+ if(!a){v05Clear_('請先選擇示範實驗並完成驗證。');v08Clear_('目前沒有可核實的虛構預約。');setStatus('請選擇目前開放體驗的實驗。');return;}
  const q=model.policy.screening.questions;
  for(const [id,key] of [['qAdult','adult'],['qCycu','cycu'],['qNoDx','diagnosed'],['qNoTreatment','treatment'],['qNoPractice','frequentPractice'],['qNoE1','joinedE1']]){
   $(id).textContent=q[key];
@@ -425,6 +439,7 @@ function render(){
  $('screenNext').disabled=busy;v06Render_();
  $('otpPaste').disabled=busy;
  if(!busy)setStatus(a.phase==='CONFIRMED'?'示範報名已完成，您可以測試改期或取消。':'您目前操作的是虛構資料報名示範。');
+ v08Render_();
  if(v07.blocked)v07Lock_();
 }
 /* V07: a failed booking write is UNKNOWN, not necessarily uncommitted.
@@ -433,7 +448,7 @@ function render(){
 function v07Lock_(){
  for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
   'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
-  'newStart','slot','v05Prev','v05Next'])$(id).disabled=true;
+  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back'])$(id).disabled=true;
  for(const id of ['v05Dates','v05Choices'])
   for(const child of $(id).children)if(child.tagName==='button')child.disabled=true;
  $('v07Rescan').disabled=v07.recovering;
@@ -474,6 +489,7 @@ function v07Description_(response,last){
  return '結果未知：目前來源未顯示可確認的預約結果；不是已成立、待人工審核或已確定失敗。';
 }
 function v07Readback_(afterFailure,detail){
+ v08Clear_('V07正在回讀原GAS，變更預覽已作廢。');
  const generation=++v07.generation;
  busy=true;v07.blocked=true;v07.recovering=true;
  $('v07Rescan').disabled=true;
@@ -513,7 +529,121 @@ function v07ConfirmResponse_(action,payload,response,priorRevision){
  if(action==='MOVE')return a.phase==='CONFIRMED'&&a.slotId===payload.slotId;
  return a.phase==='CANCELLED';
 }
+/* P1-08 V08: owner-only TEST appointment modification review. This is NOT
+ * the separate disabled email-token Draft PR; it creates no management link.
+ * The original server alone performs locked CAS writes and synthetic history. */
+function v08Clear_(message){
+ v08.draft=null;
+ $('v08ManageReview').hidden=true;
+ $('v08Action').textContent='尚未核對';
+ $('v08From').textContent='尚未核對';
+ $('v08To').textContent='尚未核對';
+ $('v08ManageStatus').textContent=message||'無待確認的虛構預約變更。';
+ $('v08Ack').checked=false;$('v08Ack').disabled=true;
+ $('v08Commit').disabled=true;$('v08Back').disabled=true;
+}
+function v08CheckTime_(value){
+ if(typeof value!=='string'||!/^20\d\d-(0[1-9]|1[0-2])-([0-2]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/.test(value))
+  return null;
+ const at=Date.parse(value.replace(' ','T')+':00+08:00');
+ return Number.isFinite(at)&&new Date(at+28800000).toISOString().slice(0,16)===
+  value.replace(' ','T')?at:null;
+}
+function v08Plan_(response,a,action,targetId){
+ if(!v07SafeRead_(response,null)||!a||a.phase!=='CONFIRMED'||a.eligible!==true||
+  a.signatureDemo!==true||!/^SIM-[0-9]{3}$/.test(a.id)||
+  !['E1','E2'].includes(a.experiment)||!['MOVE','CANCEL'].includes(action)||
+  !response.b02?.sessions||typeof response.b02.sessions!=='object'||
+  Array.isArray(response.b02.sessions)||
+  new Set(response.slots.map(s=>s?.id)).size!==response.slots.length||
+  response.applications.filter(x=>x.id===a.id).length!==1||
+  response.applications.find(x=>x.id===a.id)?.experiment!==a.experiment)return null;
+ const origins=response.slots.filter(s=>s.id===a.slotId&&s.experiment===a.experiment);
+ if(origins.length!==1)return null;
+ const origin=origins[0],fromTime=v08CheckTime_(origin.when);
+ if(fromTime===null||!Number.isSafeInteger(origin.capacity)||origin.capacity<1)return null;
+ const originStatus=response.b02.sessions[origin.id]?.status||'OPEN';
+ if(!['OPEN','CANCELLED','CLOSED'].includes(originStatus))return null;
+ let target=null,toTime=null,toStatus=null;
+ if(action==='MOVE'){
+  if(originStatus!=='OPEN'||typeof targetId!=='string'||targetId===origin.id||
+   !/^SIM-SLOT-E[12]-[A-H]$/.test(targetId))return null;
+  const matches=response.slots.filter(s=>s.id===targetId&&s.experiment===a.experiment);
+  if(matches.length!==1)return null;
+  target=matches[0];toTime=v08CheckTime_(target.when);
+  toStatus=response.b02.sessions[target.id]?.status||'OPEN';
+  if(toTime===null||toTime<=Date.now()||toStatus!=='OPEN'||
+   target.bookable!==true||!Number.isSafeInteger(target.capacity)||
+   !Number.isSafeInteger(target.remaining)||target.capacity<1||
+   target.remaining<1||target.remaining>target.capacity)return null;
+ }else if(targetId!==null)return null;
+ const signature=JSON.stringify([response.revision,a.id,a.experiment,a.phase,
+  a.eligible,a.signatureDemo,a.slotId,origin.when,origin.capacity,originStatus,
+  action,target?.id||null,target?.when||null,target?.capacity||null,
+  target?.remaining||null,target?.bookable??null,toStatus]);
+ return {action,applicationId:a.id,experiment:a.experiment,
+  revision:response.revision,originId:origin.id,originWhen:origin.when,
+  destinationId:target?.id||null,destinationWhen:target?.when||null,signature};
+}
+function v08Matches_(){
+ const draft=v08.draft,a=current();
+ if(!draft||busy||v07.blocked||!model||a?.id!==draft.applicationId||
+  (draft.action==='MOVE'&&$('moveSlot').value!==draft.destinationId))return false;
+ const next=v08Plan_(model,a,draft.action,draft.destinationId);
+ return !!next&&next.revision===draft.revision&&next.signature===draft.signature;
+}
+function v08Render_(){
+ if(!v08.draft)return;
+ if(!v08Matches_()){
+  v08Clear_('虛構預約、修訂版、權限或時段已改變；需重新核對。');
+  return;
+ }
+ $('v08Commit').disabled=busy||!$('v08Ack').checked;
+}
+function v08Preview_(action){
+ if(busy||v07.blocked||!model)return;
+ const app=current(),destination=action==='MOVE'?$('moveSlot').value:null;
+ const plan=v08Plan_(model,app,action,destination);
+ if(!plan){
+  v08Clear_('無法核實原GAS的虛構預約或安全時段。');
+  setStatus('虛構預約狀態、時段容量、研究別或安全來源無法核實；沒有送出變更。',true);
+  return;
+ }
+ v08.draft=plan;
+ $('v08Action').textContent=action==='MOVE'?'虛構預約改期':'虛構預約取消';
+ $('v08From').textContent=plan.originId+'｜'+plan.originWhen+'（臺灣）';
+ $('v08To').textContent=action==='MOVE'?
+  plan.destinationId+'｜'+plan.destinationWhen+'（臺灣）':
+  '取消這筆虛構預約，保留申請與場次歷史；不發送真實通知';
+ $('v08ManageStatus').textContent='已核對同一份原GAS純TEST快照及修訂版 '+plan.revision+
+  '。確認前不會改動預約；送出時仍由原GAS檢查版本、資格、時段與名額。';
+ $('v08ManageReview').hidden=false;
+ $('v08Ack').checked=false;$('v08Ack').disabled=false;
+ $('v08Commit').disabled=true;$('v08Back').disabled=false;
+ setStatus('請確認虛構預約改期／取消的來源與結果；尚未送出。');
+}
+function v08Commit_(){
+ if(!v08.draft||!$('v08Ack').checked||!v08Matches_()){
+  v08Clear_('確認時來源或可用名額已改變；沒有送出變更。');
+  setStatus('預約來源、時段或修訂版失效；需重新核對。',true);
+  return;
+ }
+ const draft=v08.draft;
+ v08Clear_('指令已交由原GAS核對，沒有自動重送。');
+ if(draft.action==='MOVE')issue('MOVE',{id:draft.applicationId,slotId:draft.destinationId});
+ else issue('CANCEL',{id:draft.applicationId});
+}
+$('v08Ack').addEventListener('change',()=>{
+ if(v08.draft&&!v08Matches_())v08Clear_('來源或時段有變，取消舊的確認。');
+ else $('v08Commit').disabled=!v08.draft||!$('v08Ack').checked||busy||v07.blocked;
+});
+$('v08Commit').addEventListener('click',v08Commit_);
+$('v08Back').addEventListener('click',()=>v08Clear_('已返回，沒有改動虛構預約。'));
+$('moveSlot').addEventListener('change',()=>{
+ if(v08.draft)v08Clear_('已變更目標時段，請重新核對改期摘要。');
+});
 function load(){
+ v08Clear_('正在重新核實原GAS，取消變更預覽。');
  busy=true;$('chooseE1').disabled=true;$('chooseE2').disabled=true;
  setStatus('正在載入報名頁面…');
  google.script.run.withSuccessHandler(response=>{
@@ -563,7 +693,7 @@ function issue(action,payload,onSuccess){
   busy=false;render();setStatus('本步未取得確認：'+detail+'；不視為成功，請重新核對。',true);
  }).study1UnifiedPreviewCommand(envelope);
 }
-function start(exp){if(!model||!model.recruitment||!model.recruitment[exp]||
+function start(exp){v08Clear_('已放棄前次虛構預約變更預覽。');if(!model||!model.recruitment||!model.recruitment[exp]||
  model.recruitment[exp].mode!=='DEMO_OPEN'){
  setStatus('該實驗目前尚未開放示範報名。',true);return;
  }selected=null;issue('START',{experiment:exp});}
@@ -600,10 +730,8 @@ $('finish').addEventListener('click',()=>{
  });
 });
 $('confirm').addEventListener('click',()=>{const a=current();if(a&&v06Preview_(model,a))issue('CONFIRM',{id:a.id});});
-$('move').addEventListener('click',()=>{const a=current();if(a&&$('moveSlot').value)issue('MOVE',{id:a.id,slotId:$('moveSlot').value});});
-$('cancel').addEventListener('click',()=>{
- const a=current();if(a&&confirm('取消這筆虛構示範預約？'))issue('CANCEL',{id:a.id});
-});
+$('move').addEventListener('click',()=>v08Preview_('MOVE'));
+$('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
 load();
 })();
 </script>

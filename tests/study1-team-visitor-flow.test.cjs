@@ -1725,3 +1725,126 @@ test('B02-A changing management scope or losing OWNER source clears cancellation
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
+
+/* P1-08 V08: independent owner-only TEST in-session modification preflight.
+ * The Draft #90 token contract is deliberately not used or merged. */
+function v08ConfirmedVisitor_(srv){
+ const v=v07VerifiedVisitor_(srv);
+ v.click('hold');
+ assert.equal(srv.read().applications[0].phase,'HELD');
+ v.get('readPdf').checked=true;v.change('readPdf');
+ v.click('review');
+ v.get('agree').checked=true;v.change('agree');
+ v.click('finish');
+ assert.equal(srv.read().applications[0].phase,'CONFIRMED');
+ return v;
+}
+test('P1-08 V08 reschedule is read-only until explicit acknowledgement then commits exactly one TEST MOVE',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv);
+ const original=srv.read().applications[0].slotId;
+ const desired=v.get('moveSlot').value;
+ assert.notEqual(desired,original);
+ const before=srv.writes,noticeCount=srv.read().notifications.length;
+ v.click('move');
+ assert.equal(v.get('v08ManageReview').hidden,false);
+ assert.match(v.get('v08Action').textContent,/改期/);
+ assert.match(v.get('v08From').textContent,/SIM-SLOT-E1-A/);
+ assert.match(v.get('v08To').textContent,new RegExp(desired));
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(srv.writes,before,'viewing a draft does not mutate bookings');
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ assert.equal(v.get('v08Commit').disabled,false);
+ v.click('v08Commit');
+ assert.equal(srv.writes,before+1,'one original GAS transaction');
+ assert.equal(srv.read().applications[0].slotId,desired);
+ assert.equal(srv.read().applications[0].phase,'CONFIRMED');
+ assert.equal(srv.read().notifications.length,noticeCount+1,'synthetic notice history only');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ closed(srv);
+});
+test('P1-08 V08 cancel requires separate source-bound confirmation and preserves booking history',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv),before=srv.writes;
+ const slot=srv.read().applications[0].slotId,noticeCount=srv.read().notifications.length;
+ v.click('cancel');
+ assert.equal(v.get('v08ManageReview').hidden,false);
+ assert.match(v.get('v08To').textContent,/保留申請與場次歷史/);
+ assert.equal(v.get('v08Commit').disabled,true);
+ v.click('v08Back');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(srv.writes,before,'abandoning cannot cause cancellation');
+ v.click('cancel');
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ v.click('v08Commit');
+ assert.equal(srv.read().applications[0].phase,'CANCELLED');
+ assert.equal(srv.read().applications[0].slotId,slot);
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.read().notifications.length,noticeCount+1,'no real mail is sent');
+ assert.equal(v.get('cancel').disabled,true);
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ closed(srv);
+});
+test('P1-08 V08 forged E2 target and changed target invalidate review without writes',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv),before=srv.writes;
+ const valid=v.get('moveSlot').value;
+ v.set('moveSlot','SIM-SLOT-E2-A');
+ v.click('move');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.match(v.get('status').textContent,/無法核實/);
+ assert.equal(srv.writes,before);
+ v.set('moveSlot',valid);
+ v.click('move');
+ assert.equal(v.get('v08ManageReview').hidden,false);
+ v.set('moveSlot','SIM-SLOT-E2-A');
+ v.change('moveSlot');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(srv.writes,before);
+ assert.equal(srv.read().applications[0].phase,'CONFIRMED');
+ closed(srv);
+});
+test('P1-08 V08 stale second-tab revision fails original GAS CAS and V07 never auto-replays MOVE',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv),team=page(srv,'team');
+ const slot=srv.read().applications[0].slotId;
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ team.set('modeE1','COMING_SOON');team.click('saveModes');
+ const before=srv.writes;
+ v.click('v08Commit');
+ assert.equal(srv.writes,before,'stale synthetic MOVE is rejected');
+ assert.equal(srv.read().applications[0].slotId,slot);
+ assert.equal(srv.read().applications[0].phase,'CONFIRMED');
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.get('move').disabled,true,'uncertain write locks controls');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(v.get('v07Rescan').disabled,false,'only explicit GET can unlock');
+ v.click('v07Rescan');
+ assert.equal(srv.writes,before,'recheck must not replay the write');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ closed(srv);
+});
+test('P1-08 V08 owner revocation after preview clears all change controls with no unsafe re-submit',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv),before=srv.writes;
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const oldWrite=srv.ctx.study1UnifiedPreviewCommand;
+ const oldRead=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action==='CANCEL')throw Error('owner permission revoked');
+  return oldWrite(c);
+ };
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner read forbidden')};
+ v.click('v08Commit');
+ assert.equal(srv.writes,before);
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('cancel').disabled,true);
+ assert.match(v.get('v07Result').textContent,/狀態未知/);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ srv.ctx.study1UnifiedPreviewCommand=oldWrite;
+ srv.ctx.study1UnifiedPreviewGet=oldRead;
+ closed(srv);
+});
