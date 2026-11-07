@@ -166,3 +166,12 @@ test('rejects malformed duplicate or privilege-expanded capability scopes before
   assert.equal(st.writes(),0);
  }
 });
+
+test('atomic rejects deferred callback after lock scope exits without storage writes',()=>{
+ const st=storeAdapter();
+ let deferred;
+ st.adapter.withExclusiveLock=fn=>{deferred=fn;return undefined};
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(deferred().reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.writes(),0);
+});
