@@ -155,3 +155,14 @@ test('atomic rejects lock provider substituting a fabricated success',()=>{
  assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
  assert.equal(st.writes(),1);
 });
+
+test('rejects malformed duplicate or privilege-expanded capability scopes before CAS',()=>{
+ for(const actions of [['MOVE','MOVE'],['MOVE','DELETE'],['MOVE','CANCEL','MOVE'],[]]){
+  const r={...rec,actions};
+  assert.equal(guard(r,input,1999,hash,equalDigest).ok,false);
+  const st=storeAdapter();
+  st.adapter.read=()=>({...r});
+  assert.equal(atomic(input,1999,st.adapter).ok,false);
+  assert.equal(st.writes(),0);
+ }
+});
