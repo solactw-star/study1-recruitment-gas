@@ -44,7 +44,7 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
       typeof adapter.hash !== 'function' || typeof adapter.equalDigest !== 'function')
     return {ok:false,reason:'ADAPTER_UNAVAILABLE'};
   try {
-    return adapter.withExclusiveLock(function() {
+    const lockedResult = adapter.withExclusiveLock(function() {
       const record=adapter.read(input && input.applicationId);
       const plan=study1V08ConsumePlan_(record,input,now,adapter.hash,adapter.equalDigest);
       if (!plan.ok) return {ok:false,reason:plan.reason};
@@ -57,10 +57,21 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
           saved.consumedAt !== now ||
           saved.tokenSha256 !== record.tokenSha256 ||
           saved.applicationId !== record.applicationId ||
-          saved.experiment !== record.experiment)
+          saved.experiment !== record.experiment ||
+          !Array.isArray(saved.actions) ||
+          saved.actions.length !== plan.next.actions.length ||
+          saved.actions.some((action,index)=>action !== plan.next.actions[index]) ||
+          saved.expiresAt !== record.expiresAt)
         return {ok:false,reason:'UNKNOWN_READBACK'};
       return {ok:true,status:'CONSUMED',revision:saved.revision};
     });
+    // A broken lock provider may return without invoking the callback.
+    // Never interpret an absent or malformed result as a successful write.
+    if (!lockedResult || typeof lockedResult !== 'object' ||
+        typeof lockedResult.ok !== 'boolean' ||
+        (lockedResult.ok === true && lockedResult.status !== 'CONSUMED'))
+      return {ok:false,reason:'UNKNOWN_NO_RETRY'};
+    return lockedResult;
   } catch (_) {
     // The write may have committed before a transport/storage failure.
     return {ok:false,reason:'UNKNOWN_NO_RETRY'};
