@@ -333,6 +333,16 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   <aside id="calAside" class="calAside" aria-label="場次與參與者面板" aria-live="polite">
    <div class="calTop"><h3 id="calAsideTitle">場次詳情</h3><button type="button" id="calClose" class="secondary">關閉</button></div>
    <div id="calSessionDetail"></div>
+   <div id="calCancelReview" class="box warn" role="region" aria-label="B02-A取消場次受影響預約核對" hidden>
+    <h3>取消場次前｜受影響虛構預約核對</h3>
+    <p id="calCancelSummary" class="small" role="status" aria-live="polite">尚未核實取消影響。</p>
+    <div id="calCancelRows" aria-label="受影響虛構申請清單"></div>
+    <p class="small">取消僅關閉此場次的新預約，保留既有申請與行政歷程；已成立／有效暫留需人工處理，不會自動通知、取消個別申請、改期或核准候補。</p>
+    <label class="check"><input type="checkbox" id="calCancelAck"> 我已逐筆核對受影響虛構申請，理解不會自動取消或通知。</label>
+    <div class="calAction"><button type="button" id="calCancelCommit" disabled>確認取消此虛構場次</button>
+     <button type="button" id="calCancelBack" class="secondary">返回場次，不取消</button></div>
+    <p id="calCancelStatus" class="small" role="status" aria-live="polite">此確認僅適用目前的原GAS修訂版。</p>
+   </div>
    <div id="calPersonDetail" hidden>
     <div class="calTop"><h3 id="calPersonTitle">參與者快速面板</h3><button class="secondary" type="button" id="calBackSession">返回場次</button></div>
     <p id="calPersonSummary" class="small"></p>
@@ -2134,7 +2144,7 @@ function calendarPanel(){
  execute.addEventListener('click',()=>b05Open(slot.id,'calendar'));actions.append(execute);
  const edit=calElem('button','編輯場次','secondary');edit.type='button';edit.disabled=meta.status!=='OPEN';
  edit.addEventListener('click',()=>calEdit(slot));actions.append(edit);
- const cancel=calElem('button','取消場次','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
+ const cancel=calElem('button','核對取消場次影響','secondary');cancel.type='button';cancel.disabled=meta.status!=='OPEN';
  cancel.addEventListener('click',()=>calCancel(slot));actions.append(cancel);detail.append(actions);
  detail.append(calElem('h3','本場次虛構參與者（'+apps.length+'）'));
  for(const a of apps){
