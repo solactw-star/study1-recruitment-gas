@@ -559,8 +559,10 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   <button type="button" id="b03ListMode" class="secondary" aria-pressed="true">表格清單</button>
   <button type="button" id="b03BoardMode" class="secondary" aria-pressed="false">流程看板</button>
   <button type="button" id="b03Clear" class="secondary">清除篩選</button>
+  <button type="button" id="b03Reconcile" class="secondary" disabled>重新核對 B02／B03／B04</button>
   <span id="bookingSummary" class="small" role="status" aria-live="polite">資料載入中…</span>
  </div>
+ <p id="b03ReconcileStatus" role="status" aria-live="polite" class="small">尚未重新核對；不會修改資料。</p>
  <p class="small">看板僅呈現行政／施測進度，不代表研究完成或REC核准；改變研究階段必須遵循正式核准程序，不以拖曳視同完成。</p>
  <div id="b03ListView">
   <div class="b03Head" aria-hidden="true"><span>參與者／實驗</span><span>流程階段</span><span>操作</span>
@@ -702,7 +704,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','profileSaveNote','b05Close','b05Reopen','b06Save','b11Preview'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','b03Reconcile','profileSaveNote','b05Close','b05Reopen','b06Save','b11Preview'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -725,6 +727,48 @@ function displayWeeks(){
   const notes=input('text',week.notes);notes.maxLength=100;notes.dataset.role='notes';notes.placeholder='例：團課／居家安排待核';notes.setAttribute('aria-label','第 '+week.week+' 週備註');row.append(notes);target.append(row);
  });
 }
+
+/* P1 B02/B03/B04 read-only participant reconciliation, same owner TEST source. */
+function b03CrossCheck_(d){
+ if(!d||d.mode!=='TEST'||d.open!==false||d.consentReady!==false||
+  d.formalPorts?.activated!==false||d.formalReadiness?.activationAllowed!==false||
+  !Number.isSafeInteger(d.revision)||d.revision<0||
+  !Array.isArray(d.slots)||!Array.isArray(d.applications)||
+  !d.b02?.sessions||!d.b02?.attendance||!Array.isArray(d.b02?.history)||
+  !d.b04?.notes||!Array.isArray(d.b04?.history))return null;
+ const slots=new Map(),people=new Map();
+ for(const s of d.slots){
+  if(!s||typeof s.id!=='string'||!/^SIM-SLOT-E[12]-[A-Z]$/.test(s.id)||
+   !['E1','E2'].includes(s.experiment)||!s.id.startsWith('SIM-SLOT-'+s.experiment+'-')||
+   slots.has(s.id)||typeof s.when!=='string'||
+   !/^20\d\d-\d\d-\d\d \d\d:\d\d$/.test(s.when)||
+   !Number.isFinite(Date.parse(s.when.replace(' ','T')+':00+08:00'))||
+   !Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>20)return null;
+  slots.set(s.id,s);
+ }
+ for(const [id,m] of Object.entries(d.b02.sessions))
+  if(!slots.has(id)||!m||!['OPEN','CANCELLED','CLOSED'].includes(m.status))return null;
+ let booked=0,attended=0,completed=0;
+ for(const a of d.applications){
+  if(!a||typeof a.id!=='string'||!/^SIM-\d{3}$/.test(a.id)||people.has(a.id)||
+   !['E1','E2'].includes(a.experiment)||
+   !['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD','CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)||
+   (a.slotId!==null&&(!slots.has(a.slotId)||slots.get(a.slotId).experiment!==a.experiment))||
+   (['HELD','CONSENTED','CONFIRMED'].includes(a.phase)&&!a.slotId))return null;
+  people.set(a.id,a);if(a.slotId)booked++;
+ }
+ for(const [id,a] of Object.entries(d.b02.attendance)){
+  if(!people.has(id)||!people.get(id).slotId||!a||
+   !['PENDING','PRESENT','LATE','ABSENT'].includes(a.attendance)||
+   !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(a.progress))return null;
+  if(a.attendance!=='PENDING')attended++;
+  if(a.progress==='COMPLETE')completed++;
+ }
+ for(const id of Object.keys(d.b04.notes))if(!people.has(id))return null;
+ for(const h of d.b04.history)if(!h||!people.has(h.id)||
+  !['adminNote','attendanceAndProgress'].includes(h.field))return null;
+ return {revision:d.revision,total:people.size,booked,attended,completed};
+}
 function render(data){
  if(!data||data.mode!=='TEST'||data.open!==false||data.consentReady!==false||
   !data.formalReadiness||data.formalReadiness.activationAllowed!==false||
@@ -732,12 +776,13 @@ function render(data){
   data.recruitment.E1.year!==2026||data.recruitment.E2.year!==2027||
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
-  !data.e2Operations||!Array.isArray(data.e2Operations.weeks)){
-  model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
+  !data.e2Operations||!Array.isArray(data.e2Operations.weeks)||!b03CrossCheck_(data)){
+  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
  model=data;setBusy(false);
+ $('b03ReconcileStatus').textContent='目前原GAS修訂版 '+data.revision+'；可按重新核對。';
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
  $('siteTitle').value=data.config.title;$('siteNotice').value=data.config.notice;
  $('emailTemplate').value=data.config.emailTemplate;
@@ -2872,6 +2917,32 @@ function b03Render(){
   group.append(columns);board.append(group);
  }
 }
+
+/* A deliberate source refresh; never sends a write command or retries it. */
+function b03ReconcileRead_(){
+ if(!model||busy)return;
+ setBusy(true);
+ $('b03ReconcileStatus').textContent='從原GAS重新核對中，無寫入…';
+ $('entries').replaceChildren();$('b03Board').replaceChildren();
+ profile.open=false;$('profileModule').hidden=true;
+ $('teamMain').classList.remove('b04Open');
+ $('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();
+ $('profileTimeline').replaceChildren();
+ google.script.run.withSuccessHandler(data=>{
+  const report=b03CrossCheck_(data);
+  if(!report||!render(data)){
+   render(null);
+   $('b03ReconcileStatus').textContent='跨頁關聯或來源安全條件不一致；舊資料已清空，無寫入。';return;
+  }
+  $('b03ReconcileStatus').textContent='同一原GAS純TEST快照核對完成｜修訂版 '+report.revision+
+   '｜虛構代碼 '+report.total+' 筆｜有關聯場次 '+report.booked+
+   ' 筆｜已登錄出席 '+report.attended+' 筆｜施測進度完成 '+report.completed+
+   ' 筆（非正式研究完成；無寫入）。';
+ }).withFailureHandler(()=>{
+  render(null);
+  $('b03ReconcileStatus').textContent='原GAS回讀失敗或OWNER權限失效；已清空舊資料，無寫入。';
+ }).study1UnifiedPreviewGet();
+}
 function b03Init(){
  // Explicit neutral defaults avoid treating an uninitialized dropdown as an active filter.
  $('b03Search').value='';
@@ -2883,7 +2954,8 @@ function b03Init(){
  $('b03Search').addEventListener('input',b03Render);
  $('b03ListMode').addEventListener('click',()=>{b03.mode='list';b03Render();});
  $('b03BoardMode').addEventListener('click',()=>{b03.mode='board';b03Render();});
- $('b03Clear').addEventListener('click',()=>{
+ $('b03Reconcile').addEventListener('click',b03ReconcileRead_);
+  $('b03Clear').addEventListener('click',()=>{
   $('b03Search').value='';
   for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
    $(id).value='ALL';
