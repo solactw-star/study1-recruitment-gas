@@ -44,7 +44,15 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
       typeof adapter.hash !== 'function' || typeof adapter.equalDigest !== 'function')
     return {ok:false,reason:'ADAPTER_UNAVAILABLE'};
   try {
+    let callbackCount = 0;
+    let callbackResult;
     const lockedResult = adapter.withExclusiveLock(function() {
+      callbackCount++;
+      if (callbackCount !== 1) return {ok:false,reason:'UNKNOWN_NO_RETRY'};
+      callbackResult = consumeUnderLock();
+      return callbackResult;
+    });
+    function consumeUnderLock() {
       const record=adapter.read(input && input.applicationId);
       const plan=study1V08ConsumePlan_(record,input,now,adapter.hash,adapter.equalDigest);
       if (!plan.ok) return {ok:false,reason:plan.reason};
@@ -64,7 +72,9 @@ function study1V08ConsumeAtomic_(input, now, adapter) {
           saved.expiresAt !== record.expiresAt)
         return {ok:false,reason:'UNKNOWN_READBACK'};
       return {ok:true,status:'CONSUMED',revision:saved.revision};
-    });
+    }
+    if (callbackCount !== 1 || lockedResult !== callbackResult)
+      return {ok:false,reason:'UNKNOWN_NO_RETRY'};
     // A broken lock provider may return without invoking the callback.
     // Never interpret an absent or malformed result as a successful write.
     if (!lockedResult || typeof lockedResult !== 'object' ||
