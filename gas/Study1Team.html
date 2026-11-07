@@ -367,6 +367,15 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
     <label class="label" for="calRepeat">新增時每週重複次數</label><select id="calRepeat"><option value="1">只新增一次</option><option value="2">連續兩週</option><option value="3">連續三週</option><option value="4">連續四週</option></select>
     <label class="label" for="calScope">編輯既有系列的範圍</label><select id="calScope"><option value="ONE">僅這一次</option><option value="FUTURE">這次及未來</option><option value="SERIES">整個系列</option></select>
     <p id="calImpact" class="calWarning">提交前會顯示受影響名單與容量檢查。</p>
+    <div id="calEditReview" class="box warn" role="region" aria-label="B02-A編輯場次影響二次核對" hidden>
+      <h4>編輯場次影響確認｜只適用虛構資料</h4>
+      <p id="calEditSummary" role="status" aria-live="polite"></p>
+      <div id="calEditRows" aria-label="各受影響場次與預約紀錄"></div>
+      <label class="check"><input type="checkbox" id="calEditAck"> 我已核對全部場次及關聯申請、變更前後容量與時段；本操作不會自動改期或通知參與者。</label>
+      <div class="calAction"><button type="button" id="calEditCommit" disabled>再次確認並儲存編輯</button>
+       <button type="button" id="calEditBack" class="secondary">返回修改欄位，不儲存</button></div>
+      <p id="calEditStatus" role="status" aria-live="polite">僅對目前來源修訂版有效。</p>
+    </div>
     <div class="calAction"><button type="submit" id="calSaveSession">確認並儲存</button><button type="button" id="calCancelEdit" class="secondary">返回場次</button></div>
    </form>
   </aside>
@@ -2032,6 +2041,14 @@ const cal={id:null,person:null,mode:'CLOSED',initialized:false};
  * Only synthetic application IDs, administrative phases, attendance and
  * progress can appear here. Never cancel, rebook or notify individuals. */
 const calCancelReviewState={impact:null};
+const calEditReviewState={plan:null};
+function calEditReset_(note){
+ calEditReviewState.plan=null;
+ $('calEditReview').hidden=true;$('calEditRows').replaceChildren();
+ $('calEditAck').checked=false;$('calEditCommit').disabled=true;
+ $('calEditSummary').textContent='';
+ $('calEditStatus').textContent=note||'僅對目前來源修訂版有效。';
+}
 function calCancelReset_(messageText){
  calCancelReviewState.impact=null;
  $('calCancelReview').hidden=true;$('calCancelRows').replaceChildren();
@@ -2122,6 +2139,7 @@ function calRange(){
 }
 function calOpen(mode,id,person){
  if(mode!=='SESSION'||id!==cal.id)calCancelReset_();
+ if(mode!=='EDIT'||id!==cal.id)calEditReset_('離開編輯，確認預覽已清除。');
  cal.mode=mode;cal.id=id===undefined?cal.id:id;cal.person=person||null;
  calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
 }
@@ -2178,7 +2196,7 @@ function calendarRender(){
  calendarPanel();
 }
 function calendarPanel(){
- calCancelSync_();
+ calCancelSync_();calEditSync_();
  const frame=$('calFrame'),detail=$('calSessionDetail'),person=$('calPersonDetail'),
  form=$('calForm'),heading=$('calAsideTitle');
  frame.classList.toggle('detail',cal.mode!=='CLOSED');
@@ -2239,6 +2257,7 @@ function calendarPanel(){
 
 function calNew(day){
  if(!calAllowed()||busy)return;
+ calEditReset_();
  cal.id=null;cal.person=null;cal.mode='NEW';
  $('calEditExperiment').disabled=false;$('calEditExperiment').value=$('calExperiment').value==='E2'?'E2':'E1';
  $('calEditTitle').value='模擬研究時段';
@@ -2246,16 +2265,19 @@ function calNew(day){
  $('calEditCapacity').value='2';$('calEditMinutes').value='120';
  $('calEditPlace').value='虛構研究室';$('calRepeat').value='1';$('calRepeat').disabled=false;
  $('calScope').value='ONE';$('calScope').disabled=true;
+ $('calSaveSession').textContent='確認新增虛構場次';
  calendarRender();$('calEditTitle').focus();
 }
 function calEdit(slot){
  if(!calAllowed()||busy)return;
+ calEditReset_();
  const m=calMeta(slot);cal.id=slot.id;cal.person=null;cal.mode='EDIT';
  $('calEditExperiment').value=slot.experiment;$('calEditExperiment').disabled=true;
  $('calEditTitle').value=m.title;$('calEditWhen').value=slot.when.replace(' ','T');
  $('calEditCapacity').value=String(slot.capacity);$('calEditMinutes').value=String(m.minutes);
  $('calEditPlace').value=m.place;$('calRepeat').value='1';$('calRepeat').disabled=true;
  $('calScope').value='ONE';$('calScope').disabled=!m.group;
+ $('calSaveSession').textContent='預覽編輯影響（尚不寫入）';
  calendarRender();$('calEditTitle').focus();
 }
 function calPayload(operation){
