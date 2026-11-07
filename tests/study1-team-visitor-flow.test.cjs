@@ -438,6 +438,70 @@ test('B03 list and kanban share the SAME participants, filters, and return-to-bo
 });
 
 
+
+test('P1 B03 readback reconciles B02 attendance and B04 booking under one owner TEST revision',()=>{
+ const srv=server();
+ srv.command('START',{experiment:'E1'});
+ srv.command('START',{experiment:'E2'});
+ const original=srv.read,team=page(srv,'team'),writes=srv.writes;
+ team.set('b03Experiment','E1');team.change('b03Experiment');
+ team.click('b03BoardMode');
+ const firstCalls=team.calls.filter(x=>x==='READ').length;
+ team.click('b03Reconcile');
+ assert.equal(team.calls.filter(x=>x==='READ').length,firstCalls+1);
+ assert.match(team.get('b03ReconcileStatus').textContent,/虛構代碼 2 筆/);
+ assert.equal(team.get('b03Board').hidden,false,'board and E1 filter survive readback');
+ assert.equal(team.get('b03Experiment').value,'E1');
+ assert.equal(srv.writes,writes,'readback does not write fixture');
+ // A simulated newer GET snapshot must propagate identical B02 attendance
+ // into the B03 board and B04 booking tab, with no other data store.
+ srv.read=()=>{
+  const d=original(),a=d.applications.find(x=>x.experiment==='E1'),
+   slot=d.slots.find(x=>x.experiment==='E1');
+  a.slotId=slot.id;a.phase='CONFIRMED';d.revision++;
+  d.b02.attendance[a.id]={attendance:'PRESENT',progress:'PARTIAL',note:''};
+  return d;
+ };
+ team.click('b03Reconcile');
+ assert.match(team.get('b03ReconcileStatus').textContent,/已登錄出席 1 筆/);
+ const group=team.get('b03Board').children[0];
+ const columns=group.children.find(x=>x.className==='b03Columns');
+ const btn=columns.children.flatMap(x=>x.children).find(x=>x.dataset.participantId==='SIM-001');
+ assert.match(btn.textContent,/已出席/);
+ btn.handlers.click();
+ const bookingTab=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ bookingTab.handlers.click();
+ assert.match(team.get('profileTabBody').children.map(x=>x.textContent).join(' '),/預約出席/);
+ assert.match(team.get('profileSummary').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),/已出席/);
+ assert.equal(srv.writes,writes);
+ srv.read=original;closed(srv);
+});
+
+test('P1 B03 readback refuses cross-experiment booking drift, clears stale B04/B03 and recovers',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const realRead=srv.read,team=page(srv,'team'),writes=srv.writes;
+ const bad=realRead();bad.applications[0].slotId='SIM-SLOT-E2-Z';
+ srv.read=()=>bad;
+ team.click('b03Reconcile');
+ assert.match(team.get('b03ReconcileStatus').textContent,/不一致/);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('b03Board').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('b03Reconcile').disabled,true);
+ assert.equal(srv.writes,writes);
+ srv.read=()=>{throw Error('OWNER revoked');};
+ team.click('refresh');
+ assert.match(team.get('b03ReconcileStatus').textContent,/清空/);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(srv.writes,writes);
+ srv.read=realRead;team.click('refresh');
+ assert.equal(team.get('entries').children.length,1,'only a fresh safe GET restores listing');
+ assert.equal(team.get('b03Reconcile').disabled,false);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
 test('B05 is reachable from existing calendar, shows original session and returns without writes',()=>{
  const srv=server(),before=srv.writes;
  const team=page(srv,'team');
