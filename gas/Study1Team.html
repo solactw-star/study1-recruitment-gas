@@ -2121,11 +2121,13 @@ function calRange(){
  const length=view==='month'?42:7;return Array.from({length},(_,i)=>calAdd(monday,i));
 }
 function calOpen(mode,id,person){
+ if(mode!=='SESSION'||id!==cal.id)calCancelReset_();
  cal.mode=mode;cal.id=id===undefined?cal.id:id;cal.person=person||null;
  calendarRender();if(mode!=='CLOSED')$('calAside').scrollTop=0;
 }
 function calendarRender(){
  if(!calAllowed()||adminScopeEffective_('B02')===null){
+  calCancelReset_('B02來源或檢視範圍不合法，取消預覽已清除。');
   $('calBoard').replaceChildren();
   $('calDescription').textContent='載入虛構資料或後台檢視範圍中；尚不能操作。';return;
  }
@@ -2176,6 +2178,7 @@ function calendarRender(){
  calendarPanel();
 }
 function calendarPanel(){
+ calCancelSync_();
  const frame=$('calFrame'),detail=$('calSessionDetail'),person=$('calPersonDetail'),
  form=$('calForm'),heading=$('calAsideTitle');
  frame.classList.toggle('detail',cal.mode!=='CLOSED');
@@ -2291,13 +2294,47 @@ function calCommand(action,payload,after){
  }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
 }
 function calCancel(slot){
- if(!calAllowed()||busy)return;
- const m=calMeta(slot),count=calApps(slot).filter(a=>a.phase!=='CANCELLED').length;
- if(!confirm('確認取消此虛構場次？\n'+slot.id+'\n受影響預約 '+count+
- ' 筆會保留歷史；不會自動寄信。'))return;
+ if(!calAllowed()||busy||calMeta(slot).status!=='OPEN')return;
+ const impact=calCancelImpact_(slot);
+ if(!impact){
+  calCancelReset_('場次或關聯資料無法核實，拒絕取消。');
+  calMsg('受影響申請資料不一致；拒絕取消，須先核對來源。',true);
+  return;
+ }
+ calCancelReviewState.impact=impact;
+ $('calCancelRows').replaceChildren();
+ $('calCancelSummary').textContent='場次 '+impact.slotId+'｜修訂版 '+impact.revision+
+  '｜關聯 '+impact.total+' 筆｜已成立 '+impact.confirmed+
+  '｜有效暫留 '+impact.holding+'｜已過期暫留 '+impact.expired+
+  '｜已取消申請 '+impact.cancelled+'｜其他待核 '+impact.other+'。';
+ for(const row of impact.rows){
+  $('calCancelRows').append(calElem('p',row.id+'｜'+row.kind+
+   '｜出席 '+calPresence[row.attendance]+
+   '｜施測 '+calTesting[row.progress],'calMini'));
+ }
+ if(!impact.total)$('calCancelRows').append(calElem('p','此場次尚無關聯虛構申請紀錄。','calMini'));
+ $('calCancelReview').hidden=false;$('calCancelAck').checked=false;
+ $('calCancelCommit').disabled=true;
+ $('calCancelStatus').textContent='請核對上列虛構申請代碼。取消只更動場次狀態，' +
+  '不取消個別預約、不寄信、不自動改期或安排候補。';
+}
+function calCancelCommit_(){
+ const prior=calCancelReviewState.impact;
+ if(!prior||busy||!$('calCancelAck').checked||
+  cal.mode!=='SESSION'||cal.id!==prior.slotId)return;
+ const slot=model?.slots?.find(s=>s.id===prior.slotId);
+ const current=slot?calCancelImpact_(slot):null;
+ if(!current||current.revision!==prior.revision||
+  current.signature!==prior.signature){
+  calCancelReset_('取消預覽所依據的場次或關聯資料已改變。');
+  calMsg('修訂版、場次資訊或預約分類已變更；取消未提交。',true);
+  return;
+ }
+ const m=calMeta(slot);
  const payload={operation:'CANCEL',slotId:slot.id,experiment:slot.experiment,
   title:m.title,when:slot.when,capacity:slot.capacity,minutes:m.minutes,place:m.place,
   repeatCount:1,scope:'ONE'};
+ calCancelReset_('取消請求已送至原GAS，等待回應；不自動重送。');
  calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
 }
 function calShift(amount){
@@ -2307,6 +2344,12 @@ function calShift(amount){
  $('calDate').value=d;calendarRender();
 }
 function calendarInit(){
+ $('calCancelAck').addEventListener('change',()=>{
+  calCancelSync_();
+  $('calCancelCommit').disabled=busy||!calCancelReviewState.impact||!$('calCancelAck').checked;
+ });
+ $('calCancelBack').addEventListener('click',()=>calCancelReset_('已返回場次，未提交取消。'));
+ $('calCancelCommit').addEventListener('click',calCancelCommit_);
  $('calNew').addEventListener('click',()=>calNew());
  $('calPrev').addEventListener('click',()=>calShift(-1));
  $('calNext').addEventListener('click',()=>calShift(1));
