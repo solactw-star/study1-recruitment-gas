@@ -1907,3 +1907,110 @@ test('V08 local clock rollback invalidates reviewed TEST change; explicit fresh 
  assert.equal(v.get('v08Commit').disabled,true);
  closed(srv);
 });
+
+/* B02-A P1 edit preflight is separate from the previous cancellation review.
+ * Only original owner-only TEST UI + real unified server are used. */
+function b02EditReview_(team,slotId='SIM-SLOT-E1-A'){
+ const model=team.context.model;
+ const slot=model.slots.find(x=>x.id===slotId);
+ assert.ok(slot,'known synthetic session '+slotId);
+ team.context.calEdit(slot);
+ return ()=>{
+  const form=team.get('calForm');
+  assert.equal(typeof form.handlers.submit,'function');
+  form.handlers.submit({preventDefault(){}});
+  return team.get('calEditReview');
+ };
+}
+test('B02-A edit impact preview and back are zero-write; acknowledgement commits one original GAS update',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ const review=b02EditReview_(team);
+ team.set('calEditCapacity','3');team.change('calEditCapacity');
+ const box=review();
+ assert.equal(box.hidden,false);
+ assert.match(team.get('calEditSummary').textContent,/受影響 1 場/);
+ assert.match(team.get('calEditRows').children[0].textContent,/容量 2 → 3/);
+ assert.equal(team.get('calEditCommit').disabled,true);
+ assert.equal(srv.writes,before);
+ team.click('calEditBack');assert.equal(team.get('calEditReview').hidden,true);
+ assert.equal(srv.writes,before,'back never writes');
+ review();
+ team.get('calEditAck').checked=true;team.change('calEditAck');
+ assert.equal(team.get('calEditCommit').disabled,false);
+ team.click('calEditCommit');
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.read().slots.find(x=>x.id==='SIM-SLOT-E1-A').capacity,3);
+ assert.equal(srv.read().b02.history.at(-1).action,'UPDATE');
+ assert.equal(team.get('calEditReview').hidden,true);
+ assert.equal(team.get('calEditCommit').disabled,true);
+ assert.equal(srv.read().notifications.length,0,'edit does not send real or simulated mail');
+ closed(srv);
+});
+test('B02-A edit preview lists linked synthetic reservations and refuses silent movement',()=>{
+ const srv=server(),visitor=page(srv,'visitor');
+ visitor.click('chooseE1');
+ for(const id of ['adult','cycu','noDx','noTreatment','noPractice'])visitor.get(id).checked=true;
+ visitor.click('screenNext');visitor.click('otpSend');visitor.click('otpPaste');
+ visitor.click('otpVerify');visitor.click('hold');
+ const team=page(srv,'team'),before=srv.writes,review=b02EditReview_(team);
+ team.set('calEditCapacity','3');team.change('calEditCapacity');
+ assert.equal(review().hidden,false);
+ assert.ok(team.get('calEditRows').children.some(x=>/SIM-001.*有效暫留/.test(x.textContent)));
+ assert.equal(srv.writes,before);
+ team.click('calEditBack');
+ team.set('calEditWhen','2027-01-05T11:00');team.change('calEditWhen');
+ assert.equal(review().hidden,true,'linked historical booking cannot be moved directly');
+ assert.equal(srv.writes,before);
+ assert.equal(srv.read().applications[0].slotId,'SIM-SLOT-E1-A');
+ closed(srv);
+});
+test('B02-A series edit lists every affected slot, commits once and never alters booking identities',()=>{
+ const srv=server();
+ const create={operation:'CREATE',slotId:'',experiment:'E1',title:'另一虛構系列',
+  when:'2028-02-07 10:00',capacity:2,minutes:90,place:'模擬實驗室',repeatCount:2,scope:'ONE'};
+ const saved=srv.command('ADMIN_B02_SLOT',create),ids=saved.b02.history.at(-1).ids;
+ const team=page(srv,'team'),before=srv.writes,review=b02EditReview_(team,ids[0]);
+ team.set('calScope','SERIES');team.change('calScope');
+ team.set('calEditTitle','調整後系列名稱');team.change('calEditTitle');
+ assert.equal(review().hidden,false);
+ assert.match(team.get('calEditSummary').textContent,/受影響 2 場/);
+ assert.equal(team.get('calEditRows').children.length,2);
+ assert.equal(srv.writes,before);
+ team.get('calEditAck').checked=true;team.change('calEditAck');
+ team.click('calEditCommit');
+ assert.equal(srv.writes,before+1);
+ for(const id of ids)assert.equal(srv.read().b02.sessions[id].title,'調整後系列名稱');
+ assert.equal(srv.read().b02.history.at(-1).ids.length,2);
+ closed(srv);
+});
+test('B02-A edit invalidates draft on changed input, scope change, competing revision and revoked owner read',()=>{
+ const srv=server(),team=page(srv,'team'),baseline=srv.writes,review=b02EditReview_(team);
+ team.set('calEditCapacity','3');team.change('calEditCapacity');
+ review();
+ team.get('calEditAck').checked=true;team.change('calEditAck');
+ assert.equal(team.get('calEditCommit').disabled,false);
+ team.set('calEditCapacity','4');team.change('calEditCapacity');
+ assert.equal(team.get('calEditCommit').disabled,true);
+ assert.equal(team.get('calEditReview').hidden,true);
+ assert.equal(srv.writes,baseline);
+ review();
+ team.set('adminScopeGlobal','E2');team.change('adminScopeGlobal');
+ assert.equal(team.get('calEditCommit').disabled,true);
+ assert.equal(team.get('calEditReview').hidden,true);
+ team.set('adminScopeGlobal','ALL');team.change('adminScopeGlobal');
+ b02EditReview_(team)();
+ srv.command('START',{experiment:'E1'});const afterWrite=srv.writes;
+ team.click('refresh');
+ assert.equal(team.get('calEditReview').hidden,true);
+ assert.equal(team.get('calEditCommit').disabled,true);
+ assert.equal(srv.writes,afterWrite);
+ b02EditReview_(team)();
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('owner revoked');};
+ team.click('refresh');
+ assert.equal(team.get('calEditReview').hidden,true);
+ assert.equal(team.get('calEditCommit').disabled,true);
+ assert.equal(srv.writes,afterWrite);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
