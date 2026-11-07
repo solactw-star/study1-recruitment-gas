@@ -1615,3 +1615,111 @@ test('V07 loss of owner authority on recovery clears all booking actions without
  srv.ctx.study1UnifiedPreviewCommand=write;
  closed(srv);
 });
+
+
+/* P1-02 B02-A cancellation preflight tests use the original team UI and
+ * original GAS TEST source, never a separate research or financial store. */
+function cancelTestSession_(team,id='SIM-SLOT-E1-A'){
+ const date=id==='SIM-SLOT-E1-A'?'2027-01-05':'2027-01-06';
+ team.set('calExperiment','ALL');team.set('calStatus','ALL');team.set('calSearch','');
+ team.set('calView','day');team.set('calDate',date);team.change('calDate');
+ const find=(root,condition)=>{
+  if(condition(root))return root;
+  for(const n of root.children||[]){const found=find(n,condition);if(found)return found;}
+  return null;
+ };
+ const card=find(team.get('calBoard'),node=>node.dataset?.sessionId===id);
+ assert.ok(card,'calendar contains original synthetic session '+id);
+ card.handlers.click();
+ const cancel=find(team.get('calSessionDetail'),node=>node.textContent==='核對取消場次影響');
+ assert.ok(cancel,'B02-A must offer impact review instead of direct cancellation');
+ cancel.handlers.click();
+ return team.get('calCancelReview');
+}
+test('B02-A explicit cancellation preflight lists linked synthetic holds and writes only after acknowledgement',()=>{
+ const srv=server(),visitor=page(srv,'visitor');
+ visitor.click('chooseE1');
+ for(const id of ['adult','cycu','noDx','noTreatment','noPractice'])visitor.get(id).checked=true;
+ visitor.click('screenNext');visitor.click('otpSend');
+ visitor.click('otpPaste');visitor.click('otpVerify');visitor.click('hold');
+ assert.equal(srv.read().applications[0].phase,'HELD');
+ const team=page(srv,'team'),before=srv.writes,slot='SIM-SLOT-E1-A';
+ const box=cancelTestSession_(team,slot);
+ assert.equal(box.hidden,false);
+ assert.match(team.get('calCancelSummary').textContent,/關聯 1 筆.*有效暫留 1/);
+ assert.equal(team.get('calCancelRows').children.length,1);
+ assert.match(team.get('calCancelRows').children[0].textContent,/SIM-001.*有效暫留/);
+ assert.equal(team.get('calCancelCommit').disabled,true,'ack must be explicit');
+ assert.equal(srv.writes,before,'preview must remain read only');
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ assert.equal(team.get('calCancelCommit').disabled,false);
+ team.click('calCancelCommit');
+ assert.equal(srv.writes,before+1,'one original GAS CAS commit');
+ const after=srv.read(),app=after.applications[0];
+ assert.equal(after.b02.sessions[slot].status,'CANCELLED');
+ assert.equal(app.phase,'HELD','session cancellation must not silently cancel linked booking');
+ assert.equal(app.slotId,slot,'booking source association is preserved');
+ assert.equal(after.notifications.length,0,'no email/notification is manufactured');
+ assert.equal(after.b02.history.at(-1).action,'CANCEL');
+ assert.equal(team.get('calCancelReview').hidden,true);
+ assert.equal(team.get('calCancelCommit').disabled,true);
+ team.click('refresh');
+ assert.equal(srv.read().b02.sessions[slot].status,'CANCELLED');
+ assert.equal(srv.store.get('OPEN'),'false');
+ assert.equal(srv.store.get('CONSENT_READY'),'false');
+ closed(srv);
+});
+test('B02-A preview cancellation and abort are read-only; stale local source invalidates impact',()=>{
+ const srv=server(),team=page(srv,'team'),writes=srv.writes;
+ assert.equal(cancelTestSession_(team).hidden,false);
+ assert.match(team.get('calCancelRows').children[0].textContent,/尚無關聯虛構申請/);
+ team.click('calCancelBack');
+ assert.equal(team.get('calCancelReview').hidden,true);
+ assert.equal(srv.writes,writes);
+ assert.equal(cancelTestSession_(team).hidden,false);
+ // A local source drift without a revision bump must still invalidate preview.
+ vm.runInContext("model.slots.find(s=>s.id==='SIM-SLOT-E1-A').capacity=3",team.context);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ assert.equal(team.get('calCancelReview').hidden,true);
+ assert.equal(team.get('calCancelCommit').disabled,true);
+ assert.match(team.get('calStatusMessage').textContent,/取消預覽已失效/);
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'OPEN');
+ closed(srv);
+});
+test('B02-A stale second owner tab cannot cancel after another owner revision and requires new preview',()=>{
+ const srv=server(),a=page(srv,'team'),b=page(srv,'team');
+ cancelTestSession_(a);
+ a.get('calCancelAck').checked=true;a.change('calCancelAck');
+ assert.equal(a.get('calCancelCommit').disabled,false);
+ b.set('modeE1','COMING_SOON');b.click('saveModes');
+ assert.equal(srv.read().recruitment.E1.mode,'COMING_SOON');
+ const w=srv.writes;
+ a.click('calCancelCommit');
+ assert.equal(srv.writes,w,'GAS CAS must reject stale cancel');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'OPEN');
+ assert.equal(a.get('calCancelCommit').disabled,true);
+ assert.match(a.get('calStatusMessage').textContent,/取消結果尚未確認/);
+ a.click('refresh');
+ assert.equal(a.get('calCancelReview').hidden,true);
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'OPEN');
+ closed(srv);
+});
+test('B02-A changing management scope or losing OWNER source clears cancellation impact and blocks write',()=>{
+ const srv=server(),team=page(srv,'team'),w=srv.writes;
+ cancelTestSession_(team);
+ team.set('adminScopeGlobal','E2');team.change('adminScopeGlobal');
+ assert.equal(team.get('calCancelReview').hidden,true);
+ assert.equal(team.get('calCancelCommit').disabled,true);
+ assert.equal(srv.writes,w);
+ team.set('adminScopeGlobal','ALL');team.change('adminScopeGlobal');
+ cancelTestSession_(team);
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('OWNER authority revoked');};
+ team.click('refresh');
+ assert.equal(team.get('calCancelReview').hidden,true);
+ assert.equal(team.get('calCancelCommit').disabled,true);
+ assert.equal(srv.writes,w);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ closed(srv);
+});
