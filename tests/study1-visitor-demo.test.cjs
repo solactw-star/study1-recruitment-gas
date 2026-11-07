@@ -254,7 +254,9 @@ test('P1-08 V08 in-session appointment changes require explicit TEST source prev
  assert.match(html,/function v08Matches_\(\)/);
  assert.match(html,/function v08Preview_\(action\)/);
  assert.match(html,/function v08Commit_\(\)/);
- assert.match(html,/v08\.draft=plan/);
+ assert.match(html,/v08\.draft=\{\.\.\.plan,preparedAt\}/);
+ assert.match(html,/const preparedAt=Date\.now\(\)/);
+ assert.match(html,/v08Fresh_\(draft,Date\.now\(\)\)/);
  assert.match(html,/next\.revision===draft\.revision&&next\.signature===draft\.signature/);
  assert.match(html,/v08Ack'\)\.checked/);
  assert.match(html,/v08Clear_\('V07正在回讀原GAS/);
