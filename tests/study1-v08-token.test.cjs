@@ -136,3 +136,22 @@ test('atomic readback detects altered authorization actions and expiry',()=>{
   assert.equal(st.writes(),1);
  }
 });
+
+test('atomic rejects forged lock success without invoking callback',()=>{
+ const st=storeAdapter();
+ st.adapter.withExclusiveLock=()=>({ok:true,status:'CONSUMED',revision:2});
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.writes(),0);
+});
+test('atomic rejects a lock provider invoking callback twice',()=>{
+ const st=storeAdapter();
+ st.adapter.withExclusiveLock=fn=>{const first=fn();fn();return first};
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.writes(),1);
+});
+test('atomic rejects lock provider substituting a fabricated success',()=>{
+ const st=storeAdapter();
+ st.adapter.withExclusiveLock=fn=>{fn();return {ok:true,status:'CONSUMED',revision:2}};
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(st.writes(),1);
+});
