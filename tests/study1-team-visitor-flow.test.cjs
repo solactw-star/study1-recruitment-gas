@@ -1911,7 +1911,7 @@ test('V08 local clock rollback invalidates reviewed TEST change; explicit fresh 
 /* B02-A P1 edit preflight is separate from the previous cancellation review.
  * Only original owner-only TEST UI + real unified server are used. */
 function b02EditReview_(team,slotId='SIM-SLOT-E1-A'){
- const model=team.context.model;
+ const model=vm.runInContext('model',team.context);
  const slot=model.slots.find(x=>x.id===slotId);
  assert.ok(slot,'known synthetic session '+slotId);
  team.context.calEdit(slot);
