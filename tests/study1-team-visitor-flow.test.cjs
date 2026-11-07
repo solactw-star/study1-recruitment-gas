@@ -2023,3 +2023,24 @@ test('B02-A edit invalidates draft on changed input, scope change, competing rev
  srv.ctx.study1UnifiedPreviewGet=original;
  closed(srv);
 });
+
+test('B02-A stale second owner tab never overwrites edited TEST session and does not retry CAS',()=>{
+ const srv=server(),a=page(srv,'team'),b=page(srv,'team');
+ const review=b02EditReview_(a);
+ a.set('calEditCapacity','4');a.change('calEditCapacity');
+ assert.equal(review().hidden,false);
+ a.get('calEditAck').checked=true;a.change('calEditAck');
+ assert.equal(a.get('calEditCommit').disabled,false);
+ b.set('modeE1','COMING_SOON');b.click('saveModes');
+ const revision=srv.read().revision,writes=srv.writes;
+ a.click('calEditCommit');
+ assert.equal(srv.writes,writes,'stale edit cannot commit or auto-replay');
+ assert.equal(srv.read().revision,revision);
+ assert.equal(srv.read().slots.find(x=>x.id==='SIM-SLOT-E1-A').capacity,2);
+ assert.match(a.get('calStatusMessage').textContent,/編輯結果尚未確認/);
+ assert.equal(a.get('calEditCommit').disabled,true);
+ a.click('refresh');
+ assert.equal(a.get('calEditReview').hidden,true);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
