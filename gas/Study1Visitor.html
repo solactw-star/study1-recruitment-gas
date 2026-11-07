@@ -489,6 +489,7 @@ function v07Description_(response,last){
  return '結果未知：目前來源未顯示可確認的預約結果；不是已成立、待人工審核或已確定失敗。';
 }
 function v07Readback_(afterFailure,detail){
+ v08Clear_('V07正在回讀原GAS，變更預覽已作廢。');
  const generation=++v07.generation;
  busy=true;v07.blocked=true;v07.recovering=true;
  $('v07Rescan').disabled=true;
@@ -729,10 +730,8 @@ $('finish').addEventListener('click',()=>{
  });
 });
 $('confirm').addEventListener('click',()=>{const a=current();if(a&&v06Preview_(model,a))issue('CONFIRM',{id:a.id});});
-$('move').addEventListener('click',()=>{const a=current();if(a&&$('moveSlot').value)issue('MOVE',{id:a.id,slotId:$('moveSlot').value});});
-$('cancel').addEventListener('click',()=>{
- const a=current();if(a&&confirm('取消這筆虛構示範預約？'))issue('CANCEL',{id:a.id});
-});
+$('move').addEventListener('click',()=>v08Preview_('MOVE'));
+$('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
 load();
 })();
 </script>
