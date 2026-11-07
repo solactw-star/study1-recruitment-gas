@@ -121,7 +121,7 @@ function documentFor(html,kind){
  return {ids,get,doc:{getElementById:get,createElement:tag=>element('',tag),
   querySelectorAll:query,addEventListener(){}}};
 }
-function page(server,kind){
+function page(server,kind,options={}){
  const html=kind==='team'?teamHtml:demoHtml;
  const {ids,get,doc}=documentFor(html,kind),calls=[],failures=[];
  let success=null,failure=null;
@@ -157,7 +157,7 @@ function page(server,kind){
   }
  };
  const context=vm.createContext({document:doc,google:{script:{run:rpc}},
-  Date,Math,JSON,String,Object,Number,Array,Set,Map,Error,confirm:()=>true});
+  Date:options.Date||Date,Math,JSON,String,Object,Number,Array,Set,Map,Error,confirm:()=>true});
  vm.runInContext(scriptOf(html),context,{timeout:3000});
  const click=id=>{
   const node=get(id);
@@ -1539,8 +1539,8 @@ test('B01 preference endpoint revocation clears cached cards even when main TEST
  closed(srv);
 });
 
-function v07VerifiedVisitor_(srv){
- const v=page(srv,'visitor');
+function v07VerifiedVisitor_(srv,options){
+ const v=page(srv,'visitor',options);
  v.click('chooseE1');
  for(const id of ['adult','cycu','noDx','noTreatment','noPractice'])v.get(id).checked=true;
  v.click('screenNext');v.click('otpSend');v.click('otpPaste');v.click('otpVerify');
@@ -1728,8 +1728,8 @@ test('B02-A changing management scope or losing OWNER source clears cancellation
 
 /* P1-08 V08: independent owner-only TEST in-session modification preflight.
  * The Draft #90 token contract is deliberately not used or merged. */
-function v08ConfirmedVisitor_(srv){
- const v=v07VerifiedVisitor_(srv);
+function v08ConfirmedVisitor_(srv,options){
+ const v=v07VerifiedVisitor_(srv,options);
  v.click('hold');
  assert.equal(srv.read().applications[0].phase,'HELD');
  v.get('readPdf').checked=true;v.change('readPdf');
@@ -1846,5 +1846,64 @@ test('P1-08 V08 owner revocation after preview clears all change controls with n
  assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
  srv.ctx.study1UnifiedPreviewCommand=oldWrite;
  srv.ctx.study1UnifiedPreviewGet=oldRead;
+ closed(srv);
+});
+
+/* V08 short-lived in-page TEST draft: no PR #90 capability token, link or mail. */
+test('V08 owner-only TEST MOVE draft at exact two-minute boundary becomes unusable without RPC or booking mutation',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class PreviewClock extends Date{static now(){return clock.now;}}
+ const v=v08ConfirmedVisitor_(srv,{Date:PreviewClock}),before=srv.writes;
+ const current=srv.read().applications[0];
+ v.click('move');
+ assert.equal(v.get('v08ManageReview').hidden,false);
+ assert.match(v.get('v08ManageStatus').textContent,/2分鐘/);
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ assert.equal(v.get('v08Commit').disabled,false);
+ clock.now+=120000;
+ v.click('v08Commit');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.match(v.get('status').textContent,/預覽過期|逾期/);
+ assert.equal(srv.writes,before,'client rejects old review without any new GAS request');
+ assert.equal(srv.read().applications[0].slotId,current.slotId);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,0);
+ closed(srv);
+});
+test('V08 CANCEL draft expires before acknowledgement, and page discards it without sending commands',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class PreviewClock extends Date{static now(){return clock.now;}}
+ const v=v08ConfirmedVisitor_(srv,{Date:PreviewClock}),before=srv.writes;
+ v.click('cancel');
+ assert.equal(v.get('v08ManageReview').hidden,false);
+ clock.now+=120001;
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(srv.writes,before);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,0);
+ assert.equal(srv.read().applications[0].phase,'CONFIRMED');
+ closed(srv);
+});
+test('V08 local clock rollback invalidates reviewed TEST change; explicit fresh preview still works',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class PreviewClock extends Date{static now(){return clock.now;}}
+ const v=v08ConfirmedVisitor_(srv,{Date:PreviewClock}),before=srv.writes;
+ v.click('cancel');
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ assert.equal(v.get('v08Commit').disabled,false);
+ clock.now--;
+ v.click('v08Commit');
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ assert.equal(srv.writes,before);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,0);
+ // A newly reviewed cancellation using an internally consistent clock can
+ // still use the original GAS state machine; no permanent silent unlocking.
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ v.click('v08Commit');
+ assert.equal(srv.read().applications[0].phase,'CANCELLED');
+ assert.equal(srv.writes,before+1);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ assert.equal(v.get('v08Commit').disabled,true);
  closed(srv);
 });
