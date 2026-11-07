@@ -2304,6 +2304,106 @@ function calImpact(){
  lines.push('取消時保留舊紀錄；本測試系統不會自動寄送郵件。');
  $('calImpact').textContent=lines.join('\n');
 }
+
+/* P1 B02-A: second-step TEST edit review, bound to the shared original owner
+ * snapshot. No new endpoint, store, email, identity or real REC operation. */
+function calEditPlan_(p){
+ if(!calAllowed()||model.formalPorts?.activated!==false||
+  !Number.isSafeInteger(model.revision)||model.revision<0||
+  !Array.isArray(model.applications)||!model.b02?.sessions||
+  cal.mode!=='EDIT'||!cal.id||!p||p.operation!=='UPDATE'||p.slotId!==cal.id||
+  !['ONE','FUTURE','SERIES'].includes(p.scope)||p.repeatCount!==1||
+  !Number.isSafeInteger(p.capacity)||p.capacity<1||p.capacity>20||
+  !Number.isSafeInteger(p.minutes)||p.minutes<15||p.minutes>480||
+  typeof p.title!=='string'||p.title.length<2||p.title.length>36||/[<>]/.test(p.title)||
+  typeof p.place!=='string'||p.place.length>48||/[<>]/.test(p.place)||
+  typeof p.when!=='string'||!/^20\d\d-(0[1-9]|1[0-2])-([0-2]\d|3[01]) ([01]\d|2[0-3]):[0-5]\d$/.test(p.when))
+  return null;
+ const matches=model.slots.filter(s=>s?.id===cal.id);
+ if(matches.length!==1||matches[0].experiment!==p.experiment||
+  !adminScopeMatch_('B02',p.experiment))return null;
+ const source=matches[0],meta=calMeta(source),now=Date.now();
+ const start=Date.parse(p.when.replace(' ','T')+':00+08:00');
+ if(meta.status!=='OPEN'||!Number.isFinite(start)||start<=now||
+  new Date(start+28800000).toISOString().slice(0,16)!==p.when.replace(' ','T')||
+  p.scope!=='ONE'&&p.when!==source.when)return null;
+ const dateOf=s=>Date.parse(s.when.replace(' ','T')+':00+08:00');
+ const affected=model.slots.filter(s=>s.experiment===p.experiment&&
+  (s.id===source.id||p.scope!=='ONE'&&meta.group&&calMeta(s).group===meta.group&&
+  (p.scope==='SERIES'||dateOf(s)>=dateOf(source))));
+ const impacts=affected.map(s=>calCancelImpact_(s));
+ if(!impacts.length||impacts.some(x=>!x||x.confirmed+x.holding>p.capacity))return null;
+ const originalImpact=impacts.find(x=>x.slotId===source.id);
+ if(p.when!==source.when&&originalImpact?.total)return null;
+ // The original GAS repeats this overlap/capacity validation under ScriptLock.
+ const ids=new Set(affected.map(s=>s.id));
+ const projected=model.slots.filter(s=>calMeta(s).status!=='CANCELLED').map(s=>({
+  experiment:s.experiment,when:s.id===source.id?p.when:s.when,
+  minutes:ids.has(s.id)?p.minutes:calMeta(s).minutes}));
+ for(let i=0;i<projected.length;i++)for(let j=i+1;j<projected.length;j++){
+  const a=projected[i],b=projected[j];
+  if(a.experiment!==b.experiment)continue;
+  const x=Date.parse(a.when.replace(' ','T')+':00+08:00'),
+    y=Date.parse(b.when.replace(' ','T')+':00+08:00');
+  if(!Number.isFinite(x)||!Number.isFinite(y)||
+   !Number.isSafeInteger(a.minutes)||!Number.isSafeInteger(b.minutes)||
+   x<y+b.minutes*60000&&y<x+a.minutes*60000)return null;
+ }
+ const sourceSignature=JSON.stringify([
+  model.revision,model.slots.map(s=>[s.id,s.experiment,s.when,s.capacity,
+   calMeta(s).status,calMeta(s).group,calMeta(s).title,
+   calMeta(s).place,calMeta(s).minutes]),
+  impacts.map(x=>x.signature)]);
+ return {revision:model.revision,slotId:source.id,
+  signature:JSON.stringify([sourceSignature,p,adminScopeEffective_('B02')]),
+  payload:{...p},impacts};
+}
+function calEditSync_(){
+ const draft=calEditReviewState.plan;if(!draft)return;
+ const current=calEditPlan_(calPayload('UPDATE'));
+ if(!current||current.signature!==draft.signature||
+  current.revision!==draft.revision||cal.id!==draft.slotId){
+  calEditReset_('編輯欄位、來源、權限、時段或修訂版改變；須重新核對。');
+  calMsg('編輯預覽已失效，未寫入任何場次變更。',true);
+ }
+}
+function calEditStage_(payload){
+ calEditReset_();
+ const plan=calEditPlan_(payload);
+ if(!plan){calMsg('無法核實編輯影響：日期、容量、預約、重疊或範圍有誤；未提交。',true);return;}
+ calEditReviewState.plan=plan;
+ $('calEditSummary').textContent='修訂版 '+plan.revision+'｜範圍 '+payload.scope+
+  '｜受影響 '+plan.impacts.length+' 場｜新容量 '+payload.capacity+
+  '｜新時長 '+payload.minutes+' 分鐘。';
+ for(const impact of plan.impacts){
+  const slot=model.slots.find(s=>s.id===impact.slotId),m=calMeta(slot);
+  $('calEditRows').append(calElem('p',impact.slotId+'｜時間 '+slot.when+' → '+
+   (slot.id===plan.slotId?payload.when:slot.when)+
+   '｜容量 '+slot.capacity+' → '+payload.capacity+
+   '｜時長 '+m.minutes+' → '+payload.minutes+
+   '｜活動 '+m.title+' → '+payload.title+
+   '｜地點 '+(m.place||'未填')+' → '+(payload.place||'未填')+
+   '｜已成立 '+impact.confirmed+'｜暫留 '+impact.holding+
+   '｜預約歷史 '+impact.total,'calMini'));
+  for(const a of impact.rows)$('calEditRows').append(calElem('p',
+   '　'+a.id+'｜'+a.kind+'｜出席 '+calPresence[a.attendance]+
+   '｜施測 '+calTesting[a.progress],'calMini'));
+ }
+ $('calEditReview').hidden=false;$('calEditAck').checked=false;
+ $('calEditCommit').disabled=true;
+}
+function calEditCommit_(){
+ const draft=calEditReviewState.plan;
+ if(!draft||busy||!$('calEditAck').checked||cal.mode!=='EDIT'||cal.id!==draft.slotId)return;
+ const current=calEditPlan_(calPayload('UPDATE'));
+ if(!current||current.signature!==draft.signature||current.revision!==draft.revision){
+  calEditReset_('舊預覽與來源或欄位不一致。');
+  calMsg('編輯預覽已失效；無寫入，請重新核對。',true);return;
+ }
+ const payload={...draft.payload};
+ calEditReset_('編輯已送至原GAS；結果不明時須重新讀取，禁止自動重送。');
+ calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
+}
 function calCommand(action,payload,after){
  if(!calAllowed()||busy){calMsg('資料載入中或沒有操作權限。',true);return;}
  const id='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
