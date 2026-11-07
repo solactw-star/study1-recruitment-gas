@@ -2307,6 +2307,9 @@ function calImpact(){
 
 /* P1 B02-A: second-step TEST edit review, bound to the shared original owner
  * snapshot. No new endpoint, store, email, identity or real REC operation. */
+function calEditBind_(values){
+ return values.map(v=>{const x=String(v);return x.length+':'+x;}).join('');
+}
 function calEditPlan_(p){
  if(!calAllowed()||model.formalPorts?.activated!==false||
   !Number.isSafeInteger(model.revision)||model.revision<0||
@@ -2349,13 +2352,15 @@ function calEditPlan_(p){
    !Number.isSafeInteger(a.minutes)||!Number.isSafeInteger(b.minutes)||
    x<y+b.minutes*60000&&y<x+a.minutes*60000)return null;
  }
- const sourceSignature=JSON.stringify([
-  model.revision,model.slots.map(s=>[s.id,s.experiment,s.when,s.capacity,
-   calMeta(s).status,calMeta(s).group,calMeta(s).title,
-   calMeta(s).place,calMeta(s).minutes]),
-  impacts.map(x=>x.signature)]);
+ const sourceSignature=calEditBind_([model.revision,
+  calEditBind_(model.slots.map(s=>calEditBind_([s.id,s.experiment,s.when,s.capacity,
+   calMeta(s).status,calMeta(s).group,calMeta(s).title,calMeta(s).place,
+   calMeta(s).minutes]))),
+  calEditBind_(impacts.map(x=>x.signature))]);
+ const formSignature=calEditBind_([p.operation,p.slotId,p.experiment,p.title,
+  p.when,p.capacity,p.minutes,p.place,p.repeatCount,p.scope]);
  return {revision:model.revision,slotId:source.id,
-  signature:JSON.stringify([sourceSignature,p,adminScopeEffective_('B02')]),
+  signature:calEditBind_([sourceSignature,formSignature,adminScopeEffective_('B02')]),
   payload:{...p},impacts};
 }
 function calEditSync_(){
@@ -2414,7 +2419,8 @@ function calCommand(action,payload,after){
  }).withFailureHandler(e=>{
   setBusy(false);
   if(action==='ADMIN_B02_SLOT'&&['CANCEL','UPDATE'].includes(payload.operation))
-   calMsg('場次變更結果尚未確認：'+String(e.message||e)+
+   calMsg((payload.operation==='CANCEL'?'場次取消結果尚未確認：':'場次編輯結果尚未確認：')+
+    String(e.message||e)+
     '。可能已寫入，請重新載入原GAS並核對場次狀態；不得直接重送。',true);
   else calMsg('儲存失敗：'+String(e.message||e)+'。請修正後重試。',true);
  }).study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision});
