@@ -2028,6 +2028,76 @@ $('saveWeeks').addEventListener('click',()=>{
 
 /* B02 integrated calendar: all data comes from the existing unified TEST fixture. */
 const cal={id:null,person:null,mode:'CLOSED',initialized:false};
+/* B02-A: cancellation preflight is a snapshot-bound read-only impact view.
+ * Only synthetic application IDs, administrative phases, attendance and
+ * progress can appear here. Never cancel, rebook or notify individuals. */
+const calCancelReviewState={impact:null};
+function calCancelReset_(messageText){
+ calCancelReviewState.impact=null;
+ $('calCancelReview').hidden=true;$('calCancelRows').replaceChildren();
+ $('calCancelAck').checked=false;$('calCancelCommit').disabled=true;
+ $('calCancelSummary').textContent='尚未核實取消影響。';
+ $('calCancelStatus').textContent=messageText||'此確認僅適用目前的原GAS修訂版。';
+}
+function calCancelImpact_(requested){
+ if(!calAllowed()||model.formalPorts?.activated!==false||
+  !Number.isSafeInteger(model.revision)||model.revision<0||
+  !Array.isArray(model.applications)||!model.b02?.attendance||
+  !model.b02?.sessions||!requested||
+  !/^SIM-SLOT-E[12]-[A-H]$/.test(requested.id)||
+  new Set(model.slots.map(x=>x?.id)).size!==model.slots.length||
+  new Set(model.applications.map(x=>x?.id)).size!==model.applications.length)return null;
+ const match=model.slots.filter(s=>s.id===requested.id);
+ if(match.length!==1||match[0].experiment!==requested.experiment||
+  !['E1','E2'].includes(requested.experiment)||
+  !adminScopeMatch_('B02',requested.experiment))return null;
+ const slot=match[0],meta=calMeta(slot);
+ if(meta.status!=='OPEN'||!Number.isSafeInteger(slot.capacity)||slot.capacity<1||
+  !Number.isSafeInteger(meta.minutes)||meta.minutes<15||meta.minutes>480||
+  typeof slot.when!=='string'||typeof meta.title!=='string'||typeof meta.place!=='string')
+  return null;
+ if(!model.applications.every(a=>a&&/^SIM-\d{3}$/.test(a.id)&&
+  ['E1','E2'].includes(a.experiment)&&
+  ['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD',
+   'CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)))return null;
+ const linked=model.applications.filter(a=>a.slotId===slot.id)
+  .sort((a,b)=>a.id.localeCompare(b.id));
+ if(linked.some(a=>a.experiment!==slot.experiment))return null;
+ let confirmed=0,holding=0,expired=0,cancelled=0,other=0;
+ const rows=[],now=Date.now();
+ for(const a of linked){
+  const attend=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+  if(!attend||!Object.prototype.hasOwnProperty.call(calPresence,attend.attendance)||
+   !Object.prototype.hasOwnProperty.call(calTesting,attend.progress))return null;
+  let kind;
+  if(a.phase==='CONFIRMED'){kind='已成立：須人工協助處理';confirmed++;}
+  else if(['HELD','CONSENTED'].includes(a.phase)){
+   if(!Number.isFinite(a.holdUntil))return null;
+   if(a.holdUntil>now){kind='有效暫留：須人工確認';holding++;}
+   else{kind='已過期暫留：僅保留歷史';expired++;}
+  }else if(a.phase==='CANCELLED'){kind='申請已取消：僅保留歷史';cancelled++;}
+  else{kind='其他關聯：待人工釐清';other++;}
+  rows.push({id:a.id,phase:a.phase,kind,attendance:attend.attendance,
+   progress:attend.progress,holdUntil:a.holdUntil});
+ }
+ const signature=[model.revision,slot.id,slot.experiment,slot.when,slot.capacity,
+  meta.status,meta.title,meta.place,meta.minutes,
+  ...rows.map(a=>[a.id,a.phase,a.kind,a.attendance,a.progress,a.holdUntil].join('~'))].join('|');
+ return {revision:model.revision,slotId:slot.id,experiment:slot.experiment,
+  signature,total:rows.length,confirmed,holding,expired,cancelled,other,rows};
+}
+function calCancelSync_(){
+ const old=calCancelReviewState.impact;
+ if(!old)return;
+ const slot=model?.slots?.find(s=>s.id===old.slotId);
+ const current=slot?calCancelImpact_(slot):null;
+ if(cal.mode!=='SESSION'||cal.id!==old.slotId||!current||
+  current.revision!==old.revision||current.signature!==old.signature){
+  calCancelReset_('原GAS來源、管理範圍或修訂版變更；取消預覽已作廢。');
+  calMsg('取消預覽已失效，須重新查看受影響申請；未寫入。',true);
+ }
+}
+
 const calStates={OPEN:'開放',CANCELLED:'已取消',CLOSED:'已結案'};
 const calPresence={PENDING:'待確認',PRESENT:'已出席',LATE:'遲到',ABSENT:'缺席'};
 const calTesting={NOT_STARTED:'未開始',IN_PROGRESS:'進行中',PARTIAL:'部分完成',COMPLETE:'已完成'};
