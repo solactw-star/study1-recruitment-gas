@@ -246,3 +246,60 @@ test('V07 exposes only safe synthetic booking-result uncertainty, GET rescan and
  assert.match(html,/無法證明剛才那次提交成功/);
  assert.doesNotMatch(html,/\b(?:localStorage|sessionStorage|fetch|XMLHttpRequest)\b/);
 });
+
+test('P1-08 V08 in-session appointment changes require explicit TEST source preview, acknowledge and existing locked GAS RPC',()=>{
+ for(const id of ['v08ManageReview','v08Action','v08From','v08To','v08ManageStatus',
+  'v08Ack','v08Commit','v08Back'])assert.match(html,new RegExp('id="'+id+'"'));
+ assert.match(html,/function v08Plan_\(response,a,action,targetId\)/);
+ assert.match(html,/function v08Matches_\(\)/);
+ assert.match(html,/function v08Preview_\(action\)/);
+ assert.match(html,/function v08Commit_\(\)/);
+ assert.match(html,/v08\.draft=plan/);
+ assert.match(html,/next\.revision===draft\.revision&&next\.signature===draft\.signature/);
+ assert.match(html,/v08Ack'\)\.checked/);
+ assert.match(html,/v08Clear_\('V07正在回讀原GAS/);
+ assert.match(html,/issue\('MOVE',\{id:draft\.applicationId,slotId:draft\.destinationId\}\)/);
+ assert.match(html,/issue\('CANCEL',\{id:draft\.applicationId\}\)/);
+ assert.doesNotMatch(html,/study1V08ConsumeAtomic_|STUDY1_V08_ENABLED_|study1V08Guard_/,
+  'unfinished PR #90 token contract must not be adopted by this UI');
+ assert.doesNotMatch(html,/localStorage|sessionStorage|<script[^>]+src=|\.innerHTML\s*=/);
+});
+test('P1-08 V08 source preflight rejects crossed experiments, full/past/duplicate slots, invalid dates, disabled ownership',()=>{
+ const vm=require('node:vm');
+ const begin=html.indexOf('function v08CheckTime_('),
+  end=html.indexOf('function v08Matches_(',begin);
+ assert.ok(begin>0&&end>begin);
+ let safe=true;
+ const ctx={v07SafeRead_:()=>safe,
+  Date:class extends Date{static now(){return Date.parse('2026-11-07T00:00:00Z')}},
+  Number,Set,JSON,String};
+ vm.createContext(ctx);vm.runInContext(html.slice(begin,end),ctx);
+ const app={id:'SIM-001',experiment:'E1',phase:'CONFIRMED',eligible:true,signatureDemo:true,
+  slotId:'SIM-SLOT-E1-A'};
+ const origin={id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-02-01 10:00',
+  capacity:2,remaining:1,bookable:true};
+ const next={id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-02-08 10:00',
+  capacity:2,remaining:1,bookable:true};
+ const model={revision:3,applications:[app],slots:[origin,next],
+  b02:{sessions:{}}};
+ const okay=ctx.v08Plan_(model,app,'MOVE','SIM-SLOT-E1-B');
+ assert.ok(okay);assert.equal(okay.destinationId,'SIM-SLOT-E1-B');
+ assert.ok(ctx.v08Plan_(model,app,'CANCEL',null));
+ const reject=[
+  {...model,slots:[origin,{...next,experiment:'E2'}]},
+  {...model,slots:[origin,{...next,remaining:0}]},
+  {...model,slots:[origin,{...next,remaining:3}]},
+  {...model,slots:[origin,{...next,when:'2026-01-01 10:00'}]},
+  {...model,slots:[origin,{...next,when:'2027-02-30 10:00'}]},
+  {...model,slots:[origin,next,next]},
+  {...model,b02:{sessions:{'SIM-SLOT-E1-B':{status:'CANCELLED'}}}}
+ ];
+ for(const bad of reject)
+  assert.equal(ctx.v08Plan_(bad,app,'MOVE','SIM-SLOT-E1-B'),null);
+ assert.equal(ctx.v08Plan_(model,{...app,phase:'CANCELLED'},'MOVE','SIM-SLOT-E1-B'),null);
+ assert.equal(ctx.v08Plan_(model,{...app,eligible:false},'CANCEL',null),null);
+ assert.equal(ctx.v08Plan_(model,{...app,experiment:'E2'},'CANCEL',null),null);
+ assert.equal(ctx.v08Plan_(model,app,'DELETE',null),null);
+ safe=false;
+ assert.equal(ctx.v08Plan_(model,app,'CANCEL',null),null,'closed/unauthorized test-only source must fail');
+});
