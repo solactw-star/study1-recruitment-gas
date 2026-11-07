@@ -51,19 +51,27 @@ test('no public activation or runtime routes',()=>{
 const atomic=vm.runInContext('study1V08ConsumeAtomic_',ctx);
 function storeAdapter(options={}) {
  let current={...rec};
- let writes=0;
+ let writes=0,clockReads=0;
  const adapter={
   hash,equalDigest,
+  trustedNow:()=>{
+   clockReads++;
+   if(options.clockThrows)throw Error('clock unavailable');
+   return typeof options.clock==='function'?options.clock(clockReads):
+    Object.hasOwn(options,'clock')?options.clock:1999;
+  },
   withExclusiveLock:fn=>fn(),
   read:()=>options.badReadback && writes ? null : {...current},
   compareAndSwap:(_id,expected,next)=>{
    if(options.conflict || current.revision!==expected) return false;
    current={...next};writes++;
+   if(options.mutateWriteActions)next.actions[0]='DELETE';
    if(options.throwAfterWrite) throw Error('transport lost');
+   if(options.falseAfterWrite) return false;
    return true;
   }
  };
- return {adapter,get:()=>({...current}),writes:()=>writes};
+ return {adapter,get:()=>({...current}),writes:()=>writes,clockReads:()=>clockReads};
 }
 test('atomic synthetic consumption commits once and readback confirms',()=>{
  const s=storeAdapter();
@@ -174,4 +182,71 @@ test('atomic rejects deferred callback after lock scope exits without storage wr
  assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_NO_RETRY');
  assert.equal(deferred().reason,'UNKNOWN_NO_RETRY');
  assert.equal(st.writes(),0);
+});
+
+test('atomic disabled TEST contract requires a trusted clock adapter, not just caller supplied time',()=>{
+ const st=storeAdapter();
+ delete st.adapter.trustedNow;
+ assert.equal(atomic(input,1999,st.adapter).reason,'ADAPTER_UNAVAILABLE');
+ assert.equal(st.writes(),0);
+ const st2=storeAdapter();
+ assert.equal(atomic(input,NaN,st2.adapter).reason,'INVALID');
+ assert.equal(st2.writes(),0);
+});
+test('stale caller time cannot extend a token beyond trusted under-lock expiry boundary',()=>{
+ const st=storeAdapter({clock:2000});
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNAVAILABLE');
+ assert.equal(st.writes(),0);
+ assert.equal(st.get().status,'ISSUED');
+ assert.equal(st.clockReads(),1,'no CAS or retry after under-lock expiry');
+});
+test('token expiring between two trusted clock samples never reaches CAS',()=>{
+ const st=storeAdapter({clock:n=>n===1?1999:2000});
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNAVAILABLE');
+ assert.equal(st.clockReads(),2);
+ assert.equal(st.writes(),0);
+});
+test('invalid, regressed and throwing trusted clocks are fail-closed',()=>{
+ for(const clock of [NaN,-1,1998,1999.5,Number.MAX_SAFE_INTEGER+1]){
+  const st=storeAdapter({clock});
+  assert.equal(atomic(input,1999,st.adapter).ok,false);
+  assert.equal(st.writes(),0);
+ }
+ const backwards=storeAdapter({clock:n=>n===1?1999:1998});
+ assert.equal(atomic(input,1999,backwards.adapter).reason,'UNAVAILABLE');
+ assert.equal(backwards.writes(),0);
+ const throws=storeAdapter({clockThrows:true});
+ assert.equal(atomic(input,1999,throws.adapter).reason,'UNKNOWN_NO_RETRY');
+ assert.equal(throws.writes(),0);
+});
+test('consumption records trusted commit time and refuses replay after one confirmed write',()=>{
+ const st=storeAdapter({clock:n=>n===1?1999:1999});
+ assert.equal(atomic(input,1999,st.adapter).ok,true);
+ assert.equal(st.clockReads(),2);
+ assert.equal(st.get().consumedAt,1999);
+ assert.equal(atomic(input,1999,st.adapter).ok,false);
+ assert.equal(st.writes(),1);
+});
+test('CAS mutating its write payload cannot rewrite readback authorization baseline',()=>{
+ const st=storeAdapter({mutateWriteActions:true});
+ assert.equal(atomic(input,1999,st.adapter).reason,'UNKNOWN_READBACK');
+ assert.equal(st.writes(),1,'unknown committed state must never auto retry');
+ assert.equal(st.get().actions[0],'DELETE');
+ assert.equal(atomic(input,1999,st.adapter).ok,false,'committed token rejects replay');
+ assert.equal(st.writes(),1);
+});
+test('CAS returns false after a real write: UNKNOWN, no success and no replay',()=>{
+ const st=storeAdapter({falseAfterWrite:true});
+ assert.equal(atomic(input,1999,st.adapter).reason,'CONFLICT_OR_UNKNOWN');
+ assert.equal(st.writes(),1);
+ assert.equal(st.get().status,'CONSUMED');
+ assert.equal(atomic(input,1999,st.adapter).ok,false);
+ assert.equal(st.writes(),1);
+});
+test('server-only disabled token contract remains unwired and never introduces a mail or public endpoint',()=>{
+ assert.match(source,/STUDY1_V08_ENABLED_ = false/);
+ assert.match(source,/adapter\.trustedNow\(\)/);
+ assert.match(source,/const original=record/);
+ assert.match(source,/actions:original\.actions\.slice\(\)/);
+ assert.doesNotMatch(source,/MailApp|GmailApp|SpreadsheetApp|UrlFetchApp|function\s+(?:doGet|doPost)\s*\(/);
 });
