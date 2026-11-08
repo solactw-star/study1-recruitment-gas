@@ -3173,6 +3173,148 @@ function v08ConfirmedVisitor_(srv,options){
  assert.equal(srv.read().applications[0].phase,'CONFIRMED');
  return v;
 }
+/* P1-08 real original-GAS TEST queue: confirmed seats, two FIFO candidates,
+ * manual owner promotion, time expiry, no mail/REC/new ScriptProperties key. */
+function waitlistFillConfirmed_(srv){
+ const answers={adult:true,cycu:true,diagnosed:false,treatment:false,
+  frequentPractice:false,joinedE1:false};
+ for(let n=1;n<=2;n++){
+  const id='SIM-'+String(n).padStart(3,'0');
+  srv.command('START',{experiment:'E1'});
+  srv.command('SCREEN',{id,answers});
+  srv.command('OTP_REQUEST',{id});
+  srv.command('OTP_VERIFY',{id,code:'00000000'});
+  srv.command('HOLD',{id,slotId:'SIM-SLOT-E1-A'});
+  const version=srv.read().policy.consent.E1.version;
+  srv.command('CONSENT_REVIEW',{id,version,sha256:''});
+  srv.command('CONSENT',{id,accepted:true,version,signature:'SIMULATED_SIGN_ONLY'});
+  srv.command('CONFIRM',{id});
+ }
+ assert.equal(srv.read().slots.find(x=>x.id==='SIM-SLOT-E1-A').remaining,0);
+}
+function waitlistVerifiedVisitor_(srv,options){
+ const v=page(srv,'visitor',options);
+ v.click('chooseE1');v.click('screenNext');v.click('otpSend');
+ v.click('otpPaste');v.click('otpVerify');
+ const app=srv.read().applications.at(-1);
+ assert.equal(app.phase,'VERIFIED');assert.equal(app.eligible,true);
+ return {v,id:app.id};
+}
+test('P1-08 full slot offers FIFO queue in real V05, with read-only candidate status and no automatic email',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv),prior=srv.read().notifications.length;
+ assert.equal(first.v.get('v08WaitJoin').disabled,false);
+ assert.equal(first.v.get('v08WaitSlot').value,'SIM-SLOT-E1-A');
+ first.v.click('v08WaitJoin');
+ assert.equal(srv.read().waitlist.entries[0].id,first.id);
+ assert.equal(srv.read().waitlist.entries[0].status,'WAITING');
+ assert.equal(first.v.get('hold').disabled,true,'active queue cannot bypass ranking');
+ assert.match(first.v.get('v08WaitStatus').textContent,/等待第 1 位/);
+ const second=waitlistVerifiedVisitor_(srv);
+ second.v.click('v08WaitJoin');
+ const rows=srv.read().waitlist.entries;
+ assert.deepEqual(rows.map(x=>[x.id,x.rank,x.status]),[
+  ['SIM-003',1,'WAITING'],['SIM-004',2,'WAITING']]);
+ assert.equal(srv.read().notifications.length,prior,'joining does not send or simulate mail');
+ assert.equal(srv.store.has('STUDY1_WAITLIST_TEST_V1'),false);
+ closed(srv);
+});
+test('P1-08 owner manual expiry advances to next ranked offer, then V08 accepts only live offer into existing hold',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv,{Date:Clock});
+ const second=waitlistVerifiedVisitor_(srv,{Date:Clock});
+ first.v.click('v08WaitJoin');second.v.click('v08WaitJoin');
+ const notices=srv.read().notifications.length;
+ srv.command('CANCEL',{id:'SIM-001'}); // one seat; never a queue promotion
+ const team=page(srv,'team',{Date:Clock});
+ assert.equal(team.get('waitlistSlot').value,'SIM-SLOT-E1-A');
+ assert.equal(team.get('waitlistAdvance').disabled,false);
+ const before=srv.writes;
+ team.click('waitlistAdvance');
+ assert.equal(srv.writes,before+1,'exactly one original locked command');
+ assert.equal(team.calls.filter(x=>x==='WAITLIST_ADVANCE').length,1);
+ assert.equal(srv.read().waitlist.entries[0].status,'OFFERED');
+ assert.equal(srv.read().waitlist.entries[1].status,'WAITING');
+ assert.equal(srv.read().slots.find(x=>x.id==='SIM-SLOT-E1-A').remaining,0,
+  'offer reserves the free seat, prevents unqueued HOLD');
+ assert.equal(srv.read().notifications.length,notices+1,'only existing synthetic cancellation notice');
+ first.v.click('v08WaitRefresh');
+ assert.equal(first.v.get('v08WaitAccept').disabled,false);
+ const offered=srv.read().waitlist.entries[0];
+ assert.equal(offered.expiresAt-offered.offeredAt,600000);
+ clock.now=offered.expiresAt+1;
+ first.v.click('v08WaitRefresh');
+ assert.equal(first.v.get('v08WaitAccept').disabled,true,'expired offer cannot be accepted');
+ assert.throws(()=>srv.command('WAITLIST_ACCEPT',{id:'SIM-003'}),/逾期|過期/);
+ assert.equal(srv.read().waitlist.entries[0].status,'OFFERED',
+  'read and attempted expired accept never automatically promote');
+ team.click('refresh');
+ assert.equal(team.get('waitlistAdvance').disabled,false);
+ const preAdvance=srv.writes;
+ team.click('waitlistAdvance');
+ assert.equal(srv.writes,preAdvance+1,'one atomic expire and next offer');
+ const queue=srv.read().waitlist.entries;
+ assert.deepEqual(queue.map(x=>x.status),['EXPIRED','OFFERED']);
+ assert.equal(queue[0].closedAt,clock.now);
+ second.v.click('v08WaitRefresh');
+ assert.equal(second.v.get('v08WaitAccept').disabled,false);
+ const preAccept=srv.writes;
+ second.v.click('v08WaitAccept');
+ assert.equal(srv.writes,preAccept+1);
+ const after=srv.read();
+ assert.equal(after.waitlist.entries[1].status,'ACCEPTED');
+ assert.equal(after.applications.find(a=>a.id===second.id).phase,'HELD');
+ assert.equal(after.applications.find(a=>a.id===second.id).slotId,'SIM-SLOT-E1-A');
+ assert.equal(after.applications.find(a=>a.id===second.id).signatureDemo,false);
+ assert.equal(after.notifications.length,notices+1,'accept creates no mail or invented confirmation');
+ assert.equal(after.slots.find(x=>x.id==='SIM-SLOT-E1-A').remaining,0);
+ assert.equal(second.v.get('step-consent').hidden,false,'still requires original synthetic consent');
+ closed(srv);
+});
+test('P1-08 queue CAS, duplicate joining, cross-E1/E2 attempt, auto-promotion and manual withdrawal all guarded',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const third=waitlistVerifiedVisitor_(srv);
+ const oldRevision=srv.read().revision;
+ third.v.click('v08WaitJoin');
+ const writes=srv.writes;
+ assert.throws(()=>srv.command('WAITLIST_JOIN',{id:third.id,slotId:'SIM-SLOT-E1-A'}),/候補|已額滿/);
+ assert.throws(()=>srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'}),/無逾期邀請|名額/);
+ assert.throws(()=>srv.command('WAITLIST_JOIN',{id:third.id,slotId:'SIM-SLOT-E2-A'}),/候補/);
+ assert.throws(()=>srv.command('WAITLIST_ACCEPT',{id:third.id}),/邀請/);
+ assert.throws(()=>srv.command('WAITLIST_DECLINE',{id:third.id},oldRevision),/版本已變更/);
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.read().waitlist.entries[0].status,'WAITING');
+ third.v.click('v08WaitDecline');
+ assert.equal(srv.read().waitlist.entries[0].status,'DECLINED');
+ assert.equal(srv.read().waitlist.entries[0].closedAt>0,true);
+ assert.equal(third.v.get('v08WaitAccept').disabled,true);
+ assert.equal(srv.read().applications.find(a=>a.id===third.id).phase,'VERIFIED');
+ closed(srv);
+});
+test('P1-08 malformed queue, cross-experiment references and forged rank fail closed on both V05 and B02 owner',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const third=waitlistVerifiedVisitor_(srv);
+ third.v.click('v08WaitJoin');
+ const read=srv.read,writes=srv.writes,team=page(srv,'team');
+ const bad=mutate=>{
+  srv.read=()=>{const out=read();mutate(out);return out;};
+  team.click('refresh');
+  assert.equal(team.get('waitlistRows').children.length,0);
+  assert.equal(team.get('waitlistAdvance').disabled,true);
+  assert.match(team.get('waitlistStatus').textContent,/清空|無法/);
+ };
+ bad(s=>{s.waitlist.entries[0].experiment='E2';});
+ bad(s=>{s.waitlist.entries[0].rank=900;});
+ bad(s=>{s.waitlist.entries[0].expiresAt=NaN;});
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('waitlistRows').children.length,1);
+ assert.equal(srv.writes,writes,'rejected views and rescan never write');
+ closed(srv);
+});
+
 test('P1-08 V08 reschedule is read-only until explicit acknowledgement then commits exactly one TEST MOVE',()=>{
  const srv=server(),v=v08ConfirmedVisitor_(srv);
  const original=srv.read().applications[0].slotId;
