@@ -2294,6 +2294,7 @@ function teamWaitlistPolicyChoices_(){
  const status=$('waitPolicyStatus'),ex=$('waitPolicyExperiment'),
   level=$('waitPolicyLevel'),stage=$('waitPolicyStage'),act=$('waitPolicyActivity'),
   mode=$('waitPolicyMode');
+ if(!['EXPERIMENT','STAGE','ACTIVITY'].includes(level.value))level.value='EXPERIMENT';
  if(!model||!b03CrossCheck_(model)||!calAllowed()){
   $('waitPolicySave').disabled=true;status.textContent='來源或OWNER權限未核實，候補設定鎖定。';return;
  }
