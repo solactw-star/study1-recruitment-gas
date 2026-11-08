@@ -502,6 +502,110 @@ test('P1 B03 readback refuses cross-experiment booking drift, clears stale B04/B
  closed(srv);
 });
 
+
+test('P1 B04 note correction needs a second OWNER GET and updates B03 latest order after reload',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});srv.command('START',{experiment:'E2'});
+ const team=page(srv,'team'),writes=srv.writes;
+ team.set('b03Sort','UPDATED_DESC');team.change('b03Sort');
+ team.get('entries').children[0].children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+ const admin=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='admin');admin.handlers.click();
+ team.set('profileNote','TEST 行政資料第一次更正');
+ team.set('profileReason','原測試資料補充更正');
+ const start=team.calls.length;
+ team.get('profileNoteForm').handlers.submit({preventDefault(){}});
+ assert.deepEqual(team.calls.slice(start).filter(x=>x!=='B01_GET'),['ADMIN_B04_NOTE','READ'],
+  'one command followed by exactly one independent original GAS GET');
+ assert.equal(srv.writes,writes+1,'exactly one TEST fixture write');
+ assert.match(team.get('profileMessage').textContent,/獨立回讀確認/);
+ assert.match(team.get('b03ReconcileStatus').textContent,/B03清單與看板最近更新同步/);
+ assert.equal(team.get('entries').children[0].dataset.participantId,'SIM-001',
+  'updated E1 note sorts before unchanged E2');
+ assert.match(team.get('entries').children[0].children.at(-1).textContent,/最近更新/);
+ team.click('profileBack');team.click('b03BoardMode');
+ const groups=team.get('b03Board').children;
+ const column=groups[0].children.find(x=>x.className==='b03Columns');
+ const card=column.children.flatMap(c=>c.children).find(x=>x.dataset.participantId==='SIM-001');
+ assert.match(card.textContent,/最近更新 20/,'B03 board exposes the same saved timestamp');
+ const reopened=page(srv,'team');
+ reopened.set('b03Sort','UPDATED_DESC');reopened.change('b03Sort');
+ assert.equal(reopened.get('entries').children[0].dataset.participantId,'SIM-001');
+ reopened.get('entries').children[0].children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+ [...reopened.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='admin').handlers.click();
+ assert.equal(reopened.get('profileNote').value,'TEST 行政資料第一次更正');
+ assert.match(reopened.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),/原測試資料補充更正/);
+ closed(srv);
+});
+test('P1 stale B04 owner tab refuses CAS, clears B03/B04 and never auto-replays',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const a=page(srv,'team'),b=page(srv,'team');
+ const openAdmin=t=>{
+  t.get('entries').children[0].children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+  [...t.context.document.querySelectorAll('[data-b04-tab]')]
+   .find(x=>x.dataset.b04Tab==='admin').handlers.click();
+ };
+ openAdmin(a);openAdmin(b);
+ a.set('profileNote','第一個視窗的行政更正');a.set('profileReason','先更新原始資料');
+ a.get('profileNoteForm').handlers.submit({preventDefault(){}});
+ const rev=srv.read().revision,writes=srv.writes;
+ b.set('profileNote','舊視窗不應覆蓋');b.set('profileReason','另一份舊版更正');
+ const before=b.calls.length;
+ b.get('profileNoteForm').handlers.submit({preventDefault(){}});
+ assert.deepEqual(b.calls.slice(before),['ADMIN_B04_NOTE'],'no automatic retry/GET on stale command');
+ assert.equal(srv.writes,writes);assert.equal(srv.read().revision,rev);
+ assert.equal(srv.read().b04.notes['SIM-001'],'第一個視窗的行政更正');
+ assert.equal(b.get('entries').children.length,0);assert.equal(b.get('profileModule').hidden,true);
+ assert.equal(b.get('profileSaveNote').disabled,true);
+ assert.match(b.get('b03ReconcileStatus').textContent,/版本競寫/);
+ b.click('refresh');assert.equal(b.get('entries').children.length,1);
+ assert.equal(srv.writes,writes);closed(srv);
+});
+test('P1 B04 post-commit OWNER GET denial is uncertain and fail closed, no second write',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const realRead=srv.read,team=page(srv,'team');
+ team.get('entries').children[0].children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+ [...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='admin').handlers.click();
+ team.set('profileNote','已提交但回讀遭撤權');team.set('profileReason','測試授權撤銷');
+ const writes=srv.writes,revision=realRead().revision;
+ srv.read=()=>{throw Error('OWNER revoked');};
+ const start=team.calls.length;
+ team.get('profileNoteForm').handlers.submit({preventDefault(){}});
+ assert.deepEqual(team.calls.slice(start),['ADMIN_B04_NOTE','READ']);
+ assert.equal(srv.writes,writes+1);assert.equal(srv.ctx.study1UnifiedPreviewGet().revision,revision+1);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.match(team.get('b03ReconcileStatus').textContent,/結果不明/);
+ assert.doesNotMatch(team.get('b03ReconcileStatus').textContent,/已獨立回讀/);
+ srv.read=realRead;team.click('refresh');
+ assert.equal(team.get('entries').children.length,1);
+ assert.equal(srv.writes,writes+1,'refresh is read-only, no command replay');
+ closed(srv);
+});
+test('P1 B04 rejects forged success audit and never claims independent readback',()=>{
+ const srv=server();srv.command('START',{experiment:'E1'});
+ const team=page(srv,'team'),realCommand=srv.ctx.study1UnifiedPreviewCommand;
+ team.get('entries').children[0].children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+ [...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='admin').handlers.click();
+ team.set('profileNote','真正的備註');team.set('profileReason','檢查返回歷程');
+ const writes=srv.writes;
+ srv.ctx.study1UnifiedPreviewCommand=(c)=>{
+  const result=realCommand(c);
+  if(c.action==='ADMIN_B04_NOTE')result.b04.history.at(-1).after='假造更正';
+  return result;
+ };
+ const before=team.calls.length;
+ team.get('profileNoteForm').handlers.submit({preventDefault(){}});
+ assert.deepEqual(team.calls.slice(before),['ADMIN_B04_NOTE'],'must reject before independent GET');
+ assert.equal(srv.writes,writes+1);assert.equal(team.get('entries').children.length,0);
+ assert.match(team.get('b03ReconcileStatus').textContent,/無法證實/);
+ srv.ctx.study1UnifiedPreviewCommand=realCommand;
+ team.click('refresh');assert.equal(team.get('entries').children.length,1);
+ assert.equal(srv.writes,writes+1);closed(srv);
+});
+
 test('B05 is reachable from existing calendar, shows original session and returns without writes',()=>{
  const srv=server(),before=srv.writes;
  const team=page(srv,'team');
