@@ -720,6 +720,7 @@ function study1B12AuditBuild_(fixture,b06){
     !Array.isArray(fixture.notifications))
   throw Error('B12虛構稽核來源格式不合法');
  study1B07PendingSummary_(fixture); // fail closed on forged B07 source
+  const waitlistSummary=study1WaitlistSummary_(fixture); // same original synthetic fixture
  const events=[],b04Last=new Map(),b05Last=new Map();
  // B02 has only a 12-entry event-only ring; its absence is not evidence of
  // missing committed state or proof of corruption. Never fabricate a diff.
@@ -808,6 +809,21 @@ function study1B12AuditBuild_(fixture,b06){
    before:{stage:h.stage,status:h.from},after:{stage:h.stage,status:h.to},
    reason:h.reason,result:'SUCCESS',provenance:'BOUNDED_PENDING_HISTORY',historical:true});
  }
+   // B12 has no append-only waitlist event table: expose each retained current
+  // state as a non-historical snapshot, never manufacture JOIN/OFFER/EXPIRY events.
+  for(const e of fixture.waitlist.entries){
+   const slot=waitlistSummary.bySlot.find(x=>x.slotId===e.slotId);
+   if(!slot||slot.experiment!==e.experiment)
+    throw Error('B12候補原場次、研究階段來源不一致');
+   events.push({id:'WAITLIST-SNAPSHOT-'+String(e.seq).padStart(6,'0'),
+    module:'WAITLIST',actor:'SYSTEM_TEST_SNAPSHOT',at:null,
+    action:e.status,target:e.id,before:null,
+    after:{experiment:e.experiment,slotId:e.slotId,stage:slot.stage,
+     status:e.status,seq:e.seq,offeredAt:e.offeredAt,expiresAt:e.expiresAt,
+     closedAt:e.closedAt},
+    reason:'目前候補狀態的有限TEST快照；不是原始操作事件，不能重建完整加入／邀請／結案歷程',
+    result:'CURRENT_SNAPSHOT',provenance:'CURRENT_TEST_WAITLIST_ONLY',historical:false});
+  }
  for(let i=0;i<fixture.notifications.length;i++){
   const n=fixture.notifications[i];
   if(n&&n.status==='SIM_FAILED'){
@@ -831,8 +847,8 @@ function study1B12AuditPage_(fixture,b06,query){
     query.expectedB06Revision!==b06.revision||
     query.expectedFixtureRevision!==fixture.revision||
     !Number.isSafeInteger(query.limit)||query.limit<1||query.limit>30||
-    !['ALL','B02','B04','B05','B06','B07','B08'].includes(query.module)||
-    !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT'].includes(query.result)||
+    !['ALL','B02','B04','B05','B06','B07','B08','WAITLIST'].includes(query.module)||
+    !['ALL','SUCCESS','SIM_FAILED_SNAPSHOT','CURRENT_SNAPSHOT'].includes(query.result)||
     !(query.sort===undefined||['ASC','DESC'].includes(query.sort))||
     typeof query.search!=='string'||query.search.length>60||
     /[<>\u0000-\u001f]/.test(query.search)||
@@ -841,6 +857,7 @@ function study1B12AuditPage_(fixture,b06,query){
   throw Error('B12稽核查詢、版本或分頁參數不合法');
  const all=study1B12AuditBuild_(fixture,b06);
  const b07Summary=study1B07PendingSummary_(fixture);
+  const waitlistSummary=study1WaitlistSummary_(fixture);
  // Cross-module mirrors are a consistency signal, not a complete ledger.
  // A missing mirror may mean old entries were trimmed by different ring caps.
  const b02=fixture.b02.history,b04=fixture.b04.history,b05=fixture.b05.history;
@@ -879,7 +896,9 @@ function study1B12AuditPage_(fixture,b06,query){
   if(!b02.some(e=>e.action==='ATTEND'&&e.at===h.at&&e.ids.includes(h.id)))
    check.b04AttendanceB02NoMirror++;
  }
- const warnings=[{code:'BOUNDED_NOT_FULL',severity:'INFO',
+ const warnings=[{code:'WAITLIST_CURRENT_ONLY',severity:'LIMITED',
+   text:'候補僅保存每筆目前狀態與部分時間欄位；沒有逐筆不可改寫的加入/遞補操作事件，不能將快照冒充歷史稽核'},
+   {code:'BOUNDED_NOT_FULL',severity:'INFO',
   text:'B02／B04／B05是有限近期歷程，沒有完整交易稽核鏈；未出現某筆不代表該操作從未發生'}];
  if(b02.length===12)warnings.push({code:'B02_CAP',severity:'LIMITED',
   text:'B02已達12筆保留上限，更早的操作可能已被環狀截斷'});
@@ -904,8 +923,10 @@ function study1B12AuditPage_(fixture,b06,query){
    {module:'B05',retained:b05.length,limit:32,provenance:'BOUNDED_LEGACY_HISTORY'},
    {module:'B06',retained:b06.audit.length,limit:200,provenance:'SHA256_CHAIN_VERIFIED'},
    {module:'B07',retained:fixture.b07.itemHistory.length,limit:32,
-    provenance:'BOUNDED_PENDING_HISTORY'}],
-  b07Summary,crossChecks:check,warnings};
+    provenance:'BOUNDED_PENDING_HISTORY'},
+   {module:'WAITLIST',retained:fixture.waitlist.entries.length,limit:8,
+    provenance:'CURRENT_TEST_WAITLIST_ONLY'}],
+  b07Summary,waitlistSummary,crossChecks:check,warnings};
  const direction=query.sort===undefined?'ASC':query.sort; // legacy cursors remain ASC
  const q=query.search.trim().toLowerCase();
  const filtered=all.filter(e=>
@@ -1328,6 +1349,34 @@ function study1WaitlistVerify_(s){
  }
  return true;
 }
+/* P1-08 B02/B03/B04/B09/B12: deterministic current-state counts only.
+ * OFFERED includes overdue-but-not-yet-manually-closed offers; no event,
+ * participant notification, reservation or eligibility is inferred. */
+function study1WaitlistSummary_(s){
+ study1WaitlistVerify_(s);
+ const keys=['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'];
+ const zero=()=>({WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,total:0});
+ const total=zero(),byExperiment={E1:zero(),E2:zero()},
+  byStage=Object.fromEntries(Object.keys(s.waitlist.settings.stages).map(k=>[k,zero()])),
+  bySlot=s.slots.map(slot=>{
+   const policy=study1WaitlistPolicy_(s,slot.id);
+   return {slotId:slot.id,experiment:slot.experiment,stage:policy.stage,
+    mode:policy.mode,counts:zero()};
+  });
+ const slotMap=new Map(bySlot.map(x=>[x.slotId,x]));
+ for(const e of s.waitlist.entries){
+  const slot=slotMap.get(e.slotId);
+  if(!slot||slot.experiment!==e.experiment)throw Error('候補原場次與實驗來源不一致');
+  for(const bucket of [total,byExperiment[e.experiment],slot.counts,
+   ...(slot.stage?[byStage[e.experiment+':'+slot.stage]]:[])]){
+   if(!bucket||!keys.includes(e.status))throw Error('候補階段或狀態彙整來源不合法');
+   bucket[e.status]++;bucket.total++;
+  }
+ }
+ return {mode:'CURRENT_TEST_STATUS_ONLY',completeHistory:false,mailSent:false,
+  limit:8,retained:s.waitlist.entries.length,byExperiment,byStage,bySlot,total};
+}
+
 function study1WaitlistFree_(s,slotId,now){
  const slot=s.slots.find(x=>x.id===slotId);
  if(!slot)return 0;
@@ -1632,6 +1681,7 @@ function study1UnifiedView_(s){
   b07:JSON.parse(JSON.stringify(s.b07||study1B07Initial_())),
   b07Summary:study1B07PendingSummary_(s),
    waitlist:{nextSeq:s.waitlist.nextSeq,asOf:now,mode:'MANUAL_TEST_NO_MAIL',
+    summary:study1WaitlistSummary_(s),
     settings:JSON.parse(JSON.stringify(s.waitlist.settings)),
     slotPolicies:s.slots.map(slot=>study1WaitlistPolicy_(s,slot.id)),
     entries:s.waitlist.entries.map(e=>({...e,rank:e.status==='WAITING'?

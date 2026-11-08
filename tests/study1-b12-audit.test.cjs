@@ -61,6 +61,44 @@ function b06Events(ctx,n){
  }
  return {f,b};
 }
+test('B12 P1-08 waitlist history boundary: only actual retained current-state snapshots, no invented historical action',()=>{
+ const x=setup(),ctx=x.ctx,f=ctx.study1UnifiedInitial_(),b=ctx.study1B06Initial_();
+ const joinedAt=Date.parse('2026-11-08T08:00:00.000Z');
+ f.applications.push({id:'SIM-001',experiment:'E1',phase:'VERIFIED',
+  eligible:true,slotId:null});
+ f.waitlist.nextSeq=1;
+ f.waitlist.entries.push({id:'SIM-001',slotId:'SIM-SLOT-E1-A',experiment:'E1',
+  seq:1,joinedAt,status:'WAITING',offeredAt:null,expiresAt:null,closedAt:null});
+ const read=ctx.study1B12AuditPage_(f,b,query(f,b,{module:'WAITLIST',
+  result:'CURRENT_SNAPSHOT',sort:'DESC'}));
+ assert.equal(read.total,1);
+ const entry=read.items[0];
+ assert.equal(entry.module,'WAITLIST');
+ assert.equal(entry.historical,false);
+ assert.equal(entry.at,null);
+ assert.equal(entry.before,null);
+ assert.equal(entry.actor,'SYSTEM_TEST_SNAPSHOT');
+ assert.equal(entry.action,'WAITING');
+ assert.equal(entry.provenance,'CURRENT_TEST_WAITLIST_ONLY');
+ assert.equal(entry.after.seq,1);
+ assert.equal(entry.after.stage,'SINGLE_SESSION');
+ assert.equal(read.coverage.waitlistSummary.byExperiment.E1.WAITING,1);
+ assert.equal(read.coverage.waitlistSummary.byExperiment.E2.total,0);
+ assert.equal(read.coverage.complete,false);
+ assert.equal(read.coverage.sources.find(s=>s.module==='WAITLIST').retained,1);
+ assert.ok(read.coverage.warnings.some(w=>w.code==='WAITLIST_CURRENT_ONLY'));
+ const previousHash=read.snapshotHash;
+ f.waitlist.entries[0].status='DECLINED';f.waitlist.entries[0].closedAt=joinedAt+120000;
+ const update=ctx.study1B12AuditPage_(f,b,query(f,b,{module:'WAITLIST',
+  result:'CURRENT_SNAPSHOT'}));
+ assert.equal(update.total,1);assert.equal(update.items[0].action,'DECLINED');
+ assert.throws(()=>ctx.study1B12AuditPage_(f,b,query(f,b,{module:'WAITLIST',
+  result:'CURRENT_SNAPSHOT',after:entry.id,snapshotHash:previousHash,sort:'DESC'})),/快照/);
+ f.waitlist.entries[0].experiment='E2';
+ assert.throws(()=>ctx.study1B12AuditPage_(f,b,query(f,b,{module:'WAITLIST',
+  result:'CURRENT_SNAPSHOT'})),/候補|實驗/);
+ assert.equal(x.writes,0);
+});
 test('B12 full B06 SHA history survives archive-like state edits, is read-only and paginates 67 events exactly',()=>{
  const x=setup(),{ctx}=x,{f,b}=b06Events(ctx,67);
  const bytesBefore=JSON.stringify(b),fBefore=JSON.stringify(f);
