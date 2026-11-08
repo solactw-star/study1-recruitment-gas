@@ -180,6 +180,13 @@ function safePreview(response){
   response.waitlist?.mode==='MANUAL_TEST_NO_MAIL'&&
   Number.isSafeInteger(response.waitlist?.asOf)&&
   Array.isArray(response.waitlist.entries)&&response.waitlist.entries.length<=8&&
+   Array.isArray(response.waitlist.slotPolicies)&&
+   response.waitlist.slotPolicies.length===response.slots.length&&
+   response.waitlist.slotPolicies.every(p=>p&&
+    response.slots.some(s=>s.id===p.slotId&&s.experiment===p.experiment)&&
+    ['CLOSED','MANUAL_TEST'].includes(p.mode)&&
+    p.mail==='DISABLED'&&p.approved===false)&&
+   new Set(response.waitlist.slotPolicies.map(p=>p.slotId)).size===response.slots.length&&
    response.waitlist.entries.every((e,i)=>{
     const a=response.applications.find(x=>x.id===e?.id),
      slot=response.slots.find(s=>s.id===e?.slotId);
@@ -478,7 +485,9 @@ function v08WaitRender_(app){
  }
  const list=model.waitlist.entries,entry=list.find(e=>e.id===app.id);
  const full=model.slots.filter(s=>s.experiment===app.experiment&&s.bookable===true&&
-  s.remaining===0&&Date.parse(s.when.replace(' ','T')+':00+08:00')>Date.now()&&
+  s.remaining===0&&model.waitlist.slotPolicies.some(p=>p.slotId===s.id&&
+    p.experiment===s.experiment&&p.mode==='MANUAL_TEST'&&p.mail==='DISABLED')&&
+  Date.parse(s.when.replace(' ','T')+':00+08:00')>Date.now()&&
   !['CANCELLED','CLOSED'].includes(model.b02?.sessions?.[s.id]?.status));
  for(const s of full){
   const o=document.createElement('option');o.value=s.id;
@@ -512,7 +521,8 @@ $('v08WaitRefresh').addEventListener('click',()=>{
 $('v08WaitJoin').addEventListener('click',()=>{
  const app=current(),slot=model?.slots?.find(s=>s.id===$('v08WaitSlot').value);
  if(!app||$('v08WaitJoin').disabled||app.phase!=='VERIFIED'||!slot||
-   slot.experiment!==app.experiment||slot.remaining!==0)return;
+   slot.experiment!==app.experiment||slot.remaining!==0||
+   !model.waitlist.slotPolicies.some(p=>p.slotId===slot.id&&p.mode==='MANUAL_TEST'))return;
  issue('WAITLIST_JOIN',{id:app.id,slotId:slot.id});
 });
 $('v08WaitAccept').addEventListener('click',()=>{
