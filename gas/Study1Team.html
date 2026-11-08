@@ -2221,6 +2221,71 @@ $('saveWeeks').addEventListener('click',()=>{
  save('ADMIN_E2_WEEKS',{weeks});
 });
 
+/* P1-08: B02 original OWNER manual FIFO queue; no mail or scheduled writes. */
+function teamWaitlistRender_(){
+ const sel=$('waitlistSlot'),rows=$('waitlistRows'),status=$('waitlistStatus'),old=sel.value;
+ sel.replaceChildren();rows.replaceChildren();
+ if(!model||!b03CrossCheck_(model)||!calAllowed()){
+  $('waitlistAdvance').disabled=true;status.textContent='候補或OWNER安全來源未核實。';return;
+ }
+ const options=model.slots.filter(s=>adminScopeMatch_('B02',s.experiment));
+ for(const slot of options){
+  const o=document.createElement('option');o.value=slot.id;
+  const entries=model.waitlist.entries.filter(e=>e.slotId===slot.id);
+  o.textContent=slot.id+'｜'+slot.experiment+'｜候補 '+entries.filter(e=>e.status==='WAITING').length+
+   '｜邀請中 '+entries.filter(e=>e.status==='OFFERED').length;sel.append(o);
+ }
+ if(options.some(s=>s.id===old))sel.value=old;
+ const slot=options.find(s=>s.id===sel.value);
+ if(!slot){$('waitlistAdvance').disabled=true;status.textContent='目前檢視範圍沒有虛構場次。';return;}
+ const entries=model.waitlist.entries.filter(e=>e.slotId===slot.id);
+ for(const e of entries){
+  const info=e.status==='WAITING'?'等待順位 '+e.rank:
+   e.status==='OFFERED'?'已提供虛構回覆機會；截止 '+new Date(e.expiresAt).toISOString()+
+    (e.expiredOffer?'（已逾期，待人工檢查）':''):
+   e.status==='ACCEPTED'?'已接受邀請，仍須完成原TEST同意與確認':
+   e.status==='EXPIRED'?'原邀請已逾期，未自動通知':'已退出虛構候補';
+  rows.append(calElem('p',e.id+'｜'+e.experiment+'｜序號 '+e.seq+'｜'+info,'small'));
+ }
+ if(!entries.length)rows.append(calElem('p','目前沒有候補紀錄（非正式研究統計）','small'));
+ const now=Date.now(),start=Date.parse(slot.when.replace(' ','T')+':00+08:00'),
+  hasExpired=entries.some(e=>e.status==='OFFERED'&&e.expiredOffer),
+  active=entries.some(e=>e.status==='OFFERED'&&!e.expiredOffer),
+  waiting=entries.some(e=>e.status==='WAITING');
+ $('waitlistAdvance').disabled=busy||!adminScopeMatch_('B02',slot.experiment)||
+  ['CANCELLED','CLOSED'].includes(model.b02.sessions[slot.id]?.status)||
+  start-now<=600000||!(hasExpired||waiting&&!active&&slot.remaining>0);
+ status.textContent='原GAS修訂版 '+model.revision+'｜'+slot.id+
+  '｜順位、期限僅為OWNER TEST資料；伺服器會以獨立時鐘／版本再次核對。';
+}
+$('waitlistSlot').addEventListener('change',teamWaitlistRender_);
+$('waitlistAdvance').addEventListener('click',()=>{
+ const slotId=$('waitlistSlot').value,slot=model?.slots?.find(x=>x.id===slotId);
+ if(busy||!slot||!adminScopeMatch_('B02',slot.experiment)||
+  $('waitlistAdvance').disabled||!b03CrossCheck_(model))return;
+ if(!confirm('以原GAS執行 '+slotId+' 的單次虛構候補逾期檢查及順位遞補？不寄信、不直接預約。'))return;
+ const rev=model.revision,epoch=ownerScopeEpoch;
+ const requestId='REQ-SIM-WAIT_ADV_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+ setBusy(true);$('waitlistStatus').textContent='執行一次CAS；候補結果尚待獨立OWNER GET核對。';
+ google.script.run.withSuccessHandler(reply=>{
+  if(!b03CrossCheck_(reply)||reply.revision!==rev+1||reply.deduplicated){
+   render(null);$('waitlistStatus').textContent='寫入結果不可信，清空後需手動核對。';return;
+  }
+  google.script.run.withSuccessHandler(data=>{
+   if(!b03CrossCheck_(data)||data.revision<reply.revision){
+    render(null);$('waitlistStatus').textContent='獨立GET版本不可信，不得重送。';return;
+   }
+   if(render(data))$('waitlistStatus').textContent=
+    (epoch===ownerScopeEpoch?'單次人工順位處理已獨立GET核實。':
+     '檢視範圍曾變更，僅顯示目前合法範圍。')+
+    ' 修訂版 '+data.revision+'；無寄信。';
+  }).withFailureHandler(()=>{render(null);$('waitlistStatus').textContent='寫後獨立GET失敗，結果未知，不得直接重送。';})
+   .study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{render(null);$('waitlistStatus').textContent='寫入失敗或結果未知，已清空；不得自動重送。';})
+ .study1UnifiedPreviewCommand({action:'WAITLIST_ADVANCE',payload:{slotId},
+  requestId,expectedRevision:rev});
+});
+
 /* B02 integrated calendar: all data comes from the existing unified TEST fixture. */
 const cal={id:null,person:null,mode:'CLOSED',initialized:false};
 /* B02-A: cancellation preflight is a snapshot-bound read-only impact view.
