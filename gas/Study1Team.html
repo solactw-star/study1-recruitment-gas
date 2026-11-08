@@ -765,6 +765,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 'use strict';
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
+// Per-page view epoch: detect switches during remote reads even if switched back (ABA).
+let ownerScopeEpoch=0,ownerLoadEpoch=0,compareSelectionEpoch=0;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
 function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','b03Reconcile','cancelQueueRefresh','profileSaveNote','b05Close','b05Reopen','b06Save','b11Preview'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
@@ -911,6 +913,10 @@ function adminScopeLabels_(){
  }
 }
 function adminScopeClearAll_(){
+ profile.open=false;$('profileModule').hidden=true;
+ $('teamMain').classList.remove('b04Open');
+ $('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();
+ $('profileTimeline').replaceChildren();
  $('calBoard').replaceChildren();
  $('calSessionDetail').replaceChildren();
  cancelQueueClear_('管理授權或範圍無法核實，核對清單已清空。');
@@ -926,6 +932,7 @@ function adminScopeClearAll_(){
  $('adminScopeStatus').textContent='尚未取得安全資料快照；後台範圍檢視已清除。';
 }
 function adminScopeChanged_(module){
+ ownerScopeEpoch++;
  const affected=module==='GLOBAL'?adminScopeModules:[module];
  if(!affected.every(m=>adminScopeEffective_(m)!==null)){
   model=null;calEditReset_('B02管理範圍不合法，編輯預覽已清除。');setBusy(true);adminScopeClearAll_();
@@ -943,7 +950,7 @@ function adminScopeChanged_(module){
  if(affected.includes('B02')){
   cal.mode='CLOSED';cal.id=null;cal.person=null;
  }
- if(affected.includes('B03')){
+ if(affected.includes('B02')||affected.includes('B03')){
   profile.open=false;$('profileModule').hidden=true;
   $('teamMain').classList.remove('b04Open');
  }
@@ -2106,6 +2113,7 @@ function b01Render(){
 
 
 function load(){
+ ownerLoadEpoch++;
  setBusy(true);message('讀取網站設定…');
  google.script.run.withSuccessHandler(render).withFailureHandler(e=>{model=null;b01Clear('資料載入失敗；研究摘要已清除。');calCancelReset_('來源讀取失敗，取消預覽已清除。');calEditReset_('來源讀取失敗，編輯預覽已清除。');b07Clear_('無法讀取OWNER TEST來源，B07資料已清空。');b01LayoutClear_('資料載入失敗，卡片設定已清除。');b10Clear_('無法讀取OWNER-only TEST快照，文件來源索引已清空。',true);b11Clear_('資料載入失敗；B11草稿預覽已清空。');b09Clear_('資料載入失敗；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('無法取得管理設定：'+String(e.message||e),true);})
  .study1UnifiedPreviewGet();
@@ -2520,12 +2528,34 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
   $('cancelQueueCompareStatus').textContent=
    'B02 A/B比較來源修訂版已改變；請先重新核對，未執行跨頁定位。';return;
  }
+ const scopeEpoch=ownerScopeEpoch,loadEpoch=ownerLoadEpoch,
+  selectionEpoch=compareSelectionEpoch;
  setBusy(true);
  $('cancelQueueCompareStatus').textContent='正在獨立唯讀GET原GAS，確認'+
   experiment+'場次與B03／B04檢視範圍…';
  google.script.run.withSuccessHandler(data=>{
+  // A newer explicit owner load wins; no older reply may overwrite its snapshot.
+  if(loadEpoch!==ownerLoadEpoch)return;
+  if(adminScopeEffective_('B02')===null||adminScopeEffective_('B03')===null||
+   !b03CrossCheck_(data)||(model&&data.revision<model.revision)){
+   render(null);
+   $('b03ReconcileStatus').textContent=
+    '跨頁GET回應低於目前版本，或B02/B03範圍／OWNER來源不可信；已清空舊資料，無寫入。';
+   return;
+  }
+  // Even if a user switches E1→E2→E1 while GET is outstanding, old targeting expires.
+  if(scopeEpoch!==ownerScopeEpoch||selectionEpoch!==compareSelectionEpoch){
+   if(!render(data)){
+    render(null);
+    $('b03ReconcileStatus').textContent='GET期間範圍或選取變動，來源不可安全復原；已清空。';
+    return;
+   }
+   $('cancelQueueCompareStatus').textContent=
+    '獨立GET期間B02／B03範圍或A/B選取曾切換；已依目前範圍安全恢復，取消舊跨頁定位，無寫入。';
+   return;
+  }
   const target=data?.slots?.find(s=>s.id===slotId);
-  if(!b03CrossCheck_(data)||!render(data)){
+  if(!render(data)){
    render(null);
    $('b03ReconcileStatus').textContent='B02/B03/B04跨頁來源不一致；已清空舊資料，無寫入。';
    return;
@@ -2553,6 +2583,7 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
    '｜原GAS修訂版 '+data.revision+'｜B03/B04依目前範圍顯示（純TEST）。';
   if($('b03Module').scrollIntoView)$('b03Module').scrollIntoView({block:'start'});
  }).withFailureHandler(()=>{
+  if(loadEpoch!==ownerLoadEpoch)return;
   render(null);
   $('b03ReconcileStatus').textContent=
    'B02 A/B跨頁GET失敗或OWNER撤權；已清空B02/B03/B04舊資料，無寫入。';
@@ -2560,8 +2591,9 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
 }
 function cancelQueueInit_(){
  for(const id of ['cancelQueueCompareA','cancelQueueCompareB'])
-  $(id).addEventListener('change',cancelQueueRender_);
+  $(id).addEventListener('change',()=>{compareSelectionEpoch++;cancelQueueRender_();});
  $('cancelQueueCompareClear').addEventListener('click',()=>{
+  compareSelectionEpoch++;
   $('cancelQueueCompareA').value='NONE';$('cancelQueueCompareB').value='NONE';
   cancelQueueRender_();
  });
@@ -3042,19 +3074,38 @@ function calCancelCommand_(payload){
   calCancelStop_('B02取消來源／關聯不一致，未提交；已清空舊畫面，須重新讀取。');return;
  }
  const requestId='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
+ const scopeEpoch=ownerScopeEpoch,loadEpoch=ownerLoadEpoch;
  setBusy(true);calMsg('已提交一次純TEST取消；核對後端回應與獨立OWNER回讀中…',false);
  google.script.run.withSuccessHandler(data=>{
+  if(loadEpoch!==ownerLoadEpoch){
+   calCancelStop_('取消期間另有OWNER讀取競寫；結果不明，已清空舊資料，禁止重送。');return;
+  }
   if(!calCancelVerified_(data,tx)){
    calCancelStop_('取消結果無法證實，可能已寫入。已清空B02/B03/B04舊資料，須重新讀取，禁止重送。');return;
   }
   google.script.run.withSuccessHandler(fresh=>{
+   if(loadEpoch!==ownerLoadEpoch){
+    calCancelStop_('取消後GET與較新OWNER讀取競寫；已清空舊資料，禁止重送。');return;
+   }
    const first=data.b02.history[data.b02.history.length-1],
     second=fresh?.b02?.history?.[fresh.b02.history.length-1];
-   if(!calCancelVerified_(fresh,tx)||first.at!==second?.at||!render(fresh)){
-    calCancelStop_('取消後獨立GET不一致；可能已寫入。已清空舊畫面，禁止重送。');return;
+   if(!calCancelVerified_(fresh,tx)||first.at!==second?.at||
+    adminScopeEffective_('B02')===null||adminScopeEffective_('B03')===null||
+    !render(fresh)){
+    calCancelStop_('取消後獨立GET或目前範圍不一致；可能已寫入。已清空舊畫面，禁止重送。');return;
+   }
+   const linked=tx.applications.filter(a=>a.slotId===tx.payload.slotId).length;
+   if(scopeEpoch!==ownerScopeEpoch||!adminScopeMatch_('B02',tx.payload.experiment)){
+    // CAS write verified, but prior B02 session and B04 navigation is no longer valid.
+    cal.mode='CLOSED';cal.id=null;
+    profile.open=false;$('profileModule').hidden=true;
+    $('teamMain').classList.remove('b04Open');calendarRender();
+    const status='B02取消已獨立回讀核實，但寫入期間B02／B03檢視範圍曾切換；'+
+     '已依目前範圍安全恢復，不開啟舊場次或B04，禁止從舊畫面重送。';
+    calMsg(status,false);$('b03ReconcileStatus').textContent=status;
+    return;
    }
    cal.mode='SESSION';calendarRender();
-   const linked=tx.applications.filter(a=>a.slotId===tx.payload.slotId).length;
    const status='B02場次取消已獨立回讀確認｜原GAS修訂版 '+fresh.revision+
     '｜原個別預約與出席保留 '+linked+' 筆，待人工處理；B03／B04同來源同步（純TEST，無寄信）。';
    calMsg(status,false);$('b03ReconcileStatus').textContent=status;
