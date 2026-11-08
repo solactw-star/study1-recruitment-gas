@@ -682,7 +682,7 @@ function v08Plan_(response,a,action,targetId){
    linked=snapshot?.linkedRecords?.find(row=>row.id===a.id);
   if(response.postCancel?.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
    response.postCancel.completeHistory!==false||response.postCancel.mailSent!==false||
-   snapshot.experiment!==a.experiment||linked?.phase!==a.phase||
+   !snapshot||snapshot.experiment!==a.experiment||linked?.phase!==a.phase||
    linked?.holdUntil!==a.holdUntil||
    linked?.attendance!==(response.b02.attendance[a.id]?.attendance||'PENDING')||
    linked?.progress!==(response.b02.attendance[a.id]?.progress||'NOT_STARTED'))
