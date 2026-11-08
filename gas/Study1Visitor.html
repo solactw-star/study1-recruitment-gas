@@ -708,7 +708,7 @@ function v08Plan_(response,a,action,targetId){
   // Server snapshot clock authorizes only this review, not the final move.
   // GAS still checks live clock, FIFO pending queue and CAS under lock.
   if(!Number.isSafeInteger(response.waitlist?.asOf)||
-   toTime===null||toTime<=response.waitlist.asOf||toStatus!=='OPEN'||
+   toTime===null||toTime<=Math.max(Date.now(),response.waitlist.asOf)||toStatus!=='OPEN'||
    response.waitlist.entries.some(e=>e.slotId===target.id&&e.status==='WAITING')||
    target.bookable!==true||!Number.isSafeInteger(target.capacity)||
    !Number.isSafeInteger(target.remaining)||target.capacity<1||
