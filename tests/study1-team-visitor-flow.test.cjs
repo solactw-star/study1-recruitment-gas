@@ -124,13 +124,20 @@ function documentFor(html,kind){
 function page(server,kind,options={}){
  const html=kind==='team'?teamHtml:demoHtml;
  const {ids,get,doc}=documentFor(html,kind),calls=[],failures=[];
- let success=null,failure=null;
+ let success=null,failure=null,initialOwnerRead=false;
+ const pendingOwnerReads=[];
  const rpc={
   withSuccessHandler(fn){success=fn;return this;},
   withFailureHandler(fn){failure=fn;return this;},
   study1UnifiedPreviewGet(){calls.push('READ');
-   try{const view=server.read();success(view);}
-   catch(e){failures.push(String(e.message||e));failure(e);}
+   const onSuccess=success,onFailure=failure;
+   const deliver=()=>{
+    try{const view=server.read();onSuccess(view);}
+    catch(e){failures.push(String(e.message||e));onFailure(e);}
+   };
+   if(options.deferOwnerReads&&initialOwnerRead)pendingOwnerReads.push(deliver);
+   else deliver();
+   initialOwnerRead=true;
   },
   study1UnifiedB01LayoutGet(){calls.push('B01_GET');
    try{success(JSON.parse(JSON.stringify(server.ctx.study1UnifiedB01LayoutGet())));}
@@ -170,7 +177,8 @@ function page(server,kind,options={}){
   node.handlers.change();
  };
  const set=(id,value)=>{get(id).value=value;};
- return {kind,ids,get,click,change,set,calls,failures,context};
+ return {kind,ids,get,click,change,set,calls,failures,context,pendingOwnerReads,
+  deliverOwnerRead(){assert.ok(pendingOwnerReads.length,'no pending OWNER GET');pendingOwnerReads.shift()();}};
 }
 const closed=server=>{
  assert.equal(server.store.get('OPEN'),'false');
@@ -2256,6 +2264,82 @@ test('P1 E1/E2 A/B compare independent owner GET failure clears B02/B03/B04 and 
  assert.equal(team.get('cancelQueueMatrix').children.length,2);
  assert.equal(team.get('cancelQueueCompareCards').children.length,2);
  assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
+test('P1 in-flight independent OWNER GET rejects B02 scope switch and safely redraws current E1 only',()=>{
+ const srv=server();p1CrossExperimentCancelledSlots_(srv);
+ const team=page(srv,'team',{deferOwnerReads:true}),writes=srv.writes;
+ p1CompareE1E2_(team);
+ const from=team.calls.length;p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(from).filter(x=>x!=='B01_GET'),['READ']);
+ assert.equal(team.pendingOwnerReads.length,1);
+ team.set('adminScopeB02','E1');team.change('adminScopeB02');
+ team.deliverOwnerRead();
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/範圍或A\/B選取曾切換.*取消舊跨頁定位/);
+ assert.equal(team.get('cancelQueueMatrix').children.length,1,'current B02 E1 only');
+ assert.equal(team.get('cancelQueueCompareB').value,'NONE','E2 selection cannot be restored');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ assert.equal(team.get('b03Search').value,'','old E2 ID cannot target B03');
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(srv.writes,writes,'no cross-experiment write or replay');
+ closed(srv);
+});
+test('P1 in-flight B03 E1/ALL/E1 ABA scope change invalidates stale A/B GET without loosening B04',()=>{
+ const srv=server();p1CrossExperimentCancelledSlots_(srv);
+ const team=page(srv,'team',{deferOwnerReads:true}),writes=srv.writes;
+ p1CompareE1E2_(team);p1CompareBridge_(team,1);
+ assert.equal(team.pendingOwnerReads.length,1);
+ team.set('adminScopeB03','E1');team.change('adminScopeB03');
+ team.set('adminScopeB03','ALL');team.change('adminScopeB03');
+ team.deliverOwnerRead();
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/曾切換.*取消舊跨頁定位/);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2,'B02 remains ALL');
+ assert.equal(team.get('b03Search').value,'','do not silently locate old E2 under ABA');
+ assert.equal(team.get('profileModule').hidden,true);
+ // A stale E2 participant callback must remain blocked after B03 scope narrows.
+ const row=team.get('entries').children.find(x=>x.dataset.participantId==='SIM-002');
+ const oldButton=row.children.find(x=>x.tagName==='button'&&/完整資料/.test(x.textContent));
+ team.set('adminScopeB03','E1');team.change('adminScopeB03');
+ oldButton.handlers.click();
+ assert.equal(team.get('profileModule').hidden,true,'old E2 B04 callback rejected');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 independent GET with concurrent GAS revision shows safe newer snapshot, not stale B03 positioning',()=>{
+ const srv=server();p1CrossExperimentCancelledSlots_(srv);
+ const team=page(srv,'team',{deferOwnerReads:true}),writes=srv.writes;
+ p1CompareE1E2_(team);p1CompareBridge_(team,1);
+ assert.equal(team.pendingOwnerReads.length,1);
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'ABSENT',
+  progress:'NOT_STARTED',note:'另一管理頁的純TEST版本競寫'});
+ team.deliverOwnerRead();
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/修訂版改變.*舊A\/B定位未執行/);
+ assert.equal(team.get('b03Search').value,'');
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(srv.writes,writes+1,'only the independent competing TEST command wrote');
+ closed(srv);
+});
+test('P1 post-write cancel independently GETs after B02/B03 scope change and safely restores current scope',()=>{
+ const srv=server();p1TwoConfirmedSameSlot_(srv);
+ const team=page(srv,'team',{deferOwnerReads:true}),writes=srv.writes;
+ cancelTestSession_(team);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ assert.equal(team.pendingOwnerReads.length,1,'one cancellation write awaiting separate OWNER GET');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED','GAS CAS wrote once');
+ team.set('adminScopeB02','E2');team.change('adminScopeB02');
+ team.set('adminScopeB03','E2');team.change('adminScopeB03');
+ team.deliverOwnerRead();
+ assert.match(team.get('calStatusMessage').textContent,/取消已獨立回讀核實.*範圍曾切換.*安全恢復/);
+ assert.equal(team.get('calSessionDetail').children.length,0,'E1 session not reopened in E2');
+ assert.equal(team.get('cancelQueueMatrix').children.length,0,'E2 has no cancelled slot');
+ assert.equal(team.get('profileModule').hidden,true,'never reopens stale B04');
+ assert.equal(srv.writes,writes+1,'no replay or double cancellation');
+ team.set('adminScopeB02','E1');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueMatrix').children.length,1,'safe manual E1 switch shows verified cancel');
+ assert.equal(srv.writes,writes+1);
  closed(srv);
 });
 
