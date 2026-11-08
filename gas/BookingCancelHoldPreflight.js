@@ -21,7 +21,7 @@ function bookingCancelHoldPreflight_(request, adapters) {
   // Eligibility must come from a server-backed adapter, never a client flag.
   if (adapters.isVerifiedAndEligible(applicantId) !== true) return rejected;
   var snapshot = bookingHoldSnapshot_(adapters);
-  bookingReadOnlyValidateTemporalCells_(snapshot);
+  bookingReadOnlyValidateTemporalCells_(snapshot, now);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
   bookingReadOnlyValidateTextMetadata_(snapshot);
   // Validate the entire workbook, including unrelated historical records.
