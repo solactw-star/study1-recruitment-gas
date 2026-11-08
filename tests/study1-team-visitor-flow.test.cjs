@@ -5172,3 +5172,155 @@ test('P1-08 §70-L exact HELD holdUntil crossing between explicit recovery GETs 
  assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
  closed(srv);
 });
+
+
+/* §70-M: invalid post-CAS success is still causal UNKNOWN, duplicated OWNER
+ * callbacks are one-shot, and twin same-revision forgeries cannot reset it. */
+test('P1-08 §70-M forged success after committed MOVE keeps UNKNOWN across V07 GET; explicit new baseline uses distinct CANCEL requestId and original FIFO',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');
+ const native=srv.ctx.study1UnifiedPreviewCommand,ids=[],before=srv.writes;
+ const fifo=JSON.parse(JSON.stringify(srv.read().waitlist.entries[0]));
+ const b02=JSON.parse(JSON.stringify(srv.read().b02.history));
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  if(['MOVE','CANCEL'].includes(cmd.action))ids.push(cmd.requestId);
+  const response=native(cmd);
+  // The real locked CAS committed, but its returned success is untrustworthy.
+  return cmd.action==='MOVE'?{...response,
+   formalPorts:{...response.formalPorts,activated:true}}:response;
+ };
+ v.click('v08Commit');
+ assert.equal(srv.writes,before+1);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ assert.match(v.get('v07Result').textContent,/因果結果尚未確認/);
+ const noReplay=srv.writes,initialReads=v.calls.filter(x=>x==='READ').length;
+ v.click('v07Rescan');
+ assert.equal(v.calls.filter(x=>x==='READ').length,initialReads+1);
+ assert.equal(srv.writes,noReplay);
+ assert.equal(v.get('cancel').disabled,true,'one valid read cannot release UNKNOWN');
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');
+ assert.equal(srv.writes,noReplay,'two GETs are read-only');
+ assert.equal(v.get('cancel').disabled,false);
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(ids.length,2);
+ assert.notEqual(ids[0],ids[1],'new operation never recycles suspect requestId');
+ assert.equal(srv.writes,noReplay+1);
+ assert.deepEqual(srv.read().waitlist.entries[0],fifo);
+ assert.deepEqual(srv.read().b02.history,b02);
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-M mismatched CANCEL success revision after accepted MOVE remains UNKNOWN; double owner GET cannot reopen CANCELLED person',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv),v=person.v;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ v.click('v08Refresh');v.click('move');
+ v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ const native=srv.ctx.study1UnifiedPreviewCommand,before=srv.writes,
+  old=srv.read(),oldEntry=JSON.parse(JSON.stringify(old.waitlist.entries[0]));
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  const result=native(cmd);
+  return cmd.action==='CANCEL'?{...result,revision:result.revision+1}:result;
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(srv.writes,before+1,'the cancellation really committed once');
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const noReplay=srv.writes;
+ v.click('v07Rescan');
+ assert.equal(srv.writes,noReplay);
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');
+ assert.equal(srv.writes,noReplay);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('cancel').disabled,true);
+ assert.match(v.get('v07Result').textContent,/因果仍UNKNOWN/);
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.deepEqual(srv.read().waitlist.entries[0],oldEntry);
+ assert.equal(p108B12_(srv,'WAITLIST').items[0].historical,false);
+ closed(srv);
+});
+test('P1-08 §70-M duplicate first OWNER GET callback cannot fork multiple second reads or bypass second-tab CAS revision',()=>{
+ const srv=server(),options={deferOwnerReads:false},
+  v=v08ConfirmedVisitor_(srv,options),team=page(srv,'team');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const native=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  if(cmd.action!=='MOVE')return native(cmd);
+  assert.equal(native(cmd).deduplicated,false);
+  return native(cmd);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const before=srv.writes;
+ options.deferOwnerReads=true;
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');
+ assert.equal(v.pendingOwnerReads.length,1);
+ const repeatFirst=v.pendingOwnerReads[0];
+ v.deliverOwnerRead();
+ assert.equal(v.pendingOwnerReads.length,1,'exactly one second GET scheduled');
+ repeatFirst(); // forged transport duplicate/out-of-order first success
+ assert.equal(v.pendingOwnerReads.length,1,'duplicate first success must be ignored');
+ team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,before,'second owner tab stale CAS denied');
+ team.click('refresh');team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,before+1);
+ v.deliverOwnerRead();
+ assert.equal(v.pendingOwnerReads.length,0);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08UnknownRecover').disabled,true);
+ assert.match(v.get('status').textContent,/拒絕恢復|UNKNOWN|兩次獨立GET/);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(srv.read().recruitment.E2.mode,'HIDDEN');
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-M identical twin forged OWNER GETs at unchanged revision cannot replace trusted FIFO or bounded B02/B04 source',()=>{
+ for(const kind of ['FIFO','B02','B04','NOTICE']){
+  const srv=server(),person=p108ConfirmedInVisitor_(srv),v=person.v;
+  srv.command('ADMIN_B04_NOTE',{id:person.id,note:'原有限來源',reason:'TEST_NOTE'});
+  srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+  v.click('v08Refresh');v.click('move');
+  v.get('v08Ack').checked=true;v.change('v08Ack');
+  const native=srv.ctx.study1UnifiedPreviewCommand;
+  srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+   if(cmd.action!=='MOVE')return native(cmd);
+   assert.equal(native(cmd).deduplicated,false);
+   return native(cmd);
+  };
+  v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+  const honest=srv.read,source=honest(),before=srv.writes;
+  let reads=0;
+  srv.read=()=>{
+   const d=honest();reads++;
+   if(kind==='FIFO')d.waitlist.entries[0].joinedAt-=1;
+   if(kind==='B02')d.b02.history[0].action='FORGED_TWIN_SAME_REVISION';
+   if(kind==='B04')d.b04.history[0].reason='FORGED_TWIN_SAME_REVISION';
+   if(kind==='NOTICE')d.notifications.at(-1).status='SIM_FAILED';
+   return d;
+  };
+  v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+  v.click('v08UnknownRecover');srv.read=honest;
+  assert.equal(reads,1,kind+': compare against previous trusted OWNER GET before second GET');
+  assert.equal(srv.writes,before);
+  assert.equal(v.get('move').disabled,true);
+  assert.equal(v.get('v08UnknownRecover').disabled,true);
+  assert.match(v.get('status').textContent,/拒絕恢復|UNKNOWN|兩次獨立GET/);
+  assert.deepEqual(srv.read().waitlist.entries,source.waitlist.entries);
+  assert.deepEqual(srv.read().b02.history,source.b02.history);
+  assert.deepEqual(srv.read().b04.history,source.b04.history);
+  const team=page(srv,'team');
+  assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+  assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+  closed(srv);
+ }
+});
