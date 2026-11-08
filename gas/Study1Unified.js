@@ -1329,6 +1329,10 @@ function study1WaitlistVerify_(s){
    !['WAITING','OFFERED','ACCEPTED','DECLINED','EXPIRED'].includes(e.status))
    throw Error('候補代碼、實驗或順序不合法');
   seen.add(e.id);
+  // Cancelled/closed B02 sessions must not retain actionable FIFO entries.
+  if(['WAITING','OFFERED'].includes(e.status)&&
+     ['CANCELLED','CLOSED'].includes(s.b02.sessions[e.slotId]?.status))
+   throw Error('已取消或結案場次仍有未處理候補，拒絕跨模組來源');
   if(['WAITING','OFFERED'].includes(e.status)&&study1WaitlistPolicy_(s,e.slotId).mode!=='MANUAL_TEST')
    throw Error('有效候補與實驗/階段/活動開放設定矛盾');
   const offer=Number.isSafeInteger(e.offeredAt)&&Number.isSafeInteger(e.expiresAt)&&
@@ -1377,6 +1381,10 @@ function study1WaitlistSummary_(s){
   limit:8,retained:s.waitlist.entries.length,byExperiment,byStage,bySlot,total};
 }
 
+function study1WaitlistPending_(s,slotId){
+ return s.waitlist.entries.filter(e=>e.slotId===slotId&&
+  ['WAITING','OFFERED'].includes(e.status));
+}
 function study1WaitlistFree_(s,slotId,now){
  const slot=s.slots.find(x=>x.id===slotId);
  if(!slot)return 0;
@@ -1785,6 +1793,9 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
      if(study1UnifiedCapacity_(s,id,now)+s.waitlist.entries.filter(e=>e.slotId===id&&e.status==='OFFERED'&&e.expiresAt>now).length>p.capacity)throw Error('新容量低於現有預約與有效候補邀請');
      if(id===p.slotId&&slot.when!==p.when&&s.applications.some(a=>a.slotId===id))
       throw Error('已有預約歷史，須先逐人處理，禁止靜默改期');
+     if(id===p.slotId&&slot.when!==p.when&&
+       s.waitlist.entries.some(e=>e.slotId===id))
+      throw Error('已有候補現況紀錄，禁止靜默改期並改寫B09／B12來源');
      if(id===p.slotId)slot.when=p.when;
      slot.capacity=p.capacity;
      meta[id]={title:p.title,place:p.place,minutes:p.minutes,status:oldMeta?.status||'OPEN',group};
@@ -1793,6 +1804,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     for(const id of ids){
      const oldMeta=meta[id];
      if(oldMeta?.status==='CLOSED')throw Error('已結案場次不可取消');
+     if(study1WaitlistPending_(s,id).length)
+      throw Error('場次仍有WAITING／OFFERED候補，須先逐筆安全結束，拒絕靜默取消');
      meta[id]={title:oldMeta?.title||p.title,place:oldMeta?.place||p.place,
       minutes:oldMeta?.minutes||p.minutes,status:'CANCELLED',group};
     }
@@ -1849,6 +1862,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   if(p.action==='CLOSE'&&before!=='OPEN')throw Error('場次已結案或已取消');
   if(p.action==='REOPEN'&&before!=='CLOSED')throw Error('只有已行政結案場次可重新開啟');
   if(p.action==='CLOSE'){
+   if(study1WaitlistPending_(s,slot.id).length)
+    throw Error('仍有未處理候補或虛構邀請，不可直接行政結案');
    const start=Date.parse(slot.when.replace(' ','T')+':00+08:00');
    if(!Number.isFinite(start)||start>now)throw Error('尚未開始的場次不能提前行政結案');
   }
@@ -2012,11 +2027,16 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   study1UnifiedValidateSlots_(p.slots);
   for(const old of s.slots){
    const next=p.slots.find(x=>x.id===old.id);
+   if(s.waitlist.entries.some(e=>e.slotId===old.id)&&
+      (!next||next.experiment!==old.experiment||next.when!==old.when))
+    throw Error('舊版時段編輯器不得移除或移動已有候補現況的場次');
    if(s.applications.some(a=>a.slotId===old.id)&&
       (!next||next.experiment!==old.experiment||next.when!==old.when))
     throw Error('已有歷史預約的時段不得刪除或變更日期／實驗');
-   if(next&&study1UnifiedCapacity_(s,old.id,now)>next.capacity)
-    throw Error('測試容量低於有效預約數');
+   if(next&&study1UnifiedCapacity_(s,old.id,now)+
+      s.waitlist.entries.filter(e=>e.slotId===old.id&&
+       e.status==='OFFERED'&&e.expiresAt>now).length>next.capacity)
+    throw Error('測試容量低於有效預約與候補邀請保留總額');
   }
   // Legacy slot editor and B02 graphical calendar must not silently diverge.
   // Preserve all B02-managed slot IDs and prevent overlaps with their effective durations.
@@ -2183,6 +2203,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   if(Object.keys(p).sort().join(',')!=='id,slotId')throw Error('時段操作欄位不完整');
   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
   if(!slot||(slot.id===a.slotId&&!expiredHold)||
+     // A WAITING FIFO queue has priority after capacity increases or cancellations.
+     study1WaitlistPending_(s,p.slotId).some(e=>e.status==='WAITING')||
      Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
      ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
      !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0))||

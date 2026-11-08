@@ -2630,11 +2630,22 @@ function calCancelImpact_(requested){
   rows.push({id:a.id,phase:a.phase,kind,attendance:attend.attendance,
    progress:attend.progress,holdUntil:a.holdUntil});
  }
+ // The five-module waitlist snapshot is independent of booking/attendance.
+ // An unresolved WAITING/OFFERED entry must never disappear on B02 cancellation.
+ const allWait=model.waitlist?.entries;
+ if(!Array.isArray(allWait)||!model.waitlist?.summary)return null;
+ const queue=allWait.filter(e=>e.slotId===slot.id).map(e=>({
+  id:e.id,seq:e.seq,status:e.status,joinedAt:e.joinedAt,
+  offeredAt:e.offeredAt,expiresAt:e.expiresAt,closedAt:e.closedAt}));
+ const pending=queue.filter(e=>['WAITING','OFFERED'].includes(e.status)).length;
+ const liveOffers=queue.filter(e=>e.status==='OFFERED'&&e.expiresAt>now).length;
  const signature=[model.revision,slot.id,slot.experiment,slot.when,slot.capacity,
   meta.status,meta.title,meta.place,meta.minutes,
-  ...rows.map(a=>[a.id,a.phase,a.kind,a.attendance,a.progress,a.holdUntil].join('~'))].join('|');
+  ...rows.map(a=>[a.id,a.phase,a.kind,a.attendance,a.progress,a.holdUntil].join('~')),
+  ...queue.map(e=>[e.id,e.seq,e.status,e.joinedAt,e.offeredAt,e.expiresAt,e.closedAt].join('~'))].join('|');
  return {revision:model.revision,slotId:slot.id,experiment:slot.experiment,
-  signature,total:rows.length,confirmed,holding,expired,cancelled,other,rows};
+  signature,total:rows.length,confirmed,holding,expired,cancelled,other,rows,
+  pending,liveOffers,queue};
 }
 function calCancelSync_(){
  const old=calCancelReviewState.impact;
@@ -3251,6 +3262,13 @@ function calImpact(){
  const active=apps.filter(a=>['HELD','CONSENTED','CONFIRMED'].includes(a.phase)).length;
  const lines=[slot?'預約歷史 '+apps.length+' 筆｜有效或待處理 '+active+' 人。':'新增示範場次，不會修改既有預約。'];
  if(slot&&p.when!==slot.when&&apps.length)lines.push('已有歷史預約，伺服器禁止直接移動此場次。');
+ if(slot&&p.when!==slot.when&&model.waitlist?.entries?.some(e=>e.slotId===slot.id))
+  lines.push('本場次已有候補目前紀錄，禁止把原B09／B12來源靜默移到另一時段。');
+ if(slot){
+  const offers=model.waitlist?.entries?.filter(e=>e.slotId===slot.id&&
+   e.status==='OFFERED'&&e.expiresAt>Date.now()).length||0;
+  if(active+offers>p.capacity)lines.push('新容量小於現有預約與有效邀請預留席。');
+ }
  if(slot&&active>p.capacity)lines.push('新容量小於占用數，系統會拒絕儲存。');
  const start=Date.parse(p.when.replace(' ','T')+':00+08:00');
  if(Number.isFinite(start)){
@@ -3293,9 +3311,12 @@ function calEditPlan_(p){
   (s.id===source.id||p.scope!=='ONE'&&meta.group&&calMeta(s).group===meta.group&&
   (p.scope==='SERIES'||dateOf(s)>=dateOf(source))));
  const impacts=affected.map(s=>calCancelImpact_(s));
- if(!impacts.length||impacts.some(x=>!x||x.confirmed+x.holding>p.capacity))return null;
+ if(!impacts.length||impacts.some(x=>!x||
+   x.confirmed+x.holding+x.liveOffers>p.capacity))return null;
  const originalImpact=impacts.find(x=>x.slotId===source.id);
- if(p.when!==source.when&&originalImpact?.total)return null;
+ // Old/current B09 and B12 snapshots cannot be rewritten as if a past
+ // candidate had originally queued for the new session time.
+ if(p.when!==source.when&&(originalImpact?.total||originalImpact?.queue.length))return null;
  // The original GAS repeats this overlap/capacity validation under ScriptLock.
  const ids=new Set(affected.map(s=>s.id));
  const projected=model.slots.filter(s=>calMeta(s).status!=='CANCELLED').map(s=>({
@@ -3347,6 +3368,7 @@ function calEditStage_(payload){
    '｜活動 '+m.title+' → '+payload.title+
    '｜地點 '+(m.place||'未填')+' → '+(payload.place||'未填')+
    '｜已成立 '+impact.confirmed+'｜暫留 '+impact.holding+
+   '｜有效邀請保留 '+impact.liveOffers+'｜候補未結 '+impact.pending+
    '｜預約歷史 '+impact.total,'calMini'));
   for(const a of impact.rows)$('calEditRows').append(calElem('p',
    '　'+a.id+'｜'+a.kind+'｜出席 '+calPresence[a.attendance]+
@@ -3468,11 +3490,14 @@ function calCancelSnapshot_(payload){
  if(!slot||slot.experiment!==payload.experiment||calMeta(slot).status!=='OPEN'||
   payload.operation!=='CANCEL'||payload.scope!=='ONE'||payload.repeatCount!==1||
   cal.mode!=='SESSION'||cal.id!==slot.id||!adminScopeMatch_('B02',slot.experiment)||
-  !b03CrossCheck_(model))return null;
+  !b03CrossCheck_(model)||
+  model.waitlist.entries.some(e=>e.slotId===slot.id&&
+   ['WAITING','OFFERED'].includes(e.status)))return null;
  return {revision:model.revision,payload:{...payload},
   slots:model.slots.map(s=>({...s})),
   sessions:Object.entries(model.b02.sessions).map(([id,m])=>({id,...m})),
   applications:model.applications.map(a=>({id:a.id,experiment:a.experiment,slotId:a.slotId,phase:a.phase})),
+  waitlistEntries:model.waitlist.entries.map(e=>({...e})),
   attendance:Object.entries(model.b02.attendance).map(([id,a])=>({id,attendance:a.attendance,
    progress:a.progress,note:a.note||''})),
   notes:{...model.b04.notes},
@@ -3501,7 +3526,9 @@ function calCancelVerified_(d,tx){
    return false;
  }
  if(d.applications.length!==tx.applications.length||
-  !calCancelSameRows_(tx.applications,d.applications,['id','experiment','slotId','phase']))
+  !calCancelSameRows_(tx.applications,d.applications,['id','experiment','slotId','phase'])||
+  !calCancelSameRows_(tx.waitlistEntries,d.waitlist.entries,
+   ['id','slotId','experiment','seq','status','joinedAt','offeredAt','expiresAt','closedAt']))
   return false;
  const afterAttendance=Object.entries(d.b02.attendance).map(([id,a])=>({
   id,attendance:a.attendance,progress:a.progress,note:a.note||''}));
@@ -3612,14 +3639,20 @@ function calCancel(slot){
    '｜施測 '+calTesting[row.progress],'calMini'));
  }
  if(!impact.total)$('calCancelRows').append(calElem('p','此場次尚無關聯虛構申請紀錄。','calMini'));
+ for(const e of impact.queue)$('calCancelRows').append(calElem('p',
+  '候補 '+e.id+'｜FIFO '+e.seq+'｜目前 '+e.status+
+  '（僅TEST目前狀態，非完整歷程）','calMini'));
+ $('calCancelSummary').textContent+='｜候補未結 '+impact.pending+
+  ' 筆、有效邀請預留 '+impact.liveOffers+' 席。';
  $('calCancelReview').hidden=false;$('calCancelAck').checked=false;
  $('calCancelCommit').disabled=true;
- $('calCancelStatus').textContent='請核對上列虛構申請代碼。取消只更動場次狀態，' +
-  '不取消個別預約、不寄信、不自動改期或安排候補。';
+ $('calCancelStatus').textContent=impact.pending?
+  '本場次仍有WAITING或OFFERED（含逾期待人工核結），原GAS禁止取消；須先安全逐筆結束，不寄信。':
+  '請核對上列虛構申請與候補；取消只更動場次狀態，不取消個別預約、不寄信、不自動改期。';
 }
 function calCancelCommit_(){
  const prior=calCancelReviewState.impact;
- if(!prior||busy||!$('calCancelAck').checked||
+ if(!prior||prior.pending>0||busy||!$('calCancelAck').checked||
   cal.mode!=='SESSION'||cal.id!==prior.slotId)return;
  const slot=model?.slots?.find(s=>s.id===prior.slotId);
  const current=slot?calCancelImpact_(slot):null;
@@ -3651,7 +3684,8 @@ function calendarInit(){
  $('calEditCommit').addEventListener('click',calEditCommit_);
  $('calCancelAck').addEventListener('change',()=>{
   calCancelSync_();
-  $('calCancelCommit').disabled=busy||!calCancelReviewState.impact||!$('calCancelAck').checked;
+  $('calCancelCommit').disabled=busy||!calCancelReviewState.impact||
+   calCancelReviewState.impact.pending>0||!$('calCancelAck').checked;
  });
  $('calCancelBack').addEventListener('click',()=>calCancelReset_('已返回場次，未提交取消。'));
  $('calCancelCommit').addEventListener('click',calCancelCommit_);

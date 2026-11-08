@@ -3823,3 +3823,119 @@ test('B02-A stale second owner tab never overwrites edited TEST session and does
  assert.equal(srv.writes,writes);
  closed(srv);
 });
+
+
+/* §70-D unresolved FIFO is original B02/legacy editor capacity and calendar
+ * arbitration under the SAME existing ScriptLock/CAS fixture. Pure TEST only. */
+function waitlistB02Payload_(srv,operation,extra={}){
+ const view=srv.read(),slot=view.slots.find(x=>x.id==='SIM-SLOT-E1-A');
+ const meta=view.b02.sessions[slot.id]||{};
+ return {operation,slotId:slot.id,experiment:slot.experiment,
+  title:meta.title||'虛構候補場次',when:slot.when,capacity:slot.capacity,
+  minutes:meta.minutes||120,place:meta.place||'',repeatCount:1,scope:'ONE',...extra};
+}
+test('P1-08 §70-D B02 cancel, legacy reschedule/removal, capacity and FIFO priority share one verified TEST source',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv);first.v.click('v08WaitJoin');
+ const second=waitlistVerifiedVisitor_(srv);second.v.click('v08WaitJoin');
+ const before=srv.read(),noticeCount=before.notifications.length;
+ const team=page(srv,'team'),writes=srv.writes;
+ const review=cancelTestSession_(team);
+ assert.equal(review.hidden,false);
+ assert.match(team.get('calCancelSummary').textContent,/候補未結 2 筆/);
+ assert.match(waitlistNodeText_(team.get('calCancelRows')),/FIFO 1.*WAITING/);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ assert.equal(team.get('calCancelCommit').disabled,true,'pending WAITING denies cancel despite acknowledgement');
+ assert.match(team.get('calCancelStatus').textContent,/禁止取消/);
+ assert.throws(()=>srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL')),/WAITING|OFFERED/);
+ assert.equal(srv.writes,writes,'server refusal and B02 review do not write');
+ const moved=srv.read().slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));
+ moved[0].when='2027-02-05 10:00';
+ assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:moved}),/候補現況/);
+ assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:srv.read().slots.filter(x=>x.id!=='SIM-SLOT-E1-A').map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}))}),/候補現況/);
+ const widened=srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'UPDATE',{capacity:3}));
+ assert.equal(widened.slots.find(x=>x.id==='SIM-SLOT-E1-A').capacity,3);
+ assert.deepEqual(srv.read().waitlist.entries.map(e=>e.status),['WAITING','WAITING']);
+ const newcomer=waitlistVerifiedVisitor_(srv),beforeHold=srv.writes;
+ assert.throws(()=>srv.command('HOLD',{id:newcomer.id,slotId:'SIM-SLOT-E1-A'}),/已額滿|時段/);
+ assert.equal(srv.writes,beforeHold,'capacity increase cannot let new HOLD skip queued FIFO');
+ const revBeforeOffer=srv.read().revision;
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ const offered=srv.read();
+ assert.equal(offered.waitlist.entries[0].status,'OFFERED');
+ assert.equal(offered.waitlist.entries[1].status,'WAITING');
+ assert.equal(offered.waitlist.summary.bySlot.find(x=>x.slotId==='SIM-SLOT-E1-A').counts.OFFERED,1);
+ const reserved=srv.writes;
+ assert.throws(()=>srv.command('ADMIN_B02_SLOT',
+  waitlistB02Payload_(srv,'UPDATE',{capacity:2})),/有效候補邀請|容量/);
+ const shrink=offered.slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));shrink[0].capacity=2;
+ assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:shrink}),/邀請保留|容量/);
+ assert.throws(()=>srv.command('ADMIN_B02_SLOT',
+  waitlistB02Payload_(srv,'UPDATE',{capacity:4}),revBeforeOffer),/版本已變更/);
+ assert.equal(srv.writes,reserved,'all rejected capacity/CAS races have zero writes');
+ assert.deepEqual(srv.read().waitlist.entries.map(e=>e.status),['OFFERED','WAITING']);
+ const fresh=page(srv,'team');
+ assert.match(fresh.get('waitlistStatus').textContent,/等待1，邀請待處理1/);
+ assert.match(waitlistNodeText_(fresh.get('b09WaitlistSummary')),/候補/);
+ assert.equal(srv.read().notifications.length,noticeCount,'no email or artificial offer notification');
+ closed(srv);
+});
+test('P1-08 §70-D expired OFFERED remains pending for B02 cancellation until explicit OWNER advance; B12 retains only snapshot',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv,{Date:Clock});first.v.click('v08WaitJoin');
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'UPDATE',{capacity:3}));
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ const offer=srv.read().waitlist.entries[0];
+ assert.equal(offer.status,'OFFERED');
+ clock.now=offer.expiresAt+1;
+ const stale=srv.read(),before=srv.writes;
+ assert.equal(stale.waitlist.entries[0].status,'OFFERED','GET never silently expires');
+ assert.equal(stale.waitlist.entries[0].expiredOffer,true);
+ assert.throws(()=>srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL')),/WAITING|OFFERED/);
+ assert.equal(srv.writes,before);
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ assert.equal(srv.read().waitlist.entries[0].status,'EXPIRED');
+ const notifications=srv.read().notifications.length;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const data=srv.read();
+ assert.equal(data.b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(data.waitlist.entries[0].status,'EXPIRED');
+ assert.equal(data.waitlist.summary.byExperiment.E1.EXPIRED,1);
+ assert.equal(data.notifications.length,notifications,'B02 cancellation and expiry produce no new notice');
+ const audit=srv.ctx.study1UnifiedB12AuditPage({
+  after:'',expectedB06Revision:data.b06.revision,expectedFixtureRevision:data.revision,
+  limit:30,module:'WAITLIST',result:'CURRENT_SNAPSHOT',search:'',snapshotHash:'',sort:'DESC'});
+ assert.equal(audit.items.length,1);
+ assert.equal(audit.items[0].action,'EXPIRED');
+ assert.equal(audit.items[0].historical,false);
+ assert.equal(audit.coverage.waitlistSummary.total.EXPIRED,1);
+ const team=page(srv,'team');
+ assert.match(team.get('waitlistStatus').textContent,/逾期1/);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/候補/);
+ closed(srv);
+});
+test('P1-08 §70-D stale B02 cancel tab loses CAS to FIFO JOIN, clears old cross-module view and never replays',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const stale=page(srv,'team');
+ cancelTestSession_(stale);
+ stale.get('calCancelAck').checked=true;stale.change('calCancelAck');
+ assert.equal(stale.get('calCancelCommit').disabled,false);
+ const first=waitlistVerifiedVisitor_(srv);first.v.click('v08WaitJoin');
+ const now=srv.read(),writes=srv.writes,n=stale.calls.length;
+ stale.click('calCancelCommit');
+ assert.equal(srv.writes,writes,'stale second-tab cancellation cannot overwrite FIFO JOIN');
+ assert.equal(srv.read().revision,now.revision);
+ assert.equal(srv.read().waitlist.entries[0].status,'WAITING');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A']?.status||'OPEN','OPEN');
+ assert.equal(stale.calls.slice(n).filter(x=>x==='ADMIN_B02_SLOT').length,1);
+ assert.equal(stale.get('calCancelCommit').disabled,true);
+ assert.match(stale.get('calStatusMessage').textContent,/取消結果尚未確認/);
+ stale.click('refresh');
+ assert.equal(cancelTestSession_(stale).hidden,false);
+ stale.get('calCancelAck').checked=true;stale.change('calCancelAck');
+ assert.equal(stale.get('calCancelCommit').disabled,true,'fresh FIFO-aware review blocks cancellation');
+ closed(srv);
+});
