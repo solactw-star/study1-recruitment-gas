@@ -44,3 +44,16 @@ test('state copies cannot mutate caller data and receipts do not leak into publi
  assert.equal(publicSlots(a.state)[0].available,0);
  assert.equal('subjectKey' in publicSlots(a.state)[0],false);
 });
+
+test('previous successful request cannot be replayed after any intake gate closes',()=>{
+ const committed=transition(base(),submit(),gate);
+ for(const key of Object.keys(gate)){
+  const snapshot=JSON.stringify(committed.state);
+  assert.throws(()=>transition(committed.state,submit(),{...gate,[key]:false}),{code:'INTAKE_CLOSED'});
+  assert.equal(JSON.stringify(committed.state),snapshot);
+ }
+ assert.throws(()=>transition(committed.state,submit()),{code:'INTAKE_CLOSED'});
+ const replay=transition(committed.state,submit(),gate);
+ assert.equal(replay.changed,false);
+ assert.equal(replay.state.revision,1);
+});
