@@ -2587,6 +2587,7 @@ calendarInit();
  * No real identity data or REC consent is fetched before independent approval.
  */
 const profile={id:null,origin:'list',tab:'basic',open:false};
+const b04Save={pending:false}; // one original TEST write then one independent GET
 const profileTabs={basic:'基本與聯絡',eligibility:'報名資格',booking:'預約出席',
  research:'研究執行',consent:'電子同意',notification:'通知文件',
  admin:'行政紀錄',audit:'操作歷程'};
@@ -2660,7 +2661,7 @@ function profileOpen(id,origin){
  if($('profileModule').scrollIntoView)$('profileModule').scrollIntoView({block:'start'});
 }
 function profileBack(){
- if(!profile.open)return;
+ if(!profile.open||b04Save.pending)return;
  if(profile.origin==='b05'){
   profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');
   b05.open=true;$('b05Module').hidden=false;$('teamMain').classList.add('b05Open');
@@ -2780,12 +2781,35 @@ function profileRender(){
   timeline.append(row);
  }
 }
+
+/* B04 note response AND a separate owner GET must each show exactly one
+ * revision advancement and the newest bounded correction with before/after. */
+function b04NoteCommitted_(d,tx){
+ if(!b03CrossCheck_(d)||d.deduplicated===true||d.revision!==tx.revision+1||
+  d.b04.notes[tx.id]!==tx.note||
+  d.b04.history.length!==Math.min(30,tx.history.length+1))return false;
+ const person=d.applications.find(a=>a.id===tx.id);
+ if(!person||person.experiment!==tx.experiment)return false;
+ const h=d.b04.history[d.b04.history.length-1];
+ if(!h||h.field!=='adminNote'||h.id!==tx.id||h.actor!=='OWNER'||
+  h.before!==tx.before||h.after!==tx.note||h.reason!==tx.reason||
+  typeof h.at!=='string'||!Number.isFinite(Date.parse(h.at)))return false;
+ return JSON.stringify(d.b04.history.slice(0,-1))===
+  JSON.stringify(tx.history.slice(-29));
+}
+function b04NoteStop_(reason){
+ b04Save.pending=false;render(null);
+ $('profileNote').value='';$('profileReason').value='';
+ profileMessage(reason,true);
+ $('b03ReconcileStatus').textContent=reason;
+ message(reason,true);
+}
 function profileInit(){
  $('profileBack').addEventListener('click',profileBack);
  $('profileCalendar').addEventListener('click',profileToCalendar);
  for(const b of document.querySelectorAll('[data-b04-tab]'))
   b.addEventListener('click',()=>{
-   if(!profile.open)return;
+   if(!profile.open||b04Save.pending)return;
    profile.tab=b.dataset.b04Tab;profileRender();
    if($('profileTabBody').focus)$('profileTabBody').focus();
   });
