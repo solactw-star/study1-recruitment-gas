@@ -2933,7 +2933,8 @@ function b03Rows(){
  const q=$('b03Search').value.trim().toLowerCase(),
   exp=$('b03Experiment').value,scope=adminScopeEffective_('B03'),elig=$('b03Eligibility').value,
   stage=$('b03Stage').value,att=$('b03Attendance').value,
-  booking=$('b03Booking').value,order=$('b03Sort').value;
+  booking=$('b03Booking').value,updateSource=$('b03UpdateSource').value,
+  order=$('b03Sort').value;
  const result=model.applications.filter(a=>{
   const attendance=model.b02.attendance[a.id]?.attendance||'PENDING';
   const eligible=a.eligible===true?'PASS':a.eligible===false?'FAIL':'PENDING';
@@ -2946,6 +2947,7 @@ function b03Rows(){
   if(booking==='BOOKED'&&(!a.slotId||a.phase==='CANCELLED'))return false;
   if(booking==='NONE'&&a.slotId)return false;
   if(booking==='CANCELLED'&&a.phase!=='CANCELLED')return false;
+  if(updateSource!=='ALL'&&b03RecentEvent_(a).source!==updateSource)return false;
   return true;
  });
  return result.sort((a,b)=>{
@@ -2983,7 +2985,8 @@ function b03Render(){
    '預約：'+(slot?slot.when:'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
-   '最近更新：'+(b03Latest(a)||'未記錄')])item.append(calElem('span',label));
+   '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
+   item.append(calElem('span',label));
   list.append(item);
  }
  for(const exp of ['E1','E2']){
@@ -3000,7 +3003,8 @@ function b03Render(){
     const button=calElem('button',a.id+'\n'+(profilePhases[a.phase]||a.phase)+
      '\n出席 '+(calPresence[status.attendance]||'待確認')+
      '｜施測 '+(calTesting[status.progress]||'未開始')+
-     '\n最近更新 '+(b03Latest(a)||'未記錄'),'b03Person');
+     '\n最近更新 '+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label,
+     'b03Person');
     button.type='button';button.dataset.participantId=a.id;
     button.addEventListener('click',()=>profileOpen(a.id,'board'));
     col.append(button);
@@ -3040,10 +3044,10 @@ function b03ReconcileRead_(){
 function b03Init(){
  // Explicit neutral defaults avoid treating an uninitialized dropdown as an active filter.
  $('b03Search').value='';
- for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
+ for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03UpdateSource'])
   $(id).value='ALL';
  $('b03Sort').value='ID_ASC';
- for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03Sort'])
+ for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03UpdateSource','b03Sort'])
   $(id).addEventListener('change',b03Render);
  $('b03Search').addEventListener('input',b03Render);
  $('b03ListMode').addEventListener('click',()=>{b03.mode='list';b03Render();});
@@ -3051,7 +3055,7 @@ function b03Init(){
  $('b03Reconcile').addEventListener('click',b03ReconcileRead_);
  $('b03Clear').addEventListener('click',()=>{
   $('b03Search').value='';
-  for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
+  for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03UpdateSource'])
    $(id).value='ALL';
   $('b03Sort').value='ID_ASC';b03Render();
  });
