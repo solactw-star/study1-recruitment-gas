@@ -790,7 +790,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 'use strict';
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
-// TEST-only owner GET display time; not official server-clock or authorization.
+// TEST-only GAS owner GET cutoff, not the device clock or formal authorization.
 let cancelHoldAsOf=null;
 // Per-page view epoch: detect switches during remote reads even if switched back (ABA).
 let ownerScopeEpoch=0,ownerLoadEpoch=0,compareSelectionEpoch=0;
@@ -1147,7 +1147,10 @@ function render(data){
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
- cancelHoldAsOf=Date.now();
+ // Pin classification to the original locked GAS GET, not the browser clock.
+ // Any hold crossing that cutoff afterward must trigger a fresh GET rather
+ // than reclassifying a stale CANCELLED record or silently closing a booking.
+ cancelHoldAsOf=data.waitlist.asOf;
  model=data;setBusy(false);
  $('b03ReconcileStatus').textContent='目前原GAS修訂版 '+data.revision+'；可按重新核對。';
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -2900,7 +2903,7 @@ function cancelQueueState_(a){
   return {kind:'HISTORY',holdKind:'OTHER',label:'個別申請已取消，僅保留歷程（非人工核結）'};
  if(['HELD','CONSENTED'].includes(a.phase)){
   if(!Number.isSafeInteger(a.holdUntil)||a.holdUntil<=0||
-   !Number.isSafeInteger(cancelHoldAsOf))return null;
+   !Number.isSafeInteger(cancelHoldAsOf)||!cancelHoldBoundaryValid_(a))return null;
   if(a.holdUntil<=cancelHoldAsOf)
    return {kind:'HISTORY',holdKind:'EXPIRED',label:'暫留已逾期，僅保留歷程（人工結果未記錄）'};
   return {kind:'REVIEW',holdKind:'ACTIVE',label:'有效暫留仍關聯已取消場次，待人工核對'};
