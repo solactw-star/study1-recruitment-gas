@@ -2289,6 +2289,13 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
    throw Error('尚未完成測試驗證');
   if(action==='MOVE'&&a.phase!=='CONFIRMED')throw Error('只允許已確認虛構預約改期');
   if(Object.keys(p).sort().join(',')!=='id,slotId')throw Error('時段操作欄位不完整');
+  // A previously ACCEPTED FIFO offer binds an expired TEST hold to its
+  // original invitation. This is not a MOVE authorization: only a confirmed
+  // booking may MOVE to another future open session. Check BEFORE any hold
+  // adapter operation so a later validator is not the first line of defence.
+  const acceptedSource=s.waitlist.entries.find(e=>e.id===a.id&&e.status==='ACCEPTED');
+  if(action==='HOLD'&&expiredHold&&acceptedSource&&p.slotId!==acceptedSource.slotId)
+   throw Error('已接受候補暫留到期不能跨場次續留；原FIFO來源須保留，僅已確認預約可改期');
   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
   if(!slot||(slot.id===a.slotId&&!expiredHold)||
      // A WAITING FIFO queue has priority after capacity increases or cancellations.
