@@ -2567,8 +2567,105 @@ function calAttendanceCommand_(payload){
  }).study1UnifiedPreviewCommand({action:'ADMIN_B02_ATTEND',payload,
   requestId,expectedRevision:tx.revision});
 }
+
+/* B02-A one-slot cancellation: one original CAS write, then independent
+ * OWNER GET. Session cancellation NEVER edits individual bookings/attendance.
+ * This is not a permanent audit store and does not authorize notifications. */
+function calCancelSnapshot_(payload){
+ const slot=model.slots.find(s=>s.id===payload.slotId);
+ if(!slot||slot.experiment!==payload.experiment||calMeta(slot).status!=='OPEN'||
+  payload.operation!=='CANCEL'||payload.scope!=='ONE'||payload.repeatCount!==1||
+  cal.mode!=='SESSION'||cal.id!==slot.id||!adminScopeMatch_('B02',slot.experiment)||
+  !b03CrossCheck_(model))return null;
+ return {revision:model.revision,payload:{...payload},
+  slots:model.slots.map(s=>({...s})),
+  sessions:Object.entries(model.b02.sessions).map(([id,m])=>({id,...m})),
+  applications:model.applications.map(a=>({id:a.id,experiment:a.experiment,slotId:a.slotId,phase:a.phase})),
+  attendance:Object.entries(model.b02.attendance).map(([id,a])=>({id,attendance:a.attendance,
+   progress:a.progress,note:a.note||''})),
+  notes:{...model.b04.notes},
+  b02History:model.b02.history.map(h=>({...h,ids:[...h.ids]})),
+  b04History:model.b04.history.map(h=>({...h}))};
+}
+function calCancelSameRows_(before,after,fields){
+ if(before.length!==after.length)return false;
+ return before.every((x,i)=>after[i]&&fields.every(k=>x[k]===after[i][k]));
+}
+function calCancelVerified_(d,tx){
+ if(!b03CrossCheck_(d)||d.deduplicated===true||d.revision!==tx.revision+1)return false;
+ const {payload:p}=tx,slot=d.slots.find(s=>s.id===p.slotId);
+ if(!slot||slot.experiment!==p.experiment||slot.when!==p.when||
+  slot.capacity!==p.capacity||d.slots.length!==tx.slots.length||
+  !calCancelSameRows_(tx.slots,d.slots,['id','experiment','when','capacity']))return false;
+ const meta=d.b02.sessions[p.slotId];
+ const old=tx.sessions.find(x=>x.id===p.slotId);
+ if(!meta||meta.status!=='CANCELLED'||meta.title!==(old?.title||p.title)||
+  meta.place!==(old?.place||p.place)||meta.minutes!==(old?.minutes||p.minutes)||
+  meta.group!==(old?.group||''))return false;
+ for(const m of tx.sessions){
+  if(m.id===p.slotId)continue;
+  const actual=d.b02.sessions[m.id];
+  if(!actual||!['title','place','minutes','status','group'].every(k=>actual[k]===m[k]))
+   return false;
+ }
+ if(d.applications.length!==tx.applications.length||
+  !calCancelSameRows_(tx.applications,d.applications,['id','experiment','slotId','phase']))
+  return false;
+ const afterAttendance=Object.entries(d.b02.attendance).map(([id,a])=>({
+  id,attendance:a.attendance,progress:a.progress,note:a.note||''}));
+ if(!calCancelSameRows_(tx.attendance,afterAttendance,['id','attendance','progress','note'])||
+  Object.keys(d.b04.notes).sort().join(',')!==Object.keys(tx.notes).sort().join(',')||
+  Object.keys(tx.notes).some(id=>d.b04.notes[id]!==tx.notes[id])||
+  !calAttendanceSameEvents_(d.b04.history,tx.b04History))return false;
+ if(d.b02.history.length!==Math.min(12,tx.b02History.length+1)||
+  !calAttendanceSameEvents_(d.b02.history.slice(0,-1),tx.b02History.slice(-11)))return false;
+ const event=d.b02.history[d.b02.history.length-1];
+ return !!event&&event.action==='CANCEL'&&Array.isArray(event.ids)&&
+  event.ids.length===1&&event.ids[0]===p.slotId&&
+  typeof event.at==='string'&&Number.isFinite(Date.parse(event.at));
+}
+function calCancelStop_(reason){
+ render(null);$('calSessionDetail').replaceChildren();
+ $('calPersonDetail').hidden=true;$('calBoard').replaceChildren();
+ calMsg(reason,true);$('b03ReconcileStatus').textContent=reason;message(reason,true);
+}
+function calCancelCommand_(payload){
+ if(!calAllowed()||busy){
+  calMsg('場次取消時資料不可寫入或沒有OWNER權限。',true);return;
+ }
+ const tx=calCancelSnapshot_(payload);
+ if(!tx){
+  calCancelStop_('B02取消來源／關聯不一致，未提交；已清空舊畫面，須重新讀取。');return;
+ }
+ const requestId='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
+ setBusy(true);calMsg('已提交一次純TEST取消；核對後端回應與獨立OWNER回讀中…',false);
+ google.script.run.withSuccessHandler(data=>{
+  if(!calCancelVerified_(data,tx)){
+   calCancelStop_('取消結果無法證實，可能已寫入。已清空B02/B03/B04舊資料，須重新讀取，禁止重送。');return;
+  }
+  google.script.run.withSuccessHandler(fresh=>{
+   const first=data.b02.history[data.b02.history.length-1],
+    second=fresh?.b02?.history?.[fresh.b02.history.length-1];
+   if(!calCancelVerified_(fresh,tx)||first.at!==second?.at||!render(fresh)){
+    calCancelStop_('取消後獨立GET不一致；可能已寫入。已清空舊畫面，禁止重送。');return;
+   }
+   cal.mode='SESSION';calendarRender();
+   const linked=tx.applications.filter(a=>a.slotId===tx.payload.slotId).length;
+   const status='B02場次取消已獨立回讀確認｜原GAS修訂版 '+fresh.revision+
+    '｜原個別預約與出席保留 '+linked+' 筆，待人工處理；B03／B04同來源同步（純TEST，無寄信）。';
+   calMsg(status,false);$('b03ReconcileStatus').textContent=status;
+  }).withFailureHandler(()=>{
+   calCancelStop_('取消後OWNER回讀失敗或撤權；結果不明。已清空舊資料，須重新讀取，禁止重送。');
+  }).study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{
+  calCancelStop_('場次取消結果尚未確認（含CAS版本競寫）；已清空舊資料，須重新讀取，禁止自動重送。');
+ }).study1UnifiedPreviewCommand({action:'ADMIN_B02_SLOT',payload,requestId,expectedRevision:tx.revision});
+}
 function calCommand(action,payload,after){
  if(action==='ADMIN_B02_ATTEND'){calAttendanceCommand_(payload);return;}
+ if(action==='ADMIN_B02_SLOT'&&payload?.operation==='CANCEL'){
+  calCancelCommand_(payload);return;
+}
  if(!calAllowed()||busy){calMsg('資料載入中或沒有操作權限。',true);return;}
  const id='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
  setBusy(true);calMsg('儲存中，正在核對資料版本…',false);
@@ -2765,8 +2862,9 @@ function profileEvents(a){
     detail:'此操作沒有新增可核實的更正前後值；請以目前出席狀態為準（純TEST）。'});
  }
  for(const h of model.b02.history.filter(x=>slot&&x.ids.includes(slot.id)&&x.action!=='ATTEND'))
-  e.push({at:h.at,name:'相關場次操作',detail:slot.id+'｜'+h.action+
-   '；是否影響此人需另行確認'});
+  e.push({at:h.at,name:h.action==='CANCEL'?'B02場次取消（原預約保留）':'相關場次操作',
+   detail:slot.id+'｜'+h.action+
+    (h.action==='CANCEL'?'；個別預約和出席未自動取消，須人工處理':'；是否影響此人需另行確認')});
  e.sort((a,b)=>a.at&&b.at?new Date(b.at)-new Date(a.at):a.at?-1:b.at?1:0);
  return e;
 }
@@ -2848,6 +2946,8 @@ function profileRender(){
    ['預約日期時間',slot?slot.when:'未記錄'],
    ['場次狀態',slot?calStates[calMeta(slot).status]:'無可驗證場次'],
    ['預約流程',profilePhases[a.phase]||a.phase],
+   ['場次取消後關聯',slot&&calMeta(slot).status==='CANCELLED'?
+     '場次已取消；原個別預約與出席保留，待人工處理':'無場次取消待處理標記'],
    ['出席',calPresence[att.attendance]],['施測',calTesting[att.progress]],
    ['暫留是否逾期',a.holdExpired?'是':'否／不適用'],
    ['歷史改期與取消','可參閱右側已留存事件；正式完整歷程尚未接入']]);
@@ -3075,7 +3175,8 @@ function b03Render(){
   item.append(header,desc,detail);
   for(const label of [
    '資格：'+(a.eligible===true?'模擬通過':a.eligible===false?'模擬未通過':'未核實'),
-   '預約：'+(slot?slot.when:'未記錄'),
+   '預約：'+(slot?slot.when+'｜場次 '+calStates[calMeta(slot).status]+
+    (calMeta(slot).status==='CANCELLED'?'（個別預約未取消，待人工處理）':''):'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
    '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
@@ -3096,6 +3197,8 @@ function b03Render(){
     const button=calElem('button',a.id+'\n'+(profilePhases[a.phase]||a.phase)+
      '\n出席 '+(calPresence[status.attendance]||'待確認')+
      '｜施測 '+(calTesting[status.progress]||'未開始')+
+     (a.slotId&&model.b02.sessions[a.slotId]?.status==='CANCELLED'?
+      '\n場次已取消｜原預約保留，待人工處理':'')+
      '\n最近更新 '+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label,
      'b03Person');
     button.type='button';button.dataset.participantId=a.id;
