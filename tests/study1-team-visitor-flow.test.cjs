@@ -4354,3 +4354,139 @@ test('P1-08 §70-G per-person postcancel forgery and hold expiry boundary fail c
  assert.equal(srv.read().postCancel.bySlot[0].linkedRecords[0].holdUntil,hold);
  closed(srv);
 });
+
+
+/* §70-H: server-pinned cancelled hold edge, accepted FIFO origin and old
+ * revision races. Original GAS transition + original Team/Visitor DOM VM. */
+test('P1-08 §70-H expired ACCEPTED hold cannot be rebooked onto a different slot after B02 cancellation; original FIFO and bounded B12 remain unchanged',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ waitlistFillConfirmed_(srv);
+ const person=waitlistVerifiedVisitor_(srv,{Date:Clock});
+ person.v.click('v08WaitJoin');
+ srv.command('CANCEL',{id:'SIM-001'});
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ person.v.click('v08WaitRefresh');
+ person.v.click('v08WaitAccept');
+ const accepted=srv.read(),oldEntry=accepted.waitlist.entries[0];
+ const hold=accepted.applications.find(a=>a.id===person.id).holdUntil;
+ assert.equal(oldEntry.status,'ACCEPTED');
+ assert.equal(oldEntry.slotId,'SIM-SLOT-E1-A');
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ clock.now=hold+1;const before=srv.read(),writes=srv.writes,
+  notifications=before.notifications.length;
+ assert.throws(()=>srv.command('HOLD',{id:person.id,slotId:'SIM-SLOT-E1-B'}),
+  /已接受候補暫留到期不能跨場次續留/);
+ assert.throws(()=>srv.command('HOLD',{id:person.id,slotId:'SIM-SLOT-E1-A'}),
+  /取消|時段/);
+ assert.throws(()=>srv.command('MOVE',{id:person.id,slotId:'SIM-SLOT-E1-B'}),
+  /已確認/);
+ assert.throws(()=>srv.command('CANCEL',{id:person.id}),/有效|逾期/);
+ assert.equal(srv.writes,writes,'all rejected owner/visitor commands leave one fixture untouched');
+ const after=srv.read(),a=after.applications.find(x=>x.id===person.id),
+  origin=after.postCancel.bySlot.find(s=>s.slotId==='SIM-SLOT-E1-A');
+ assert.equal(a.phase,'HELD','no automatic expire, close, move or replay');
+ assert.equal(a.slotId,'SIM-SLOT-E1-A');
+ assert.equal(a.holdUntil,hold);
+ assert.equal(after.notifications.length,notifications);
+ assert.equal(after.waitlist.entries[0].status,'ACCEPTED');
+ assert.equal(after.waitlist.entries[0].seq,oldEntry.seq);
+ assert.equal(after.waitlist.entries[0].closedAt,oldEntry.closedAt);
+ assert.equal(origin.acceptedOrigins[0].phase,'HELD');
+ assert.equal(origin.linkedRecords.find(x=>x.id===person.id).originalAcceptedSlotId,
+  'SIM-SLOT-E1-A');
+ const team=page(srv,'team',{Date:Clock});
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/暫留已逾期.*僅保留歷程/);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1/);
+ const audit=p108B12_(srv,'WAITLIST');
+ assert.equal(audit.items[0].action,'ACCEPTED');
+ assert.equal(audit.items[0].historical,false);
+ assert.equal(audit.items[0].at,null);
+ assert.equal(audit.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-H B02/B03/B04 expired hold uses GAS owner GET cutoff; client-clock skew and boundary crossing clear stale queue without writes',()=>{
+ const srv=server(),clock={server:Date.now(),offset:0};
+ class ServerClock extends Date{static now(){return clock.server;}}
+ class ClientClock extends Date{static now(){return clock.server+clock.offset;}}
+ srv.ctx.Date=ServerClock;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'UPDATE',{capacity:4}));
+ const id=postCancelPerson_(srv,'CONSENTED');
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const hold=srv.read().applications.find(a=>a.id===id).holdUntil;
+ const team=page(srv,'team',{Date:ClientClock}),writes=srv.writes;
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/有效暫留仍關聯已取消場次/);
+ // Server GET is still before expiry; a device clock already after expiry
+ // must not recategorize this as independently verified HISTORY.
+ clock.offset=hold-clock.server+1;
+ team.click('refresh');
+ assert.equal(team.get('cancelQueueRows').children.length,0,
+  'stale boundary is cleared instead of silently changing original snapshot classification');
+ assert.match(team.get('cancelQueueStatus').textContent,/重新|清空|暫留|來源/);
+ assert.equal(srv.writes,writes);
+ // At exact server expiry, the original application phase remains CONSENTED
+ // while current review classification becomes historical, not OWNER closed.
+ clock.server=hold;clock.offset=0;
+ team.click('refresh');
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/暫留已逾期.*僅保留歷程/);
+ const d=srv.read();
+ assert.equal(d.applications.find(a=>a.id===id).phase,'CONSENTED');
+ assert.equal(d.postCancel.bySlot[0].linkedRecords[0].holdUntil,hold);
+ assert.equal(d.postCancel.bySlot[0].linkedRecords[0].phase,'CONSENTED');
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.bySlot[0].linkedRecords[0].phase,
+  'CONSENTED');
+ assert.equal(srv.writes,writes,'time progression has no synthetic write or notification');
+ closed(srv);
+});
+test('P1-08 §70-H cancelled original ACCEPTED source survives explicit MOVE then CANCEL; stale CAS and B02/B04/B09/B12 provenance resist replay',()=>{
+ const srv=server(),person=p108AcceptedConfirmed_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const original=srv.read(),oldRevision=original.revision,
+  oldQueue=original.waitlist.entries[0],notices=original.notifications.length,
+  history=original.b02.history.length,b04History=original.b04.history.length;
+ const rejected=srv.writes;
+ assert.throws(()=>srv.command('MOVE',{id:person.id,slotId:'SIM-SLOT-E2-A'}),/時段|實驗/);
+ assert.throws(()=>srv.command('CANCEL',{id:person.id},oldRevision-1),/版本已變更/);
+ assert.equal(srv.writes,rejected);
+ srv.command('MOVE',{id:person.id,slotId:'SIM-SLOT-E1-B'});
+ const moved=srv.read();
+ assert.equal(moved.waitlist.entries[0].slotId,oldQueue.slotId);
+ assert.equal(moved.waitlist.entries[0].closedAt,oldQueue.closedAt);
+ assert.equal(moved.postCancel.bySlot[0].acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ assert.equal(moved.postCancel.bySlot[0].acceptedOrigins[0].phase,'CONFIRMED');
+ const writes=srv.writes;
+ assert.throws(()=>srv.command('CANCEL',{id:person.id},oldRevision),/版本已變更/);
+ assert.throws(()=>srv.command('MOVE',{id:person.id,slotId:'SIM-SLOT-E1-A'}),/取消|時段/);
+ assert.equal(srv.writes,writes,'stale cancellation or reopening cannot change accepted FIFO or booking');
+ srv.command('CANCEL',{id:person.id});
+ const result=srv.read(),e=result.waitlist.entries[0],
+  row=result.postCancel.bySlot[0];
+ assert.equal(result.applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.equal(result.applications.find(a=>a.id===person.id).slotId,'SIM-SLOT-E1-B');
+ assert.equal(e.status,'ACCEPTED');
+ assert.deepEqual([e.slotId,e.seq,e.offeredAt,e.closedAt],
+  [oldQueue.slotId,oldQueue.seq,oldQueue.offeredAt,oldQueue.closedAt]);
+ assert.equal(row.acceptedOrigins[0].phase,'CANCELLED');
+ assert.equal(row.acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ assert.equal(row.linkedRecords.some(x=>x.id===person.id),false,
+  'cancelled original remains only original accepted provenance after MOVE');
+ assert.equal(result.b02.history.length,history,'individual operations cannot fabricate B02 cancellation events');
+ assert.equal(result.b04.history.length,b04History);
+ assert.equal(result.notifications.length,notices+2,'old synthetic MOVE/CANCEL notices only');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ assert.match(waitlistNodeText_(team.get('entries')),/候補現況/);
+ const entry=team.get('entries').children.find(x=>x.dataset.participantId===person.id);
+ assert.ok(entry);entry.children.find(x=>x.tagName==='button').handlers.click();
+ const auditTab=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='audit');auditTab.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTimeline')),/原接受邀請場次已取消/);
+ const audit=p108B12_(srv,'WAITLIST');
+ assert.equal(audit.items[0].action,'ACCEPTED');
+ assert.equal(audit.items[0].at,null);
+ assert.equal(audit.items[0].historical,false);
+ assert.equal(audit.coverage.postCancelSummary.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ assert.equal(audit.coverage.postCancelSummary.bySlot[0].retainedCancelEvents,1);
+ closed(srv);
+});
