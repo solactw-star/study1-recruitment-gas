@@ -4492,10 +4492,28 @@ test('P1-08 §70-H cancelled original ACCEPTED source survives explicit MOVE the
 });
 
 
+/* §70-I: deliver the accepted-offer confirmation through the ACTUAL original
+ * Visitor DOM, so the V08 participant screen has the latest CONFIRMED state. */
+function p108ConfirmedInVisitor_(srv){
+ waitlistFillConfirmed_(srv);
+ const person=waitlistVerifiedVisitor_(srv);
+ person.v.click('v08WaitJoin');
+ srv.command('CANCEL',{id:'SIM-001'});
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ person.v.click('v08WaitRefresh');person.v.click('v08WaitAccept');
+ person.v.get('readPdf').checked=true;person.v.change('readPdf');
+ person.v.click('review');
+ person.v.get('agree').checked=true;person.v.change('agree');
+ person.v.click('finish');
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CONFIRMED');
+ assert.equal(person.v.get('v08Refresh').disabled,false);
+ return person;
+}
+
 /* §70-I: V08 user-visible, confirmed-only move from B02 canceled source;
  * original GAS CAS, independent owner readback and capped B12 provenance. */
 test('P1-08 §70-I V08 can explicitly MOVE an accepted CONFIRMED TEST booking after original B02 CANCELLED, only with OWNER refresh and independent post-write GET',()=>{
- const srv=server(),person=p108AcceptedConfirmed_(srv);
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
  const original=srv.read(),priorQueue=original.waitlist.entries[0],
   priorHistory=original.b02.history.length,notices=original.notifications.length;
  srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
@@ -4540,7 +4558,7 @@ test('P1-08 §70-I V08 can explicitly MOVE an accepted CONFIRMED TEST booking af
  closed(srv);
 });
 test('P1-08 §70-I V08 CANCEL after accepted-offer MOVE requires one original CAS and independent GET; preserves canceled-source FIFO and bounded history',()=>{
- const srv=server(),person=p108AcceptedConfirmed_(srv);
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
  srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
  const v=person.v;v.click('v08Refresh');
  v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
@@ -4587,7 +4605,7 @@ test('P1-08 §70-I V08 successful CAS but OWNER GET revoked is UNKNOWN, fail-clo
  closed(srv);
 });
 test('P1-08 §70-I accepted-source spoofed on postwrite GET invalidates successful V08 CAS without a second command',()=>{
- const srv=server(),person=p108AcceptedConfirmed_(srv);
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
  srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
  const v=person.v;v.click('v08Refresh');
  v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
