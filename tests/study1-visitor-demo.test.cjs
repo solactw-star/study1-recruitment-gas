@@ -282,8 +282,10 @@ test('P1-08 V08 source preflight rejects crossed experiments, full/past/duplicat
   capacity:2,remaining:1,bookable:true};
  const next={id:'SIM-SLOT-E1-B',experiment:'E1',when:'2027-02-08 10:00',
   capacity:2,remaining:1,bookable:true};
+ // The current original owner GET always includes a server-pinned TEST clock
+ // and FIFO entries; this compact preflight fixture must honor that contract.
  const model={revision:3,applications:[app],slots:[origin,next],
-  b02:{sessions:{}}};
+  b02:{sessions:{}},waitlist:{asOf:Date.parse('2026-11-07T00:00:00Z'),entries:[]}};
  const okay=ctx.v08Plan_(model,app,'MOVE','SIM-SLOT-E1-B');
  assert.ok(okay);assert.equal(okay.destinationId,'SIM-SLOT-E1-B');
  assert.ok(ctx.v08Plan_(model,app,'CANCEL',null));
