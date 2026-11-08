@@ -125,12 +125,13 @@ function page(server,kind,options={}){
  const html=kind==='team'?teamHtml:demoHtml;
  const {ids,get,doc}=documentFor(html,kind),calls=[],failures=[];
  let success=null,failure=null,initialOwnerRead=false;
- const pendingOwnerReads=[];
+ const pendingOwnerReads=[],ownerReplyHistory=[],commandReplyHistory=[],pendingCommandReplies=[];
  const rpc={
   withSuccessHandler(fn){success=fn;return this;},
   withFailureHandler(fn){failure=fn;return this;},
   study1UnifiedPreviewGet(){calls.push('READ');
    const onSuccess=success,onFailure=failure;
+   ownerReplyHistory.push({success:onSuccess,failure:onFailure});
    const deliver=()=>{
     try{const view=server.read();onSuccess(view);}
     catch(e){failures.push(String(e.message||e));onFailure(e);}
@@ -156,11 +157,17 @@ function page(server,kind,options={}){
    catch(e){failures.push(String(e.message||e));failure(e);}
   },
   study1UnifiedPreviewCommand(c){calls.push(c.action);
+   const onSuccess=success,onFailure=failure;
    try{
-    const result=server.ctx.study1UnifiedPreviewCommand(c);
-    // GAS serialization: break cross-VM object identity.
-    success(JSON.parse(JSON.stringify(result)));
-   }catch(e){failures.push(String(e.message||e));failure(e);}
+    const result=JSON.parse(JSON.stringify(server.ctx.study1UnifiedPreviewCommand(c)));
+    // Run original GAS immediately, defer only the browser reply for races.
+    const deliver=()=>onSuccess(result);
+    commandReplyHistory.push({command:JSON.parse(JSON.stringify(c)),
+     success:onSuccess,failure:onFailure,result});
+    if(options.deferCommandReplies&&['MOVE','CANCEL'].includes(c.action))
+     pendingCommandReplies.push(deliver);
+    else deliver();
+   }catch(e){failures.push(String(e.message||e));onFailure(e);}
   }
  };
  const context=vm.createContext({document:doc,google:{script:{run:rpc}},
@@ -178,7 +185,9 @@ function page(server,kind,options={}){
  };
  const set=(id,value)=>{get(id).value=value;};
  return {kind,ids,get,click,change,set,calls,failures,context,pendingOwnerReads,
-  deliverOwnerRead(){assert.ok(pendingOwnerReads.length,'no pending OWNER GET');pendingOwnerReads.shift()();}};
+  ownerReplyHistory,commandReplyHistory,pendingCommandReplies,
+  deliverOwnerRead(){assert.ok(pendingOwnerReads.length,'no pending OWNER GET');pendingOwnerReads.shift()();},
+  deliverCommandReply(){assert.ok(pendingCommandReplies.length,'no pending command reply');pendingCommandReplies.shift()();}};
 }
 const closed=server=>{
  assert.equal(server.store.get('OPEN'),'false');
