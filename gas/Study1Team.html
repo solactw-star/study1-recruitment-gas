@@ -2477,7 +2477,6 @@ function cancelQueueCompareRender_(sessions,rows){
    calElem('p','施測：'+phrase(counts.progress,prog)+'（非研究完成）'));
   const button=calElem('button','查看'+(i===0?'A':'B')+'場逐人清單（唯讀）','secondary');
   button.type='button';button.addEventListener('click',()=>focus(slot.id));
-  card.append(button);
   card.append(calElem('p',adminScopeMatch_('B03',slot.experiment)?
    'B03／B04本頁範圍 '+adminScopeEffective_('B03')+'：可核對此場次':
    'B03／B04本頁範圍 '+adminScopeEffective_('B03')+
@@ -2486,7 +2485,7 @@ function cancelQueueCompareRender_(sessions,rows){
   verify.type='button';
   const atRevision=model.revision;
   verify.addEventListener('click',()=>cancelQueueCompareB03Get_(slot.id,slot.experiment,atRevision));
-  card.append(verify);cards.append(card);
+  card.append(verify,button);cards.append(card);
  }
  const [left,right]=pair,signed=n=>n>0?'+'+n:String(n),
   difference=(dims,keys)=>keys.map(([k,label])=>label+' '+signed(right.counts[dims][k]-left.counts[dims][k])).join('｜');
