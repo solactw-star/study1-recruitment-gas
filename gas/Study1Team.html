@@ -960,7 +960,10 @@ function adminScopeChanged_(module){
  if(affected.includes('B01')){if(!b01Layout.ready&&!b01Layout.loading)b01LayoutLoad_();
   b01Render();b01LayoutRender_();}
  if(affected.includes('B02')){calendarRender();cancelQueueRender_();}
- if(affected.includes('B03'))b03Render();
+ if(affected.includes('B03')){
+  b03Render();
+  if(!affected.includes('B02'))cancelQueueRender_();
+ }
  if(affected.includes('B06'))b06Render();
  if(affected.includes('B08'))b08Render();
  if(affected.includes('B09'))b09Render();
@@ -2376,7 +2379,14 @@ function cancelQueueRender_(){
    calElem('p','出席／施測備註：'+(r.att.note||'無可驗證紀錄')));
   const actions=calElem('div',undefined,'calQueueActions');
   const full=calElem('button','開啟B04完整資料','secondary');
-  full.type='button';full.addEventListener('click',()=>profileOpen(r.a.id,'cancelQueue'));
+  full.type='button';full.addEventListener('click',()=>{
+   if(!calAllowed()||!adminScopeMatch_('B02',r.a.experiment)||
+    !adminScopeMatch_('B03',r.a.experiment)){
+    $('cancelQueueStatus').textContent='B04跨頁檢視拒絕：目前B02／B03檢視範圍不含'+
+     r.a.experiment+'；未開啟完整資料，亦未改變任何檢視範圍。';return;
+   }
+   profileOpen(r.a.id,'cancelQueue');
+  });
   actions.append(full);
   const session=calElem('button','查看B02原場次','secondary');
   session.type='button';session.addEventListener('click',()=>{
@@ -2445,6 +2455,12 @@ function cancelQueueCompareRender_(sessions,rows){
   prog=[['NOT_STARTED','未開始'],['IN_PROGRESS','進行中'],['PARTIAL','部分完成'],['COMPLETE','行政完成']],
   phrase=(dims,keys)=>keys.map(([k,label])=>label+' '+dims[k]).join('｜'),
   focus=(slotId)=>{
+   const target=model?.slots?.find(s=>s.id===slotId);
+   if(!calAllowed()||!target||calMeta(target).status!=='CANCELLED'||
+    !adminScopeMatch_('B02',target.experiment)){
+    $('cancelQueueCompareStatus').textContent='B02場次檢視範圍已變更，拒絕舊的逐人定位。';
+    return;
+   }
    $('cancelQueueSlot').value=slotId;
    $('cancelQueueSearch').value='';$('cancelQueueFilter').value='ALL';
    $('cancelQueueAttendance').value='ALL';$('cancelQueueProgress').value='ALL';
@@ -2461,7 +2477,15 @@ function cancelQueueCompareRender_(sessions,rows){
    calElem('p','施測：'+phrase(counts.progress,prog)+'（非研究完成）'));
   const button=calElem('button','查看'+(i===0?'A':'B')+'場逐人清單（唯讀）','secondary');
   button.type='button';button.addEventListener('click',()=>focus(slot.id));
-  card.append(button);cards.append(card);
+  card.append(calElem('p',adminScopeMatch_('B03',slot.experiment)?
+   'B03／B04本頁範圍 '+adminScopeEffective_('B03')+'：可核對此場次':
+   'B03／B04本頁範圍 '+adminScopeEffective_('B03')+
+    '：此實驗不在可檢視範圍，跨頁定位將拒絕'));
+  const verify=calElem('button','獨立GET核對B03／B04（'+(i===0?'A':'B')+'場）','secondary');
+  verify.type='button';
+  const atRevision=model.revision;
+  verify.addEventListener('click',()=>cancelQueueCompareB03Get_(slot.id,slot.experiment,atRevision));
+  card.append(verify,button);cards.append(card);
  }
  const [left,right]=pair,signed=n=>n>0?'+'+n:String(n),
   difference=(dims,keys)=>keys.map(([k,label])=>label+' '+signed(right.counts[dims][k]-left.counts[dims][k])).join('｜');
@@ -2472,6 +2496,67 @@ function cancelQueueCompareRender_(sessions,rows){
   '｜僅保留歷程 '+signed(right.counts.kinds.HISTORY-left.counts.kinds.HISTORY)+
   '\n出席差：'+difference('attendance',att)+
   '\n施測差：'+difference('progress',prog)+'（完成僅為行政狀態，非研究完成）';
+}
+/* P1 B02-F: separate in-page scopes are VIEW filters, not authorization
+ * grants. Never let an A/B comparison bypass B03/B04's current E1/E2 view.
+ * A fresh original OWNER GET must agree before crossing that module boundary. */
+function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
+ const slot=model?.slots?.find(s=>s.id===slotId);
+ const selected=[$('cancelQueueCompareA').value,$('cancelQueueCompareB').value];
+ if(!calAllowed()||busy||!slot||slot.experiment!==experiment||
+  calMeta(slot).status!=='CANCELLED'||!selected.includes(slotId)||
+  !adminScopeMatch_('B02',experiment)||!b03CrossCheck_(model)){
+  $('cancelQueueCompareStatus').textContent=
+   'B02原場次、比對選取或來源版號已不一致，拒絕跨頁定位；請重新核對原GAS。';
+  return;
+ }
+ if(!adminScopeMatch_('B03',experiment)){
+  $('cancelQueueCompareStatus').textContent='B03／B04跨頁檢視拒絕：'+experiment+
+   '不在B03本頁範圍 '+adminScopeEffective_('B03')+
+   '；未變更B03篩選、B04完整資料或任何管理範圍，無寫入。';
+  return;
+ }
+ if(model.revision!==atRevision){
+  $('cancelQueueCompareStatus').textContent=
+   'B02 A/B比較來源修訂版已改變；請先重新核對，未執行跨頁定位。';return;
+ }
+ setBusy(true);
+ $('cancelQueueCompareStatus').textContent='正在獨立唯讀GET原GAS，確認'+
+  experiment+'場次與B03／B04檢視範圍…';
+ google.script.run.withSuccessHandler(data=>{
+  const target=data?.slots?.find(s=>s.id===slotId);
+  if(!b03CrossCheck_(data)||!render(data)){
+   render(null);
+   $('b03ReconcileStatus').textContent='B02/B03/B04跨頁來源不一致；已清空舊資料，無寫入。';
+   return;
+  }
+  if(data.revision!==atRevision){
+   $('cancelQueueCompareStatus').textContent=
+    '獨立GET發現原GAS修訂版改變；已顯示最新資料，舊A/B定位未執行，請重新核對。';
+   return;
+  }
+  if(!target||target.experiment!==experiment||
+   model.b02.sessions[slotId]?.status!=='CANCELLED'||
+   !adminScopeMatch_('B02',experiment)||!adminScopeMatch_('B03',experiment)||
+   ![$('cancelQueueCompareA').value,$('cancelQueueCompareB').value].includes(slotId)){
+   $('cancelQueueCompareStatus').textContent='獨立GET後場次或B02／B03範圍已變動；拒絕跨頁定位。';
+   return;
+  }
+  $('b03Search').value=slotId;
+  for(const key of ['b03Experiment','b03Eligibility','b03Stage',
+   'b03Attendance','b03Booking','b03UpdateSource'])$(key).value='ALL';
+  $('b03Sort').value='ID_ASC';b03.mode='list';b03Render();
+  $('cancelQueueCompareStatus').textContent='已用原GAS修訂版 '+data.revision+
+   '獨立GET核對 '+experiment+' 的 '+slotId+
+   '；B03名單已定位，B04須由當前B03本頁範圍開啟，無寫入。';
+  $('b03ReconcileStatus').textContent='B02取消場次跨頁來源已核對｜'+slotId+
+   '｜原GAS修訂版 '+data.revision+'｜B03/B04依目前範圍顯示（純TEST）。';
+  if($('b03Module').scrollIntoView)$('b03Module').scrollIntoView({block:'start'});
+ }).withFailureHandler(()=>{
+  render(null);
+  $('b03ReconcileStatus').textContent=
+   'B02 A/B跨頁GET失敗或OWNER撤權；已清空B02/B03/B04舊資料，無寫入。';
+ }).study1UnifiedPreviewGet();
 }
 function cancelQueueInit_(){
  for(const id of ['cancelQueueCompareA','cancelQueueCompareB'])
@@ -3188,8 +3273,14 @@ function profileEvents(a){
  return e;
 }
 function profileOpen(id,origin){
- if(!calAllowed()||!model.b04||!model.applications.some(a=>a.id===id)){
-  calMsg('參與者資料尚未就緒或沒有檢視權限。',true);return;
+ const a=model?.applications?.find(a=>a.id===id),
+  scopeOK=!!a&&(origin==='cancelQueue'?
+   adminScopeMatch_('B02',a.experiment)&&adminScopeMatch_('B03',a.experiment):
+   origin==='list'||origin==='board'?adminScopeMatch_('B03',a.experiment):
+   origin==='calendar'?adminScopeMatch_('B02',a.experiment):true);
+ if(!calAllowed()||!model.b04||!a||!scopeOK){
+  calMsg('B04跨頁檢視拒絕：參與者資料或B02／B03本頁範圍無法核對。',true);
+  return;
  }
  profile.id=id;profile.origin=origin==='calendar'?'calendar':origin==='board'?'board':origin==='b05'?'b05':origin==='cancelQueue'?'cancelQueue':'list';
  profile.tab='basic';profile.open=true;
