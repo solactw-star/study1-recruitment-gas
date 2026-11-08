@@ -2482,6 +2482,126 @@ test('P1 forged pending hold expiry or cross-experiment slot fails complete B02/
  closed(srv);
 });
 
+/* B02 has a genuine 12-event ring, not a complete historical event store.
+ * All 13 follow-up changes are original locked ADMIN_B02_SLOT transactions;
+ * no test fixture patch, new external storage, or administrator side effects. */
+test('P1 E1/E2 cancelled slots retain current status after true 12-entry B02 history truncation, with B03/B04 evidence limits',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),initial=srv.read();
+ const target=initial.slots.find(x=>x.id==='SIM-SLOT-E1-B');
+ assert.ok(target,'original E1-B slot exists; B02.sessions metadata may be absent for unedited slots');
+ const meta=initial.b02.sessions[target.id]||{minutes:120,place:''};
+ assert.equal(initial.b02.history.filter(x=>x.action==='CANCEL').length,2);
+ for(let i=0;i<13;i++)srv.command('ADMIN_B02_SLOT',{
+  operation:'UPDATE',slotId:target.id,experiment:target.experiment,
+  when:target.when,capacity:target.capacity,minutes:meta.minutes,
+  title:'有限歷程更新'+String(i).padStart(2,'0'),place:meta.place,
+  scope:'ONE',repeatCount:1
+ });
+ const d=srv.read(),writes=srv.writes;
+ assert.equal(d.b02.history.length,12);
+ assert.equal(d.b02.history.some(h=>h.action==='CANCEL'),false,'genuine ring trimmed earlier cancellation');
+ assert.equal(d.b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(d.b02.sessions['SIM-SLOT-E2-A'].status,'CANCELLED');
+ assert.deepEqual(d.applications,initial.applications,'B02 history rotation leaves linked bookings intact');
+ assert.deepEqual(d.b02.attendance,initial.b02.attendance);
+ assert.deepEqual(d.b04.history,initial.b04.history);
+ team.click('refresh');
+ assert.deepEqual(team.get('cancelQueueMatrix').children.map(x=>x.dataset.sessionId),
+  ['SIM-SLOT-E1-A','SIM-SLOT-E2-A']);
+ assert.match(team.get('cancelQueueMatrix').children[0].children.map(x=>x.textContent).join(' '),
+  /近期B02有限歷程未保留取消事件，可能已截斷/);
+ assert.match(team.get('cancelQueueMatrix').children[1].children.map(x=>x.textContent).join(' '),
+  /可能已截斷/);
+ p1CompareE1E2_(team);
+ assert.match(team.get('cancelQueueCompareCards').children[0].children.map(x=>x.textContent).join(' '),
+  /可能已截斷/);
+ assert.equal(team.get('cancelQueueRows').children.length,2);
+ team.get('cancelQueueRows').children[0].children.at(-1).children[2].handlers.click();
+ assert.match(team.get('entries').children[0].children.map(x=>x.textContent).join(' '),
+  /可能已截斷/);
+ team.get('entries').children[0].children.find(x=>x.tagName==='button').handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ booking.handlers.click();
+ const fields=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ assert.match(fields.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),
+  /取消來源歷程.*可能已截斷/);
+ assert.match(team.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),
+  /B02有限歷程截斷提示/);
+ assert.equal(srv.writes,writes,'all admin cross-page reconciliation remains read only');
+ closed(srv);
+});
+test('P1 retained B02 cancellation provenance is explicit but bounded and never claims complete audit',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),writes=srv.writes;
+ const cards=team.get('cancelQueueMatrix').children;
+ assert.match(cards[0].children.map(x=>x.textContent).join(' '),
+  /近期B02有限歷程保留取消事件 1 筆/);
+ assert.match(cards[1].children.map(x=>x.textContent).join(' '),
+  /無可重建的完整更正前後值/);
+ p1CompareE1E2_(team);
+ assert.match(team.get('cancelQueueCompareCards').children[1].children.map(x=>x.textContent).join(' '),
+  /近期B02有限歷程保留取消事件/);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 B02 bounded event forgery, cross-experiment slot IDs and B04 before/after discontinuity all clear old B02/B03/B04',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),writes=srv.writes,read=srv.read;
+ team.get('cancelQueueRows').children[0].children.at(-1).children[0].handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ const reject=mutate=>{
+  srv.read=()=>{const d=read();mutate(d);return d;};
+  team.click('refresh');
+  assert.equal(team.get('cancelQueueMatrix').children.length,0);
+  assert.equal(team.get('cancelQueueRows').children.length,0);
+  assert.equal(team.get('entries').children.length,0);
+  assert.equal(team.get('profileModule').hidden,true);
+  assert.equal(team.get('profileTabBody').children.length,0);
+ };
+ reject(d=>{d.b02.history.at(-1).action='UNRECOGNIZED';});
+ reject(d=>{d.b02.history.at(-1).ids=['SIM-SLOT-E1-A','SIM-SLOT-E2-A'];});
+ reject(d=>{d.b02.history.at(-1).at='invalid-time';});
+ reject(d=>{d.b02.history.push(...Array(13).fill(d.b02.history.at(-1)));});
+ reject(d=>{d.b04.history.at(-1).actor='FORGED';});
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(team.get('cancelQueueRows').children.length,2);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 genuine B04 30-entry trim preserves latest note and rejects discontinuous retained entries without inventing missing history',()=>{
+ const srv=server(),v=v07VerifiedVisitor_(srv);v.click('hold');
+ const team=page(srv,'team');
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ const slot='SIM-SLOT-E1-A';
+ for(let i=0;i<31;i++)srv.command('ADMIN_B04_NOTE',{
+  id:'SIM-001',note:'備註'+String(i).padStart(2,'0'),reason:'純測試人工更正'
+ });
+ const d=srv.read(),writes=srv.writes;
+ assert.equal(d.b04.history.length,30,'actual legacy 30 event ring');
+ assert.notEqual(d.b04.history[0].before,'','oldest retained event is not initial write');
+ assert.equal(d.b04.notes['SIM-001'],'備註30');
+ team.click('refresh');
+ assert.match(team.get('cancelQueueMatrix').children[0].children.map(x=>x.textContent).join(' '),
+  /近期B02有限歷程保留取消事件/);
+ team.get('cancelQueueRows').children[0].children.at(-1).children[0].handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='audit');
+ booking.handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ const read=srv.read;
+ srv.read=()=>{const forged=read();forged.b04.history[1].before='不連續的前值';return forged;};
+ team.click('refresh');
+ assert.equal(team.get('cancelQueueRows').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueRows').children.length,1);
+ assert.equal(team.get('cancelQueueRows').children[0].dataset.sessionId,slot);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
 test('P1 B02 two cancelled sessions compare real mixed attendance/progress counts and B03/B04 without writes',()=>{
  const srv=server(),team=p1CancelledTwoSlotsWithMixedAttendance_(srv),writes=srv.writes;
  const matrix=team.get('cancelQueueMatrix'),rows=team.get('cancelQueueRows');
