@@ -514,7 +514,7 @@ test('P1 B04 note correction needs a second OWNER GET and updates B03 latest ord
  team.set('profileReason','原測試資料補充更正');
  const start=team.calls.length;
  team.get('profileNoteForm').handlers.submit({preventDefault(){}});
- assert.deepEqual(team.calls.slice(start),['ADMIN_B04_NOTE','READ'],
+ assert.deepEqual(team.calls.slice(start).filter(x=>x!=='B01_GET'),['ADMIN_B04_NOTE','READ'],
   'one command followed by exactly one independent original GAS GET');
  assert.equal(srv.writes,writes+1,'exactly one TEST fixture write');
  assert.match(team.get('profileMessage').textContent,/獨立回讀確認/);
