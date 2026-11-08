@@ -5375,3 +5375,141 @@ test('P1-08 §70-M CONSENTED holdUntil exact boundary across two OWNER GETs fail
  assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
  closed(srv);
 });
+
+
+/* §70-N: same original GAS and browser-shaped OWNER VM, with callbacks
+ * intentionally delayed/duplicated. No simulated command replaces GAS CAS. */
+test('P1-08 §70-N stale MOVE command ACK and V07 GET callbacks cannot unlock new CANCEL in flight; distinct requestIds and original accepted FIFO remain',()=>{
+ const srv=server(),opts={deferCommandReplies:false},person=p108ConfirmedInVisitor_(srv,opts);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');
+ const native=srv.ctx.study1UnifiedPreviewCommand,orig=srv.read();
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action!=='MOVE')return native(c);
+  assert.equal(native(c).deduplicated,false);
+  return native(c); // the old MOVE is causally UNKNOWN to this OWNER tab
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+ const oldAck=v.commandReplyHistory.at(-1),oldRescan=v.ownerReplyHistory.at(-1);
+ assert.equal(oldAck.command.action,'MOVE');
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');
+ assert.equal(v.get('cancel').disabled,false);
+ opts.deferCommandReplies=true;
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const beforeCancel=srv.writes;
+ v.click('v08Commit');
+ assert.equal(srv.writes,beforeCancel+1,'new CANCEL GAS CAS already ran');
+ assert.equal(v.pendingCommandReplies.length,1);
+ const newAck=v.commandReplyHistory.at(-1);
+ assert.notEqual(oldAck.command.requestId,newAck.command.requestId);
+ const priorReads=v.calls.filter(x=>x==='READ').length;
+ oldAck.success(oldAck.result);oldAck.failure(new Error('delayed first MOVE failure'));
+ oldRescan.success(orig);oldRescan.failure(new Error('delayed earlier read failure'));
+ assert.equal(v.calls.filter(x=>x==='READ').length,priorReads,'stale callbacks cannot schedule another OWNER GET');
+ assert.equal(v.get('cancel').disabled,true,'new committed CANCEL remains locked until its reply and GET');
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(srv.writes,beforeCancel+1,'no old requestId replay');
+ v.deliverCommandReply();
+ assert.equal(v.pendingCommandReplies.length,0);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.equal(srv.read().waitlist.entries[0].status,'ACCEPTED');
+ assert.deepEqual([srv.read().waitlist.entries[0].slotId,srv.read().waitlist.entries[0].seq],
+  [orig.waitlist.entries[0].slotId,orig.waitlist.entries[0].seq]);
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ assert.equal(p108B12_(srv,'WAITLIST').items[0].historical,false);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-N old independent MOVE OWNER GET success/failure cannot overwrite the locked new CANCEL CAS before its response',()=>{
+ const srv=server(),options={deferCommandReplies:false},v=v08ConfirmedVisitor_(srv,options);
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ assert.equal(v.get('cancel').disabled,false);
+ const oldGet=v.ownerReplyHistory.at(-1),oldMove=srv.read();
+ assert.equal(oldMove.applications[0].phase,'CONFIRMED');
+ options.deferCommandReplies=true;
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const start=srv.writes;v.click('v08Commit');
+ assert.equal(srv.writes,start+1);
+ assert.equal(v.pendingCommandReplies.length,1);
+ const count=v.calls.filter(x=>x==='READ').length;
+ oldGet.success(oldMove);oldGet.failure(new Error('replayed old GET denial'));
+ assert.equal(v.calls.filter(x=>x==='READ').length,count);
+ assert.equal(v.get('cancel').disabled,true,'old GET cannot unlock a newer in-flight transaction');
+ assert.equal(v.get('v08Commit').disabled,true);
+ v.deliverCommandReply();
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ assert.equal(srv.read().applications[0].phase,'CANCELLED');
+ assert.match(v.get('v07Result').textContent,/獨立GET核對TEST個別取消/);
+ closed(srv);
+});
+test('P1-08 §70-N fresh new requestId after explicit UNKNOWN baseline still loses original GAS CAS to second OWNER tab; second UNKNOWN cannot replay original',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv),v=person.v;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ v.click('v08Refresh');v.click('move');
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ const original=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action!=='MOVE')return original(c);
+  assert.equal(original(c).deduplicated,false);return original(c);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=original;
+ const oldId=v.commandReplyHistory.at(-1).command.requestId;
+ const accepted=JSON.parse(JSON.stringify(srv.read().waitlist.entries[0]));
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');v.click('v08UnknownRecover');
+ assert.equal(v.get('cancel').disabled,false);
+ const tab2=page(srv,'team'); // second OWNER tab has same original revision
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const before=srv.writes;
+ tab2.set('modeE2','HIDDEN');tab2.click('saveModes');
+ assert.equal(srv.writes,before+1,'other OWNER performed fresh explicit CAS');
+ v.click('v08Commit'); // this tab's formerly valid revision is now stale
+ const staleId=v.commandReplyHistory.at(-1).command.requestId;
+ assert.notEqual(staleId,oldId,'old UNKNOWN requestId is never reused');
+ assert.equal(srv.writes,before+1,'stale CANCEL did not write or auto-retry');
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CONFIRMED');
+ assert.equal(v.get('cancel').disabled,true);
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ v.click('v07Rescan');
+ assert.equal(v.get('cancel').disabled,true,'one valid GET remains read-only');
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');v.click('v08UnknownRecover');
+ assert.equal(v.get('cancel').disabled,false);
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ const finalId=v.commandReplyHistory.at(-1).command.requestId;
+ assert.equal(new Set([oldId,staleId,finalId]).size,3);
+ assert.equal(srv.writes,before+2,'one final new original GAS CAS');
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.deepEqual(srv.read().waitlist.entries[0],accepted,'original accepted FIFO never re-authored');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-N first recovery GET with earlier GAS asOf than prior trusted OWNER snapshot rejects same-revision twin replies with no writes',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv),native=srv.ctx.study1UnifiedPreviewCommand;
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action!=='MOVE')return native(c);
+  assert.equal(native(c).deduplicated,false);return native(c);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const read=srv.read,writes=srv.writes,prev=v.calls.filter(x=>x==='READ').length;
+ let reads=0;
+ srv.read=()=>{const d=read();d.waitlist.asOf-=1000;reads++;return d;};
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');v.click('v08UnknownRecover');
+ srv.read=read;
+ assert.equal(reads,1,'reject stale clock before second GET');
+ assert.equal(v.calls.filter(x=>x==='READ').length,prev+1);
+ assert.equal(srv.writes,writes);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08UnknownRecover').disabled,true);
+ assert.match(v.get('status').textContent,/兩次獨立GET|拒絕恢復|UNKNOWN/);
+ assert.equal(srv.read().applications[0].phase,'CONFIRMED');
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
