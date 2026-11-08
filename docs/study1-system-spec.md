@@ -774,3 +774,14 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - `GAS_SYNC_VERIFIED=true`：原同ID安全同步workflow `https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42434751832` 結果success，原GAS寫前完整程式與部署私人備份ID `137hPTWOR8sBI6zkstomGMPLJijsQFwSr`，已透過研究室Drive metadata回讀`application/json`、597280 bytes、2026-11-08T01:33:45.642Z、`solac.tw@gmail.com` 所有、`shared=false`。寫前遠端完整HEAD SHA256 `3cea6abb250219eade3014a511d79dabc285085d03fa99ce9484321dfa01fe6c`，寫後完整HEAD SHA256 `1254eccfa96ef4095e3cdb73fd437b1daae328532b42fd007f5485048ac0112d`；原GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`、原版本化`/exec`部署ID `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s`均不變；`DEPLOYMENT_BEFORE_UPDATE=87`、`DEPLOYMENT_AFTER_UPDATE=88`、`SYNC_VERIFIED=true`，部署有效權限保留`MYSELF`。未部署HEAD manifest的`ANYONE_ANONYMOUS`不等於原`/exec`公開，workflow已還原原測試audience。
 - `MAIN_SYNC_VERIFIED=true`、`GAS_SYNC_VERIFIED=true`、`B04_NOTE_INDEPENDENT_GET_TEST=true`，`SELF_UI_3PASS=NOT_VERIFIED`、`UI_VERIFIED=false`、`FORMAL_READY=false`；`OPEN=false`、`CONSENT_READY=false`、有效部署`MYSELF`，E2仍不自動招募。沒有真人資料、正式REC、寄信、PI／RA正式角色、研究補貼或付款。
 - `BLOCKERS`：真人PI／RA身份與權限、正式儲存／長期稽核及REC正式電子同意、原OWNER實際瀏覽器UI操作驗收、正式研究部署與啟用未授權。`NEXT_ACTION`：依本節最新main及原GAS V88重新讀取並行PR和工作流，選B02/B03/B04純TEST來源完整性及瀏覽器回歸缺口續作；除非另有核准不碰真人資料或寄信。 `WRITE_OWNER=GitHub original main + GAS original same-ID safe sync`；`SYNC_STATUS=MAIN_SYNC_VERIFIED+GAS_SYNC_VERIFIED; UI_AND_FORMAL_BLOCKED`。
+
+
+## 六十三、P1 B03最近更新來源篩選與B02／B04有限歷程核對（2026-11-08）
+
+- `TASK_DOMAIN=Study1 recruitment website / P1 B03 recent event provenance B02/B04 TEST`。依唯一正式規格第62節、當輪main `96dc77ba5d4d5052418205b71966697707e907c3`、同ID原GAS已驗證V88接續。本輪不合併未授權V08 Draft，不更動正式資料、REC或排程。
+- `MODULE`：B03原清單／看板新增實際可選「最近更新來源」：全部、B02出席／施測、B04行政備註、尚無更動。透過原`study1UnifiedPreviewGet`回傳的同一OWNER-only純TEST快照，依B04有限更正歷程的`attendanceAndProgress`與`adminNote`，以及B02有限`ATTEND`事件判定最後更新時間及來源；清單與看板共同顯示來源及時間。相同時間戳優先B04行政備註，再B04出席更正，再B02出席重新確認。保留原E1/E2管理範圍、原篩選及排序；只讀取不寫入、不建立第二份台帳／GAS RPC。
+- `B04_AUDIT`：原B04個人事件時間線標示來自B02／B04的出席／施測更正與B04行政備註；當B02有`ATTEND`但狀態未變因而無B04更正前後值時，僅顯示「B02出席重新確認」，不虛構更正歷程或重複展示同時間的B04值更正。既有B04資料與最近更新時間繼續共用原一份快照，有限歷程不得冒充永久完整稽核。
+- `FAIL_CLOSED`：原頁初始化及B03手動重新GET檢查參與者／場次關聯；對仍保留的B04最新逐欄更正`after`，比對現行B04備註或B02出席／施測狀態；B02 `ATTEND`必須引用唯一既有已關聯時段的SIM代碼且時間戳有效。孤兒引用、資料錯接或最後值分歧則清空B03、B04及關聯舊資料、停用操作，僅能透過原GET再核實恢復。不把有限歷程缺少舊事件直接判為沒有發生，也不自動修補。
+- `TESTS`：原GAS完整TEST狀態機與原Team DOM形狀VM，測試真實B02出席／施測更正及B04行政備註、來源篩選與清單／看板一致性、B04時間線、無值變化但有B02確認事件、過期或異常快照的清空與回復、原範圍／排序及重新GET零寫入。全部既有安全CI不關閉、不放寬。
+- `SAFETY`：原GAS `OPEN=false`、`CONSENT_READY=false`、既有版本化`/exec` `MYSELF`；僅OWNER-only純TEST、虛構SIM代碼；不收真人資料、不寄信、不啟用正式招募或電子同意，E2不自動招募。VM不是實際UI驗收；`UI_VERIFIED=false`、`FORMAL_READY=false`。
+- `LAST_VERIFIED_STEP=BRANCH_IMPLEMENTATION_PENDING_CI`；本輪僅原Team頁、原測試檔及本規格原路徑最小改動。完整CI、PR競寫、main合併、原GAS私有備份、同ID HEAD與MYSELF部署回讀成功後才標`MAIN_SYNC_VERIFIED`及`GAS_SYNC_VERIFIED`，並增量更新此節接續點。
