@@ -1408,8 +1408,19 @@ function study1PostCancelSummary_(s){
     return {id:e.id,seq:e.seq,originalSlotId:e.slotId,
      currentSlotId:a.slotId,phase:a.phase};
    });
+   // Raw, current-only per-person reconciliation for B02/B03/B04/B09/B12.
+   // Do not infer whether an expired hold was administratively processed;
+   // its holdUntil remains a timestamp and original accepted FIFO stays fixed.
+   const linkedRecords=linked.slice().sort((a,b)=>a.id.localeCompare(b.id)).map(a=>{
+    const att=s.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
+    const acceptedSource=s.waitlist.entries.find(e=>e.id===a.id&&e.status==='ACCEPTED');
+    return {id:a.id,phase:a.phase,holdUntil:a.holdUntil===undefined?null:a.holdUntil,
+     attendance:att.attendance,progress:att.progress,
+     originalAcceptedSlotId:acceptedSource?acceptedSource.slotId:null,
+     originalAcceptedSeq:acceptedSource?acceptedSource.seq:null};
+   });
    return {slotId:slot.id,experiment:slot.experiment,when:slot.when,
-    acceptedOrigins:accepted,
+    acceptedOrigins:accepted,linkedRecords,
     linked:linked.length,
     linkedConfirmed:linked.filter(a=>a.phase==='CONFIRMED').length,
     linkedHoldOrConsented:linked.filter(a=>['HELD','CONSENTED'].includes(a.phase)).length,

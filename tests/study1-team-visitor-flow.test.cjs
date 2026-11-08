@@ -4212,3 +4212,145 @@ test('P1-08 §70-F forged postcancel current snapshot and B12 bounded coverage f
  assert.equal(audit.items[0].provenance,'CURRENT_TEST_WAITLIST_ONLY');
  closed(srv);
 });
+
+
+/* §70-G: original GAS/Team/Visitor only. No real participant, email, REC,
+ * persistent review decision or fabricated historical event. */
+const postCancelPersonAnswers_={adult:true,cycu:true,diagnosed:false,
+ treatment:false,frequentPractice:false,joinedE1:false};
+function postCancelPerson_(srv,phase){
+ srv.command('START',{experiment:'E1'});
+ const id=srv.read().applications.at(-1).id;
+ srv.command('SCREEN',{id,answers:postCancelPersonAnswers_});
+ srv.command('OTP_REQUEST',{id});
+ srv.command('OTP_VERIFY',{id,code:'00000000'});
+ srv.command('HOLD',{id,slotId:'SIM-SLOT-E1-A'});
+ if(['CONSENTED','CONFIRMED'].includes(phase)){
+  const version=srv.read().policy.consent.E1.version;
+  srv.command('CONSENT_REVIEW',{id,version,sha256:''});
+  srv.command('CONSENT',{id,accepted:true,version,signature:'SIMULATED_SIGN_ONLY'});
+ }
+ if(phase==='CONFIRMED')srv.command('CONFIRM',{id});
+ if(phase==='CANCELLED')srv.command('CANCEL',{id});
+ assert.equal(srv.read().applications.find(a=>a.id===id).phase,phase);
+ return id;
+}
+test('P1-08 §70-G B02 cancelled slot retains per-person CONFIRMED HELD CONSENTED CANCELLED, B04 attendance and B09/B12 bounded current provenance',()=>{
+ const srv=server(),slot='SIM-SLOT-E1-A';
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'UPDATE',{capacity:5}));
+ const ids=['CONFIRMED','HELD','CONSENTED','CANCELLED']
+  .map(phase=>postCancelPerson_(srv,phase));
+ srv.command('ADMIN_B02_ATTEND',{id:ids[0],attendance:'PRESENT',
+  progress:'COMPLETE',note:'TEST_ONLY'});
+ const before=srv.read(),n=before.notifications.length,history=before.b04.history.length;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const d=srv.read(),source=d.postCancel.bySlot.find(x=>x.slotId===slot);
+ assert.equal(source.linkedRecords.length,4);
+ assert.deepEqual(source.linkedRecords.map(x=>x.phase),
+  ['CONFIRMED','HELD','CONSENTED','CANCELLED']);
+ assert.deepEqual(source.linkedRecords.map(x=>x.id),ids);
+ assert.deepEqual(source.linkedRecords.map(x=>[x.attendance,x.progress]),[
+  ['PRESENT','COMPLETE'],['PENDING','NOT_STARTED'],
+  ['PENDING','NOT_STARTED'],['PENDING','NOT_STARTED']]);
+ assert.equal(source.linkedRecords[0].originalAcceptedSlotId,null);
+ assert.equal(source.linkedRecords[1].holdUntil,d.applications.find(a=>a.id===ids[1]).holdUntil);
+ assert.equal(source.linkedRecords[2].holdUntil,d.applications.find(a=>a.id===ids[2]).holdUntil);
+ assert.deepEqual([source.linked,source.linkedConfirmed,source.linkedHoldOrConsented,
+  source.linkedCancelled,source.linkedAttendanceRecorded,source.linkedProgressComplete],
+  [4,1,2,1,1,1]);
+ assert.equal(d.b04.history.length,history,'B02 cancellation does not write B04 history');
+ assert.equal(d.notifications.length,n,'B02 session cancellation does not notify anyone');
+ assert.equal(d.b02.attendance[ids[0]].progress,'COMPLETE');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('cancelQueueMatrix')),/逐筆來源/);
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/CONFIRMED.*B02出席 PRESENT.*施測 COMPLETE/);
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/CONSENTED.*暫留到期來源/);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/逐筆核對/);
+ assert.match(waitlistNodeText_(team.get('entries')),/取消場次逐筆來源/);
+ const profile=team.get('entries').children.find(c=>c.dataset.participantId===ids[0]);
+ profile.children.find(c=>c.tagName==='button').handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');booking.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTabBody')),/已取消場次個別核對.*CONFIRMED/);
+ const audit=p108B12_(srv,'B02');
+ assert.equal(audit.coverage.postCancelSummary.bySlot[0].linkedRecords.length,4);
+ assert.equal(audit.coverage.postCancelSummary.completeHistory,false);
+ assert.ok(audit.items.some(x=>x.action==='CANCEL'&&x.provenance==='BOUNDED_EVENT_ONLY'));
+ assert.equal(audit.items.some(x=>x.action==='PERSON_REVIEW_COMPLETED'),false);
+ const writes=srv.writes;
+ assert.throws(()=>srv.command('ADMIN_B02_ATTEND',{id:ids[0],
+  attendance:'ABSENT',progress:'NOT_STARTED',note:'TEST'}),/取消|結案/);
+ assert.throws(()=>srv.command('HOLD',{id:ids[1],slotId:slot}),/尚未|取消|時段/);
+ assert.equal(srv.writes,writes,'cancelled B02 cannot alter attendance or renew slot');
+ closed(srv);
+});
+test('P1-08 §70-G cancelled B02 manual TEST booking MOVE/CANCEL requires fresh revision; no automatic repair or invented history',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const before=srv.read(),noticeCount=before.notifications.length,prior=before.revision;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const cancelled=srv.read(),savedHistory=cancelled.b02.history.length;
+ assert.equal(cancelled.postCancel.bySlot[0].linkedConfirmed,2);
+ const writes=srv.writes;
+ assert.throws(()=>srv.command('MOVE',{id:'SIM-001',slotId:'SIM-SLOT-E1-B'},prior),/版本已變更/);
+ assert.throws(()=>srv.command('MOVE',{id:'SIM-001',slotId:'SIM-SLOT-E2-A'}),/時段|實驗|已額滿/);
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.read().postCancel.bySlot[0].linkedConfirmed,2,'no auto-move after cancellation');
+ srv.command('MOVE',{id:'SIM-001',slotId:'SIM-SLOT-E1-B'});
+ const moved=srv.read(),row=moved.postCancel.bySlot[0];
+ assert.equal(row.linked,1);
+ assert.equal(row.linkedRecords[0].id,'SIM-002');
+ assert.equal(moved.applications.find(a=>a.id==='SIM-001').phase,'CONFIRMED');
+ assert.equal(moved.applications.find(a=>a.id==='SIM-001').slotId,'SIM-SLOT-E1-B');
+ assert.equal(moved.b02.history.length,savedHistory,'MOVE never invents B02 cancellation history');
+ assert.equal(moved.notifications.length,noticeCount+1,'existing synthetic MOVE notice only; no real email');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原B02已取消/);
+ assert.match(waitlistNodeText_(team.get('cancelQueueMatrix')),/原關聯 1 筆/);
+ srv.command('CANCEL',{id:'SIM-002'}); // explicit single synthetic booking CANCEL
+ const after=srv.read();
+ assert.equal(after.postCancel.bySlot[0].linkedRecords[0].phase,'CANCELLED');
+ assert.equal(after.postCancel.bySlot[0].linkedCancelled,1);
+ assert.equal(after.postCancel.bySlot[0].linkedConfirmed,0);
+ assert.equal(after.b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(after.b02.history.length,savedHistory,'no fake B02 event for individual CANCEL');
+ assert.equal(after.notifications.length,noticeCount+2,'simulated booking events only');
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.bySlot[0].linkedRecords[0].phase,
+  'CANCELLED');
+ closed(srv);
+});
+test('P1-08 §70-G per-person postcancel forgery and hold expiry boundary fail closed; no automatic status writes',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'UPDATE',{capacity:4}));
+ const id=postCancelPerson_(srv,'CONSENTED');
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const baseline=srv.read(),writeCount=srv.writes,read=srv.read;
+ const team=page(srv,'team',{Date:Clock});
+ const corrupt=mutate=>{
+  srv.read=()=>{const data=read();mutate(data);return data;};
+  team.click('refresh');
+  assert.equal(team.get('entries').children.length,0);
+  assert.equal(team.get('cancelQueueRows').children.length,0);
+  assert.equal(team.get('b09WaitlistSummary').children.length,0);
+  assert.equal(team.get('b12List').children.length,0);
+  srv.read=read;team.click('refresh');
+ };
+ corrupt(d=>{d.postCancel.bySlot[0].linkedRecords[0].phase='CONFIRMED';});
+ corrupt(d=>{d.postCancel.bySlot[0].linkedRecords[0].holdUntil+=10000;});
+ corrupt(d=>{d.postCancel.bySlot[0].linkedRecords[0].progress='COMPLETE';});
+ corrupt(d=>{d.postCancel.bySlot[0].linkedRecords[0].originalAcceptedSlotId='SIM-SLOT-E2-A';});
+ assert.equal(srv.writes,writeCount);
+ const hold=baseline.applications.find(a=>a.id===id).holdUntil;
+ clock.now=hold+1;team.click('refresh');
+ assert.equal(srv.read().applications.find(a=>a.id===id).phase,'CONSENTED',
+  'expiry is not automatic cancellation or audit completion');
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/暫留已逾期.*僅保留歷程/);
+ const writes=srv.writes;
+ assert.throws(()=>srv.command('CANCEL',{id}),/只有有效|已取消|逾期/);
+ assert.equal(srv.writes,writes);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.bySlot[0].linkedRecords[0].phase,
+  'CONSENTED');
+ assert.equal(srv.read().postCancel.bySlot[0].linkedRecords[0].holdUntil,hold);
+ closed(srv);
+});
