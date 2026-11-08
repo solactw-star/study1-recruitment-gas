@@ -69,8 +69,9 @@ function otpVerifyOnceLocked_(request, adapters) {
   otpId_(request.challengeId);
   otpId_(request.applicantId);
   otpBindingEmail_(request.email);
-  // Reject invalid now before lock; the evaluator validates its UTC form.
-  otpUtc_(request.nowUtc);
+  // Freeze mutable Date before injected lock/read callbacks. All decisions
+  // in this transaction must use the SAME caller-validated UTC instant.
+  var stableNowUtc=new Date(otpUtc_(request.nowUtc)).toISOString();
   var lock=adapters.getLock();
   if (!lock || typeof lock.tryLock!=='function' ||
       typeof lock.releaseLock!=='function' ||
@@ -89,11 +90,11 @@ function otpVerifyOnceLocked_(request, adapters) {
       return {verified:false,reason:'REJECTED'};
     }
     // Cross-challenge limit is mandatory, using the SAME locked snapshot.
-    if (!otpThrottleVerifyGate_(snapshot,request,request.nowUtc).allowed) {
+    if (!otpThrottleVerifyGate_(snapshot,request,stableNowUtc).allowed) {
       return {verified:false,reason:'REJECTED'};
     }
     var decision=otpEvaluateVerification_(
-      match.row,request.code,request.nowUtc,adapters.getSecret());
+      match.row,request.code,stableNowUtc,adapters.getSecret());
     // A secret-provider callback may have released the shared lock.
     otpAssertLockStillHeld_(lock);
     if (decision.reason!=='MATCH' && decision.reason!=='INVALID') {

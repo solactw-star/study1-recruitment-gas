@@ -130,3 +130,38 @@ test('No live Sheet write, email, or public OTP endpoint is introduced',()=>{
  assert.match(site,/function verifyOtp\(\)\{return rejectIntake_\(\);\}/);
  assert.doesNotMatch(transaction,/SpreadsheetApp|MailApp|GmailApp|google\.script\.run|\.appendRow\s*\(/);
 });
+
+
+test('OTP verification pins mutable caller Date before injected getLock callback',()=>{
+ const f=fixture();
+ const clock=new Date(now);
+ const originalGetLock=f.adapters.getLock;
+ f.adapters.getLock=()=>{
+   clock.setTime(Date.parse('2026-10-29T08:11:00Z')); // past challenge expiry
+   return originalGetLock();
+ };
+ assert.deepEqual(invoke(f,{...f.request,nowUtc:clock}),
+   {verified:true,reason:'VERIFIED'});
+ assert.equal(f.rows[0][6],'2026-10-29T08:05:00.000Z');
+ assert.equal(f.counts.writes,1);
+ assert.equal(f.counts.acquired,false);
+});
+test('OTP verification pins mutable caller Date before injected snapshot callback',()=>{
+ const f=fixture();
+ const clock=new Date(now);
+ const originalRead=f.adapters.readSnapshot;
+ let mutated=false;
+ f.adapters.readSnapshot=()=>{
+   const snapshot=originalRead();
+   if(!mutated){
+     clock.setTime(Date.parse('2026-10-29T07:59:00Z')); // before issuance
+     mutated=true;
+   }
+   return snapshot;
+ };
+ assert.deepEqual(invoke(f,{...f.request,nowUtc:clock}),
+   {verified:true,reason:'VERIFIED'});
+ assert.equal(f.rows[0][6],'2026-10-29T08:05:00.000Z');
+ assert.equal(f.counts.writes,1);
+ assert.equal(f.counts.acquired,false);
+});
