@@ -29,6 +29,17 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 :focus-visible{outline:3px solid #a57833;outline-offset:3px}
 @media(max-width:720px){.grid{grid-template-columns:1fr}.gridtable{grid-template-columns:1fr 1fr}.week{grid-template-columns:1fr}.shell,nav{padding:16px}}
 
+.calQueueBox{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
+.calQueueTools{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;gap:10px;align-items:end}
+.calQueueTools label{font-size:13px;font-weight:700}
+.calQueueTools input,.calQueueTools select{min-height:42px;padding:9px}
+.calQueueTools button,.calQueueActions button{margin:0;min-height:38px;padding:7px 10px;font-size:13px}
+.calQueueRows{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;margin:12px 0}
+.calQueueRow{border:1px solid var(--line);border-radius:12px;padding:12px;background:#f7faf9;overflow-wrap:anywhere}
+.calQueueRow p{font-size:13px;margin:5px 0;white-space:pre-wrap}
+.calQueueRow strong{display:block}
+.calQueueActions{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+@media(max-width:720px){.calQueueTools{grid-template-columns:1fr}}
 /* B02 integrated management module: same owner-only TEST site, no external data. */
 #calendarModule{scroll-margin-top:24px}#calendarModule [hidden]{display:none!important}
 .calTop{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
@@ -381,6 +392,21 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   </aside>
  </div>
  <p id="calStatusMessage" role="status" aria-live="polite" class="small">目前僅供獲授權的擁有者操作虛構資料。</p>
+ <div id="cancelQueueModule" class="calQueueBox" aria-labelledby="cancelQueueHeading">
+  <div class="calTop"><div><h3 id="cancelQueueHeading">已取消場次｜待人工核對預約</h3>
+   <p class="small">B02／B03／B04共用原GAS虛構TEST快照；僅顯示目前可推導的預約及出席狀態，不是人工處理完成紀錄。</p></div>
+   <button type="button" class="secondary" id="cancelQueueRefresh" disabled>唯讀重新核對原GAS</button></div>
+  <div class="calQueueTools">
+   <label for="cancelQueueSearch">搜尋虛構參與者／場次代碼<input id="cancelQueueSearch" type="search" maxlength="60" placeholder="SIM-001 或 SIM-SLOT"></label>
+   <label for="cancelQueueFilter">關聯狀態<select id="cancelQueueFilter">
+    <option value="ALL">全部關聯</option><option value="REVIEW">待人工核對</option>
+    <option value="HISTORY">僅保留歷程（不代表已完成）</option></select></label>
+   <button type="button" class="secondary" id="cancelQueueClear">清除篩選</button>
+  </div>
+  <p id="cancelQueueStatus" role="status" aria-live="polite" class="small">尚未核對同一份TEST來源。</p>
+  <div id="cancelQueueRows" class="calQueueRows" aria-label="已取消場次的虛構關聯預約與出席核對清單"></div>
+  <p class="small">「待人工核對」和「僅保留歷程」都是從現行流程推導的檢視分類；不表示研究已核准、行政已結案，亦不儲存人工裁決。不可由此直接取消個別預約、改期或寄信。</p>
+ </div>
 </section>
 
 
@@ -705,7 +731,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
-function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','b03Reconcile','profileSaveNote','b05Close','b05Reopen','b06Save','b11Preview'])$(id).disabled=value||!model;}
+function setBusy(value){busy=value;for(const id of ['saveModes','saveSite','saveResearch','addSlot','saveSlots','saveWeeks','calNew','calSaveSession','calSavePerson','calPrev','calNext','calToday','calFirst','calResetFilter','b03Reconcile','cancelQueueRefresh','profileSaveNote','b05Close','b05Reopen','b06Save','b11Preview'])$(id).disabled=value||!model;}
 function inputLabel(text,cls){const node=document.createElement('span');node.textContent=text;node.className=cls||'small';return node;}
 function input(type,value,cls){const node=document.createElement('input');node.type=type;node.value=value==null?'':String(value);node.className=cls||'';return node;}
 function displaySlots(){
@@ -798,7 +824,7 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)||!b03CrossCheck_(data)){
-  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');$('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();$('profileTimeline').replaceChildren();model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本；B10拒絕顯示。',true);
+  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';cancelQueueClear_('來源或管理權限不可信，已清除取消場次核對清單。');profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');$('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();$('profileTimeline').replaceChildren();model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本；B10拒絕顯示。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
@@ -813,7 +839,7 @@ function render(data){
   $(prefix+'Procedure').value=d.procedure;$(prefix+'Compensation').value=d.compensation;
  }
  adminScopeLabels_();b11Load_();b10Render_();b07Render_();displaySlots();displayWeeks();b01LayoutLoad_();b01Render();b01LayoutRender_();b09Render();calendarRender();profileRender();b05Render();
- b03Render();b06Render();b08Render();
+ b03Render();cancelQueueRender_();b06Render();b08Render();
  message('網站設定已載入。修改欄位後按下各區的「儲存」，即可更新參與者 Demo。');
  return true;
 }
@@ -852,6 +878,7 @@ function adminScopeLabels_(){
 function adminScopeClearAll_(){
  $('calBoard').replaceChildren();
  $('calSessionDetail').replaceChildren();
+ cancelQueueClear_('管理授權或範圍無法核實，核對清單已清空。');
  $('calDescription').textContent='管理授權或範圍無法核實，已清除場次檢視。';
  $('entries').replaceChildren();$('b03Board').replaceChildren();
  $('bookingSummary').textContent='管理授權或範圍無法核實，名單已清空。';
@@ -897,7 +924,7 @@ function adminScopeChanged_(module){
  if(module==='GLOBAL')b07Render_();
  if(affected.includes('B01')){if(!b01Layout.ready&&!b01Layout.loading)b01LayoutLoad_();
   b01Render();b01LayoutRender_();}
- if(affected.includes('B02'))calendarRender();
+ if(affected.includes('B02')){calendarRender();cancelQueueRender_();}
  if(affected.includes('B03'))b03Render();
  if(affected.includes('B06'))b06Render();
  if(affected.includes('B08'))b08Render();
@@ -2872,7 +2899,7 @@ function profileOpen(id,origin){
  if(!calAllowed()||!model.b04||!model.applications.some(a=>a.id===id)){
   calMsg('參與者資料尚未就緒或沒有檢視權限。',true);return;
  }
- profile.id=id;profile.origin=origin==='calendar'?'calendar':origin==='board'?'board':origin==='b05'?'b05':'list';
+ profile.id=id;profile.origin=origin==='calendar'?'calendar':origin==='board'?'board':origin==='b05'?'b05':origin==='cancelQueue'?'cancelQueue':'list';
  profile.tab='basic';profile.open=true;
  $('teamMain').classList.add('b04Open');
  $('profileModule').hidden=false;
@@ -2889,6 +2916,10 @@ function profileBack(){
  }
  profile.open=false;$('profileModule').hidden=true;
  $('teamMain').classList.remove('b04Open');
+ if(profile.origin==='cancelQueue'){
+  if($('cancelQueueModule').scrollIntoView)$('cancelQueueModule').scrollIntoView({block:'start'});
+  return;
+ }
  if(profile.origin==='calendar'){
   const a=profileApplication();
   if(a&&a.slotId)calOpen('PERSON',a.slotId,a.id);
@@ -2947,7 +2978,10 @@ function profileRender(){
    ['場次狀態',slot?calStates[calMeta(slot).status]:'無可驗證場次'],
    ['預約流程',profilePhases[a.phase]||a.phase],
    ['場次取消後關聯',slot&&calMeta(slot).status==='CANCELLED'?
-     '場次已取消；原個別預約與出席保留，待人工處理':'無場次取消待處理標記'],
+     (cancelQueueState_(a)?.kind==='HISTORY'?
+      '場次已取消；個別關聯僅保留歷程，未判定人工完成':
+      '場次已取消；原個別預約與出席保留，待人工處理')+
+      '｜'+(cancelQueueState_(a)?.label||'來源須重新核對'):'無場次取消待處理標記'],
    ['出席',calPresence[att.attendance]],['施測',calTesting[att.progress]],
    ['暫留是否逾期',a.holdExpired?'是':'否／不適用'],
    ['歷史改期與取消','可參閱右側已留存事件；正式完整歷程尚未接入']]);
@@ -3176,7 +3210,8 @@ function b03Render(){
   for(const label of [
    '資格：'+(a.eligible===true?'模擬通過':a.eligible===false?'模擬未通過':'未核實'),
    '預約：'+(slot?slot.when+'｜場次 '+calStates[calMeta(slot).status]+
-    (calMeta(slot).status==='CANCELLED'?'（個別預約未取消，待人工處理）':''):'未記錄'),
+    (calMeta(slot).status==='CANCELLED'?(cancelQueueState_(a)?.kind==='HISTORY'?
+      '（個別關聯僅保留歷程，未判定人工完成）':'（個別預約未取消，待人工處理）'):''):'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
    '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
@@ -3198,7 +3233,9 @@ function b03Render(){
      '\n出席 '+(calPresence[status.attendance]||'待確認')+
      '｜施測 '+(calTesting[status.progress]||'未開始')+
      (a.slotId&&model.b02.sessions[a.slotId]?.status==='CANCELLED'?
-      '\n場次已取消｜原預約保留，待人工處理':'')+
+      (cancelQueueState_(a)?.kind==='HISTORY'?
+       '\n場次已取消｜個別關聯僅保留歷程，未判定完成':
+       '\n場次已取消｜原預約保留，待人工處理'):'')+
      '\n最近更新 '+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label,
      'b03Person');
     button.type='button';button.dataset.participantId=a.id;
