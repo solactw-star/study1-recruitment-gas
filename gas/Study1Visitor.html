@@ -1064,16 +1064,24 @@ function issue(action,payload,onSuccess){
  if(!pending||pending.fingerprint!==fingerprint){
   pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)+'_'+Math.floor(Math.random()*100000000)};
  }
+ // A new TEST action cannot reuse the retired causal-UNKNOWN requestId.
+ if(['MOVE','CANCEL'].includes(action)&&pending.id===v07.retiredRequestId){
+  pending=null;v08Clear_('舊UNKNOWN requestId不得重用於新TEST交易。');
+  setStatus('請重新建立獨立的純TEST變更預覽，未送出。',true);return;
+ }
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
  const priorRevision=model.revision,priorApp=current(),priorModel=model;
+ let settled=false; // at most one RPC success or failure for this envelope
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
+  if(settled)return;
+  settled=true;
   if(['MOVE','CANCEL'].includes(action)&&safePreview(response)&&
    response?.deduplicated!==false){
    // Replayed requestId may return the current state at revision+1, but
    // that is NOT evidence that this click caused the transition.
    v07.last={action,id:payload.id,slotId:payload.slotId||null,
-    experiment:priorApp?.experiment||null};
+    experiment:priorApp?.experiment||null,requestId:envelope.requestId};
    v07.causalUnknown=true;
    v07Readback_(true,'原GAS回覆重複requestId或缺少新交易證據；只能唯讀核對，不能宣稱本次操作完成');
    return;
@@ -1082,7 +1090,7 @@ function issue(action,payload,onSuccess){
    if(['MOVE','CANCEL'].includes(action)){
     // An invalid success reply may follow a committed CAS; keep causal UNKNOWN.
     v07.last={action,id:payload.id,slotId:payload.slotId||null,
-     experiment:priorApp?.experiment||null};
+     experiment:priorApp?.experiment||null,requestId:envelope.requestId};
     v07.causalUnknown=true;
     v07Readback_(true,'V08成功回覆來源或結果無法核實；原交易因果UNKNOWN，僅唯讀GET且不重送');
    }else{
@@ -1091,7 +1099,7 @@ function issue(action,payload,onSuccess){
    return;
   }
   if(action==='MOVE'||action==='CANCEL'){
-   v08IndependentGet_(action,payload,response,priorModel,onSuccess);
+   v08IndependentGet_(action,payload,response,priorModel,envelope.requestId,onSuccess);
    return;
   }
   busy=false;model=response;pending=null;
@@ -1108,10 +1116,12 @@ function issue(action,payload,onSuccess){
   render();
   if(typeof onSuccess==='function')onSuccess(response);
  }).withFailureHandler(e=>{
+  if(settled)return;
+  settled=true;
   const detail=String(e&&e.message||e);
   if(['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action)){
    v07.last={action,id:payload.id,slotId:payload.slotId||null,
-    experiment:priorApp?.experiment||null};
+    experiment:priorApp?.experiment||null,requestId:envelope.requestId};
    if(['MOVE','CANCEL'].includes(action))v07.causalUnknown=true;
    v07Readback_(true,detail);return;
   }
