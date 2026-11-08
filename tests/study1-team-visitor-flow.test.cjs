@@ -125,7 +125,7 @@ function page(server,kind,options={}){
  const html=kind==='team'?teamHtml:demoHtml;
  const {ids,get,doc}=documentFor(html,kind),calls=[],failures=[];
  let success=null,failure=null,initialOwnerRead=false;
- const pendingOwnerReads=[],ownerReplyHistory=[],commandReplyHistory=[],pendingCommandReplies=[];
+ const pendingOwnerReads=[],ownerReplyHistory=[],commandReplyHistory=[],commandAttemptHistory=[],pendingCommandReplies=[];
  const rpc={
   withSuccessHandler(fn){success=fn;return this;},
   withFailureHandler(fn){failure=fn;return this;},
@@ -157,6 +157,7 @@ function page(server,kind,options={}){
    catch(e){failures.push(String(e.message||e));failure(e);}
   },
   study1UnifiedPreviewCommand(c){calls.push(c.action);
+   commandAttemptHistory.push(JSON.parse(JSON.stringify(c)));
    const onSuccess=success,onFailure=failure;
    try{
     const result=JSON.parse(JSON.stringify(server.ctx.study1UnifiedPreviewCommand(c)));
@@ -185,7 +186,7 @@ function page(server,kind,options={}){
  };
  const set=(id,value)=>{get(id).value=value;};
  return {kind,ids,get,click,change,set,calls,failures,context,pendingOwnerReads,
-  ownerReplyHistory,commandReplyHistory,pendingCommandReplies,
+  ownerReplyHistory,commandReplyHistory,commandAttemptHistory,pendingCommandReplies,
   deliverOwnerRead(){assert.ok(pendingOwnerReads.length,'no pending OWNER GET');pendingOwnerReads.shift()();},
   deliverCommandReply(){assert.ok(pendingCommandReplies.length,'no pending command reply');pendingCommandReplies.shift()();}};
 }
@@ -5468,7 +5469,7 @@ test('P1-08 §70-N fresh new requestId after explicit UNKNOWN baseline still los
  tab2.set('modeE2','HIDDEN');tab2.click('saveModes');
  assert.equal(srv.writes,before+1,'other OWNER performed fresh explicit CAS');
  v.click('v08Commit'); // this tab's formerly valid revision is now stale
- const staleId=v.commandReplyHistory.at(-1).command.requestId;
+ const staleId=v.commandAttemptHistory.at(-1).requestId;
  assert.notEqual(staleId,oldId,'old UNKNOWN requestId is never reused');
  assert.equal(srv.writes,before+1,'stale CANCEL did not write or auto-retry');
  assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CONFIRMED');
