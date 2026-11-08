@@ -859,6 +859,7 @@ function study1B12AuditPage_(fixture,b06,query){
  const all=study1B12AuditBuild_(fixture,b06);
  const b07Summary=study1B07PendingSummary_(fixture);
   const waitlistSummary=study1WaitlistSummary_(fixture);
+ const postCancelSummary=study1PostCancelSummary_(fixture);
  // Cross-module mirrors are a consistency signal, not a complete ledger.
  // A missing mirror may mean old entries were trimmed by different ring caps.
  const b02=fixture.b02.history,b04=fixture.b04.history,b05=fixture.b05.history;
