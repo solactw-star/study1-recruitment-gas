@@ -139,7 +139,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <dl><dt>申請編號</dt><dd id="receiptId">—</dd><dt>研究項目</dt><dd id="receiptStudy">—</dd><dt>預約時段</dt><dd id="receiptSlot">—</dd><dt>通知狀態</dt><dd>示範通知已產生，未發送真實郵件</dd></dl>
 <p class="help">此確認頁面不代表已正式錄取或完成正式研究報名。</p></div>
 <h3>需要變更時間嗎？</h3><label for="moveSlot" class="field">其他可選時段</label><select id="moveSlot"></select>
-<div class="actionrow"><button id="move" class="ghost" type="button">更改示範預約時間</button><button id="cancel" class="ghost" type="button">取消示範預約</button><button id="newStart" type="button">體驗另一項實驗</button></div>
+<div class="actionrow"><button id="move" class="ghost" type="button">更改示範預約時間</button><button id="cancel" class="ghost" type="button">取消示範預約</button><button id="v08Refresh" class="ghost" type="button" disabled>重新核對原GAS預約（唯讀）</button><button id="newStart" type="button">體驗另一項實驗</button></div>
 <div id="v08ManageReview" class="box warn" role="region" aria-label="V08虛構預約改期與取消二次確認" hidden>
 <strong>V08｜虛構預約變更前核對</strong>
 <dl aria-label="虛構預約變更摘要">
@@ -458,6 +458,8 @@ function render(){
  const other=available.filter(s=>s.id!==a.slotId);makeOptions($('moveSlot'),other);
  $('move').disabled=busy||a.phase!=='CONFIRMED'||other.length===0;
  $('cancel').disabled=busy||!['CONFIRMED'].includes(a.phase);
+ $('v08Refresh').disabled=busy||v07.blocked||
+  !['CONFIRMED','CANCELLED'].includes(a.phase);
  $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
  $('review').disabled=busy||!$('readPdf').checked||!!a.consentReviewedAt;
  $('finish').disabled=busy||!a.consentReviewedAt||!$('agree').checked;
@@ -547,7 +549,7 @@ $('v08WaitDecline').addEventListener('click',()=>{
 function v07Lock_(){
  for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
   'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
-  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back',
+  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back','v08Refresh',
   'v08WaitSlot','v08WaitJoin','v08WaitAccept','v08WaitDecline','v08WaitRefresh'])$(id).disabled=true;
  for(const id of ['v05Dates','v05Choices'])
   for(const child of $(id).children)if(child.tagName==='button')child.disabled=true;
@@ -673,21 +675,48 @@ function v08Plan_(response,a,action,targetId){
  if(fromTime===null||!Number.isSafeInteger(origin.capacity)||origin.capacity<1)return null;
  const originStatus=response.b02.sessions[origin.id]?.status||'OPEN';
  if(!['OPEN','CANCELLED','CLOSED'].includes(originStatus))return null;
+ // B02 cancellation is a slot-level operation, not a silent cancellation of
+ // a confirmed individual booking. Permit explicit TEST MOVE only after the
+ // original GAS post-cancel per-person source has been checked. CLOSED remains
+ // blocked; all transitions and capacity still execute under locked GAS CAS.
+ if(originStatus==='CANCELLED'){
+  const snapshot=response.postCancel?.bySlot?.find(row=>row.slotId===origin.id),
+   linked=snapshot?.linkedRecords?.find(row=>row.id===a.id);
+  if(response.postCancel?.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
+   response.postCancel.completeHistory!==false||response.postCancel.mailSent!==false||
+   !snapshot||snapshot.experiment!==a.experiment||linked?.phase!==a.phase||
+   linked?.holdUntil!==a.holdUntil||
+   linked?.attendance!==(response.b02.attendance[a.id]?.attendance||'PENDING')||
+   linked?.progress!==(response.b02.attendance[a.id]?.progress||'NOT_STARTED'))
+   return null;
+ }
+ const accepted=response.waitlist?.entries?.find(e=>e.id===a.id&&e.status==='ACCEPTED');
+ if(accepted&&(!['E1','E2'].includes(accepted.experiment)||
+  accepted.experiment!==a.experiment||
+  !response.slots.some(s=>s.id===accepted.slotId&&s.experiment===a.experiment)||
+  !Number.isSafeInteger(accepted.seq)||accepted.seq<1||
+  !Number.isSafeInteger(accepted.closedAt)))return null;
  let target=null,toTime=null,toStatus=null;
  if(action==='MOVE'){
-  if(originStatus!=='OPEN'||typeof targetId!=='string'||targetId===origin.id||
+  if(!['OPEN','CANCELLED'].includes(originStatus)||
+   typeof targetId!=='string'||targetId===origin.id||
    !/^SIM-SLOT-E[12]-[A-H]$/.test(targetId))return null;
   const matches=response.slots.filter(s=>s.id===targetId&&s.experiment===a.experiment);
   if(matches.length!==1)return null;
   target=matches[0];toTime=v08CheckTime_(target.when);
   toStatus=response.b02.sessions[target.id]?.status||'OPEN';
-  if(toTime===null||toTime<=Date.now()||toStatus!=='OPEN'||
+  // Server snapshot clock authorizes only this review, not the final move.
+  // GAS still checks live clock, FIFO pending queue and CAS under lock.
+  if(!Number.isSafeInteger(response.waitlist?.asOf)||
+   toTime===null||toTime<=Math.max(Date.now(),response.waitlist.asOf)||toStatus!=='OPEN'||
+   response.waitlist.entries.some(e=>e.slotId===target.id&&e.status==='WAITING')||
    target.bookable!==true||!Number.isSafeInteger(target.capacity)||
    !Number.isSafeInteger(target.remaining)||target.capacity<1||
    target.remaining<1||target.remaining>target.capacity)return null;
  }else if(targetId!==null)return null;
  const signature=JSON.stringify([response.revision,a.id,a.experiment,a.phase,
   a.eligible,a.signatureDemo,a.slotId,origin.when,origin.capacity,originStatus,
+  accepted?.slotId||null,accepted?.seq??null,accepted?.closedAt??null,
   action,target?.id||null,target?.when||null,target?.capacity||null,
   target?.remaining||null,target?.bookable??null,toStatus]);
  return {action,applicationId:a.id,experiment:a.experiment,
@@ -781,6 +810,73 @@ function load(){
  }).withFailureHandler(e=>refuseReply('無法載入示範：'+String(e.message||e)))
  .study1UnifiedPreviewGet();
 }
+/* §70-I V08: MOVE/CANCEL are ONE existing TEST CAS write followed by an
+ * independent owner GET. A successful write response is not final evidence
+ * of the current booking. Fail closed on read failure, later revisions or
+ * altered original ACCEPTED FIFO provenance; NEVER automatically replay. */
+function v08IndependentGet_(action,payload,response,before,onSuccess){
+ const id=payload.id,
+  old=before.applications.find(a=>a.id===id),
+  oldEntry=before.waitlist.entries.find(e=>e.id===id&&e.status==='ACCEPTED'),
+  originalSlot=old?.slotId,
+  priorEvents=before.b02.history,
+  priorB04=before.b04.history,
+  beforeNotice=before.notifications.length,
+  fail=()=>refuseReply('V08操作可能已寫入，但獨立OWNER GET／修訂版／原候補FIFO或有限歷程無法核對；已鎖定舊畫面，禁止重送。');
+ google.script.run.withSuccessHandler(fresh=>{
+  const person=fresh?.applications?.find(a=>a.id===id),
+   accepted=fresh?.waitlist?.entries?.find(e=>e.id===id&&e.status==='ACCEPTED'),
+   lastNotice=Array.isArray(fresh?.notifications)?fresh.notifications.at(-1):null,
+   originalWasCancelled=before.b02.sessions[originalSlot]?.status==='CANCELLED',
+   originalNow=fresh?.b02?.sessions?.[originalSlot]?.status||'OPEN',
+   acceptedSlot=oldEntry?.slotId,
+   acceptedWasCancelled=!!oldEntry&&before.b02.sessions[acceptedSlot]?.status==='CANCELLED',
+   acceptedOrigin=fresh?.postCancel?.bySlot?.find(s=>s.slotId===acceptedSlot),
+   acceptedRow=acceptedOrigin?.acceptedOrigins?.find(e=>e.id===id),
+   updatedPhase=action==='CANCEL'?'CANCELLED':'CONFIRMED',
+   updatedSlot=action==='MOVE'?payload.slotId:originalSlot;
+  if(!v07SafeRead_(fresh,null)||!old||old.phase!=='CONFIRMED'||
+   !person||person.experiment!==old.experiment||
+   person.phase!==updatedPhase||person.slotId!==updatedSlot||
+   fresh.revision!==response.revision||
+   !Array.isArray(priorEvents)||!Array.isArray(priorB04)||
+   !Array.isArray(fresh.b02?.history)||!Array.isArray(fresh.b04?.history)||
+   fresh.b02.history.length!==priorEvents.length||
+   fresh.b04.history.length!==priorB04.length||
+   fresh.waitlist.asOf<response.waitlist.asOf||
+   !lastNotice||lastNotice.id!==id||lastNotice.event!==action||
+   !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(lastNotice.status)||
+   !Array.isArray(fresh.notifications)||
+   fresh.notifications.length<Math.min(15,beforeNotice+1)||
+   (originalWasCancelled&&originalNow!=='CANCELLED')||
+   (!!oldEntry!==!!accepted)||
+   (oldEntry&&(accepted.id!==oldEntry.id||accepted.seq!==oldEntry.seq||
+    accepted.slotId!==oldEntry.slotId||accepted.experiment!==oldEntry.experiment||
+    accepted.offeredAt!==oldEntry.offeredAt||accepted.expiresAt!==oldEntry.expiresAt||
+    accepted.closedAt!==oldEntry.closedAt||accepted.status!=='ACCEPTED'))||
+   (acceptedWasCancelled&&(!acceptedOrigin||
+    fresh.b02.sessions[acceptedSlot]?.status!=='CANCELLED'))||
+   (oldEntry&&acceptedOrigin&&
+    (acceptedRow?.currentSlotId!==updatedSlot||acceptedRow?.phase!==updatedPhase||
+     acceptedRow?.originalSlotId!==acceptedSlot||acceptedRow?.seq!==oldEntry.seq))||
+   (originalWasCancelled&&
+    (!fresh.postCancel||fresh.postCancel.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
+     fresh.postCancel.completeHistory!==false||
+     fresh.postCancel.mailSent!==false)))
+    {fail();return;}
+  // No second command is sent. This success is grounded in a fresh read with
+  // the same exact revision as the acknowledged original CAS write.
+  busy=false;model=fresh;pending=null;v07.blocked=false;v07.last=null;
+  $('v07Result').textContent=action==='MOVE'?
+   '已獨立GET核對TEST改期；原ACCEPTED FIFO來源未更動，非正式招募。':
+   '已獨立GET核對TEST個別取消；原場次與有限歷程保留，非正式招募。';
+  render();
+  setStatus('V08單次TEST '+(action==='MOVE'?'改期':'取消')+
+   '已由原GAS回應及獨立OWNER GET共同核實；未寄信、未重送。');
+  if(typeof onSuccess==='function')onSuccess(fresh);
+ }).withFailureHandler(()=>fail()).study1UnifiedPreviewGet();
+}
+
 function issue(action,payload,onSuccess){
  if(busy||v07.blocked||!model)return;
  const fingerprint=JSON.stringify([action,payload]);
@@ -788,11 +884,15 @@ function issue(action,payload,onSuccess){
   pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)+'_'+Math.floor(Math.random()*100000000)};
  }
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
- const priorRevision=model.revision,priorApp=current();
+ const priorRevision=model.revision,priorApp=current(),priorModel=model;
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
   if(!safePreview(response)||!v07ConfirmResponse_(action,payload,response,priorRevision)){
    refuseReply('示範操作回應無法驗證：原GAS安全來源或預期狀態不一致；請重新載入頁面並以V07唯讀核對，已停止操作。');return;
+  }
+  if(action==='MOVE'||action==='CANCEL'){
+   v08IndependentGet_(action,payload,response,priorModel,onSuccess);
+   return;
   }
   busy=false;model=response;pending=null;
   v07.blocked=false;v07.last=null;
@@ -856,6 +956,11 @@ $('finish').addEventListener('click',()=>{
 $('confirm').addEventListener('click',()=>{const a=current();if(a&&v06Preview_(model,a))issue('CONFIRM',{id:a.id});});
 $('move').addEventListener('click',()=>v08Preview_('MOVE'));
 $('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
+$('v08Refresh').addEventListener('click',()=>{
+ if(busy||v07.blocked||!model)return;
+ v08Clear_('正在獨立唯讀核對原GAS預約；舊變更預覽已作廢。');
+ v07Readback_(false,'手動重新核對V08純TEST預約，不重送任何變更');
+});
 load();
 })();
 </script>

@@ -4490,3 +4490,178 @@ test('P1-08 §70-H cancelled original ACCEPTED source survives explicit MOVE the
  assert.equal(audit.coverage.postCancelSummary.bySlot[0].retainedCancelEvents,1);
  closed(srv);
 });
+
+
+/* §70-I: deliver the accepted-offer confirmation through the ACTUAL original
+ * Visitor DOM, so the V08 participant screen has the latest CONFIRMED state. */
+function p108ConfirmedInVisitor_(srv){
+ waitlistFillConfirmed_(srv);
+ const person=waitlistVerifiedVisitor_(srv);
+ person.v.click('v08WaitJoin');
+ srv.command('CANCEL',{id:'SIM-001'});
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ person.v.click('v08WaitRefresh');person.v.click('v08WaitAccept');
+ person.v.get('readPdf').checked=true;person.v.change('readPdf');
+ person.v.click('review');
+ person.v.get('agree').checked=true;person.v.change('agree');
+ person.v.click('finish');
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CONFIRMED');
+ assert.equal(person.v.get('v08Refresh').disabled,false);
+ return person;
+}
+
+/* §70-I: V08 user-visible, confirmed-only move from B02 canceled source;
+ * original GAS CAS, independent owner readback and capped B12 provenance. */
+test('P1-08 §70-I V08 can explicitly MOVE an accepted CONFIRMED TEST booking after original B02 CANCELLED, only with OWNER refresh and independent post-write GET',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ const original=srv.read(),priorQueue=original.waitlist.entries[0],
+  priorHistory=original.b02.history.length,notices=original.notifications.length;
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const cancelled=srv.read(),v=person.v;
+ assert.equal(cancelled.b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(v.get('v08Refresh').disabled,false);
+ const before=srv.writes;
+ v.click('v08Refresh');
+ assert.equal(srv.writes,before,'manual V08 GET must be read-only');
+ assert.match(v.get('v07Result').textContent,/重新讀取/);
+ assert.equal(v.get('move').disabled,false);
+ assert.equal(v.get('moveSlot').value,'SIM-SLOT-E1-B');
+ const readCount=v.calls.filter(x=>x==='READ').length;
+ v.click('move');
+ assert.equal(v.get('v08ManageReview').hidden,false,'canceled origin allowed with bounded source');
+ assert.match(v.get('v08From').textContent,/SIM-SLOT-E1-A/);
+ assert.match(v.get('v08To').textContent,/SIM-SLOT-E1-B/);
+ assert.equal(srv.writes,before);
+ v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.calls.filter(x=>x==='READ').length,readCount+1,
+  'successful original TEST CAS MOVE is followed by a separate owner GET');
+ assert.match(v.get('v07Result').textContent,/獨立GET核對TEST改期/);
+ assert.equal(srv.writes,before+1);
+ const moved=srv.read(),entry=moved.waitlist.entries[0],orig=moved.postCancel.bySlot[0];
+ assert.equal(moved.applications.find(a=>a.id===person.id).slotId,'SIM-SLOT-E1-B');
+ assert.equal(moved.applications.find(a=>a.id===person.id).phase,'CONFIRMED');
+ assert.deepEqual([entry.status,entry.slotId,entry.seq,entry.offeredAt,entry.closedAt],
+  [priorQueue.status,priorQueue.slotId,priorQueue.seq,priorQueue.offeredAt,priorQueue.closedAt]);
+ assert.equal(orig.acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ assert.equal(orig.acceptedOrigins[0].phase,'CONFIRMED');
+ assert.equal(orig.linkedRecords.some(a=>a.id===person.id),false);
+ assert.equal(moved.b02.history.length,priorHistory+1);
+ assert.equal(moved.notifications.length,notices+1,'only simulated MOVE notice, no email');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ const b12=p108B12_(srv,'WAITLIST');
+ assert.equal(b12.items[0].historical,false);
+ assert.equal(b12.items[0].at,null);
+ assert.equal(b12.coverage.postCancelSummary.bySlot[0].acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-I V08 CANCEL after accepted-offer MOVE requires one original CAS and independent GET; preserves canceled-source FIFO and bounded history',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ const before=srv.read(),writes=srv.writes,reads=v.calls.filter(x=>x==='READ').length,
+  q=before.waitlist.entries[0],history=before.b02.history.length;
+ v.click('cancel');assert.equal(v.get('v08ManageReview').hidden,false);
+ v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ assert.equal(srv.writes,writes+1);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ assert.equal(v.calls.filter(x=>x==='READ').length,reads+1);
+ assert.match(v.get('v07Result').textContent,/獨立GET核對TEST個別取消/);
+ const after=srv.read(),a=after.applications.find(x=>x.id===person.id);
+ assert.equal(a.phase,'CANCELLED');
+ assert.equal(a.slotId,'SIM-SLOT-E1-B');
+ assert.equal(after.b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(after.b02.history.length,history,'individual cancellation is not a new B02 event');
+ assert.deepEqual([after.waitlist.entries[0].slotId,after.waitlist.entries[0].seq,
+  after.waitlist.entries[0].closedAt],[q.slotId,q.seq,q.closedAt]);
+ assert.equal(after.postCancel.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ assert.equal(after.postCancel.bySlot[0].acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ assert.equal(after.postCancel.bySlot[0].completeHistory,undefined);
+ const audit=p108B12_(srv);
+ assert.equal(audit.coverage.postCancelSummary.completeHistory,false);
+ assert.equal(audit.coverage.postCancelSummary.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('cancel').disabled,true);
+ closed(srv);
+});
+test('P1-08 §70-I V08 successful CAS but OWNER GET revoked is UNKNOWN, fail-closed and never replays MOVE',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv);
+ const before=srv.writes,originalGet=srv.ctx.study1UnifiedPreviewGet;
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('OWNER GET revoked after commit');};
+ v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewGet=originalGet;
+ assert.equal(srv.writes,before+1,'one original TEST MOVE may already have committed');
+ assert.equal(srv.read().applications[0].slotId,'SIM-SLOT-E1-B');
+ assert.deepEqual(v.calls.filter(x=>x==='MOVE'),['MOVE']);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08Refresh').disabled,true);
+ assert.match(v.get('status').textContent,/GET|禁止重送|無法核對/);
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ closed(srv);
+});
+test('P1-08 §70-I accepted-source spoofed on postwrite GET invalidates successful V08 CAS without a second command',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const savedRead=srv.read,writes=srv.writes;
+ srv.read=()=>{
+  const d=savedRead();
+  d.postCancel.bySlot[0].acceptedOrigins[0].phase='CANCELLED';
+  return d;
+ };
+ v.click('v08Commit');
+ srv.read=savedRead;
+ assert.equal(srv.writes,writes+1);
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CONFIRMED');
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.get('move').disabled,true);
+ assert.match(v.get('status').textContent,/GET|禁止重送/);
+ const owner=page(srv,'team');
+ assert.match(waitlistNodeText_(owner.get('b09WaitlistSummary')),/已改期 1/);
+ closed(srv);
+});
+test('P1-08 §70-I GAS requestId duplicate MOVE/CANCEL is idempotent, conflicting fingerprint or stale CAS rejected without extra simulated notices',()=>{
+ const srv=server(),person=p108AcceptedConfirmed_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const entry=srv.read().waitlist.entries[0],oldRev=srv.read().revision;
+ const mover={action:'MOVE',payload:{id:person.id,slotId:'SIM-SLOT-E1-B'},
+  requestId:'REQ-SIM-POSTCANCEL_MOVE_001',expectedRevision:oldRev};
+ const first=JSON.parse(JSON.stringify(srv.ctx.study1UnifiedPreviewCommand(mover)));
+ const writes=srv.writes,notices=srv.read().notifications.length;
+ assert.equal(first.revision,oldRev+1);
+ const dup=JSON.parse(JSON.stringify(srv.ctx.study1UnifiedPreviewCommand(mover)));
+ assert.equal(dup.deduplicated,true);
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.read().notifications.length,notices);
+ assert.throws(()=>srv.ctx.study1UnifiedPreviewCommand({...mover,
+  payload:{id:person.id,slotId:'SIM-SLOT-E1-A'}}),/請求識別碼/);
+ assert.throws(()=>srv.ctx.study1UnifiedPreviewCommand({...mover,
+  requestId:'REQ-SIM-POSTCANCEL_MOVE_STALE'}),/版本已變更/);
+ assert.equal(srv.writes,writes);
+ const cancel={action:'CANCEL',payload:{id:person.id},
+  requestId:'REQ-SIM-POSTCANCEL_CANCEL_001',expectedRevision:srv.read().revision};
+ const beforeCancel=srv.writes;
+ srv.ctx.study1UnifiedPreviewCommand(cancel);
+ assert.equal(srv.writes,beforeCancel+1);
+ const noExtra=srv.writes,nCancel=srv.read().notifications.length;
+ const duplicateCancel=srv.ctx.study1UnifiedPreviewCommand(cancel);
+ assert.equal(duplicateCancel.deduplicated,true);
+ assert.equal(srv.writes,noExtra);
+ assert.equal(srv.read().notifications.length,nCancel);
+ assert.throws(()=>srv.ctx.study1UnifiedPreviewCommand({...cancel,
+  requestId:'REQ-SIM-POSTCANCEL_CANCEL_STALE'}),/版本已變更/);
+ const after=srv.read();
+ assert.equal(after.applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.equal(after.waitlist.entries[0].slotId,entry.slotId);
+ assert.equal(after.waitlist.entries[0].seq,entry.seq);
+ assert.equal(after.waitlist.entries[0].closedAt,entry.closedAt);
+ assert.equal(after.postCancel.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ assert.equal(p108B12_(srv,'WAITLIST').items[0].historical,false);
+ closed(srv);
+});
