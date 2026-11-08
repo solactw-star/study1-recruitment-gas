@@ -721,6 +721,7 @@ function study1B12AuditBuild_(fixture,b06){
   throw Error('B12虛構稽核來源格式不合法');
  study1B07PendingSummary_(fixture); // fail closed on forged B07 source
   const waitlistSummary=study1WaitlistSummary_(fixture); // same original synthetic fixture
+ const postCancelSummary=study1PostCancelSummary_(fixture);
  const events=[],b04Last=new Map(),b05Last=new Map();
  // B02 has only a 12-entry event-only ring; its absence is not evidence of
  // missing committed state or proof of corruption. Never fabricate a diff.
@@ -858,6 +859,7 @@ function study1B12AuditPage_(fixture,b06,query){
  const all=study1B12AuditBuild_(fixture,b06);
  const b07Summary=study1B07PendingSummary_(fixture);
   const waitlistSummary=study1WaitlistSummary_(fixture);
+ const postCancelSummary=study1PostCancelSummary_(fixture);
  // Cross-module mirrors are a consistency signal, not a complete ledger.
  // A missing mirror may mean old entries were trimmed by different ring caps.
  const b02=fixture.b02.history,b04=fixture.b04.history,b05=fixture.b05.history;
@@ -926,7 +928,7 @@ function study1B12AuditPage_(fixture,b06,query){
     provenance:'BOUNDED_PENDING_HISTORY'},
    {module:'WAITLIST',retained:fixture.waitlist.entries.length,limit:8,
     provenance:'CURRENT_TEST_WAITLIST_ONLY'}],
-  b07Summary,waitlistSummary,crossChecks:check,warnings};
+  b07Summary,waitlistSummary,postCancelSummary,crossChecks:check,warnings};
  const direction=query.sort===undefined?'ASC':query.sort; // legacy cursors remain ASC
  const q=query.search.trim().toLowerCase();
  const filtered=all.filter(e=>
@@ -1342,7 +1344,9 @@ function study1WaitlistVerify_(s){
    e.status==='OFFERED'&&(!offer||e.closedAt!==null||
     a.phase!=='VERIFIED'||live.has(e.slotId))||
    e.status==='ACCEPTED'&&(!offer||!Number.isSafeInteger(e.closedAt)||
-    e.closedAt<e.offeredAt||e.closedAt>=e.expiresAt||a.slotId!==e.slotId||
+    e.closedAt<e.offeredAt||e.closedAt>=e.expiresAt||!a.slotId||
+    // Preserve original offer slot after a later confirmed-booking MOVE.
+    (a.slotId!==e.slotId&&!['CONFIRMED','CANCELLED'].includes(a.phase))||
     !['HELD','CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase))||
    e.status==='EXPIRED'&&(!offer||!Number.isSafeInteger(e.closedAt)||
     e.closedAt<e.expiresAt)||
@@ -1382,6 +1386,43 @@ function study1WaitlistSummary_(s){
  }
  return {mode:'CURRENT_TEST_STATUS_ONLY',completeHistory:false,mailSent:false,
   limit:8,retained:s.waitlist.entries.length,byExperiment,byStage,bySlot,total};
+}
+
+/* §70-F: read-only derived cancelled-session cross-module snapshot.
+ * ACCEPTED retains its original offer slot after a later confirmed MOVE.
+ * B02 cancellation never edits individual booking or attendance.
+ * This is NOT an event log, person resolution, or evidence of mail. */
+function study1PostCancelSummary_(s){
+ study1WaitlistVerify_(s);
+ const bySlot=s.slots.filter(slot=>s.b02.sessions[slot.id]?.status==='CANCELLED')
+  .map(slot=>{
+   const linked=s.applications.filter(a=>a.slotId===slot.id);
+   const queue=s.waitlist.entries.filter(e=>e.slotId===slot.id);
+   if(queue.some(e=>['WAITING','OFFERED'].includes(e.status)))
+    throw Error('已取消場次仍有待處理候補邀請，拒絕不一致快照');
+   const accepted=queue.filter(e=>e.status==='ACCEPTED').map(e=>{
+    const a=s.applications.find(x=>x.id===e.id);
+    if(!a||!a.slotId||a.experiment!==slot.experiment||
+      (a.slotId!==slot.id&&!['CONFIRMED','CANCELLED'].includes(a.phase)))
+     throw Error('已取消場次原候補接受紀錄與現有預約來源衝突');
+    return {id:e.id,seq:e.seq,originalSlotId:e.slotId,
+     currentSlotId:a.slotId,phase:a.phase};
+   });
+   return {slotId:slot.id,experiment:slot.experiment,when:slot.when,
+    acceptedOrigins:accepted,
+    linked:linked.length,
+    linkedConfirmed:linked.filter(a=>a.phase==='CONFIRMED').length,
+    linkedHoldOrConsented:linked.filter(a=>['HELD','CONSENTED'].includes(a.phase)).length,
+    linkedCancelled:linked.filter(a=>a.phase==='CANCELLED').length,
+    linkedAttendanceRecorded:linked.filter(a=>['PRESENT','LATE','ABSENT'].includes(
+     s.b02.attendance[a.id]?.attendance)).length,
+    linkedProgressComplete:linked.filter(a=>s.b02.attendance[a.id]?.progress==='COMPLETE').length,
+    pendingQueue:0,
+    retainedCancelEvents:s.b02.history.filter(h=>h.action==='CANCEL'&&
+     h.ids.includes(slot.id)).length};
+  });
+ return {mode:'CURRENT_CANCELLED_TEST_ONLY',completeHistory:false,mailSent:false,
+  bySlot};
 }
 
 function study1WaitlistPending_(s,slotId){
@@ -1691,6 +1732,7 @@ function study1UnifiedView_(s){
   b05:JSON.parse(JSON.stringify(s.b05||{closures:{},history:[]})),
   b07:JSON.parse(JSON.stringify(s.b07||study1B07Initial_())),
   b07Summary:study1B07PendingSummary_(s),
+  postCancel:study1PostCancelSummary_(s),
    waitlist:{nextSeq:s.waitlist.nextSeq,asOf:now,mode:'MANUAL_TEST_NO_MAIL',
     summary:study1WaitlistSummary_(s),
     settings:JSON.parse(JSON.stringify(s.waitlist.settings)),
@@ -2437,6 +2479,7 @@ function study1UnifiedPreviewCommand(command){
   study1UnifiedValidateSlots_(next.slots);study1UnifiedValidateE2Weeks_(next.e2Weeks);
   study1UnifiedValidateRecruitment_(next.recruitment);
   study1B07Verify_(next);study1WaitlistVerify_(next);
+  study1PostCancelSummary_(next);
   next.revision++;
   next.requests.push({id:c.requestId,fingerprint});
   const raw=JSON.stringify(next);

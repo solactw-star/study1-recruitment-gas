@@ -877,6 +877,71 @@ function teamWaitlistSummaryVerified_(d){
   limit:8,retained:w.entries.length,byExperiment,byStage,bySlot,total};
  return teamWaitlistSummarySame_(expected,w.summary)?expected:null;
 }
+/* §70-F: cross-check B02 cancellation, accepted original FIFO slot,
+ * B04 current attendance and bounded B02 events against the owner GAS view. */
+/* Original owner GUI has no raw JSON editor, serialization-based comparison
+ * or injected markup. Compare explicit TEST projection fields and IDs. */
+function teamPostCancelSame_(expected,actual){
+ if(!expected||!actual||typeof actual!=='object'||Array.isArray(actual)||
+  Object.keys(expected).sort().join(',')!==Object.keys(actual).sort().join(',')||
+  expected.mode!==actual.mode||expected.completeHistory!==actual.completeHistory||
+  expected.mailSent!==actual.mailSent||!Array.isArray(actual.bySlot)||
+  expected.bySlot.length!==actual.bySlot.length)return false;
+ const nums=['linked','linkedConfirmed','linkedHoldOrConsented','linkedCancelled',
+  'linkedAttendanceRecorded','linkedProgressComplete','pendingQueue','retainedCancelEvents'];
+ return expected.bySlot.every((row,i)=>{
+  const other=actual.bySlot[i];
+  if(!other||Object.keys(row).sort().join(',')!==Object.keys(other).sort().join(',')||
+    other.slotId!==row.slotId||other.experiment!==row.experiment||
+    other.when!==row.when||!nums.every(k=>Number.isSafeInteger(other[k])&&
+     other[k]>=0&&other[k]===row[k])||
+    !Array.isArray(other.acceptedOrigins)||
+    row.acceptedOrigins.length!==other.acceptedOrigins.length)return false;
+  return row.acceptedOrigins.every((a,j)=>{
+   const b=other.acceptedOrigins[j];
+   return !!b&&Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&
+    a.id===b.id&&a.seq===b.seq&&a.originalSlotId===b.originalSlotId&&
+    a.currentSlotId===b.currentSlotId&&a.phase===b.phase;
+  });
+ });
+}
+
+function teamPostCancelVerified_(d){
+ if(!d||!d.postCancel||!d.b02?.sessions||!Array.isArray(d.slots)||
+  !Array.isArray(d.applications)||!Array.isArray(d.waitlist?.entries)||
+  !Array.isArray(d.b02.history)||!d.b02.attendance)return null;
+ const bySlot=d.slots.filter(slot=>d.b02.sessions[slot.id]?.status==='CANCELLED')
+  .map(slot=>{
+   const linked=d.applications.filter(a=>a.slotId===slot.id),
+    queue=d.waitlist.entries.filter(e=>e.slotId===slot.id);
+   if(queue.some(e=>['WAITING','OFFERED'].includes(e.status)))return null;
+   const accepted=queue.filter(e=>e.status==='ACCEPTED').map(e=>{
+    const a=d.applications.find(x=>x.id===e.id);
+    if(!a||!a.slotId||a.experiment!==slot.experiment||
+      (a.slotId!==slot.id&&!['CONFIRMED','CANCELLED'].includes(a.phase)))return null;
+    return {id:e.id,seq:e.seq,originalSlotId:e.slotId,
+     currentSlotId:a.slotId,phase:a.phase};
+   });
+   if(accepted.some(x=>!x))return null;
+   return {slotId:slot.id,experiment:slot.experiment,when:slot.when,
+    acceptedOrigins:accepted,
+    linked:linked.length,
+    linkedConfirmed:linked.filter(a=>a.phase==='CONFIRMED').length,
+    linkedHoldOrConsented:linked.filter(a=>['HELD','CONSENTED'].includes(a.phase)).length,
+    linkedCancelled:linked.filter(a=>a.phase==='CANCELLED').length,
+    linkedAttendanceRecorded:linked.filter(a=>['PRESENT','LATE','ABSENT'].includes(
+     d.b02.attendance[a.id]?.attendance)).length,
+    linkedProgressComplete:linked.filter(a=>d.b02.attendance[a.id]?.progress==='COMPLETE').length,
+    pendingQueue:0,
+    retainedCancelEvents:d.b02.history.filter(h=>h.action==='CANCEL'&&
+     h.ids.includes(slot.id)).length};
+  });
+ if(bySlot.some(x=>!x))return null;
+ const expected={mode:'CURRENT_CANCELLED_TEST_ONLY',completeHistory:false,mailSent:false,
+  bySlot};
+ return teamPostCancelSame_(expected,d.postCancel)?expected:null;
+}
+
 function teamWaitlistEntry_(id){
  return model?.waitlist?.entries?.find(e=>e.id===id)||null;
 }
@@ -906,7 +971,7 @@ function b03CrossCheck_(d){
   !Array.isArray(d.waitlist.entries)||d.waitlist.entries.length!==d.waitlist.nextSeq||
   !d.waitlist.settings||!Array.isArray(d.waitlist.slotPolicies)||
   d.waitlist.slotPolicies.length!==d.slots.length||
-  !teamWaitlistSummaryVerified_(d))return null;
+  (!teamWaitlistSummaryVerified_(d)||!teamPostCancelVerified_(d)))return null;
  const slots=new Map(),people=new Map();
  for(const s of d.slots){
   if(!s||typeof s.id!=='string'||!/^SIM-SLOT-E[12]-[A-Z]$/.test(s.id)||
@@ -988,7 +1053,8 @@ function b03CrossCheck_(d){
    (e.status!=='WAITING'&&e.rank!==0)||
    (e.status==='OFFERED'&&(!Number.isSafeInteger(e.expiresAt)||
      e.expiresAt<=e.offeredAt||a.phase!=='VERIFIED'||activeWait.has(e.slotId)))||
-   (e.status==='ACCEPTED'&&a.slotId!==e.slotId)||
+   (e.status==='ACCEPTED'&&(!a.slotId||
+     (a.slotId!==e.slotId&&!['CONFIRMED','CANCELLED'].includes(a.phase))))||
    (e.status==='OWNER_CLOSED'&&(a.phase!=='VERIFIED'||e.offeredAt!==null||
     e.expiresAt!==null||!Number.isSafeInteger(e.closedAt)||
     e.closedAt<e.joinedAt))||
@@ -1334,7 +1400,8 @@ function b09Clear_(msg){
 function b09WaitlistRender_(data,scope,start,end){
  const box=$('b09WaitlistSummary');box.replaceChildren();
  const verified=teamWaitlistSummaryVerified_(data);
- if(!verified)throw Error('B09候補彙整與B02／B03／B04原始狀態不一致');
+ const postCancel=teamPostCancelVerified_(data);
+ if(!verified||!postCancel)throw Error('B09候補與已取消場次來源無法跨B02／B03／B04核對');
  const rows=verified.bySlot.filter(s=>
   (scope==='ALL'||s.experiment===scope)&&data.slots.some(slot=>
    slot.id===s.slotId&&(!start||slot.when.slice(0,10)>=start)&&
@@ -1357,6 +1424,20 @@ function b09WaitlistRender_(data,scope,start,end){
    '｜等待 '+row.counts.WAITING+'／待處理 '+row.counts.OFFERED+
    '／接受 '+row.counts.ACCEPTED+'／逾期 '+row.counts.EXPIRED+
    '／退出 '+row.counts.DECLINED+'／人工結束 '+row.counts.OWNER_CLOSED,'small'));
+ }
+ for(const original of postCancel.bySlot.filter(s=>
+   (scope==='ALL'||s.experiment===scope)&&
+   (!start||s.when.slice(0,10)>=start)&&(!end||s.when.slice(0,10)<=end))){
+  const moved=original.acceptedOrigins.filter(a=>a.currentSlotId!==original.slotId).length;
+  box.append(calElem('p','原B02已取消 '+original.slotId+
+   '｜原候補接受 '+original.acceptedOrigins.length+'（已改期 '+moved+
+   '）｜原場次目前關聯 '+original.linked+'｜其中目前確認 '+original.linkedConfirmed+
+   '、暫留／示範同意 '+original.linkedHoldOrConsented+
+   '、個別已取消 '+original.linkedCancelled+
+   '｜原出席有紀錄 '+original.linkedAttendanceRecorded+
+   '、施測行政完成 '+original.linkedProgressComplete+
+   '｜近期取消事件保留 '+original.retainedCancelEvents+
+   '（僅有限歷程；原候補接受不等於當前預約或通知）','small'));
  }
  box.append(calElem('p','只依目前場次日期篩選候補的來源場次；不套用目前申請階段篩選、'+
   '不計入原B09已成立預約／出席／完成率，不將0紀錄解讀為沒有歷史。'+
@@ -2830,6 +2911,8 @@ function cancelQueueRender_(){
  const sessions=model.slots.filter(s=>calMeta(s).status==='CANCELLED'&&
   adminScopeMatch_('B02',s.experiment));
  const rows=[];
+ const cancelledSource=teamPostCancelVerified_(model);
+ if(!cancelledSource){cancelQueueClear_('已取消場次來源無法驗證，已清空。');return;}
  for(const slot of sessions){
   for(const a of model.applications.filter(x=>x.slotId===slot.id)){
    const status=cancelQueueState_(a);
@@ -2894,6 +2977,15 @@ function cancelQueueRender_(){
    calElem('p','暫留：有效 '+counts.holds.ACTIVE+'｜逾期 '+counts.holds.EXPIRED+
     '｜非暫留 '+counts.holds.OTHER+'（依原GAS回讀時的本頁時間）'),
    calElem('p',cancelHistoryEvidence_(slot)),
+   calElem('p',(()=>{
+    const source=cancelledSource.bySlot.find(x=>x.slotId===slot.id);
+    return source?'原候補接受 '+source.acceptedOrigins.length+
+     '｜接受後移往他場次 '+source.acceptedOrigins.filter(x=>x.currentSlotId!==slot.id).length+
+     '｜取消後原場次關聯 '+source.linked+
+     '（已確認 '+source.linkedConfirmed+'、暫留／同意 '+source.linkedHoldOrConsented+
+     '、個別取消 '+source.linkedCancelled+'）；全部為目前狀態，並非完整歷史':
+     '來源未核實';
+   })()),
    calElem('p','出席：待確認 '+counts.attendance.PENDING+
     '｜已出席 '+counts.attendance.PRESENT+'｜遲到 '+counts.attendance.LATE+
     '｜缺席 '+counts.attendance.ABSENT),
@@ -3870,11 +3962,20 @@ function profileNotice(target,message){
 }
 function profileEvents(a){
  const e=[],slot=profileSlot(a),att=profileAttend(a),
-  waiting=teamWaitlistEntry_(a.id);
+  waiting=teamWaitlistEntry_(a.id),
+  origin=waiting?.status==='ACCEPTED'&&waiting.slotId!==a.slotId?
+   model.slots.find(x=>x.id===waiting.slotId):null;
  if(waiting)e.push({at:'',name:'目前候補狀態（非稽核事件）',
   detail:teamWaitlistLabel_(waiting)+
    '；原GAS沒有完整候補逐次操作歷程，不將加入／提供／過期時間另造歷史事件'});
  e.push({at:'',name:'目前報名流程',detail:profilePhases[a.phase]||a.phase});
+ if(origin)e.push({at:'',name:'原接受候補場次（非操作事件）',
+   detail:origin.id+'｜'+origin.when+'｜目前預約場次 '+(a.slotId||'無')+
+    '；候補原FIFO來源保留，原接受時刻不是可完整重建的預約改期歷史'});
+ if(origin&&calMeta(origin).status==='CANCELLED')
+  e.push({at:'',name:'原接受邀請場次已取消（目前狀態）',
+   detail:cancelHistoryEvidence_(origin)+
+    '；原場次取消不代表目前另場預約被取消，也不代表曾發通知'});
  if(a.screeningVersion)e.push({at:'',name:'初篩來源',
   detail:(a.screeningSource||'來源未記錄')+'｜'+a.screeningVersion});
  if(slot)e.push({at:'',name:'目前預約時段',
@@ -3997,6 +4098,9 @@ function profileRender(){
  case 'booking':
   fields([['候補目前狀態',teamWaitlistLabel_(teamWaitlistEntry_(a.id))],
    ['預約ID',a.slotId||'無'],
+   ['接受候補原始場次',teamWaitlistEntry_(a.id)?.status==='ACCEPTED'?
+     teamWaitlistEntry_(a.id).slotId+'（FIFO原來源；目前預約場次 '+
+      (a.slotId||'無')+'，不能從原候補推定目前有效預約）':'未核實曾接受候補'],
    ['預約日期時間',slot?slot.when:'未記錄'],
    ['場次狀態',slot?calStates[calMeta(slot).status]:'無可驗證場次'],
    ['取消來源歷程',slot&&calMeta(slot).status==='CANCELLED'?cancelHistoryEvidence_(slot):'不適用'],
@@ -4794,6 +4898,8 @@ function b12Render(page,after){
  try{b07Consistent=b07SummaryEquals_(b07SummaryVerified_(model),
   page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
  const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
+ const postCancelMatch=!!model&&!!teamPostCancelVerified_(model)&&
+  teamPostCancelSame_(model.postCancel,page?.coverage?.postCancelSummary);
  const waitlistMatch=!!model&&!!teamWaitlistSummaryVerified_(model)&&
    teamWaitlistSummarySame_(model.waitlist.summary,page?.coverage?.waitlistSummary)&&
    page?.coverage?.sources?.some(x=>x.module==='WAITLIST'&&
@@ -4817,7 +4923,7 @@ function b12Render(page,after){
    e.before?.stage===e.after?.stage&&b07StageNames[e.after?.stage]&&
    pendingStatuses.includes(e.before?.status)&&e.before?.status!==e.after?.status&&
    Object.keys(b07Statuses).includes(e.after?.status)&&Object.keys(b07Reasons).includes(e.reason)));
- if(!b07Consistent||!waitlistMatch||waitlistEventsSafe!==true||
+ if(!b07Consistent||!waitlistMatch||!postCancelMatch||waitlistEventsSafe!==true||
    b07EventsSafe!==true||!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
     page.formalExport!==false||page.completeImmutableArchive!==false||
     page.b06ChainVerified!==true||page.legacyHistoryBounded!==true||
@@ -4848,7 +4954,11 @@ function b12Render(page,after){
    '／已逾期'+coverage.waitlistSummary.total.EXPIRED+
    '／已退出'+coverage.waitlistSummary.total.DECLINED+
     '／OWNER人工結束'+coverage.waitlistSummary.total.OWNER_CLOSED+
-   '（不是完整稽核歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
+   '（不是完整稽核歷程）。取消場次目前關聯：'+
+   coverage.postCancelSummary.bySlot.map(x=>x.slotId+'：原接受'+
+    x.acceptedOrigins.length+'、目前關聯'+x.linked+'、已確認'+x.linkedConfirmed+
+    '、歷程取消事件保留'+x.retainedCancelEvents).join('；')+
+   '（只有目前來源與近期保留，非完整歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
  for(const item of page.items){
   const box=calElem('article',undefined,'b12Event');
