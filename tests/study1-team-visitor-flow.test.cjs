@@ -2005,7 +2005,8 @@ test('V07 loss of owner authority on recovery clears all booking actions without
 /* P1-02 B02-A cancellation preflight tests use the original team UI and
  * original GAS TEST source, never a separate research or financial store. */
 function cancelTestSession_(team,id='SIM-SLOT-E1-A'){
- const date=id==='SIM-SLOT-E1-A'?'2027-01-05':'2027-01-06';
+ const date={'SIM-SLOT-E1-A':'2027-01-05','SIM-SLOT-E1-B':'2027-01-06',
+  'SIM-SLOT-E2-A':'2027-01-07','SIM-SLOT-E2-B':'2027-01-08'}[id];
  team.set('calExperiment','ALL');team.set('calStatus','ALL');team.set('calSearch','');
  team.set('calView','day');team.set('calDate',date);team.change('calDate');
  const find=(root,condition)=>{
@@ -2088,6 +2089,176 @@ function p1CancelledTwoSlotsWithMixedAttendance_(srv){
  assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-B'].status,'CANCELLED');
  return team;
 }
+
+/* Cross-experiment comparison is TEST-only: use the original GAS transition
+ * path for one real synthetic E1 record and one E2 record, then original B02
+ * double-confirm session cancellation. E2 remains formally CLOSED. */
+function p1CrossExperimentCancelledSlots_(srv){
+ const answers={adult:true,cycu:true,diagnosed:false,treatment:false,
+  frequentPractice:false,joinedE1:false};
+ for(const [experiment,slotId] of [
+  ['E1','SIM-SLOT-E1-A'],['E2','SIM-SLOT-E2-A']]){
+  srv.command('START',{experiment});
+  const id='SIM-'+String(srv.read().applications.length).padStart(3,'0');
+  srv.command('SCREEN',{id,answers});
+  srv.command('OTP_REQUEST',{id});
+  srv.command('OTP_VERIFY',{id,code:'00000000'});
+  srv.command('HOLD',{id,slotId});
+  const version=srv.read().policy.consent[experiment].version;
+  srv.command('CONSENT_REVIEW',{id,version,sha256:''});
+  srv.command('CONSENT',{id,accepted:true,version,signature:'SIMULATED_SIGN_ONLY'});
+  srv.command('CONFIRM',{id});
+ }
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',
+  progress:'PARTIAL',note:'E1模擬出席'});
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-002',attendance:'LATE',
+  progress:'COMPLETE',note:'E2模擬遲到'});
+ const before=srv.read(),team=page(srv,'team');
+ for(const slotId of ['SIM-SLOT-E1-A','SIM-SLOT-E2-A']){
+  cancelTestSession_(team,slotId);
+  team.get('calCancelAck').checked=true;team.change('calCancelAck');
+  team.click('calCancelCommit');
+  assert.match(team.get('calStatusMessage').textContent,/取消已獨立回讀確認/);
+ }
+ assert.deepEqual(srv.read().applications,before.applications);
+ assert.deepEqual(srv.read().b02.attendance,before.b02.attendance);
+ assert.deepEqual(srv.read().b04.history,before.b04.history);
+ return team;
+}
+function p1CompareE1E2_(team){
+ team.set('cancelQueueCompareA','SIM-SLOT-E1-A');team.change('cancelQueueCompareA');
+ team.set('cancelQueueCompareB','SIM-SLOT-E2-A');team.change('cancelQueueCompareB');
+ assert.deepEqual(team.get('cancelQueueCompareCards').children.map(x=>x.dataset.sessionId),
+  ['SIM-SLOT-E1-A','SIM-SLOT-E2-A']);
+}
+function p1CompareBridge_(team,side){
+ const card=team.get('cancelQueueCompareCards').children[side];
+ assert.ok(card,'expected comparison card side '+side);
+ const b=card.children.find(x=>x.tagName==='button'&&/獨立GET核對B03/.test(x.textContent));
+ assert.ok(b,'comparison offers original owner GET bridge');
+ b.handlers.click();
+}
+test('P1 E1/E2 cancelled A/B comparison independently GETs B03 and opens correct B04 scope',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),writes=srv.writes;
+ assert.equal(srv.read().mode,'TEST');
+ assert.equal(srv.read().open,false);
+ assert.equal(srv.read().consentReady,false);
+ assert.equal(srv.read().formalReadiness.activationAllowed,false);
+ p1CompareE1E2_(team);
+ assert.match(team.get('cancelQueueCompareDelta').textContent,/B−A僅人數差｜原關聯 0/);
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/SIM-SLOT-E1-A vs B SIM-SLOT-E2-A/);
+ assert.match(team.get('cancelQueueCompareCards').children[0].children.map(x=>x.textContent).join(' '),
+  /E1.*已出席 1.*部分完成 1/);
+ assert.match(team.get('cancelQueueCompareCards').children[1].children.map(x=>x.textContent).join(' '),
+  /E2.*遲到 1.*行政完成 1/);
+ const n=team.calls.length;p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(n).filter(x=>x!=='B01_GET'),['READ'],'one independent owner GET, no commands');
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/獨立GET核對 E2/);
+ assert.equal(team.get('b03Search').value,'SIM-SLOT-E2-A');
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-002']);
+ team.click('b03BoardMode');
+ const board=team.get('b03Board').children.flatMap(x=>x.children)
+  .filter(x=>x.className==='b03Columns').flatMap(x=>x.children)
+  .flatMap(x=>x.children).filter(x=>x.dataset.participantId);
+ assert.deepEqual(board.map(x=>x.dataset.participantId),['SIM-002']);
+ assert.match(board[0].textContent,/遲到.*已完成/);
+ team.get('entries').children[0].children
+  .find(x=>x.tagName==='button'&&/完整資料/.test(x.textContent)).handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ booking.handlers.click();
+ assert.match(team.get('profileTabBody').children
+  .flatMap(x=>x.children||[]).flatMap(x=>x.children||[]).map(x=>x.textContent).join(' '),
+  /SIM-SLOT-E2-A/);
+ const research=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='research');
+ research.handlers.click();
+ assert.match(team.get('profileTabBody').children
+  .flatMap(x=>x.children||[]).flatMap(x=>x.children||[]).map(x=>x.textContent).join(' '),
+  /E2模擬遲到/);
+ team.click('profileBack');
+ assert.equal(srv.writes,writes,'cross-experiment B03/B04 inspection strictly read-only');
+ closed(srv);
+});
+test('P1 B03 E1-only scope blocks E2 A/B bridge and B04 queue without changing B02 scope',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),writes=srv.writes;
+ p1CompareE1E2_(team);
+ team.set('adminScopeB03','E1');team.change('adminScopeB03');
+ assert.equal(team.get('adminScopeB02').value,'INHERIT');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2,'B02 ALL retains both E1/E2 counts');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2);
+ assert.match(team.get('cancelQueueCompareCards').children[1].children.map(x=>x.textContent).join(' '),
+  /B03／B04本頁範圍 E1.*跨頁定位將拒絕/);
+ const b03Search=team.get('b03Search').value,n=team.calls.length;
+ p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(n),[],'no RPC on denied cross-page navigation');
+ assert.equal(team.get('b03Search').value,b03Search);
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/跨頁檢視拒絕.*E2.*B03本頁範圍 E1/);
+ const queue=team.get('cancelQueueRows').children.find(x=>x.dataset.participantId==='SIM-002');
+ assert.ok(queue,'B02 keeps its own E2 row');
+ queue.children.at(-1).children[0].handlers.click();
+ assert.equal(team.get('profileModule').hidden,true,'out-of-B03-scope E2 B04 must remain closed');
+ assert.match(team.get('cancelQueueStatus').textContent,/B04跨頁檢視拒絕/);
+ const first=team.calls.length;p1CompareBridge_(team,0);
+ assert.deepEqual(team.calls.slice(first).filter(x=>x!=='B01_GET'),['READ']);
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-001']);
+ assert.equal(team.get('adminScopeB03').value,'E1');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 E1/E2 A/B B02 scope restriction clears disallowed E2 and cannot be bypassed by manual selection',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),writes=srv.writes;
+ p1CompareE1E2_(team);
+ team.set('adminScopeB02','E1');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueMatrix').children.length,1);
+ assert.equal(team.get('cancelQueueCompareB').value,'NONE');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ assert.equal(team.get('cancelQueueRows').children.some(x=>x.dataset.participantId==='SIM-002'),false);
+ team.set('cancelQueueCompareB','SIM-SLOT-E2-A');team.change('cancelQueueCompareB');
+ assert.equal(team.get('cancelQueueCompareB').value,'NONE');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ team.set('adminScopeB02','E2');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueMatrix').children.length,1);
+ assert.equal(team.get('cancelQueueCompareA').value,'NONE');
+ assert.equal(team.get('cancelQueueRows').children.some(x=>x.dataset.participantId==='SIM-001'),false);
+ // Explicit B02 local ALL is still view scope, not true PI/RA authorization.
+ team.set('adminScopeGlobal','E1');team.change('adminScopeGlobal');
+ team.set('adminScopeB02','ALL');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ p1CompareE1E2_(team);
+ const n=team.calls.length;p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(n),[],'global E1 inherited B03 refuses E2');
+ assert.equal(team.get('adminScopeGlobal').value,'E1');
+ team.set('adminScopeB03','E2');team.change('adminScopeB03');
+ const from=team.calls.length;p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(from).filter(x=>x!=='B01_GET'),['READ']);
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-002']);
+ assert.equal(team.get('adminScopeGlobal').value,'E1','bridge never broadens GLOBAL');
+ assert.equal(team.get('adminScopeB03').value,'E2','existing explicit view override retained');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 E1/E2 A/B compare independent owner GET failure clears B02/B03/B04 and restores read-only',()=>{
+ const srv=server(),team=p1CrossExperimentCancelledSlots_(srv),writes=srv.writes,read=srv.read;
+ p1CompareE1E2_(team);
+ srv.read=()=>{throw Error('OWNER revoked after comparison');};
+ const n=team.calls.length;p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(n),['READ']);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ assert.equal(team.get('cancelQueueMatrix').children.length,0);
+ assert.equal(team.get('cancelQueueRows').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('cancelQueueCompareA').disabled,true);
+ assert.equal(srv.writes,writes);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
 test('P1 B02 two cancelled sessions compare real mixed attendance/progress counts and B03/B04 without writes',()=>{
  const srv=server(),team=p1CancelledTwoSlotsWithMixedAttendance_(srv),writes=srv.writes;
  const matrix=team.get('cancelQueueMatrix'),rows=team.get('cancelQueueRows');
