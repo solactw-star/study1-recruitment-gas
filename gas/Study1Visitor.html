@@ -597,15 +597,17 @@ function v07Description_(response,last){
 }
 function v07Readback_(afterFailure,detail){
  v08Clear_('V07正在回讀原GAS，變更預覽已作廢。');
- const generation=++v07.generation;
+ const minimumRevision=Number.isSafeInteger(model?.revision)?model.revision:0,
+  generation=++v07.generation;
  busy=true;v07.blocked=true;v07.recovering=true;
  $('v07Rescan').disabled=true;
  $('v07Result').textContent='正在唯讀核對原GAS目前虛構狀態；不重送提交。';
  v07Lock_();
  google.script.run.withSuccessHandler(response=>{
   if(generation!==v07.generation)return;
-  if(!v07SafeRead_(response,v07.last)){
-   refuseReply('V07來源或虛構申請狀態無法核實，已停止操作。');return;
+  if(!v07SafeRead_(response,v07.last)||
+   response.revision<minimumRevision){
+   refuseReply('V07來源、虛構申請或回覆修訂版回退，已停止操作。');return;
   }
   model=response;busy=false;v07.recovering=false;
   const note=v07Description_(response,v07.last);
@@ -624,7 +626,12 @@ function v07Readback_(afterFailure,detail){
 }
 $('v07Rescan').addEventListener('click',()=>{
  if(busy||v07.recovering||!v07.blocked)return;
- v07Readback_(false,'手動唯讀重新核對');
+ // Replayed requestId means the original V08 MOVE/CANCEL causality remains
+ // UNKNOWN. Even repeated manual owner GET can show only current state.
+ const unknownV08=!!v07.last&&['MOVE','CANCEL'].includes(v07.last.action);
+ v07Readback_(unknownV08,unknownV08?
+  'V08改期／取消原交易因果仍未知；此GET只提供現在狀態，不解鎖或重送':
+  '手動唯讀重新核對');
 });
 function v07ConfirmResponse_(action,payload,response,priorRevision){
  if(!['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action))return true;
@@ -839,8 +846,12 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
   priorEvents=before.b02.history,
   priorB04=before.b04.history,
   beforeNotice=before.notifications.length,
+  // Discard any older post-CAS response if a newer GET or security refusal
+  // has already superseded it. No stale callback can unlock an UNKNOWN.
+  generation=++v07.generation,
   fail=()=>refuseReply('V08操作可能已寫入，但獨立OWNER GET／修訂版／原候補FIFO或有限歷程無法核對；已鎖定舊畫面，禁止重送。');
  google.script.run.withSuccessHandler(fresh=>{
+  if(generation!==v07.generation)return;
   const person=fresh?.applications?.find(a=>a.id===id),
    accepted=fresh?.waitlist?.entries?.find(e=>e.id===id&&e.status==='ACCEPTED'),
    lastNotice=Array.isArray(fresh?.notifications)?fresh.notifications.at(-1):null,
@@ -898,7 +909,9 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
   setStatus('V08單次TEST '+(action==='MOVE'?'改期':'取消')+
    '已由原GAS回應及獨立OWNER GET共同核實；未寄信、未重送。');
   if(typeof onSuccess==='function')onSuccess(fresh);
- }).withFailureHandler(()=>fail()).study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{
+  if(generation===v07.generation)fail();
+ }).study1UnifiedPreviewGet();
 }
 
 function issue(action,payload,onSuccess){

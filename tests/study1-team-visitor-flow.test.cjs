@@ -4803,3 +4803,165 @@ test('P1-08 §70-J cancellation with original ACCEPTED source and bounded B02/B0
  assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
  closed(srv);
 });
+
+
+/* §70-K: UNKNOWN is a causal state, not a booking phase. A manual owner GET
+ * must not authorize replay of an ambiguous V08 MOVE/CANCEL requestId. */
+test('P1-08 §70-K duplicate requestId V08 MOVE remains UNKNOWN after repeated explicit owner-only rescans; no second CAS or phantom notice',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv);
+ const native=srv.ctx.study1UnifiedPreviewCommand,
+  before=srv.writes,notices=srv.read().notifications.length;
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  if(cmd.action!=='MOVE')return native(cmd);
+  assert.equal(native(cmd).deduplicated,false);
+  return native(cmd); // same exact command/ID returns only current view
+ };
+ v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.read().notifications.length,notices+1);
+ assert.equal(srv.read().applications[0].slotId,'SIM-SLOT-E1-B');
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v07Rescan').disabled,false);
+ const firstRead=v.calls.filter(x=>x==='READ').length,confirmed=srv.writes;
+ v.click('v07Rescan');
+ assert.equal(v.calls.filter(x=>x==='READ').length,firstRead+1);
+ assert.equal(srv.writes,confirmed,'rescan is read-only, no new request ID');
+ assert.equal(v.get('move').disabled,true,'UNKNOWN stays locked even after second valid GET');
+ assert.equal(v.get('cancel').disabled,true);
+ assert.equal(v.get('v08Refresh').disabled,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.match(v.get('v07Result').textContent,/此次操作因果結果尚未確認/);
+ assert.match(v.get('status').textContent,/因果仍未知/);
+ assert.doesNotMatch(v.get('v07Result').textContent,/已獨立GET核對TEST改期/);
+ assert.equal(v.get('v07Rescan').disabled,false,'a further explicit readonly rescan is allowed');
+ v.click('v07Rescan');
+ assert.equal(srv.writes,confirmed);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.get('move').disabled,true);
+ closed(srv);
+});
+test('P1-08 §70-K ambiguous CANCEL after accepted FIFO, B02 cancellation and explicit MOVE recovers current state read-only but retains UNKNOWN causal lock',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ const q=srv.read().waitlist.entries[0],b02=JSON.parse(JSON.stringify(srv.read().b02.history)),
+  before=srv.writes,notices=srv.read().notifications.length;
+ const native=srv.ctx.study1UnifiedPreviewCommand;
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  if(cmd.action!=='CANCEL')return native(cmd);
+  assert.equal(native(cmd).deduplicated,false);
+  return native(cmd);
+ };
+ v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.read().notifications.length,notices+1);
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.match(v.get('v07Result').textContent,/只能|因果結果尚未確認/);
+ assert.equal(v.get('v07Rescan').disabled,false);
+ const prior=srv.writes;
+ v.click('v07Rescan');
+ assert.equal(srv.writes,prior);
+ assert.equal(v.get('cancel').disabled,true);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08Refresh').disabled,true);
+ assert.match(v.get('v07Result').textContent,/目前狀態.*已取消/);
+ assert.match(v.get('v07Result').textContent,/無法證明剛才那次提交成功/);
+ const d=srv.read();
+ assert.equal(d.waitlist.entries[0].slotId,q.slotId);
+ assert.equal(d.waitlist.entries[0].seq,q.seq);
+ assert.equal(d.waitlist.entries[0].joinedAt,q.joinedAt);
+ assert.equal(d.waitlist.entries[0].closedAt,q.closedAt);
+ assert.deepEqual(d.b02.history,b02);
+ assert.equal(d.postCancel.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ const b12=p108B12_(srv,'WAITLIST');
+ assert.equal(b12.items[0].historical,false);
+ assert.equal(b12.items[0].at,null);
+ assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-K two-tab updates while UNKNOWN recovery GET is deferred: later revision shown, older rollback source fails closed without replay',()=>{
+ const srv=server(),opts={deferOwnerReads:false},v=v08ConfirmedVisitor_(srv,opts),
+  team=page(srv,'team');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const native=srv.ctx.study1UnifiedPreviewCommand;
+ opts.deferOwnerReads=true;
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  if(cmd.action!=='MOVE')return native(cmd);
+  const first=native(cmd);assert.equal(first.deduplicated,false);
+  return native(cmd);
+ };
+ const start=srv.writes;
+ v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(v.pendingOwnerReads.length,1,'UNKNOWN owner GET is pending, no auto resend');
+ assert.equal(srv.writes,start+1);
+ assert.equal(v.get('v07Rescan').disabled,true);
+ team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,start+1,'old owner tab CAS rejected');
+ team.click('refresh');
+ team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,start+2);
+ const committed=srv.read(),revision=committed.revision,readCount=v.calls.filter(x=>x==='READ').length;
+ v.deliverOwnerRead(); // first unknown read returns the newer true revision
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v07Rescan').disabled,false);
+ assert.match(v.get('v07Result').textContent,/此次操作因果結果尚未確認/);
+ v.click('v07Rescan');
+ assert.equal(v.pendingOwnerReads.length,1);
+ const read=srv.read;
+ srv.read=()=>{const d=read();d.revision=revision-1;return d;};
+ v.deliverOwnerRead(); // stale/out-of-order older owner source cannot be applied
+ srv.read=read;
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(srv.writes,start+2,'no repeat MOVE or cancel after stale GET');
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.match(v.get('status').textContent,/修訂版回退|無法核實|已停止操作/);
+ assert.equal(v.calls.filter(x=>x==='READ').length,readCount+1);
+ assert.equal(srv.read().revision,revision);
+ assert.equal(srv.read().applications[0].slotId,'SIM-SLOT-E1-B');
+ assert.equal(srv.read().recruitment.E2.mode,'HIDDEN');
+ const b12=p108B12_(srv);
+ assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-K prior HELD/CONSENTED expiry and original ACCEPTED FIFO cannot be unlocked by V08 UNKNOWN rescans',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ waitlistFillConfirmed_(srv);
+ const person=waitlistVerifiedVisitor_(srv,{Date:Clock});
+ person.v.click('v08WaitJoin');
+ srv.command('CANCEL',{id:'SIM-001'});
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ person.v.click('v08WaitRefresh');person.v.click('v08WaitAccept');
+ const hold=srv.read().applications.find(a=>a.id===person.id).holdUntil,
+  original=srv.read().waitlist.entries[0];
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ clock.now=hold+1;
+ const before=srv.writes;
+ assert.throws(()=>srv.command('HOLD',{id:person.id,slotId:'SIM-SLOT-E1-B'}),/已接受候補暫留到期/);
+ assert.throws(()=>srv.command('MOVE',{id:person.id,slotId:'SIM-SLOT-E1-B'}),/已確認/);
+ assert.throws(()=>srv.command('CANCEL',{id:person.id}),/逾期|只有有效/);
+ assert.equal(srv.writes,before);
+ const a=srv.read().applications.find(x=>x.id===person.id);
+ assert.equal(a.phase,'HELD');
+ assert.equal(a.holdUntil,hold);
+ assert.equal(a.slotId,'SIM-SLOT-E1-A');
+ const e=srv.read().waitlist.entries[0];
+ assert.deepEqual([e.status,e.slotId,e.seq,e.joinedAt,e.closedAt],
+  [original.status,original.slotId,original.seq,original.joinedAt,original.closedAt]);
+ const team=page(srv,'team',{Date:Clock});
+ assert.match(waitlistNodeText_(team.get('cancelQueueRows')),/暫留已逾期.*僅保留歷程/);
+ const b12=p108B12_(srv,'WAITLIST');
+ assert.equal(b12.items[0].historical,false);
+ assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
