@@ -1469,6 +1469,8 @@ function b09WaitlistRender_(data,scope,start,end){
    '）｜原場次目前關聯 '+original.linked+'｜其中目前確認 '+original.linkedConfirmed+
    '、暫留／示範同意 '+original.linkedHoldOrConsented+
    '、個別已取消 '+original.linkedCancelled+
+   '｜逐筆核對 '+original.linkedRecords.map(a=>a.id+':'+a.phase+
+    '/出席'+a.attendance+'/施測'+a.progress).join('、')+
    '｜原出席有紀錄 '+original.linkedAttendanceRecorded+
    '、施測行政完成 '+original.linkedProgressComplete+
    '｜近期取消事件保留 '+original.retainedCancelEvents+
@@ -4133,6 +4135,7 @@ function profileRender(){
  case 'booking':
   fields([['候補目前狀態',teamWaitlistLabel_(teamWaitlistEntry_(a.id))],
    ['預約ID',a.slotId||'無'],
+   ['已取消場次個別核對',teamCancelledRecordLabel_(a)],
    ['接受候補原始場次',teamWaitlistEntry_(a.id)?.status==='ACCEPTED'?
      teamWaitlistEntry_(a.id).slotId+'（FIFO原來源；目前預約場次 '+
       (a.slotId||'無')+'，不能從原候補推定目前有效預約）':'未核實曾接受候補'],
@@ -4383,6 +4386,8 @@ function b03Render(){
     '候補現況：'+teamWaitlistLabel_(teamWaitlistEntry_(a.id)),
    '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
    item.append(calElem('span',label));
+  if(teamCancelledRecord_(a))
+   item.append(calElem('span','取消場次逐筆來源：'+teamCancelledRecordLabel_(a)));
   list.append(item);
  }
  for(const exp of ['E1','E2']){
