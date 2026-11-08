@@ -94,8 +94,8 @@ function fake(opts={}) {
   };
   return {ctx,calls,opener};
 }
-function availability(x) {
-  return JSON.parse(JSON.stringify(x.ctx.bookingReadOnlyAvailability_(x.opener,now)));
+function availability(x, at=now) {
+  return JSON.parse(JSON.stringify(x.ctx.bookingReadOnlyAvailability_(x.opener,at)));
 }
 test('reads only 828 workbook and returns sanitized availability',()=>{
   const x=fake({rows:[reservation()]});
@@ -288,7 +288,7 @@ test('last update cannot precede a populated confirmation or cancellation timest
     const row=reservation('R1','CANCELLED').map((v,i)=>
       i===eventColumn?'2026-10-29T12:02:00Z':
       i===9?'2026-10-29T12:01:00Z':v);
-    assert.throws(()=>availability(fake({rows:[row]})),/時間先後順序/);
+    assert.throws(()=>availability(fake({rows:[row]}),'2026-10-29T12:10:00Z'),/時間先後順序/);
   }
 });
 test('equal chronology, native Date values and empty optional timestamps stay valid',()=>{
@@ -417,7 +417,7 @@ test('cancelled record rejects cancellation timestamp before confirmation, even 
     i===7?'2026-10-29T12:04:00Z':
     i===8?'2026-10-29T12:02:00Z':
     i===9?'2026-10-29T12:05:00Z':v);
-  assert.throws(()=>availability(fake({slots:[slot(3)],rows:[row]})),err=>{
+  assert.throws(()=>availability(fake({slots:[slot(3)],rows:[row]}),'2026-10-29T12:10:00Z'),err=>{
     assert.match(String(err),/取消時間早於確認時間/);
     assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
     return true;
@@ -428,11 +428,11 @@ test('cancelled record allows chronological Date cells, equal timestamps and mis
     i===7?new Date('2026-10-29T12:02:00Z'):
     i===8?new Date('2026-10-29T12:04:00Z'):
     i===9?new Date('2026-10-29T12:05:00Z'):v);
-  assert.equal(availability(fake({rows:[row]}))[0].remaining,2);
+  assert.equal(availability(fake({rows:[row]}),'2026-10-29T12:10:00Z')[0].remaining,2);
   const equal=row.map((v,i)=>i===8?new Date('2026-10-29T12:02:00Z'):v);
-  assert.equal(availability(fake({rows:[equal]}))[0].remaining,2);
+  assert.equal(availability(fake({rows:[equal]}),'2026-10-29T12:10:00Z')[0].remaining,2);
   const missing=row.map((v,i)=>i===7||i===8?'':v);
-  assert.equal(availability(fake({rows:[missing]}))[0].remaining,2);
+  assert.equal(availability(fake({rows:[missing]}),'2026-10-29T12:10:00Z')[0].remaining,2);
 });
 
 
@@ -602,4 +602,30 @@ test('invalid caller clock is rejected before opening any spreadsheet',()=>{
   assert.throws(()=>x.ctx.bookingReadOnlyAvailability_(x.opener,
     new Date('invalid')),/時間日期不合法/);
   assert.equal(x.calls.length,0);
+});
+
+
+test('future-dated reservation lifecycle events reject a read-only snapshot',()=>{
+  const future='2026-10-29T12:01:00Z';
+  for(const [status,column] of [
+    ['HELD',6],['CONFIRMED',7],['CANCELLED',8],['CANCELLED',9]
+  ]) {
+    const row=reservation('R1',status).map((value,i)=>i===column?future:value);
+    const x=fake({rows:[row]});
+    assert.throws(()=>availability(x),err=>{
+      assert.match(String(err),/預約事件時間晚於快照基準時間/);
+      assert.doesNotMatch(String(err),/APP_A|idempotency-key-0001|R1/);
+      return true;
+    });
+  }
+});
+test('future-dated slot update fails closed but future hold deadline remains valid',()=>{
+  const future='2026-10-29T12:01:00Z';
+  const changed=slot().map((value,i)=>i===7?future:value);
+  assert.throws(()=>availability(fake({slots:[changed]})),
+    /時段更新時間晚於快照基準時間/);
+  // A future hold expiry is expected and must not be mistaken for an event.
+  assert.equal(availability(fake({rows:[reservation()]}))[0].remaining,1);
+  const atClock=slot().map((value,i)=>i===7?new Date(now):value);
+  assert.equal(availability(fake({slots:[atClock]}))[0].remaining,2);
 });

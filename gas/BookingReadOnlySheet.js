@@ -176,7 +176,7 @@ function bookingReadOnlySnapshot_(openSpreadsheet) {
  * affect capacity. A malformed historical row must not be silently ignored.
  * Empty optional lifecycle fields are allowed; REC policy is not inferred here.
  */
-function bookingReadOnlyValidateTemporalCells_(snapshot) {
+function bookingReadOnlyValidateTemporalCells_(snapshot, nowMs) {
   function check(rows, columns) {
     rows.forEach(function(row) {
       if (bookingBlankRow_(row)) return;
@@ -188,6 +188,14 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
   }
   check(snapshot.slots.rows, [7]); // updated_at_utc
   check(snapshot.reservations.rows, [4, 6, 7, 8, 9]);
+  // Event metadata is historical at the snapshot clock. A future-dated
+  // event is contradictory evidence, not a legitimate future hold deadline.
+  snapshot.slots.rows.forEach(function(row) {
+    if (!bookingBlankRow_(row) && row[7] !== '' && row[7] != null &&
+        bookingInstant_(row[7]) > nowMs) {
+      throw new Error('時段更新時間晚於快照基準時間，已拒絕提供名額。');
+    }
+  });
   // Semantic chronology guard: valid UTC cells may still contradict each other.
   // Optional fields stay optional; no status/retention/REC policy is inferred.
   snapshot.reservations.rows.forEach(function(row) {
@@ -198,6 +206,11 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
     var created = optionalInstant(6), confirmed = optionalInstant(7),
         cancelled = optionalInstant(8), updated = optionalInstant(9),
         holdUntil = optionalInstant(4);
+    if ([created, confirmed, cancelled, updated].some(function(ms) {
+      return ms !== null && ms > nowMs;
+    })) {
+      throw new Error('預約事件時間晚於快照基準時間，已拒絕提供名額。');
+    }
     if (created !== null && [holdUntil, confirmed, cancelled, updated].some(function(ms) {
       return ms !== null && ms < created;
     })) {
@@ -296,7 +309,7 @@ function bookingReadOnlyAvailability_(openSpreadsheet, nowUtc) {
       throw new Error('預約工作表存在內部空白資料列，已拒絕提供名額。');
     }
   });
-  bookingReadOnlyValidateTemporalCells_(snapshot);
+  bookingReadOnlyValidateTemporalCells_(snapshot, now);
   bookingReadOnlyValidateCanonicalStatuses_(snapshot);
   bookingReadOnlyValidateTextMetadata_(snapshot);
   var result = bookingComputeAvailability_(
