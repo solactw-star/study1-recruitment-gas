@@ -3230,7 +3230,7 @@ test('P1-08 original B02 policy controls save experiment, stage and activity, an
  assert.match(team.get('waitPolicyStatus').textContent,/獨立GET核實/);
  candidate.v.click('v08WaitRefresh');
  assert.equal(candidate.v.get('v08WaitJoin').disabled,true);
- assert.throws(()=>srv.command('WAITLIST_JOIN',{id:candidate.id,slotId:'SIM-SLOT-E1-A'}),/尚未|開放/);
+ assert.throws(()=>srv.command('WAITLIST_JOIN',{id:candidate.id,slotId:'SIM-SLOT-E1-A'}),/候補僅限|尚未|開放/);
  team.set('waitPolicyMode','MANUAL_TEST');team.click('waitPolicySave');
  assert.equal(srv.read().waitlist.settings.experiments.E1,'MANUAL_TEST');
  team.set('waitPolicyLevel','STAGE');team.change('waitPolicyLevel');
