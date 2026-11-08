@@ -695,7 +695,23 @@ function v08Plan_(response,a,action,targetId){
   accepted.experiment!==a.experiment||
   !response.slots.some(s=>s.id===accepted.slotId&&s.experiment===a.experiment)||
   !Number.isSafeInteger(accepted.seq)||accepted.seq<1||
-  !Number.isSafeInteger(accepted.closedAt)))return null;
+  !Number.isSafeInteger(accepted.joinedAt)||accepted.joinedAt<0||
+  !Number.isSafeInteger(accepted.offeredAt)||accepted.offeredAt<accepted.joinedAt||
+  !Number.isSafeInteger(accepted.expiresAt)||accepted.expiresAt<=accepted.offeredAt||
+  !Number.isSafeInteger(accepted.closedAt)||
+  accepted.closedAt<accepted.offeredAt||accepted.closedAt>=accepted.expiresAt))return null;
+ // Do not silently detach the original accepted invite from an already
+ // cancelled B02 source just because the individual booking has since MOVED.
+ if(accepted&&response.b02.sessions[accepted.slotId]?.status==='CANCELLED'){
+  const originSource=response.postCancel?.bySlot?.find(row=>row.slotId===accepted.slotId),
+   acceptedRow=originSource?.acceptedOrigins?.find(row=>row.id===a.id);
+  if(response.postCancel?.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
+   response.postCancel.completeHistory!==false||
+   !originSource||acceptedRow?.seq!==accepted.seq||
+   acceptedRow?.originalSlotId!==accepted.slotId||
+   acceptedRow?.currentSlotId!==a.slotId||acceptedRow?.phase!==a.phase)
+   return null;
+ }
  let target=null,toTime=null,toStatus=null;
  if(action==='MOVE'){
   if(!['OPEN','CANCELLED'].includes(originStatus)||
@@ -716,7 +732,8 @@ function v08Plan_(response,a,action,targetId){
  }else if(targetId!==null)return null;
  const signature=JSON.stringify([response.revision,a.id,a.experiment,a.phase,
   a.eligible,a.signatureDemo,a.slotId,origin.when,origin.capacity,originStatus,
-  accepted?.slotId||null,accepted?.seq??null,accepted?.closedAt??null,
+  accepted?.slotId||null,accepted?.seq??null,accepted?.joinedAt??null,
+  accepted?.offeredAt??null,accepted?.expiresAt??null,accepted?.closedAt??null,
   action,target?.id||null,target?.when||null,target?.capacity||null,
   target?.remaining||null,target?.bookable??null,toStatus]);
  return {action,applicationId:a.id,experiment:a.experiment,
@@ -839,19 +856,26 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
    !person||person.experiment!==old.experiment||
    person.phase!==updatedPhase||person.slotId!==updatedSlot||
    fresh.revision!==response.revision||
+   response.deduplicated!==false||
    !Array.isArray(priorEvents)||!Array.isArray(priorB04)||
    !Array.isArray(fresh.b02?.history)||!Array.isArray(fresh.b04?.history)||
    fresh.b02.history.length!==priorEvents.length||
    fresh.b04.history.length!==priorB04.length||
+   // Length alone cannot detect a forged or replaced bounded event. A
+   // single MOVE/CANCEL appends no B02/B04 audit events, so preserve bytes
+   // of both finite source rings while requiring the exact CAS revision.
+   JSON.stringify(fresh.b02.history)!==JSON.stringify(priorEvents)||
+   JSON.stringify(fresh.b04.history)!==JSON.stringify(priorB04)||
    fresh.waitlist.asOf<response.waitlist.asOf||
    !lastNotice||lastNotice.id!==id||lastNotice.event!==action||
    !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(lastNotice.status)||
    !Array.isArray(fresh.notifications)||
-   fresh.notifications.length<Math.min(15,beforeNotice+1)||
+   fresh.notifications.length!==beforeNotice+1||
    (originalWasCancelled&&originalNow!=='CANCELLED')||
    (!!oldEntry!==!!accepted)||
    (oldEntry&&(accepted.id!==oldEntry.id||accepted.seq!==oldEntry.seq||
     accepted.slotId!==oldEntry.slotId||accepted.experiment!==oldEntry.experiment||
+    accepted.joinedAt!==oldEntry.joinedAt||
     accepted.offeredAt!==oldEntry.offeredAt||accepted.expiresAt!==oldEntry.expiresAt||
     accepted.closedAt!==oldEntry.closedAt||accepted.status!=='ACCEPTED'))||
    (acceptedWasCancelled&&(!acceptedOrigin||
@@ -887,6 +911,15 @@ function issue(action,payload,onSuccess){
  const priorRevision=model.revision,priorApp=current(),priorModel=model;
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
+  if(['MOVE','CANCEL'].includes(action)&&safePreview(response)&&
+   response?.deduplicated!==false){
+   // Replayed requestId may return the current state at revision+1, but
+   // that is NOT evidence that this click caused the transition.
+   v07.last={action,id:payload.id,slotId:payload.slotId||null,
+    experiment:priorApp?.experiment||null};
+   v07Readback_(true,'原GAS回覆重複requestId或缺少新交易證據；只能唯讀核對，不能宣稱本次操作完成');
+   return;
+  }
   if(!safePreview(response)||!v07ConfirmResponse_(action,payload,response,priorRevision)){
    refuseReply('示範操作回應無法驗證：原GAS安全來源或預期狀態不一致；請重新載入頁面並以V07唯讀核對，已停止操作。');return;
   }

@@ -4494,9 +4494,9 @@ test('P1-08 §70-H cancelled original ACCEPTED source survives explicit MOVE the
 
 /* §70-I: deliver the accepted-offer confirmation through the ACTUAL original
  * Visitor DOM, so the V08 participant screen has the latest CONFIRMED state. */
-function p108ConfirmedInVisitor_(srv){
+function p108ConfirmedInVisitor_(srv,options){
  waitlistFillConfirmed_(srv);
- const person=waitlistVerifiedVisitor_(srv);
+ const person=waitlistVerifiedVisitor_(srv,options);
  person.v.click('v08WaitJoin');
  srv.command('CANCEL',{id:'SIM-001'});
  srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
@@ -4663,5 +4663,143 @@ test('P1-08 §70-I GAS requestId duplicate MOVE/CANCEL is idempotent, conflictin
  assert.equal(after.waitlist.entries[0].closedAt,entry.closedAt);
  assert.equal(after.postCancel.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
  assert.equal(p108B12_(srv,'WAITLIST').items[0].historical,false);
+ closed(srv);
+});
+
+
+/* §70-J: two real interface tabs share one original GAS, immutable accepted
+ * origin, bounded-history content and replay causality. Never use real data. */
+test('P1-08 §70-J two tabs: stale second OWNER CAS rejected, newer second-tab write makes first V08 independent GET fail closed without replay',()=>{
+ const srv=server(),options={deferOwnerReads:false},
+  person=p108ConfirmedInVisitor_(srv,options);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;
+ v.click('v08Refresh');
+ const team=page(srv,'team'); // second browser tab begins at the same revision
+ const before=srv.writes,oldAccept=srv.read().waitlist.entries[0];
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ options.deferOwnerReads=true;
+ v.click('v08Commit'); // server CAS succeeds; delayed GET not yet delivered
+ assert.equal(srv.writes,before+1);
+ assert.equal(v.pendingOwnerReads.length,1);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(srv.read().applications.find(a=>a.id===person.id).slotId,'SIM-SLOT-E1-B');
+ team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,before+1,'stale second browser tab cannot write across first CAS');
+ assert.match(team.get('status').textContent,/版本已變更/);
+ team.click('refresh');
+ team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,before+2,'second tab may make an explicit fresh-revision TEST edit');
+ assert.equal(srv.read().recruitment.E2.mode,'HIDDEN');
+ const revisionAfterSecond=srv.read().revision;
+ v.deliverOwnerRead(); // independent owner GET sees a newer revision
+ assert.equal(srv.writes,before+2);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.get('move').disabled,true,'first tab cannot claim its old response is the latest current source');
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.match(v.get('status').textContent,/GET|禁止重送|來源無法核對/);
+ assert.equal(srv.read().revision,revisionAfterSecond);
+ assert.equal(srv.read().waitlist.entries[0].slotId,oldAccept.slotId);
+ assert.equal(srv.read().waitlist.entries[0].seq,oldAccept.seq);
+ assert.equal(srv.read().waitlist.entries[0].closedAt,oldAccept.closedAt);
+ const current=page(srv,'team');
+ assert.match(waitlistNodeText_(current.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ const audit=p108B12_(srv,'WAITLIST');
+ assert.equal(audit.items[0].historical,false);
+ assert.equal(audit.items[0].at,null);
+ assert.equal(audit.coverage.postCancelSummary.bySlot[0].acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ closed(srv);
+});
+test('P1-08 §70-J same requestId deduplicated true is not causal evidence of this V08 click, even when phase/revision match',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv);
+ const original=srv.ctx.study1UnifiedPreviewCommand,
+  before=srv.writes,notices=srv.read().notifications.length;
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=command=>{
+  if(command.action!=='MOVE')return original(command);
+  const first=original(command);
+  assert.equal(first.deduplicated,false);
+  const repeated=original(command);
+  assert.equal(repeated.deduplicated,true);
+  return repeated; // simulate delayed/replayed network acknowledgment
+ };
+ v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewCommand=original;
+ assert.equal(srv.writes,before+1,'same request ID wrote just once');
+ assert.equal(srv.read().notifications.length,notices+1);
+ assert.equal(srv.read().applications[0].slotId,'SIM-SLOT-E1-B');
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08Refresh').disabled,true);
+ assert.match(v.get('status').textContent,/重複requestId|因果|未確認/);
+ assert.doesNotMatch(v.get('v07Result').textContent,/已獨立GET核對TEST改期/);
+ assert.equal(v.get('v08ManageReview').hidden,true);
+ closed(srv);
+});
+test('P1-08 §70-J same-length forged B02/B04 bounded history or original FIFO joinedAt after successful TEST CAS fails independent GET',()=>{
+ for(const kind of ['B02','B04','FIFO']){
+  const srv=server(),person=p108ConfirmedInVisitor_(srv);
+  // One retained B04 administrative source as well as original B02 events.
+  srv.command('ADMIN_B04_NOTE',{id:person.id,note:'虛構來源紀錄',reason:'TEST_SOURCE'});
+  srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+  const v=person.v;v.click('v08Refresh');
+  v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+  const before=srv.writes,rawRead=srv.read,
+   beforeEvents=rawRead().b02.history,
+   beforeB04=rawRead().b04.history;
+  assert.ok(beforeEvents.length>0&&beforeB04.length>0);
+  srv.read=()=>{
+   const d=rawRead();
+   if(d.applications.find(a=>a.id===person.id).slotId==='SIM-SLOT-E1-B'){
+    if(kind==='B02')d.b02.history[0].action='FORGED_ACTION_SAME_LENGTH';
+    if(kind==='B04')d.b04.history[0].reason='FORGED_REASON_SAME_LENGTH';
+    if(kind==='FIFO')d.waitlist.entries[0].joinedAt+=1;
+   }
+   return d;
+  };
+  v.click('v08Commit');
+  srv.read=rawRead;
+  const source=srv.read();
+  assert.equal(srv.writes,before+1,kind+' only one original TEST MOVE');
+  assert.equal(source.applications.find(a=>a.id===person.id).slotId,'SIM-SLOT-E1-B');
+  assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+  assert.equal(v.get('move').disabled,true,kind+' fake history/origin must not claim verified success');
+  assert.match(v.get('status').textContent,/GET|禁止重送/);
+  assert.deepEqual(source.b02.history,beforeEvents,'never persist the forged B02 view');
+  assert.deepEqual(source.b04.history,beforeB04,'never persist the forged B04 view');
+  assert.equal(source.waitlist.entries[0].status,'ACCEPTED');
+  const team=page(srv,'team');
+  assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+  const b12=p108B12_(srv,'WAITLIST');
+  assert.equal(b12.items[0].historical,false);
+  assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+  closed(srv);
+ }
+});
+test('P1-08 §70-J cancellation with original ACCEPTED source and bounded B02/B04 event provenance remains one CAS/one independent GET',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B04_NOTE',{id:person.id,note:'虛構核對',reason:'TEST_NOTE'});
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');v.click('move');
+ v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ const moved=srv.read(),b02=JSON.parse(JSON.stringify(moved.b02.history)),
+  b04=JSON.parse(JSON.stringify(moved.b04.history)),
+  q=JSON.parse(JSON.stringify(moved.waitlist.entries[0])),
+  before=srv.writes,reads=v.calls.filter(x=>x==='READ').length;
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ assert.equal(srv.writes,before+1);
+ assert.equal(v.calls.filter(x=>x==='CANCEL').length,1);
+ assert.equal(v.calls.filter(x=>x==='READ').length,reads+1);
+ assert.match(v.get('v07Result').textContent,/獨立GET核對TEST個別取消/);
+ const d=srv.read();
+ assert.deepEqual(d.b02.history,b02);
+ assert.deepEqual(d.b04.history,b04);
+ assert.deepEqual(d.waitlist.entries[0],q);
+ assert.equal(d.postCancel.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ assert.equal(d.postCancel.bySlot[0].acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
  closed(srv);
 });
