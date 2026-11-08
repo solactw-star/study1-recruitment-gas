@@ -687,6 +687,142 @@ test('P1 B03 provenance guard rejects orphan B02 attendance event and divergent 
  closed(srv);
 });
 
+
+/* P1 B02-B attendance edit reuses original calendar PERSON panel. */
+function p1B02PersonPanel_(team,id='SIM-001'){
+ const row=team.get('entries').children.find(x=>x.dataset.participantId===id);
+ assert.ok(row,'original B03 participant row exists');
+ row.children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+ team.click('profileCalendar');
+ assert.equal(team.get('calPersonDetail').hidden,false);
+ assert.match(team.get('calPersonTitle').textContent,new RegExp(id));
+}
+test('P1 B02 attendance writes once then independently GETs B03 board and B04 audit state',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team'),before=srv.writes;
+ p1B02PersonPanel_(team);
+ team.set('b03Sort','UPDATED_DESC');team.change('b03Sort');
+ team.set('calAttendance','PRESENT');
+ team.set('calProgress','PARTIAL');
+ team.set('calNote','模擬出席紀錄');
+ const from=team.calls.length;
+ team.click('calSavePerson');
+ assert.deepEqual(team.calls.slice(from).filter(x=>x!=='B01_GET'),['ADMIN_B02_ATTEND','READ']);
+ assert.equal(srv.writes,before+1,'exactly one owner-only synthetic write');
+ assert.match(team.get('calStatusMessage').textContent,/獨立回讀確認/);
+ assert.match(team.get('b03ReconcileStatus').textContent,/B03清單看板、B04出席及有限歷程同來源同步/);
+ const state=srv.read();
+ assert.equal(state.b02.attendance['SIM-001'].attendance,'PRESENT');
+ assert.equal(state.b02.attendance['SIM-001'].progress,'PARTIAL');
+ assert.equal(state.b02.attendance['SIM-001'].note,'模擬出席紀錄');
+ assert.equal(state.b04.history.at(-1).field,'attendanceAndProgress');
+ assert.match(team.get('entries').children[0].children.at(-1).textContent,/B02出席／施測更正/);
+ team.click('b03BoardMode');
+ const card=team.get('b03Board').children.flatMap(g=>g.children)
+  .filter(x=>x.className==='b03Columns').flatMap(g=>g.children)
+  .flatMap(g=>g.children).find(x=>x.dataset.participantId==='SIM-001');
+ assert.ok(card);assert.match(card.textContent,/已出席/);
+ assert.match(card.textContent,/B02出席／施測更正/);
+ card.handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ booking.handlers.click();
+ const bookingGrid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ const bookingValues=bookingGrid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
+ assert.match(bookingValues,/已出席/);
+ assert.match(bookingValues,/部分完成/);
+ const research=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='research');
+ research.handlers.click();
+ const researchGrid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ const researchValues=researchGrid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
+ assert.match(researchValues,/模擬出席紀錄/);
+ const timeline=team.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
+ assert.match(timeline,/出席與施測更新（B02／B04）/);
+ assert.match(timeline,/模擬出席紀錄/);
+ assert.equal(srv.writes,before+1,'cross-page views do not create another write');
+ closed(srv);
+});
+test('P1 B02 identical attendance confirmation has B02 event but no invented B04 correction',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team'),before=srv.writes;
+ p1B02PersonPanel_(team);
+ const at=team.calls.length;
+ team.click('calSavePerson');
+ assert.deepEqual(team.calls.slice(at).filter(x=>x!=='B01_GET'),['ADMIN_B02_ATTEND','READ']);
+ assert.equal(srv.writes,before+1);
+ const state=srv.read();
+ assert.equal(state.b02.history.at(-1).action,'ATTEND');
+ assert.equal(state.b04.history.length,0);
+ assert.match(team.get('calStatusMessage').textContent,/獨立回讀確認/);
+ assert.match(team.get('entries').children[0].children.at(-1).textContent,/B02出席重新確認/);
+ closed(srv);
+});
+test('P1 B02 two-owner-tab stale CAS clears B03 and B04 without automatic retry',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const first=page(srv,'team'),stale=page(srv,'team');
+ p1B02PersonPanel_(first);p1B02PersonPanel_(stale);
+ first.set('calAttendance','PRESENT');
+ first.set('calProgress','PARTIAL');
+ first.click('calSavePerson');
+ const currentRev=srv.read().revision,writes=srv.writes;
+ stale.set('calAttendance','ABSENT');stale.set('calProgress','NOT_STARTED');
+ const from=stale.calls.length;stale.click('calSavePerson');
+ assert.deepEqual(stale.calls.slice(from),['ADMIN_B02_ATTEND'],'no GET or retry on rejected stale CAS');
+ assert.equal(srv.writes,writes);assert.equal(srv.read().revision,currentRev);
+ assert.equal(srv.read().b02.attendance['SIM-001'].attendance,'PRESENT');
+ assert.equal(stale.get('entries').children.length,0);
+ assert.equal(stale.get('profileModule').hidden,true);
+ assert.equal(stale.get('calPersonDetail').hidden,true);
+ assert.equal(stale.get('calSavePerson').disabled,true);
+ assert.match(stale.get('calStatusMessage').textContent,/CAS版本競寫/);
+ stale.click('refresh');
+ assert.equal(stale.get('entries').children.length,1);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 B02 independent GET OWNER revocation leaves write uncertain and never resubmits',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team'),read=srv.read;
+ p1B02PersonPanel_(team);
+ team.set('calAttendance','LATE');team.set('calProgress','IN_PROGRESS');
+ const before=srv.writes,rev=read().revision;
+ srv.read=()=>{throw Error('OWNER source revoked');};
+ const from=team.calls.length;team.click('calSavePerson');
+ assert.deepEqual(team.calls.slice(from),['ADMIN_B02_ATTEND','READ']);
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.ctx.study1UnifiedPreviewGet().revision,rev+1);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('calPersonDetail').hidden,true);
+ assert.match(team.get('calStatusMessage').textContent,/OWNER撤權/);
+ assert.doesNotMatch(team.get('calStatusMessage').textContent,/獨立回讀確認/);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('entries').children.length,1);
+ assert.equal(srv.writes,before+1);
+ closed(srv);
+});
+test('P1 B02 forged success audit is rejected before GET; original GAS source remains recoverable',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team'),real=srv.ctx.study1UnifiedPreviewCommand;
+ p1B02PersonPanel_(team);
+ team.set('calAttendance','PRESENT');team.set('calProgress','COMPLETE');
+ const before=srv.writes;
+ srv.ctx.study1UnifiedPreviewCommand=command=>{
+  const result=real(command);
+  if(command.action==='ADMIN_B02_ATTEND')result.b04.history.at(-1).after='ABSENT / NOT_STARTED';
+  return result;
+ };
+ const from=team.calls.length;team.click('calSavePerson');
+ assert.deepEqual(team.calls.slice(from),['ADMIN_B02_ATTEND']);
+ assert.equal(srv.writes,before+1);
+ assert.equal(team.get('entries').children.length,0);
+ assert.match(team.get('calStatusMessage').textContent,/回應不可信/);
+ srv.ctx.study1UnifiedPreviewCommand=real;team.click('refresh');
+ assert.equal(team.get('entries').children.length,1);
+ assert.equal(srv.writes,before+1);
+ closed(srv);
+});
+
 test('B05 is reachable from existing calendar, shows original session and returns without writes',()=>{
  const srv=server(),before=srv.writes;
  const team=page(srv,'team');

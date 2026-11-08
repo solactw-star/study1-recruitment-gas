@@ -2475,7 +2475,100 @@ function calEditCommit_(){
  calEditReset_('編輯已送至原GAS；結果不明時須重新讀取，禁止自動重送。');
  calCommand('ADMIN_B02_SLOT',payload,()=>{cal.mode='SESSION';});
 }
+/* P1 B02-B attendance correction: one CAS write and independent owner GET.
+ * The returned command response is provisional, not persistence evidence.
+ * Existing backend still enforces TEST only, owner, lock and expectedRevision. */
+function calAttendanceSameEvents_(actual,baseline){
+ if(actual.length!==baseline.length)return false;
+ return actual.every((event,index)=>{
+  const old=baseline[index];
+  if(!old||Object.keys(event).sort().join(',')!==Object.keys(old).sort().join(','))return false;
+  return Object.keys(old).every(key=>Array.isArray(old[key])?
+   Array.isArray(event[key])&&event[key].length===old[key].length&&
+   old[key].every((v,i)=>v===event[key][i]):event[key]===old[key]);
+ });
+}
+function calAttendanceVerified_(d,tx){
+ if(!b03CrossCheck_(d)||d.deduplicated===true||d.revision!==tx.revision+1)return false;
+ const person=d.applications.find(a=>a.id===tx.id);
+ if(!person||person.experiment!==tx.experiment||person.slotId!==tx.slotId||
+  !d.slots.some(s=>s.id===tx.slotId&&s.experiment===tx.experiment)||
+  d.b02.sessions[tx.slotId]?.status==='CLOSED'||
+  d.b02.sessions[tx.slotId]?.status==='CANCELLED')return false;
+ const current=d.b02.attendance[tx.id];
+ if(!current||current.attendance!==tx.attendance||current.progress!==tx.progress||
+  current.note!==tx.note||(d.b04.notes[tx.id]||'')!==tx.adminNote)return false;
+ if(d.b02.history.length!==Math.min(12,tx.b02History.length+1)||
+  !calAttendanceSameEvents_(d.b02.history.slice(0,-1),tx.b02History.slice(-11)))return false;
+ const h=d.b02.history[d.b02.history.length-1];
+ if(!h||h.action!=='ATTEND'||!Array.isArray(h.ids)||h.ids.length!==1||
+  h.ids[0]!==tx.id||typeof h.at!=='string'||!Number.isFinite(Date.parse(h.at)))return false;
+ if(!tx.changed)return calAttendanceSameEvents_(d.b04.history,tx.b04History);
+ if(d.b04.history.length!==Math.min(30,tx.b04History.length+1)||
+  !calAttendanceSameEvents_(d.b04.history.slice(0,-1),tx.b04History.slice(-29)))return false;
+ const audit=d.b04.history[d.b04.history.length-1];
+ const before=tx.before.attendance+' / '+tx.before.progress+
+  (tx.before.note?' / '+tx.before.note:'');
+ const after=tx.attendance+' / '+tx.progress+(tx.note?' / '+tx.note:'');
+ return !!audit&&audit.id===tx.id&&audit.field==='attendanceAndProgress'&&
+  audit.before===before&&audit.after===after&&
+  audit.reason==='B02場次面板更新（未另填更正原因）'&&audit.actor==='OWNER'&&
+  audit.at===h.at;
+}
+function calAttendanceStop_(reason){
+ render(null);
+ $('calAttendance').value='PENDING';$('calProgress').value='NOT_STARTED';$('calNote').value='';
+ $('calPersonTitle').textContent='來源無法核對';
+ $('calPersonSummary').textContent='已清空舊出席資料，須重新讀取原GAS。';
+ $('calPersonDetail').hidden=true;$('calSessionDetail').replaceChildren();$('calBoard').replaceChildren();
+ calMsg(reason,true);$('b03ReconcileStatus').textContent=reason;message(reason,true);
+}
+function calAttendanceCommand_(payload){
+ if(!calAllowed()||busy||cal.mode!=='PERSON'||cal.person!==payload.id||
+  !['PENDING','PRESENT','LATE','ABSENT'].includes(payload.attendance)||
+  !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(payload.progress)||
+  typeof payload.note!=='string'||payload.note.length>80||/[<>]/.test(payload.note)){
+  calMsg('B02出席更正來源或欄位不合法，未提交。',true);return;
+ }
+ const person=model.applications.find(a=>a.id===payload.id),
+  slot=person&&model.slots.find(s=>s.id===person.slotId),
+  before=model.b02.attendance[payload.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
+ if(!person||!slot||cal.id!==slot.id||slot.experiment!==person.experiment||
+  calMeta(slot).status!=='OPEN'||!b03CrossCheck_(model)){
+  calAttendanceStop_('B02出席更正前跨頁關聯不一致，沒有提交。須重新讀取原GAS。');return;
+ }
+ const tx={id:payload.id,attendance:payload.attendance,progress:payload.progress,note:payload.note,
+  experiment:person.experiment,slotId:slot.id,adminNote:model.b04.notes[payload.id]||'',
+  before:{...before},revision:model.revision,
+  b02History:model.b02.history.map(h=>({...h,ids:h.ids.slice()})),
+  b04History:model.b04.history.map(h=>({...h})),
+  changed:before.attendance!==payload.attendance||before.progress!==payload.progress||before.note!==payload.note};
+ const requestId='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
+ setBusy(true);calMsg('已提交一次B02純TEST更正；核對回應及獨立OWNER回讀中…',false);
+ google.script.run.withSuccessHandler(data=>{
+  if(!calAttendanceVerified_(data,tx)){
+   calAttendanceStop_('B02更正回應不可信；可能已寫入。已清空舊資料，請重新讀取，勿重送。');return;
+  }
+  google.script.run.withSuccessHandler(fresh=>{
+   const first=data.b02.history[data.b02.history.length-1],
+    second=fresh?.b02?.history?.[fresh.b02.history.length-1];
+   if(!calAttendanceVerified_(fresh,tx)||first.at!==second?.at||!render(fresh)){
+    calAttendanceStop_('B02寫後跨頁回讀不一致或版本競寫；可能已寫入。舊資料已清空，勿重送。');return;
+   }
+   calendarRender();
+   const messageText='B02出席／施測已獨立回讀確認｜原GAS修訂版 '+fresh.revision+
+    '｜B03清單看板、B04出席及有限歷程同來源同步（純TEST；未寄信）。';
+   calMsg(messageText,false);$('b03ReconcileStatus').textContent=messageText;
+  }).withFailureHandler(()=>{
+   calAttendanceStop_('B02寫後GET失敗或OWNER撤權；結果不明。已清空B02/B03/B04舊資料，勿重送。');
+  }).study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{
+  calAttendanceStop_('B02操作拒絕或結果不明（含CAS版本競寫）；已清空舊資料，請獨立讀取，勿自動重送。');
+ }).study1UnifiedPreviewCommand({action:'ADMIN_B02_ATTEND',payload,
+  requestId,expectedRevision:tx.revision});
+}
 function calCommand(action,payload,after){
+ if(action==='ADMIN_B02_ATTEND'){calAttendanceCommand_(payload);return;}
  if(!calAllowed()||busy){calMsg('資料載入中或沒有操作權限。',true);return;}
  const id='REQ-SIM-CAL_'+Date.now()+'_'+Math.floor(Math.random()*10000000);
  setBusy(true);calMsg('儲存中，正在核對資料版本…',false);
