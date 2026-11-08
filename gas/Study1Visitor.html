@@ -773,7 +773,7 @@ function issue(action,payload,onSuccess){
  if(busy||v07.blocked||!model)return;
  const fingerprint=JSON.stringify([action,payload]);
  if(!pending||pending.fingerprint!==fingerprint){
-  pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)};
+  pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)+'_'+Math.floor(Math.random()*100000000)};
  }
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
  const priorRevision=model.revision,priorApp=current();
