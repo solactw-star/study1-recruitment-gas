@@ -2311,8 +2311,11 @@ test('P1 independent GET with concurrent GAS revision shows safe newer snapshot,
  const team=page(srv,'team',{deferOwnerReads:true}),writes=srv.writes;
  p1CompareE1E2_(team);p1CompareBridge_(team,1);
  assert.equal(team.pendingOwnerReads.length,1);
- srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'ABSENT',
-  progress:'NOT_STARTED',note:'另一管理頁的純TEST版本競寫'});
+ // Existing backend deliberately forbids editing attendance on a CANCELLED slot.
+ // Simulate a legitimate concurrent revision via the original CLOSED-site TEST settings CAS.
+ srv.command('ADMIN_RECRUITMENT',{settings:{
+  E1:{year:2026,mode:'COMING_SOON'},E2:{year:2027,mode:'COMING_SOON'}
+ }});
  team.deliverOwnerRead();
  assert.match(team.get('cancelQueueCompareStatus').textContent,/修訂版改變.*舊A\/B定位未執行/);
  assert.equal(team.get('b03Search').value,'');
