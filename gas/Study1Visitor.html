@@ -139,7 +139,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <dl><dt>申請編號</dt><dd id="receiptId">—</dd><dt>研究項目</dt><dd id="receiptStudy">—</dd><dt>預約時段</dt><dd id="receiptSlot">—</dd><dt>通知狀態</dt><dd>示範通知已產生，未發送真實郵件</dd></dl>
 <p class="help">此確認頁面不代表已正式錄取或完成正式研究報名。</p></div>
 <h3>需要變更時間嗎？</h3><label for="moveSlot" class="field">其他可選時段</label><select id="moveSlot"></select>
-<div class="actionrow"><button id="move" class="ghost" type="button">更改示範預約時間</button><button id="cancel" class="ghost" type="button">取消示範預約</button><button id="newStart" type="button">體驗另一項實驗</button></div>
+<div class="actionrow"><button id="move" class="ghost" type="button">更改示範預約時間</button><button id="cancel" class="ghost" type="button">取消示範預約</button><button id="v08Refresh" class="ghost" type="button" disabled>重新核對原GAS預約（唯讀）</button><button id="newStart" type="button">體驗另一項實驗</button></div>
 <div id="v08ManageReview" class="box warn" role="region" aria-label="V08虛構預約改期與取消二次確認" hidden>
 <strong>V08｜虛構預約變更前核對</strong>
 <dl aria-label="虛構預約變更摘要">
@@ -458,6 +458,8 @@ function render(){
  const other=available.filter(s=>s.id!==a.slotId);makeOptions($('moveSlot'),other);
  $('move').disabled=busy||a.phase!=='CONFIRMED'||other.length===0;
  $('cancel').disabled=busy||!['CONFIRMED'].includes(a.phase);
+ $('v08Refresh').disabled=busy||v07.blocked||
+  !['CONFIRMED','CANCELLED'].includes(a.phase);
  $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
  $('review').disabled=busy||!$('readPdf').checked||!!a.consentReviewedAt;
  $('finish').disabled=busy||!a.consentReviewedAt||!$('agree').checked;
@@ -547,7 +549,7 @@ $('v08WaitDecline').addEventListener('click',()=>{
 function v07Lock_(){
  for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
   'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
-  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back',
+  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back','v08Refresh',
   'v08WaitSlot','v08WaitJoin','v08WaitAccept','v08WaitDecline','v08WaitRefresh'])$(id).disabled=true;
  for(const id of ['v05Dates','v05Choices'])
   for(const child of $(id).children)if(child.tagName==='button')child.disabled=true;
@@ -828,6 +830,7 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
    originalWasCancelled=before.b02.sessions[originalSlot]?.status==='CANCELLED',
    originalNow=fresh?.b02?.sessions?.[originalSlot]?.status||'OPEN',
    acceptedSlot=oldEntry?.slotId,
+   acceptedWasCancelled=!!oldEntry&&before.b02.sessions[acceptedSlot]?.status==='CANCELLED',
    acceptedOrigin=fresh?.postCancel?.bySlot?.find(s=>s.slotId===acceptedSlot),
    acceptedRow=acceptedOrigin?.acceptedOrigins?.find(e=>e.id===id),
    updatedPhase=action==='CANCEL'?'CANCELLED':'CONFIRMED',
@@ -851,7 +854,8 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
     accepted.slotId!==oldEntry.slotId||accepted.experiment!==oldEntry.experiment||
     accepted.offeredAt!==oldEntry.offeredAt||accepted.expiresAt!==oldEntry.expiresAt||
     accepted.closedAt!==oldEntry.closedAt||accepted.status!=='ACCEPTED'))||
-   (oldEntry&&acceptedOrigin?.mode==='FORMAL')||
+   (acceptedWasCancelled&&(!acceptedOrigin||
+    fresh.b02.sessions[acceptedSlot]?.status!=='CANCELLED'))||
    (oldEntry&&acceptedOrigin&&
     (acceptedRow?.currentSlotId!==updatedSlot||acceptedRow?.phase!==updatedPhase||
      acceptedRow?.originalSlotId!==acceptedSlot||acceptedRow?.seq!==oldEntry.seq))||
@@ -952,6 +956,11 @@ $('finish').addEventListener('click',()=>{
 $('confirm').addEventListener('click',()=>{const a=current();if(a&&v06Preview_(model,a))issue('CONFIRM',{id:a.id});});
 $('move').addEventListener('click',()=>v08Preview_('MOVE'));
 $('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
+$('v08Refresh').addEventListener('click',()=>{
+ if(busy||v07.blocked||!model)return;
+ v08Clear_('正在獨立唯讀核對原GAS預約；舊變更預覽已作廢。');
+ v07Readback_(false,'手動重新核對V08純TEST預約，不重送任何變更');
+});
 load();
 })();
 </script>
