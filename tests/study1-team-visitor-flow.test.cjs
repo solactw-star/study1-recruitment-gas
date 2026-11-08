@@ -5324,3 +5324,45 @@ test('P1-08 §70-M identical twin forged OWNER GETs at unchanged revision cannot
   closed(srv);
  }
 });
+
+test('P1-08 §70-M CONSENTED holdUntil exact boundary across two OWNER GETs fails closed without changing synthetic consent or FIFO',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ const v=v08ConfirmedVisitor_(srv);
+ const consentId=postCancelPerson_(srv,'CONSENTED');
+ const original=srv.read(),record=original.applications.find(a=>a.id===consentId),
+  hold=record.holdUntil,noticeCount=original.notifications.length;
+ v.click('v08Refresh');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const native=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=cmd=>{
+  if(cmd.action!=='MOVE')return native(cmd);
+  assert.equal(native(cmd).deduplicated,false);
+  return native(cmd);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const writes=srv.writes,read=srv.read;
+ clock.now=hold-1;
+ let count=0;
+ srv.read=()=>{
+  const d=read();count++;
+  if(count===1)clock.now=hold;
+  return d;
+ };
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');srv.read=read;
+ assert.equal(count,2);
+ assert.equal(srv.writes,writes,'crossing a CONSENTED holdUntil is not a new write');
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08UnknownRecover').disabled,true);
+ assert.match(v.get('status').textContent,/拒絕恢復|UNKNOWN|兩次獨立GET/);
+ const after=srv.read().applications.find(a=>a.id===consentId);
+ assert.equal(after.phase,'CONSENTED');
+ assert.equal(after.holdUntil,hold);
+ assert.equal(after.signatureDemo,true);
+ assert.equal(srv.read().notifications.length,noticeCount+1,'only original MOVE created a simulated notice');
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
