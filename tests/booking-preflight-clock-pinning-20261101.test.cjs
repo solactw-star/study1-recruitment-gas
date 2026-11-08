@@ -53,7 +53,8 @@ function scenario(moduleName, mutate) {
     readSnapshot() {
       if(mutate==='snapshot') request.nowUtc='not-a-date';
       return snapshot;
-    }
+    },
+    getServerNowUtc() {return clock;}
   };
   const call = moduleName==='BookingReschedulePreflight'
     ? ctx.bookingReschedulePreflight_ : ctx.bookingCancelHoldPreflight_;

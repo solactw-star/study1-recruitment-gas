@@ -9,12 +9,15 @@
 function bookingCancelHoldPreflight_(request, adapters) {
   if (!request || typeof request !== 'object' || Array.isArray(request) ||
       !adapters || typeof adapters.readSnapshot !== 'function' ||
-      typeof adapters.isVerifiedAndEligible !== 'function') {
+      typeof adapters.isVerifiedAndEligible !== 'function' ||
+      typeof adapters.getServerNowUtc !== 'function') {
     throw new Error('取消暫留檢查介面尚未就緒。');
   }
   var applicantId = bookingId_(request.applicantId);
   var reservationId = bookingId_(request.reservationId);
-  var now = bookingInstant_(request.nowUtc);
+  // Never trust a caller-supplied request.nowUtc for hold expiration.
+  // Obtain and freeze server time before invoking eligibility or snapshot callbacks.
+  var now = bookingInstant_(adapters.getServerNowUtc());
   // Freeze mutable Date/request clock before injected callbacks can alter it.
   var stableNowUtc = new Date(now).toISOString();
   var rejected = {allowed:false, reason:'REJECTED'};
