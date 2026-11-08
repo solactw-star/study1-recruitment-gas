@@ -2055,6 +2055,145 @@ function p1CancelBoth_(srv){
  assert.match(team.get('calStatusMessage').textContent,/取消已獨立回讀確認/);
  return team;
 }
+
+/* Test actual original GAS transitions: two confirmed synthetic bookings on
+ * E1-A, a third confirmed booking on E1-B, independent B02 attendance,
+ * then genuine B02-A two-step cancellations. No direct fixture mutation. */
+function p1CancelledTwoSlotsWithMixedAttendance_(srv){
+ p1TwoConfirmedSameSlot_(srv);
+ const answers={adult:true,cycu:true,diagnosed:false,treatment:false,
+  frequentPractice:false,joinedE1:false},id='SIM-003';
+ srv.command('START',{experiment:'E1'});
+ srv.command('SCREEN',{id,answers});
+ srv.command('OTP_REQUEST',{id});
+ srv.command('OTP_VERIFY',{id,code:'00000000'});
+ srv.command('HOLD',{id,slotId:'SIM-SLOT-E1-B'});
+ const version=srv.read().policy.consent.E1.version;
+ srv.command('CONSENT_REVIEW',{id,version,sha256:''});
+ srv.command('CONSENT',{id,accepted:true,version,signature:'SIMULATED_SIGN_ONLY'});
+ srv.command('CONFIRM',{id});
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',progress:'PARTIAL',note:'A場已出席'});
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-002',attendance:'ABSENT',progress:'NOT_STARTED',note:'A場缺席'});
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-003',attendance:'LATE',progress:'COMPLETE',note:'B場遲到行政完成'});
+ const before=srv.read(),team=page(srv,'team');
+ for(const slotId of ['SIM-SLOT-E1-A','SIM-SLOT-E1-B']){
+  cancelTestSession_(team,slotId);
+  team.get('calCancelAck').checked=true;team.change('calCancelAck');team.click('calCancelCommit');
+  assert.match(team.get('calStatusMessage').textContent,/取消已獨立回讀確認/);
+ }
+ assert.deepEqual(srv.read().applications,before.applications,'cancel does not mutate individual bookings');
+ assert.deepEqual(srv.read().b02.attendance,before.b02.attendance,'cancel does not alter attendance');
+ assert.deepEqual(srv.read().b04.history,before.b04.history,'cancel never invents B04 changes');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-B'].status,'CANCELLED');
+ return team;
+}
+test('P1 B02 two cancelled sessions compare real mixed attendance/progress counts and B03/B04 without writes',()=>{
+ const srv=server(),team=p1CancelledTwoSlotsWithMixedAttendance_(srv),writes=srv.writes;
+ const matrix=team.get('cancelQueueMatrix'),rows=team.get('cancelQueueRows');
+ assert.equal(matrix.children.length,2);assert.equal(rows.children.length,3);
+ const names=rows.children.filter(x=>x.dataset.participantId).map(x=>x.dataset.participantId);
+ assert.deepEqual(names,['SIM-001','SIM-002','SIM-003']);
+ const a=matrix.children[0].children.map(x=>x.textContent).join(' '),
+  b=matrix.children[1].children.map(x=>x.textContent).join(' ');
+ assert.match(a,/原關聯 2 筆/);assert.match(a,/已出席 1.*缺席 1/);
+ assert.match(a,/未開始 1.*部分完成 1/);
+ assert.match(b,/原關聯 1 筆/);assert.match(b,/遲到 1/);
+ assert.match(b,/行政完成 1（非研究完成）/);
+ team.set('cancelQueueCompareA','SIM-SLOT-E1-A');team.change('cancelQueueCompareA');
+ team.set('cancelQueueCompareB','SIM-SLOT-E1-B');team.change('cancelQueueCompareB');
+ const cards=team.get('cancelQueueCompareCards');
+ assert.equal(cards.children.length,2);
+ assert.deepEqual(cards.children.map(x=>x.dataset.sessionId),['SIM-SLOT-E1-A','SIM-SLOT-E1-B']);
+ assert.match(cards.children[0].children.map(x=>x.textContent).join(' '),/原關聯 2 筆.*已出席 1.*缺席 1.*部分完成 1/);
+ assert.match(cards.children[1].children.map(x=>x.textContent).join(' '),/原關聯 1 筆.*遲到 1.*行政完成 1/);
+ const delta=team.get('cancelQueueCompareDelta').textContent;
+ assert.match(delta,/B−A僅人數差｜原關聯 -1/);
+ assert.match(delta,/待人工核對 -1/);
+ assert.match(delta,/已出席 -1.*遲到 \+1.*缺席 -1/);
+ assert.match(delta,/未開始 -1.*部分完成 -1.*行政完成 \+1/);
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/原GAS純TEST修訂版/);
+ cards.children[1].children.at(-1).handlers.click();
+ assert.equal(team.get('cancelQueueSlot').value,'SIM-SLOT-E1-B');
+ assert.deepEqual(rows.children.filter(x=>x.dataset.participantId).map(x=>x.dataset.participantId),['SIM-003']);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2,
+  'narrowing per-person list must not alter comparison denominators');
+ const single=rows.children.find(x=>x.dataset.participantId==='SIM-003');
+ assert.match(single.children.map(x=>x.textContent).join(' '),/遲到.*已完成/);
+ // Existing B03 list/board and B04 research tab still show SAME person values.
+ team.set('b03Attendance','LATE');team.change('b03Attendance');
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-003']);
+ team.click('b03BoardMode');
+ const board=team.get('b03Board').children.flatMap(x=>x.children)
+  .filter(x=>x.className==='b03Columns').flatMap(x=>x.children)
+  .flatMap(x=>x.children).filter(x=>x.dataset.participantId);
+ assert.deepEqual(board.map(x=>x.dataset.participantId),['SIM-003']);
+ assert.match(board[0].textContent,/遲到.*已完成/);
+ single.children.at(-1).children[0].handlers.click();
+ const tab=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='research');tab.handlers.click();
+ const grid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ assert.match(grid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),
+  /B場遲到行政完成/);
+ team.click('profileBack');
+ const from=team.calls.length;team.click('cancelQueueRefresh');
+ assert.deepEqual(team.calls.slice(from).filter(x=>x!=='B01_GET'),['READ']);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2,'owner readback preserves valid A/B selection');
+ assert.match(team.get('cancelQueueCompareDelta').textContent,/原關聯 -1/);
+ assert.equal(srv.writes,writes,'comparison, B03/B04 and source GET are strictly read-only');
+ closed(srv);
+});
+test('P1 cancelled two-slot comparison resets on identical slot, manual clear and B02 scope change',()=>{
+ const srv=server(),team=p1CancelledTwoSlotsWithMixedAttendance_(srv),writes=srv.writes;
+ team.set('cancelQueueCompareA','SIM-SLOT-E1-A');team.change('cancelQueueCompareA');
+ team.set('cancelQueueCompareB','SIM-SLOT-E1-A');team.change('cancelQueueCompareB');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/不可拿同一取消場次/);
+ team.set('cancelQueueCompareB','SIM-SLOT-E1-B');team.change('cancelQueueCompareB');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2);
+ team.click('cancelQueueCompareClear');
+ assert.equal(team.get('cancelQueueCompareA').value,'NONE');
+ assert.equal(team.get('cancelQueueCompareB').value,'NONE');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ team.set('cancelQueueCompareA','SIM-SLOT-E1-A');team.change('cancelQueueCompareA');
+ team.set('cancelQueueCompareB','SIM-SLOT-E1-B');team.change('cancelQueueCompareB');
+ team.set('adminScopeB02','E2');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueCompareA').value,'NONE');
+ assert.equal(team.get('cancelQueueCompareB').value,'NONE');
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ assert.equal(team.get('cancelQueueMatrix').children.length,0);
+ assert.equal(team.get('cancelQueueRows').children.some(x=>x.dataset.participantId),false);
+ team.set('adminScopeB02','E1');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0,
+  'old out-of-scope comparison never silently reappears');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 cancelled two-slot comparison rejects forged B04 post-value and recovers with single owner GET',()=>{
+ const srv=server(),team=p1CancelledTwoSlotsWithMixedAttendance_(srv);
+ team.set('cancelQueueCompareA','SIM-SLOT-E1-A');team.change('cancelQueueCompareA');
+ team.set('cancelQueueCompareB','SIM-SLOT-E1-B');team.change('cancelQueueCompareB');
+ const writes=srv.writes,read=srv.read;
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2);
+ srv.read=()=>{const d=read();d.b04.history.at(-1).after='ABSENT / COMPLETE';return d;};
+ const from=team.calls.length;team.click('cancelQueueRefresh');
+ assert.deepEqual(team.calls.slice(from),['READ']);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,0);
+ assert.equal(team.get('cancelQueueMatrix').children.length,0);
+ assert.equal(team.get('cancelQueueRows').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('cancelQueueCompareA').disabled,true);
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/清除|清空|無法/);
+ assert.equal(srv.writes,writes);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(team.get('cancelQueueCompareCards').children.length,2);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
 test('P1 B02 cancelled two-person session matrix independently reconciles divergent attendance/progress across B03/B04',()=>{
  const srv=server();p1TwoConfirmedSameSlot_(srv);
  srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',
