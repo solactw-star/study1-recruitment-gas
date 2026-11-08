@@ -2208,6 +2208,117 @@ function calCancelSync_(){
  }
 }
 
+/* P1 B02-C: view-only cancelled-session review queue from ONE owner TEST snapshot.
+ * This is NOT a persisted human approval/closure workflow or an audit ledger. */
+function cancelQueueState_(a){
+ if(!a||!a.slotId||!model)return null;
+ const slot=model.slots.find(s=>s.id===a.slotId);
+ if(!slot||calMeta(slot).status!=='CANCELLED')return null;
+ if(a.phase==='CANCELLED')
+  return {kind:'HISTORY',label:'個別申請已取消，僅保留歷程（非人工核結）'};
+ if(['HELD','CONSENTED'].includes(a.phase)){
+  if(!Number.isFinite(a.holdUntil))return null;
+  if(a.holdUntil<=Date.now())
+   return {kind:'HISTORY',label:'暫留已逾期，僅保留歷程（人工結果未記錄）'};
+  return {kind:'REVIEW',label:'有效暫留仍關聯已取消場次，待人工核對'};
+ }
+ if(a.phase==='CONFIRMED')
+  return {kind:'REVIEW',label:'預約成立仍關聯已取消場次，待人工核對'};
+ return {kind:'REVIEW',label:'其他流程仍保留場次關聯，待人工查明'};
+}
+function cancelQueueClear_(messageText){
+ $('cancelQueueRows').replaceChildren();
+ $('cancelQueueStatus').textContent=messageText||'來源未核實；清單不可操作。';
+ $('cancelQueueRefresh').disabled=true;
+}
+function cancelQueueRender_(){
+ if(!calAllowed()||!b03CrossCheck_(model)||adminScopeEffective_('B02')===null){
+  cancelQueueClear_('原GAS、管理範圍或OWNER安全條件無法核對；清單已清空。');return;
+ }
+ const sessions=model.slots.filter(s=>calMeta(s).status==='CANCELLED'&&
+  adminScopeMatch_('B02',s.experiment));
+ const rows=[];
+ for(const slot of sessions){
+  for(const a of model.applications.filter(x=>x.slotId===slot.id)){
+   const status=cancelQueueState_(a);
+   if(!status||a.experiment!==slot.experiment){
+    cancelQueueClear_('已取消場次與個別預約關聯不一致；已清空，請唯讀重新核對。');
+    return;
+   }
+   const att=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED',note:''};
+   rows.push({slot,a,status,att});
+  }
+ }
+ rows.sort((a,b)=>a.slot.when.localeCompare(b.slot.when)||
+  a.slot.id.localeCompare(b.slot.id)||a.a.id.localeCompare(b.a.id));
+ const all=rows.length,pending=rows.filter(x=>x.status.kind==='REVIEW').length,
+  history=all-pending,term=$('cancelQueueSearch').value.trim().toLowerCase(),
+  filter=$('cancelQueueFilter').value;
+ if(!['ALL','REVIEW','HISTORY'].includes(filter)){
+  cancelQueueClear_('核對分類不合法；已停止顯示，請重新選擇。');return;
+ }
+ const visible=rows.filter(x=>(filter==='ALL'||x.status.kind===filter)&&
+  (!term||[x.a.id,x.slot.id,x.a.experiment].join(' ').toLowerCase().includes(term)));
+ const target=$('cancelQueueRows');target.replaceChildren();
+ $('cancelQueueStatus').textContent='原GAS純TEST修訂版 '+model.revision+
+  '｜B02本頁範圍 '+adminScopeEffective_('B02')+
+  '｜已取消場次 '+sessions.length+' 場｜關聯 '+all+
+  ' 筆（待人工核對 '+pending+'、僅保留歷程 '+history+'）｜符合篩選 '+visible.length+
+  ' 筆｜不儲存人工核對結果、不寄信。';
+ $('cancelQueueRefresh').disabled=busy;
+ for(const r of visible){
+  const row=calElem('div',undefined,'calQueueRow');
+  row.dataset.participantId=r.a.id;row.dataset.sessionId=r.slot.id;
+  row.dataset.reviewKind=r.status.kind;
+  row.append(calElem('strong',r.a.id+'｜'+r.a.experiment+'｜'+r.slot.id),
+   calElem('p',r.slot.when+'｜場次已取消｜'+r.status.label),
+   calElem('p','個別預約流程：'+(profilePhases[r.a.phase]||r.a.phase)+
+    '｜出席：'+(calPresence[r.att.attendance]||'未核實')+
+    '｜施測：'+(calTesting[r.att.progress]||'未核實')),
+   calElem('p','出席／施測備註：'+(r.att.note||'無可驗證紀錄')));
+  const actions=calElem('div',undefined,'calQueueActions');
+  const full=calElem('button','開啟B04完整資料','secondary');
+  full.type='button';full.addEventListener('click',()=>profileOpen(r.a.id,'cancelQueue'));
+  actions.append(full);
+  const session=calElem('button','查看B02原場次','secondary');
+  session.type='button';session.addEventListener('click',()=>{
+   if(!calAllowed()||!adminScopeMatch_('B02',r.a.experiment))return;
+   $('calDate').value=r.slot.when.slice(0,10);$('calView').value='day';
+   $('calExperiment').value=r.a.experiment;$('calStatus').value='CANCELLED';
+   calOpen('SESSION',r.slot.id,null);
+   if($('calendarModule').scrollIntoView)$('calendarModule').scrollIntoView({block:'start'});
+  });actions.append(session);
+  const toB03=calElem('button','在B03名單定位','secondary');
+  toB03.type='button';toB03.addEventListener('click',()=>{
+   if(!calAllowed()||!adminScopeMatch_('B03',r.a.experiment)){
+    $('cancelQueueStatus').textContent='B03本頁範圍不含此實驗；未更改B03範圍或原資料。';return;
+   }
+   $('b03Search').value=r.a.id;
+   for(const key of ['b03Experiment','b03Eligibility','b03Stage',
+    'b03Attendance','b03Booking','b03UpdateSource'])$(key).value='ALL';
+   $('b03Sort').value='ID_ASC';
+   b03.mode='list';b03Render();
+   if($('b03Module').scrollIntoView)$('b03Module').scrollIntoView({block:'start'});
+  });actions.append(toB03);
+  row.append(actions);target.append(row);
+ }
+ if(!visible.length)target.append(calElem('p','目前沒有符合此篩選的已取消場次關聯預約（不表示沒有需要核實的來源）。','calMini'));
+}
+function cancelQueueInit_(){
+ $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';
+ $('cancelQueueFilter').addEventListener('change',cancelQueueRender_);
+ $('cancelQueueSearch').addEventListener('input',cancelQueueRender_);
+ $('cancelQueueClear').addEventListener('click',()=>{
+  $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';cancelQueueRender_();
+ });
+ $('cancelQueueRefresh').addEventListener('click',()=>{
+  if(!calAllowed()||busy)return;
+  cancelQueueClear_('正在從原GAS獨立唯讀核對；不會重送取消指令…');
+  b03ReconcileRead_();
+ });
+}
+cancelQueueInit_();
+
 const calStates={OPEN:'開放',CANCELLED:'已取消',CLOSED:'已結案'};
 const calPresence={PENDING:'待確認',PRESENT:'已出席',LATE:'遲到',ABSENT:'缺席'};
 const calTesting={NOT_STARTED:'未開始',IN_PROGRESS:'進行中',PARTIAL:'部分完成',COMPLETE:'已完成'};
