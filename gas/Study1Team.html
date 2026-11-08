@@ -2497,7 +2497,7 @@ function calAttendanceVerified_(d,tx){
   d.b02.sessions[tx.slotId]?.status==='CANCELLED')return false;
  const current=d.b02.attendance[tx.id];
  if(!current||current.attendance!==tx.attendance||current.progress!==tx.progress||
-  current.note!==tx.note||d.b04.notes[tx.id]!==tx.adminNote)return false;
+  current.note!==tx.note||(d.b04.notes[tx.id]||'')!==tx.adminNote)return false;
  if(d.b02.history.length!==Math.min(12,tx.b02History.length+1)||
   !calAttendanceSameEvents_(d.b02.history.slice(0,-1),tx.b02History.slice(-11)))return false;
  const h=d.b02.history[d.b02.history.length-1];
