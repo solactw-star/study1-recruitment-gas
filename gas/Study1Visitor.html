@@ -701,6 +701,12 @@ function v08UnknownSnapshot_(data,last){
   sessions:data.b02.sessions,attendance:data.b02.attendance,
   b02History:data.b02.history,b04History:data.b04.history,
   waitlistEntries:data.waitlist.entries,postCancel:data.postCancel,
+  // Clock-derived hold validity is the ONE deliberate time-sensitive
+  // input: crossing exact holdUntil between the two reads invalidates
+  // recovery even when the underlying fixture revision is unchanged.
+  holdValidity:data.applications.filter(x=>['HELD','CONSENTED'].includes(x.phase))
+   .map(x=>({id:x.id,holdUntil:x.holdUntil,
+    active:Number.isSafeInteger(x.holdUntil)&&x.holdUntil>data.waitlist.asOf})),
   notifications:data.notifications,recruitment:data.recruitment});
 }
 function v08UnknownRecover_(){
