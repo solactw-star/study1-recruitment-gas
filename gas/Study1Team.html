@@ -2815,24 +2815,48 @@ function profileInit(){
   });
  $('profileNoteForm').addEventListener('submit',e=>{
   e.preventDefault();
-  if(!profile.open||!calAllowed()||!model.b04||busy)return;
+  if(!profile.open||profile.tab!=='admin'||!calAllowed()||!model.b04||
+   busy||b04Save.pending)return;
   const note=$('profileNote').value.trim(),reason=$('profileReason').value.trim();
   if(reason.length<4||note.length>180||reason.length>120||/[<>]/.test(note+reason)){
    profileMessage('更正原因至少4字，內容不得有HTML標記。',true);return;
   }
-  if(note===(model.b04.notes[profile.id]||'')){
+  const id=profile.id,before=model.b04.notes[id]||'';
+  if(note===before){
    profileMessage('備註未變更，無需重複記錄。',true);return;
   }
+  const app=model.applications.find(a=>a.id===id);
+  if(!app||!b03CrossCheck_(model)){
+   b04NoteStop_('B04來源無法核對，沒有提交更正。請重新載入。');return;
+  }
+  const tx={id,note,reason,before,experiment:app.experiment,revision:model.revision,
+   history:JSON.parse(JSON.stringify(model.b04.history))};
   const requestId='REQ-SIM-PROFILE_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
-  const version=model.revision;
-  setBusy(true);profileMessage('正在核對版本並儲存更正…',false);
+  b04Save.pending=true;
+  setBusy(true);profileMessage('已提交一次純TEST更正；核對後端結果及獨立回讀中…',false);
   google.script.run.withSuccessHandler(data=>{
-   if(render(data))profileMessage('備註已儲存；更正前後值、時間與原因已記錄。',false);
-  }).withFailureHandler(error=>{
-   setBusy(false);$('profileSaveNote').disabled=false;
-   profileMessage('儲存失敗：'+String(error.message||error)+'；資料未更動。',true);
+   if(!b04NoteCommitted_(data,tx)){
+    b04NoteStop_('B04回應無法證實；可能已寫入。請重新讀取原GAS，不得直接重送。');
+    return;
+   }
+   google.script.run.withSuccessHandler(fresh=>{
+    if(!b04NoteCommitted_(fresh,tx)||fresh.revision!==data.revision||
+     !profile.open||profile.id!==tx.id||profile.tab!=='admin'||!render(fresh)){
+     b04NoteStop_('B04寫後回讀不一致；可能已寫入。已清空舊畫面，請重新讀取，不得重送。');
+     return;
+    }
+    b04Save.pending=false;
+    profileMessage('行政備註已由原GAS獨立回讀確認；B03最近更新排序已同步（純TEST）。',false);
+    $('b03ReconcileStatus').textContent='B04更正已獨立回讀｜原GAS修訂版 '+
+     fresh.revision+'｜B03清單與看板最近更新同步；未寄信或啟用正式資料。';
+   }).withFailureHandler(()=>{
+    b04NoteStop_('B04寫後原GAS回讀失敗或OWNER撤權；結果不明，舊畫面已清空，不得重送。');
+   }).study1UnifiedPreviewGet();
+  }).withFailureHandler(()=>{
+   b04NoteStop_('B04更正遭拒絕或結果不明（含版本競寫）；已清空舊畫面，請重新讀取，不得自動重送。');
   }).study1UnifiedPreviewCommand({action:'ADMIN_B04_NOTE',
-   payload:{id:profile.id,note,reason},requestId,expectedRevision:version});
+   payload:{id:tx.id,note:tx.note,reason:tx.reason},
+   requestId,expectedRevision:tx.revision});
  });
 }
 profileInit();
@@ -2930,7 +2954,8 @@ function b03Render(){
     const status=model.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'};
     const button=calElem('button',a.id+'\n'+(profilePhases[a.phase]||a.phase)+
      '\n出席 '+(calPresence[status.attendance]||'待確認')+
-     '｜施測 '+(calTesting[status.progress]||'未開始'),'b03Person');
+     '｜施測 '+(calTesting[status.progress]||'未開始')+
+     '\n最近更新 '+(b03Latest(a)||'未記錄'),'b03Person');
     button.type='button';button.dataset.participantId=a.id;
     button.addEventListener('click',()=>profileOpen(a.id,'board'));
     col.append(button);
