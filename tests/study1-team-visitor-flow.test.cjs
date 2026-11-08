@@ -2346,6 +2346,142 @@ test('P1 post-write cancel independently GETs after B02/B03 scope change and saf
  closed(srv);
 });
 
+/* True original GAS TEST transitions, not fixture-patching: E1 hold at clock T,
+ * E2 hold at T+15m after E1 expiry. Both original B02 cancellations preserve
+ * phase, holdUntil, attendance and B04 history. Clock is VM-only. */
+function p1CancelledMixedHoldsE1E2_(srv){
+ const clock={now:Date.now()};
+ class HoldClock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=HoldClock;
+ const answers={adult:true,cycu:true,diagnosed:false,treatment:false,
+  frequentPractice:false,joinedE1:false};
+ const hold=(exp,slotId)=>{
+  srv.command('START',{experiment:exp});
+  const id='SIM-'+String(srv.read().applications.length).padStart(3,'0');
+  srv.command('SCREEN',{id,answers});
+  srv.command('OTP_REQUEST',{id});
+  srv.command('OTP_VERIFY',{id,code:'00000000'});
+  srv.command('HOLD',{id,slotId});
+  return srv.read().applications.find(a=>a.id===id);
+ };
+ const e1=hold('E1','SIM-SLOT-E1-A');
+ assert.equal(e1.phase,'HELD');
+ clock.now=e1.holdUntil+1;
+ const e2=hold('E2','SIM-SLOT-E2-A');
+ assert.equal(e2.phase,'HELD');
+ assert.equal(srv.read().applications[0].holdExpired,true);
+ assert.equal(srv.read().applications[1].holdExpired,false);
+ const old=srv.read(),team=page(srv,'team',{Date:HoldClock});
+ for(const slot of ['SIM-SLOT-E1-A','SIM-SLOT-E2-A']){
+  cancelTestSession_(team,slot);
+  team.get('calCancelAck').checked=true;team.change('calCancelAck');
+  team.click('calCancelCommit');
+  assert.match(team.get('calStatusMessage').textContent,/取消已獨立回讀確認/);
+ }
+ assert.deepEqual(srv.read().applications,old.applications,'cancellation preserves pending holds');
+ assert.deepEqual(srv.read().b02.attendance,old.b02.attendance);
+ assert.deepEqual(srv.read().b04.history,old.b04.history);
+ return {team,clock,HoldClock};
+}
+test('P1 E1 expired vs E2 active holds compare B02 A/B, filter and B03/B04 one original source',()=>{
+ const srv=server(),{team}=p1CancelledMixedHoldsE1E2_(srv),writes=srv.writes;
+ p1CompareE1E2_(team);
+ const cards=team.get('cancelQueueCompareCards').children;
+ assert.equal(cards.length,2);
+ assert.match(cards[0].children.map(x=>x.textContent).join(' '),/E1.*暫留：有效 0｜逾期 1/);
+ assert.match(cards[1].children.map(x=>x.textContent).join(' '),/E2.*暫留：有效 1｜逾期 0/);
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(team.get('cancelQueueRows').children.filter(x=>x.dataset.participantId).length,2);
+ team.set('cancelQueueHoldFilter','EXPIRED');team.change('cancelQueueHoldFilter');
+ assert.deepEqual(team.get('cancelQueueRows').children.filter(x=>x.dataset.participantId)
+  .map(x=>x.dataset.participantId),['SIM-001']);
+ team.set('cancelQueueHoldFilter','ACTIVE');team.change('cancelQueueHoldFilter');
+ assert.deepEqual(team.get('cancelQueueRows').children.filter(x=>x.dataset.participantId)
+  .map(x=>x.dataset.participantId),['SIM-002']);
+ team.set('cancelQueueHoldFilter','ALL');team.change('cancelQueueHoldFilter');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2,'matrix denominator unaffected by filter');
+ p1CompareBridge_(team,0);
+ assert.equal(team.get('b03Search').value,'SIM-SLOT-E1-A');
+ assert.match(team.get('entries').children[0].children.map(x=>x.textContent).join(' '),/暫留已逾期/);
+ team.get('entries').children[0].children.find(x=>x.tagName==='button').handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ booking.handlers.click();
+ const details=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ assert.match(details.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),
+  /暫留已逾期.*是（依本頁回讀時間）/);
+ team.click('profileBack');
+ team.set('adminScopeB03','E2');team.change('adminScopeB03');
+ p1CompareBridge_(team,1);
+ assert.equal(team.get('b03Search').value,'SIM-SLOT-E2-A');
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-002']);
+ assert.match(team.get('entries').children[0].children.map(x=>x.textContent).join(' '),/有效暫留/);
+ assert.equal(srv.writes,writes,'A/B, B03 and B04 are only owner GET/filter');
+ closed(srv);
+});
+test('P1 in-flight E2 active→expired without CAS invalidates stale A/B to B03 and restores time-specific read-only state',()=>{
+ const srv=server(),{clock,HoldClock}=p1CancelledMixedHoldsE1E2_(srv);
+ const team=page(srv,'team',{Date:HoldClock,deferOwnerReads:true}),writes=srv.writes;
+ p1CompareE1E2_(team);
+ const n=team.calls.length;p1CompareBridge_(team,1);
+ assert.deepEqual(team.calls.slice(n).filter(x=>x!=='B01_GET'),['READ']);
+ assert.equal(team.pendingOwnerReads.length,1);
+ clock.now=srv.read().applications[1].holdUntil+1;
+ team.deliverOwnerRead();
+ assert.match(team.get('cancelQueueCompareStatus').textContent,/有效／逾期暫留分類或期限已跨界.*拒絕舊A\/B跨頁定位/);
+ assert.equal(team.get('b03Search').value,'');
+ assert.match(team.get('cancelQueueMatrix').children[1].children.map(x=>x.textContent).join(' '),/暫留：有效 0｜逾期 1/);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(srv.writes,writes,'temporal GET does not send a command');
+ closed(srv);
+});
+test('P1 cancelled E2 active-hold B04 stale link and already-open tab fail closed on expiry, fresh GET safely recovers',()=>{
+ const srv=server(),{team,clock}=p1CancelledMixedHoldsE1E2_(srv),writes=srv.writes;
+ team.set('adminScopeB03','E2');team.change('adminScopeB03');
+ const row=team.get('cancelQueueRows').children.find(x=>x.dataset.participantId==='SIM-002');
+ const full=row.children.at(-1).children[0];
+ full.handlers.click();assert.equal(team.get('profileModule').hidden,false);
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ clock.now=srv.read().applications[1].holdUntil+1;
+ booking.handlers.click();
+ assert.equal(team.get('profileModule').hidden,true,'old open B04 closes when cutoff passes');
+ assert.equal(team.get('profileTabBody').children.length,0,'no stale full records remain');
+ full.handlers.click();
+ assert.equal(team.get('profileModule').hidden,true,'stale queue closure cannot re-open B04');
+ assert.match(team.get('cancelQueueStatus').textContent,/暫留期限已跨界.*拒絕舊B04入口/);
+ const calls=team.calls.length;team.click('cancelQueueRefresh');
+ assert.deepEqual(team.calls.slice(calls).filter(x=>x!=='B01_GET'),['READ']);
+ assert.equal(team.get('cancelQueueRows').children.find(x=>x.dataset.participantId==='SIM-002').dataset.holdKind,'EXPIRED');
+ const nowRow=team.get('cancelQueueRows').children.find(x=>x.dataset.participantId==='SIM-002');
+ nowRow.children.at(-1).children[0].handlers.click();
+ assert.equal(team.get('profileModule').hidden,false,'new owner GET allows scoped read-only B04');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 forged pending hold expiry or cross-experiment slot fails complete B02/B03/B04 source closed',()=>{
+ const srv=server(),{team}=p1CancelledMixedHoldsE1E2_(srv),writes=srv.writes,read=srv.read;
+ team.set('adminScopeB03','E1');team.change('adminScopeB03');
+ const row=team.get('cancelQueueRows').children.find(x=>x.dataset.participantId==='SIM-001');
+ row.children.at(-1).children[0].handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ srv.read=()=>{const d=read();d.applications[0].holdUntil='forged-expiry';return d;};
+ team.click('refresh');
+ assert.equal(team.get('cancelQueueMatrix').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('profileTabBody').children.length,0);
+ srv.read=()=>{const d=read();d.applications[1].slotId='SIM-SLOT-E1-A';return d;};
+ team.click('refresh');
+ assert.equal(team.get('cancelQueueRows').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueMatrix').children.length,2);
+ assert.equal(team.get('cancelQueueRows').children.filter(x=>x.dataset.participantId).length,2);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
 test('P1 B02 two cancelled sessions compare real mixed attendance/progress counts and B03/B04 without writes',()=>{
  const srv=server(),team=p1CancelledTwoSlotsWithMixedAttendance_(srv),writes=srv.writes;
  const matrix=team.get('cancelQueueMatrix'),rows=team.get('cancelQueueRows');

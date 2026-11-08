@@ -417,7 +417,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
     <option value="HISTORY">僅保留歷程（不代表已完成）</option></select></label>
    <button type="button" class="secondary" id="cancelQueueClear">清除篩選</button>
    <label for="cancelQueueSlot">取消場次<select id="cancelQueueSlot"><option value="ALL">全部取消場次</option></select></label>
-   <label for="cancelQueueAttendance">出席狀態<select id="cancelQueueAttendance">
+   <label for="cancelQueueHoldFilter">暫留分類<select id="cancelQueueHoldFilter"><option value="ALL">全部分類</option><option value="ACTIVE">有效暫留</option><option value="EXPIRED">逾期暫留</option><option value="OTHER">非暫留</option></select></label>
+    <label for="cancelQueueAttendance">出席狀態<select id="cancelQueueAttendance">
     <option value="ALL">全部出席</option><option value="PENDING">待確認</option>
     <option value="PRESENT">已出席</option><option value="LATE">遲到</option><option value="ABSENT">缺席</option></select></label>
    <label for="cancelQueueProgress">施測狀態<select id="cancelQueueProgress">
@@ -765,6 +766,8 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 'use strict';
 const $=id=>document.getElementById(id);
 let model=null,busy=false,requestId=null;
+// TEST-only owner GET display time; not official server-clock or authorization.
+let cancelHoldAsOf=null;
 // Per-page view epoch: detect switches during remote reads even if switched back (ABA).
 let ownerScopeEpoch=0,ownerLoadEpoch=0,compareSelectionEpoch=0;
 function message(t,error=false){$('status').textContent=t;$('status').className=error?'err':'';}
@@ -818,7 +821,9 @@ function b03CrossCheck_(d){
    !['E1','E2'].includes(a.experiment)||
    !['STARTED','INELIGIBLE','SCREENED','OTP_SENT','VERIFIED','HELD','CONSENTED','CONFIRMED','CANCELLED'].includes(a.phase)||
    (a.slotId!==null&&(!slots.has(a.slotId)||slots.get(a.slotId).experiment!==a.experiment))||
-   (['HELD','CONSENTED','CONFIRMED'].includes(a.phase)&&!a.slotId))return null;
+   (['HELD','CONSENTED','CONFIRMED'].includes(a.phase)&&!a.slotId)||
+   (['HELD','CONSENTED'].includes(a.phase)&&
+    (!Number.isSafeInteger(a.holdUntil)||a.holdUntil<=0)))return null;
   people.set(a.id,a);if(a.slotId)booked++;
  }
  for(const [id,a] of Object.entries(d.b02.attendance)){
@@ -861,10 +866,11 @@ function render(data){
   !data.config||!data.definitions||!data.definitions.E1||!data.definitions.E2||
   !Array.isArray(data.slots)||!Array.isArray(data.applications)||
   !data.e2Operations||!Array.isArray(data.e2Operations.weeks)||!b03CrossCheck_(data)){
-  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';cancelQueueClear_('來源或管理權限不可信，已清除取消場次核對清單。');profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');$('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();$('profileTimeline').replaceChildren();model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本；B10拒絕顯示。',true);
+  $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';cancelQueueClear_('來源或管理權限不可信，已清除取消場次核對清單。');profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');$('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();$('profileTimeline').replaceChildren();cancelHoldAsOf=null;model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本；B10拒絕顯示。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
   b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
  }
+ cancelHoldAsOf=Date.now();
  model=data;setBusy(false);
  $('b03ReconcileStatus').textContent='目前原GAS修訂版 '+data.revision+'；可按重新核對。';
  for(const exp of ['E1','E2'])$('mode'+exp).value=data.recruitment[exp].mode;
@@ -2256,37 +2262,63 @@ function calCancelSync_(){
 
 /* P1 B02-C: view-only cancelled-session review queue from ONE owner TEST snapshot.
  * This is NOT a persisted human approval/closure workflow or an audit ledger. */
+/* B02/B03/B04: one TEST snapshot, one time cutoff. No new GAS field. */
+function cancelHoldBoundaryValid_(a){
+ if(!a||!['HELD','CONSENTED'].includes(a.phase)||!a.slotId||!model)return true;
+ const slot=model.slots.find(s=>s.id===a.slotId);
+ if(!slot||calMeta(slot).status!=='CANCELLED')return true;
+ const now=Date.now();
+ return Number.isSafeInteger(cancelHoldAsOf)&&Number.isSafeInteger(now)&&
+  now>=cancelHoldAsOf&&!(a.holdUntil>cancelHoldAsOf&&a.holdUntil<=now);
+}
+function cancelHoldStamp_(d,slotId,asOf){
+ if(!d||!Array.isArray(d.applications)||!Number.isSafeInteger(asOf))return null;
+ const slot=d.slots?.find(s=>s.id===slotId);
+ if(!slot||!['E1','E2'].includes(slot.experiment))return null;
+ const rows=d.applications.filter(a=>a.slotId===slotId&&
+  ['HELD','CONSENTED'].includes(a.phase)).sort((a,b)=>a.id.localeCompare(b.id));
+ if(rows.some(a=>a.experiment!==slot.experiment||
+  !Number.isSafeInteger(a.holdUntil)||a.holdUntil<=0))return null;
+ return rows.map(a=>[a.id,a.experiment,a.phase,a.holdUntil,
+  a.holdUntil>asOf?'ACTIVE':'EXPIRED'].join('|')).join(';');
+}
 function cancelQueueState_(a){
  if(!a||!a.slotId||!model)return null;
  const slot=model.slots.find(s=>s.id===a.slotId);
  if(!slot||calMeta(slot).status!=='CANCELLED')return null;
  if(a.phase==='CANCELLED')
-  return {kind:'HISTORY',label:'個別申請已取消，僅保留歷程（非人工核結）'};
+  return {kind:'HISTORY',holdKind:'OTHER',label:'個別申請已取消，僅保留歷程（非人工核結）'};
  if(['HELD','CONSENTED'].includes(a.phase)){
-  if(!Number.isFinite(a.holdUntil))return null;
-  if(a.holdUntil<=Date.now())
-   return {kind:'HISTORY',label:'暫留已逾期，僅保留歷程（人工結果未記錄）'};
-  return {kind:'REVIEW',label:'有效暫留仍關聯已取消場次，待人工核對'};
+  if(!Number.isSafeInteger(a.holdUntil)||a.holdUntil<=0||
+   !Number.isSafeInteger(cancelHoldAsOf))return null;
+  if(a.holdUntil<=cancelHoldAsOf)
+   return {kind:'HISTORY',holdKind:'EXPIRED',label:'暫留已逾期，僅保留歷程（人工結果未記錄）'};
+  return {kind:'REVIEW',holdKind:'ACTIVE',label:'有效暫留仍關聯已取消場次，待人工核對'};
  }
  if(a.phase==='CONFIRMED')
-  return {kind:'REVIEW',label:'預約成立仍關聯已取消場次，待人工核對'};
- return {kind:'REVIEW',label:'其他流程仍保留場次關聯，待人工查明'};
+  return {kind:'REVIEW',holdKind:'OTHER',label:'預約成立仍關聯已取消場次，待人工核對'};
+ return {kind:'REVIEW',holdKind:'OTHER',label:'其他流程仍保留場次關聯，待人工查明'};
 }
+
 function cancelQueueMatrixCounts_(entries){
  // Counts use original person/slot/attendance fields, never derived "completed".
  const kinds={REVIEW:0,HISTORY:0},
   attendance={PENDING:0,PRESENT:0,LATE:0,ABSENT:0},
-  progress={NOT_STARTED:0,IN_PROGRESS:0,PARTIAL:0,COMPLETE:0};
+  progress={NOT_STARTED:0,IN_PROGRESS:0,PARTIAL:0,COMPLETE:0},
+  holds={ACTIVE:0,EXPIRED:0,OTHER:0};
  for(const row of entries){
   if(!Object.prototype.hasOwnProperty.call(kinds,row.status.kind)||
    !Object.prototype.hasOwnProperty.call(attendance,row.att.attendance)||
-   !Object.prototype.hasOwnProperty.call(progress,row.att.progress))return null;
+   !Object.prototype.hasOwnProperty.call(progress,row.att.progress)||
+   !Object.prototype.hasOwnProperty.call(holds,row.status.holdKind))return null;
   kinds[row.status.kind]++;attendance[row.att.attendance]++;progress[row.att.progress]++;
+  holds[row.status.holdKind]++;
  }
  if(Object.values(kinds).reduce((a,b)=>a+b,0)!==entries.length||
   Object.values(attendance).reduce((a,b)=>a+b,0)!==entries.length||
-  Object.values(progress).reduce((a,b)=>a+b,0)!==entries.length)return null;
- return {kinds,attendance,progress};
+  Object.values(progress).reduce((a,b)=>a+b,0)!==entries.length||
+  Object.values(holds).reduce((a,b)=>a+b,0)!==entries.length)return null;
+ return {kinds,attendance,progress,holds};
 }
 function cancelQueueClear_(messageText){
  $('cancelQueueCompareCards').replaceChildren();
@@ -2324,8 +2356,10 @@ function cancelQueueRender_(){
   filter=$('cancelQueueFilter').value,
   attFilter=$('cancelQueueAttendance').value,
   progressFilter=$('cancelQueueProgress').value,
+  holdFilter=$('cancelQueueHoldFilter').value,
   picker=$('cancelQueueSlot'),requested=picker.value||'ALL';
  if(!['ALL','REVIEW','HISTORY'].includes(filter)||
+  !['ALL','ACTIVE','EXPIRED','OTHER'].includes(holdFilter)||
   !['ALL','PENDING','PRESENT','LATE','ABSENT'].includes(attFilter)||
   !['ALL','NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(progressFilter)){
   cancelQueueClear_('核對分類、出席或施測篩選不合法；已停止顯示，請重新選擇。');return;
@@ -2340,6 +2374,7 @@ function cancelQueueRender_(){
  const selected=sessions.some(s=>s.id===requested)?requested:'ALL';
  picker.value=selected;
  const visible=rows.filter(x=>(filter==='ALL'||x.status.kind===filter)&&
+  (holdFilter==='ALL'||x.status.holdKind===holdFilter)&&
   (selected==='ALL'||x.slot.id===selected)&&
   (attFilter==='ALL'||x.att.attendance===attFilter)&&
   (progressFilter==='ALL'||x.att.progress===progressFilter)&&
@@ -2349,7 +2384,7 @@ function cancelQueueRender_(){
   '｜B02本頁範圍 '+adminScopeEffective_('B02')+
   '｜已取消場次 '+sessions.length+' 場｜關聯 '+all+
   ' 筆（待人工核對 '+pending+'、僅保留歷程 '+history+'）｜符合篩選 '+visible.length+
-  ' 筆｜場次 '+selected+'｜出席 '+attFilter+'｜施測 '+progressFilter+
+  ' 筆｜場次 '+selected+'｜暫留 '+holdFilter+'｜出席 '+attFilter+'｜施測 '+progressFilter+
   '｜各場次總數不受逐人篩選影響；不儲存人工核對結果、不寄信。';
  $('cancelQueueRefresh').disabled=busy;
  const matrix=$('cancelQueueMatrix');matrix.replaceChildren();
@@ -2364,6 +2399,8 @@ function cancelQueueRender_(){
   card.append(calElem('strong',slot.id+'｜'+slot.experiment+'｜'+slot.when),
    calElem('p','原關聯 '+group.length+' 筆｜待人工核對 '+counts.kinds.REVIEW+
     '｜僅保留歷程 '+counts.kinds.HISTORY),
+   calElem('p','暫留：有效 '+counts.holds.ACTIVE+'｜逾期 '+counts.holds.EXPIRED+
+    '｜非暫留 '+counts.holds.OTHER+'（依原GAS回讀時的本頁時間）'),
    calElem('p','出席：待確認 '+counts.attendance.PENDING+
     '｜已出席 '+counts.attendance.PRESENT+'｜遲到 '+counts.attendance.LATE+
     '｜缺席 '+counts.attendance.ABSENT),
@@ -2378,7 +2415,7 @@ function cancelQueueRender_(){
  for(const r of visible){
   const row=calElem('div',undefined,'calQueueRow');
   row.dataset.participantId=r.a.id;row.dataset.sessionId=r.slot.id;
-  row.dataset.reviewKind=r.status.kind;
+  row.dataset.reviewKind=r.status.kind;row.dataset.holdKind=r.status.holdKind;
   row.append(calElem('strong',r.a.id+'｜'+r.a.experiment+'｜'+r.slot.id),
    calElem('p',r.slot.when+'｜場次已取消｜'+r.status.label),
    calElem('p','個別預約流程：'+(profilePhases[r.a.phase]||r.a.phase)+
@@ -2388,6 +2425,10 @@ function cancelQueueRender_(){
   const actions=calElem('div',undefined,'calQueueActions');
   const full=calElem('button','開啟B04完整資料','secondary');
   full.type='button';full.addEventListener('click',()=>{
+   const current=model?.applications?.find(a=>a.id===r.a.id);
+   if(!current||current.slotId!==r.slot.id||!cancelHoldBoundaryValid_(current)){
+    $('cancelQueueStatus').textContent='暫留期限已跨界或原場次改變；拒絕舊B04入口，請獨立GET重新核對。';return;
+   }
    if(!calAllowed()||!adminScopeMatch_('B02',r.a.experiment)||
     !adminScopeMatch_('B03',r.a.experiment)){
     $('cancelQueueStatus').textContent='B04跨頁檢視拒絕：目前B02／B03檢視範圍不含'+
@@ -2406,6 +2447,10 @@ function cancelQueueRender_(){
   });actions.append(session);
   const toB03=calElem('button','在B03名單定位','secondary');
   toB03.type='button';toB03.addEventListener('click',()=>{
+   const current=model?.applications?.find(a=>a.id===r.a.id);
+   if(!current||current.slotId!==r.slot.id||!cancelHoldBoundaryValid_(current)){
+    $('cancelQueueStatus').textContent='暫留期限已跨界，拒絕舊B03定位；請獨立GET重新核對。';return;
+   }
    if(!calAllowed()||!adminScopeMatch_('B03',r.a.experiment)){
     $('cancelQueueStatus').textContent='B03本頁範圍不含此實驗；未更改B03範圍或原資料。';return;
    }
@@ -2471,7 +2516,7 @@ function cancelQueueCompareRender_(sessions,rows){
    }
    $('cancelQueueSlot').value=slotId;
    $('cancelQueueSearch').value='';$('cancelQueueFilter').value='ALL';
-   $('cancelQueueAttendance').value='ALL';$('cancelQueueProgress').value='ALL';
+   $('cancelQueueHoldFilter').value='ALL';$('cancelQueueAttendance').value='ALL';$('cancelQueueProgress').value='ALL';
    cancelQueueRender_();
    if($('cancelQueueRows').scrollIntoView)$('cancelQueueRows').scrollIntoView({block:'start'});
   };
@@ -2481,6 +2526,8 @@ function cancelQueueCompareRender_(sessions,rows){
   card.append(calElem('strong',(i===0?'A':'B')+'｜'+slot.id+'｜'+slot.experiment+'｜'+slot.when),
    calElem('p','原關聯 '+group.length+' 筆｜待人工核對 '+counts.kinds.REVIEW+
     '｜僅保留歷程 '+counts.kinds.HISTORY),
+   calElem('p','暫留：有效 '+counts.holds.ACTIVE+'｜逾期 '+counts.holds.EXPIRED+
+    '｜非暫留 '+counts.holds.OTHER+'（B02／B03／B04同一回讀時間）'),
    calElem('p','出席：'+phrase(counts.attendance,att)),
    calElem('p','施測：'+phrase(counts.progress,prog)+'（非研究完成）'));
   const button=calElem('button','查看'+(i===0?'A':'B')+'場逐人清單（唯讀）','secondary');
@@ -2529,7 +2576,11 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
    'B02 A/B比較來源修訂版已改變；請先重新核對，未執行跨頁定位。';return;
  }
  const scopeEpoch=ownerScopeEpoch,loadEpoch=ownerLoadEpoch,
-  selectionEpoch=compareSelectionEpoch;
+  selectionEpoch=compareSelectionEpoch,
+  holdStamp=cancelHoldStamp_(model,slotId,cancelHoldAsOf);
+ if(holdStamp===null){
+  render(null);$('b03ReconcileStatus').textContent='A/B暫留來源不可信，已清空，無寫入。';return;
+ }
  setBusy(true);
  $('cancelQueueCompareStatus').textContent='正在獨立唯讀GET原GAS，確認'+
   experiment+'場次與B03／B04檢視範圍…';
@@ -2565,6 +2616,11 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
     '獨立GET發現原GAS修訂版改變；已顯示最新資料，舊A/B定位未執行，請重新核對。';
    return;
   }
+  const newHoldStamp=cancelHoldStamp_(model,slotId,cancelHoldAsOf);
+  if(newHoldStamp===null||newHoldStamp!==holdStamp){
+   $('cancelQueueCompareStatus').textContent='獨立GET發現有效／逾期暫留分類或期限已跨界；'+
+    '已依目前原GAS快照安全重繪，拒絕舊A/B跨頁定位，無寫入。';return;
+  }
   if(!target||target.experiment!==experiment||
    model.b02.sessions[slotId]?.status!=='CANCELLED'||
    !adminScopeMatch_('B02',experiment)||!adminScopeMatch_('B03',experiment)||
@@ -2598,14 +2654,14 @@ function cancelQueueInit_(){
   cancelQueueRender_();
  });
  $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';
- for(const id of ['cancelQueueSlot','cancelQueueAttendance','cancelQueueProgress'])
+ for(const id of ['cancelQueueSlot','cancelQueueHoldFilter','cancelQueueAttendance','cancelQueueProgress'])
   $(id).value='ALL';
- for(const id of ['cancelQueueFilter','cancelQueueSlot','cancelQueueAttendance','cancelQueueProgress'])
+ for(const id of ['cancelQueueFilter','cancelQueueSlot','cancelQueueHoldFilter','cancelQueueAttendance','cancelQueueProgress'])
   $(id).addEventListener('change',cancelQueueRender_);
  $('cancelQueueSearch').addEventListener('input',cancelQueueRender_);
  $('cancelQueueClear').addEventListener('click',()=>{
   $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';
-  for(const id of ['cancelQueueSlot','cancelQueueAttendance','cancelQueueProgress'])
+  for(const id of ['cancelQueueSlot','cancelQueueHoldFilter','cancelQueueAttendance','cancelQueueProgress'])
    $(id).value='ALL';
   cancelQueueRender_();
  });
@@ -3329,7 +3385,8 @@ function profileOpen(id,origin){
    adminScopeMatch_('B02',a.experiment)&&adminScopeMatch_('B03',a.experiment):
    origin==='list'||origin==='board'?adminScopeMatch_('B03',a.experiment):
    origin==='calendar'?adminScopeMatch_('B02',a.experiment):true);
- if(!calAllowed()||!model.b04||!a||!scopeOK){
+ if(!calAllowed()||!model.b04||!a||!scopeOK||!b03CrossCheck_(model)||
+  !cancelHoldBoundaryValid_(a)){
   calMsg('B04跨頁檢視拒絕：參與者資料或B02／B03本頁範圍無法核對。',true);
   return;
  }
@@ -3372,8 +3429,13 @@ function profileToCalendar(){
 function profileRender(){
  if(!profile.open)return;
  const a=profileApplication();
- if(!calAllowed()||!model.b04||!a){
-  profileMessage('無法核對B04資料與存取安全狀態，請返回後重新載入。',true);return;
+ if(!calAllowed()||!model.b04||!a||!b03CrossCheck_(model)||
+  !cancelHoldBoundaryValid_(a)){
+  profile.open=false;$('profileModule').hidden=true;
+  $('teamMain').classList.remove('b04Open');
+  $('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();
+  $('profileTimeline').replaceChildren();
+  profileMessage('暫留期限、B04資料或存取邊界已跨界；已清空完整資料，請獨立GET重新核對。',true);return;
  }
  const slot=profileSlot(a),att=profileAttend(a),
   policy=model.policy.consent[a.experiment],notes=model.b04.notes[a.id]||'';
@@ -3417,7 +3479,8 @@ function profileRender(){
       '場次已取消；原個別預約與出席保留，待人工處理')+
       '｜'+(cancelQueueState_(a)?.label||'來源須重新核對'):'無場次取消待處理標記'],
    ['出席',calPresence[att.attendance]],['施測',calTesting[att.progress]],
-   ['暫留是否逾期',a.holdExpired?'是':'否／不適用'],
+   ['暫留是否逾期',['HELD','CONSENTED'].includes(a.phase)?
+    (a.holdUntil<=cancelHoldAsOf?'是（依本頁回讀時間）':'否（依本頁回讀時間）'):'不適用'],
    ['歷史改期與取消','可參閱右側已留存事件；正式完整歷程尚未接入']]);
   if(slot){
    const go=calElem('button','返回行事曆查看此場次','secondary');
@@ -3645,7 +3708,8 @@ function b03Render(){
    '資格：'+(a.eligible===true?'模擬通過':a.eligible===false?'模擬未通過':'未核實'),
    '預約：'+(slot?slot.when+'｜場次 '+calStates[calMeta(slot).status]+
     (calMeta(slot).status==='CANCELLED'?(cancelQueueState_(a)?.kind==='HISTORY'?
-      '（個別關聯僅保留歷程，未判定人工完成）':'（個別預約未取消，待人工處理）'):''):'未記錄'),
+      '（個別關聯僅保留歷程，未判定人工完成）':'（個別預約未取消，待人工處理）')+
+     (['HELD','CONSENTED'].includes(a.phase)?'｜'+(cancelQueueState_(a)?.label||'期限待核對'):''):''):'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
    '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
@@ -3669,7 +3733,9 @@ function b03Render(){
      (a.slotId&&model.b02.sessions[a.slotId]?.status==='CANCELLED'?
       (cancelQueueState_(a)?.kind==='HISTORY'?
        '\n場次已取消｜個別關聯僅保留歷程，未判定完成':
-       '\n場次已取消｜原預約保留，待人工處理'):'')+
+       '\n場次已取消｜原預約保留，待人工處理')+
+      (['HELD','CONSENTED'].includes(a.phase)?
+       '\n'+(cancelQueueState_(a)?.label||'暫留期限待核對'):''):'')+
      '\n最近更新 '+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label,
      'b03Person');
     button.type='button';button.dataset.participantId=a.id;
