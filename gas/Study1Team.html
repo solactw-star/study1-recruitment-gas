@@ -879,6 +879,33 @@ function teamWaitlistSummaryVerified_(d){
 }
 /* §70-F: cross-check B02 cancellation, accepted original FIFO slot,
  * B04 current attendance and bounded B02 events against the owner GAS view. */
+/* Original owner GUI has no raw JSON editor, serialization-based comparison
+ * or injected markup. Compare explicit TEST projection fields and IDs. */
+function teamPostCancelSame_(expected,actual){
+ if(!expected||!actual||typeof actual!=='object'||Array.isArray(actual)||
+  Object.keys(expected).sort().join(',')!==Object.keys(actual).sort().join(',')||
+  expected.mode!==actual.mode||expected.completeHistory!==actual.completeHistory||
+  expected.mailSent!==actual.mailSent||!Array.isArray(actual.bySlot)||
+  expected.bySlot.length!==actual.bySlot.length)return false;
+ const nums=['linked','linkedConfirmed','linkedHoldOrConsented','linkedCancelled',
+  'linkedAttendanceRecorded','linkedProgressComplete','pendingQueue','retainedCancelEvents'];
+ return expected.bySlot.every((row,i)=>{
+  const other=actual.bySlot[i];
+  if(!other||Object.keys(row).sort().join(',')!==Object.keys(other).sort().join(',')||
+    other.slotId!==row.slotId||other.experiment!==row.experiment||
+    other.when!==row.when||!nums.every(k=>Number.isSafeInteger(other[k])&&
+     other[k]>=0&&other[k]===row[k])||
+    !Array.isArray(other.acceptedOrigins)||
+    row.acceptedOrigins.length!==other.acceptedOrigins.length)return false;
+  return row.acceptedOrigins.every((a,j)=>{
+   const b=other.acceptedOrigins[j];
+   return !!b&&Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&
+    a.id===b.id&&a.seq===b.seq&&a.originalSlotId===b.originalSlotId&&
+    a.currentSlotId===b.currentSlotId&&a.phase===b.phase;
+  });
+ });
+}
+
 function teamPostCancelVerified_(d){
  if(!d||!d.postCancel||!d.b02?.sessions||!Array.isArray(d.slots)||
   !Array.isArray(d.applications)||!Array.isArray(d.waitlist?.entries)||
@@ -912,7 +939,7 @@ function teamPostCancelVerified_(d){
  if(bySlot.some(x=>!x))return null;
  const expected={mode:'CURRENT_CANCELLED_TEST_ONLY',completeHistory:false,mailSent:false,
   bySlot};
- return JSON.stringify(d.postCancel)===JSON.stringify(expected)?expected:null;
+ return teamPostCancelSame_(expected,d.postCancel)?expected:null;
 }
 
 function teamWaitlistEntry_(id){
@@ -4872,7 +4899,7 @@ function b12Render(page,after){
   page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
  const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
  const postCancelMatch=!!model&&!!teamPostCancelVerified_(model)&&
-  JSON.stringify(model.postCancel)===JSON.stringify(page?.coverage?.postCancelSummary);
+  teamPostCancelSame_(model.postCancel,page?.coverage?.postCancelSummary);
  const waitlistMatch=!!model&&!!teamWaitlistSummaryVerified_(model)&&
    teamWaitlistSummarySame_(model.waitlist.summary,page?.coverage?.waitlistSummary)&&
    page?.coverage?.sources?.some(x=>x.module==='WAITLIST'&&
