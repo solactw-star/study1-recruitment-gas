@@ -157,7 +157,13 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <strong>V07｜虛構預約結果與安全回讀</strong>
 <p id="v07Result" role="status" aria-live="polite">尚未送出虛構預約；待人工審核狀態未接入，不得視為已核准。</p>
 <button id="v07Rescan" type="button" class="ghost" disabled>重新核對原GAS狀態（不重送）</button>
-<p class="help">網路中斷不代表寫入成功或失敗；只顯示原GAS已核對的目前狀態。再次核對是唯讀操作，不接真人資料或付款。</p></div>
+<p class="help">網路中斷不代表寫入成功或失敗；只顯示原GAS已核對的目前狀態。再次核對是唯讀操作，不接真人資料或付款。</p>
+<div id="v08UnknownBoundary" class="box warn" role="region" aria-label="因果未知的TEST新操作基準" hidden>
+<strong>V08｜原操作因果仍未知</strong>
+<p>只有在連續兩次獨立OWNER GET的原始TEST資料、修訂版、候補FIFO與B02/B04有限歷程完全一致後，才可以明確建立新操作基準。這不代表先前的改期或取消由該次點擊成功完成；不得重送原requestId。</p>
+<label class="check"><input type="checkbox" id="v08UnknownAck"><span>我理解原交易因果永遠不能由目前狀態倒推，只同意從新GET快照開始另一個獨立TEST操作，不重送舊操作。</span></label>
+<button id="v08UnknownRecover" type="button" class="ghost" disabled>核對兩次OWNER GET，明確建立新TEST基準（不重送）</button>
+</div></div>
 <div id="status" role="status" aria-live="polite">正在連接研究報名示範…</div>
 </div></main><footer>Study1 · 國科會研究計畫 NSTC 115-2410-H-033-015 · 本網頁為示範版，非正式招募服務。</footer>
 <script>
@@ -167,7 +173,7 @@ const $=id=>document.getElementById(id);
 const phases=['choose','screen','otp','slots','consent','confirm','done'];
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
 const v08={draft:null};
- const v07={blocked:false,recovering:false,last:null,generation:0};
+ const v07={blocked:false,recovering:false,last:null,generation:0,causalUnknown:false};
 const setStatus=(message,error=false)=>{$('status').textContent=message;$('status').className=error?'error':'';};
 function safePreview(response){
  return !!response&&response.mode==='TEST'&&response.open===false&&response.consentReady===false&&
@@ -199,6 +205,9 @@ function safePreview(response){
 }
 function refuseReply(message){
  busy=false;model=null;selected=null;pending=null;
+ $('v08UnknownBoundary').hidden=true;
+ $('v08UnknownAck').checked=false;$('v08UnknownAck').disabled=true;
+ $('v08UnknownRecover').disabled=true;
  v07.generation++;v07.blocked=true;v07.recovering=false;
  $('v07Result').textContent='狀態未知：OWNER或研究安全來源無法核實；不能視為提交成功或失敗。';
  $('v07Rescan').disabled=false;
@@ -547,6 +556,7 @@ $('v08WaitDecline').addEventListener('click',()=>{
  * Only the existing OWNER-only TEST view can establish the current phase.
  * Never automatically replay a write or invent a manual-review approval. */
 function v07Lock_(){
+ $('v08UnknownRecover').disabled=true;
  for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
   'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
   'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back','v08Refresh',
@@ -611,12 +621,13 @@ function v07Readback_(afterFailure,detail){
   }
   model=response;busy=false;v07.recovering=false;
   const note=v07Description_(response,v07.last);
-  if(!afterFailure){v07.blocked=false;v07.last=null;pending=null;}
+  if(!afterFailure){v07.blocked=false;v07.last=null;pending=null;v07.causalUnknown=false;}
   render();
   $('v07Result').textContent=note+
    (afterFailure?'｜此次操作因果結果尚未確認，已鎖定再次送出。':'');
   if(v07.blocked)v07Lock_();
   else $('v07Rescan').disabled=true;
+  v08UnknownShow_();
   setStatus(afterFailure?'此次提交結果未確認：'+detail+'；已唯讀回查但不自動重送。':
    '已安全重新讀取原GAS，目前沒有重新送出預約。',afterFailure);
  }).withFailureHandler(error=>{
@@ -629,10 +640,109 @@ $('v07Rescan').addEventListener('click',()=>{
  // Replayed requestId means the original V08 MOVE/CANCEL causality remains
  // UNKNOWN. Even repeated manual owner GET can show only current state.
  const unknownV08=!!v07.last&&['MOVE','CANCEL'].includes(v07.last.action);
+ if(unknownV08)v07.causalUnknown=true;
  v07Readback_(unknownV08,unknownV08?
   'V08改期／取消原交易因果仍未知；此GET只提供現在狀態，不解鎖或重送':
   '手動唯讀重新核對');
 });
+/* §70-L: explicit, synthetic-only recovery from causal UNKNOWN.
+ * Repeated GETs can establish a fresh *current* operating baseline, never
+ * prove what caused a previous MOVE/CANCEL. No original requestId replay. */
+function v08UnknownShow_(){
+ const eligible=!!v07.causalUnknown&&v07.blocked&&!busy&&!v07.recovering&&
+  !!model&&!!v07.last&&['MOVE','CANCEL'].includes(v07.last.action)&&
+  v07SafeRead_(model,v07.last);
+ $('v08UnknownBoundary').hidden=!eligible;
+ $('v08UnknownAck').disabled=!eligible;
+ if(!eligible)$('v08UnknownAck').checked=false;
+ $('v08UnknownRecover').disabled=!eligible||!$('v08UnknownAck').checked;
+}
+function v08UnknownSnapshot_(data,last){
+ if(!v07SafeRead_(data,last)||!last||
+  !Number.isSafeInteger(data.waitlist?.asOf)||
+  !Array.isArray(data.b02?.history)||data.b02.history.length>12||
+  !Array.isArray(data.b04?.history)||data.b04.history.length>30||
+  !data.b02?.sessions||!data.b02?.attendance||
+  data.postCancel?.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
+  data.postCancel.completeHistory!==false||
+  data.postCancel.mailSent!==false||
+  !Array.isArray(data.postCancel.bySlot))return null;
+ const a=data.applications.find(x=>x.id===last.id);
+ if(!a||!['CONFIRMED','CANCELLED'].includes(a.phase)||
+  !data.slots.some(slot=>slot.id===a.slotId&&slot.experiment===a.experiment))return null;
+ const accepted=data.waitlist.entries.find(e=>e.id===a.id);
+ if(accepted){
+  if(accepted.status!=='ACCEPTED'||accepted.experiment!==a.experiment||
+   !data.slots.some(slot=>slot.id===accepted.slotId&&slot.experiment===a.experiment)||
+   !Number.isSafeInteger(accepted.seq)||accepted.seq<1||
+   !Number.isSafeInteger(accepted.joinedAt)||
+   !Number.isSafeInteger(accepted.offeredAt)||
+   !Number.isSafeInteger(accepted.expiresAt)||
+   !Number.isSafeInteger(accepted.closedAt)||
+   accepted.joinedAt>accepted.offeredAt||
+   accepted.offeredAt>=accepted.expiresAt||
+   accepted.closedAt<accepted.offeredAt||
+   accepted.closedAt>=accepted.expiresAt)return null;
+  if(data.b02.sessions[accepted.slotId]?.status==='CANCELLED'){
+   const source=data.postCancel.bySlot.find(s=>s.slotId===accepted.slotId),
+    origin=source?.acceptedOrigins?.find(e=>e.id===a.id);
+   if(!source||source.experiment!==a.experiment||
+    origin?.seq!==accepted.seq||origin?.originalSlotId!==accepted.slotId||
+    origin?.currentSlotId!==a.slotId||origin?.phase!==a.phase)return null;
+  }
+ }
+ // Exclude GET clock-derived asOf and availability; compare only stable,
+ // bounded original sources which cannot differ absent a committed revision.
+ return JSON.stringify({revision:data.revision,
+  applications:data.applications.map(x=>({
+   id:x.id,experiment:x.experiment,phase:x.phase,slotId:x.slotId,
+   holdUntil:x.holdUntil,eligible:x.eligible,signatureDemo:x.signatureDemo})),
+  slots:data.slots.map(x=>({id:x.id,experiment:x.experiment,when:x.when,capacity:x.capacity})),
+  sessions:data.b02.sessions,attendance:data.b02.attendance,
+  b02History:data.b02.history,b04History:data.b04.history,
+  waitlistEntries:data.waitlist.entries,postCancel:data.postCancel,
+  notifications:data.notifications,recruitment:data.recruitment});
+}
+function v08UnknownRecover_(){
+ if(!v07.causalUnknown||!v07.blocked||v07.recovering||busy||
+  !$('v08UnknownAck').checked||!model||!v07.last||
+  !['MOVE','CANCEL'].includes(v07.last.action))return;
+ const last={...v07.last},minimumRevision=model.revision,
+  generation=++v07.generation,
+  fail=()=>refuseReply('V08新操作基準未能完成兩次獨立GET／FIFO／有限歷程一致性驗證，原因果仍UNKNOWN；已拒絕恢復，未重送。');
+ busy=true;v07.recovering=true;
+ v08Clear_('因果UNKNOWN的新TEST基準正在進行兩次OWNER GET；原操作不重送。');
+ $('v08UnknownRecover').disabled=true;$('v08UnknownAck').disabled=true;
+ v07Lock_();
+ google.script.run.withSuccessHandler(first=>{
+  if(generation!==v07.generation)return;
+  const firstMark=v08UnknownSnapshot_(first,last);
+  if(firstMark===null||first.revision<minimumRevision){fail();return;}
+  google.script.run.withSuccessHandler(second=>{
+   if(generation!==v07.generation)return;
+   const secondMark=v08UnknownSnapshot_(second,last);
+   if(secondMark===null||second.revision!==first.revision||
+    second.waitlist.asOf<first.waitlist.asOf||
+    secondMark!==firstMark){fail();return;}
+   busy=false;model=second;selected=last.id;pending=null;
+   v07.blocked=false;v07.recovering=false;v07.last=null;
+   v07.causalUnknown=false;
+   $('v08UnknownBoundary').hidden=true;
+   $('v08UnknownAck').checked=false;$('v08UnknownAck').disabled=true;
+   $('v08UnknownRecover').disabled=true;
+   render();
+   $('v07Result').textContent='已明確建立新的純TEST操作基準；原MOVE/CANCEL交易因果仍UNKNOWN，不是追認成功。後續須另行預覽、明確確認，使用新requestId及最新CAS。';
+   setStatus('兩次獨立OWNER GET的修訂版、原ACCEPTED FIFO、B02/B04有限來源一致；只核對現在狀態，未重送舊操作。');
+  }).withFailureHandler(()=>{
+   if(generation===v07.generation)fail();
+  }).study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{
+  if(generation===v07.generation)fail();
+ }).study1UnifiedPreviewGet();
+}
+$('v08UnknownAck').addEventListener('change',v08UnknownShow_);
+$('v08UnknownRecover').addEventListener('click',v08UnknownRecover_);
+
 function v07ConfirmResponse_(action,payload,response,priorRevision){
  if(!['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action))return true;
  if(!v07SafeRead_(response,null)||response.revision!==priorRevision+1)return false;
@@ -827,7 +937,9 @@ function load(){
   }
   model=response;
   if(!model.applications.some(a=>a.id===selected))selected=null;
-  v07.blocked=false;v07.last=null;v07.recovering=false;pending=null;
+  v07.blocked=false;v07.last=null;v07.recovering=false;
+  v07.causalUnknown=false;pending=null;
+  $('v08UnknownBoundary').hidden=true;
   $('v07Result').textContent='來源已安全載入：尚未提交新虛構預約；待人工審核狀態未接入。';
   $('v07Rescan').disabled=true;
   render();
@@ -849,7 +961,12 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
   // Discard any older post-CAS response if a newer GET or security refusal
   // has already superseded it. No stale callback can unlock an UNKNOWN.
   generation=++v07.generation,
-  fail=()=>refuseReply('V08操作可能已寫入，但獨立OWNER GET／修訂版／原候補FIFO或有限歷程無法核對；已鎖定舊畫面，禁止重送。');
+  fail=()=>{
+   v07.causalUnknown=true;
+   v07.last={action,id,slotId:payload.slotId||null,
+    experiment:old?.experiment||null};
+   refuseReply('V08操作可能已寫入，但獨立OWNER GET／修訂版／原候補FIFO或有限歷程無法核對；已鎖定舊畫面，禁止重送。');
+  };
  google.script.run.withSuccessHandler(fresh=>{
   if(generation!==v07.generation)return;
   const person=fresh?.applications?.find(a=>a.id===id),
@@ -930,6 +1047,7 @@ function issue(action,payload,onSuccess){
    // that is NOT evidence that this click caused the transition.
    v07.last={action,id:payload.id,slotId:payload.slotId||null,
     experiment:priorApp?.experiment||null};
+   v07.causalUnknown=true;
    v07Readback_(true,'原GAS回覆重複requestId或缺少新交易證據；只能唯讀核對，不能宣稱本次操作完成');
    return;
   }
@@ -958,6 +1076,7 @@ function issue(action,payload,onSuccess){
   if(['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action)){
    v07.last={action,id:payload.id,slotId:payload.slotId||null,
     experiment:priorApp?.experiment||null};
+   if(['MOVE','CANCEL'].includes(action))v07.causalUnknown=true;
    v07Readback_(true,detail);return;
   }
   busy=false;render();setStatus('本步未取得確認：'+detail+'；不視為成功，請重新核對。',true);
