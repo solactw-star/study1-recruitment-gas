@@ -4137,7 +4137,8 @@ test('P1-08 §70-F accepted TEST invitation becomes CONFIRMED, B02 cancels but p
  assert.match(waitlistNodeText_(team.get('profileTabBody')),/接受候補原始場次.*SIM-SLOT-E1-A/);
  assert.match(waitlistNodeText_(team.get('profileTabBody')),/場次取消後關聯/);
  const audit=p108B12_(srv);
- assert.deepEqual(audit.coverage.postCancelSummary,view.postCancel);
+ assert.deepEqual(JSON.parse(JSON.stringify(audit.coverage.postCancelSummary)),view.postCancel,
+  'VM B12 audit and GAS serialized owner view share the same source values');
  assert.equal(audit.coverage.complete,false);
  assert.ok(audit.items.some(e=>e.module==='B02'&&e.action==='CANCEL'&&
   e.provenance==='BOUNDED_EVENT_ONLY'&&e.historical===true));
