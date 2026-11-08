@@ -2016,6 +2016,40 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   }
   s.policy=next;return;
  }
+ if(action==='ADMIN_WAITLIST_POLICY'){
+  if(Object.keys(p).sort().join(',')!=='experiment,level,mode,slotId,stage'||
+   !['E1','E2'].includes(p.experiment)||
+   !['EXPERIMENT','STAGE','ACTIVITY'].includes(p.level)||
+   !['INHERIT','CLOSED','MANUAL_TEST'].includes(p.mode)||
+   (p.level==='EXPERIMENT'&&p.mode==='INHERIT'))
+   throw Error('純TEST候補設定不得包含自動通知或正式開放模式');
+  const stages=STUDY1_B07_STAGES_[p.experiment];
+  if(p.level==='EXPERIMENT'){
+   if(p.stage!==null||p.slotId!==null)throw Error('實驗層不得指定階段或活動');
+   s.waitlist.settings.experiments[p.experiment]=p.mode;
+  }else if(p.level==='STAGE'){
+   if(p.slotId!==null||!stages.includes(p.stage))
+    throw Error('實驗與候補階段組合不合法');
+   s.waitlist.settings.stages[p.experiment+':'+p.stage]=p.mode;
+  }else{
+   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===p.experiment);
+   if(!slot||!stages.includes(p.stage))
+    throw Error('候補活動必須綁定原存在場次與同實驗已知階段');
+   const hasActive=s.waitlist.entries.some(e=>e.slotId===slot.id&&
+    ['WAITING','OFFERED'].includes(e.status));
+   const previous=study1WaitlistPolicy_(s,slot.id);
+   if(hasActive&&previous.stage!==p.stage)
+    throw Error('仍有候補或期限內邀請，不可更動活動研究階段');
+   s.waitlist.settings.activities[slot.id]={stage:p.stage,mode:p.mode};
+  }
+  study1WaitlistSettingsVerify_(s);
+  for(const e of s.waitlist.entries){
+   if(['WAITING','OFFERED'].includes(e.status)&&
+    study1WaitlistPolicy_(s,e.slotId).mode!=='MANUAL_TEST')
+    throw Error('有尚未處理的候補或有效邀請，不可關閉其實驗、階段或活動');
+  }
+  return;
+ }
  if(action==='WAITLIST_ADVANCE'){
   if(Object.keys(p).join(',')!=='slotId'||typeof p.slotId!=='string'||
    !/^SIM-SLOT-E[12]-[A-H]$/.test(p.slotId))
