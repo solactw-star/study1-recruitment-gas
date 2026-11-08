@@ -3965,7 +3965,8 @@ test('P1-08 §70-E OWNER resolves WAITING one by one in original FIFO, then B02 
  resolveNode_(team,first.id).handlers.click();
  assert.equal(srv.writes,a+1,'one exact locked write and independent GET read');
  assert.equal(team.calls.filter(x=>x==='ADMIN_WAITLIST_RESOLVE').length,1);
- assert.equal(team.calls.at(-1),'READ');
+ assert.deepEqual(team.calls.filter(x=>x==='ADMIN_WAITLIST_RESOLVE'||x==='READ').slice(-2),
+  ['ADMIN_WAITLIST_RESOLVE','READ'],'independent OWNER GET follows one write');
  assert.equal(srv.read().waitlist.entries[0].status,'OWNER_CLOSED');
  assert.equal(srv.read().waitlist.entries[1].status,'WAITING');
  assert.equal(srv.read().waitlist.entries[0].rank,0);
