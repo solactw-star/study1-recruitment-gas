@@ -853,7 +853,9 @@ function b03CrossCheck_(d){
    seenWait.has(e.id)||e.seq!==i+1||
    !['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'].includes(e.status)||
    !Number.isSafeInteger(e.joinedAt)||e.joinedAt<0||
-   (e.status==='WAITING'&&(e.rank<1||a.phase!=='VERIFIED'||e.expiresAt!==null))||
+   (e.status==='WAITING'&&(e.rank!==d.waitlist.entries.filter(q=>q.slotId===e.slotId&&q.status==='WAITING'&&q.seq<=e.seq).length||
+    a.phase!=='VERIFIED'||e.expiresAt!==null))||
+   (e.status!=='WAITING'&&e.rank!==0)||
    (e.status==='OFFERED'&&(!Number.isSafeInteger(e.expiresAt)||
      e.expiresAt<=e.offeredAt||a.phase!=='VERIFIED'||activeWait.has(e.slotId)))||
    (e.status==='ACCEPTED'&&a.slotId!==e.slotId))return null;
