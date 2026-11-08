@@ -409,6 +409,64 @@ function v06Render_(){
  $('confirm').disabled=busy||!values;
 }
 
+function render(){
+ if(!model)return;
+ const a=current(),stage=chooseStage(),progress=Math.max(0,phases.indexOf(stage));
+ const legacy='Study 1｜正式網站整合流程（測試資料模式）';
+ if(model.config&&typeof model.config.title==='string'&&model.config.title!==legacy)
+  $('visitorHeroTitle').textContent=model.config.title;
+ $('siteNoticeText').textContent=model.config?.notice||'示範報名不接受真人資料。';
+ document.querySelectorAll('.step').forEach(s=>{s.hidden=s.id!=='step-'+stage;});
+ $('progressText').textContent=stage==='ineligible'?'資格檢查結果':
+  (stage==='done'?'報名流程已完成':'報名步驟 '+(progress+1)+' / 7');
+ document.querySelectorAll('#progress span').forEach((s,i)=>{s.className=i<=Math.min(progress,5)?'current':'';});
+ let activeOptions=0;
+ for(const exp of ['E1','E2']){
+  const d=model.definitions[exp],settings=model.recruitment[exp];
+  if(!settings||!['DEMO_OPEN','COMING_SOON','HIDDEN'].includes(settings.mode)){
+   setStatus('報名顯示設定不正確，已停止操作。',true);return;
+  }
+  $('name'+exp).textContent=d.label;
+  $('desc'+exp).textContent=d.duration+' · '+d.procedure;
+  $('pay'+exp).textContent=d.compensation;
+  $('state'+exp).textContent=settings.mode==='DEMO_OPEN'?'示範報名可體驗':
+     settings.mode==='COMING_SOON'?'預計 '+settings.year+' 年 · 尚未開放報名':'目前未展示';
+  $('choose'+exp).hidden=settings.mode==='HIDDEN';
+  $('choose'+exp).disabled=busy||settings.mode!=='DEMO_OPEN';
+  if(settings.mode==='DEMO_OPEN')activeOptions++;
+ }
+ $('noAvailable').hidden=activeOptions>0;
+ if(!a){v05Clear_('請先選擇示範實驗並完成驗證。');v08Clear_('目前沒有可核實的虛構預約。');setStatus('請選擇目前開放體驗的實驗。');return;}
+ const q=model.policy.screening.questions;
+ for(const [id,key] of [['qAdult','adult'],['qCycu','cycu'],['qNoDx','diagnosed'],['qNoTreatment','treatment'],['qNoPractice','frequentPractice'],['qNoE1','joinedE1']]){
+  $(id).textContent=q[key];
+ }
+ $('e2Only').hidden=a.experiment!=='E2';
+ $('otpSend').disabled=busy||a.phase!=='SCREENED';
+ $('otpInputWrap').hidden=a.phase!=='OTP_SENT';
+ $('otpVerify').disabled=busy||a.phase!=='OTP_SENT';
+ $('consentStudyTitle').textContent=studyName(a.experiment)+'｜同意說明流程示範';
+ v05Render_(a);v08WaitRender_(a);
+ const available=model.slots.filter(s=>s.experiment===a.experiment&&s.bookable&&s.remaining>0);
+ const other=available.filter(s=>s.id!==a.slotId);makeOptions($('moveSlot'),other);
+ $('move').disabled=busy||a.phase!=='CONFIRMED'||other.length===0;
+ $('cancel').disabled=busy||!['CONFIRMED'].includes(a.phase);
+ $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
+ $('review').disabled=busy||!$('readPdf').checked||!!a.consentReviewedAt;
+ $('finish').disabled=busy||!a.consentReviewedAt||!$('agree').checked;
+ $('consentStatus').textContent=a.consentReviewedAt?'範例已確認，可繼續完成示範同意。':'請先開啟並確認範例文件。';
+ $('receiptId').textContent=a.id+'（虛構）';$('receiptStudy').textContent=studyName(a.experiment);
+ const slot=model.slots.find(s=>s.id===a.slotId);
+ $('receiptSlot').textContent=slot?slot.when:'未建立預約';
+ $('e2Hint').hidden=a.experiment!=='E2';
+ $('doneHeading').textContent=a.phase==='CANCELLED'?'示範預約已取消':'示範報名已完成';
+ $('newStart').disabled=busy;
+ $('screenNext').disabled=busy;v06Render_();
+ $('otpPaste').disabled=busy;
+ if(!busy)setStatus(a.phase==='CONFIRMED'?'示範報名已完成，您可以測試改期或取消。':'您目前操作的是虛構資料報名示範。');
+ v08Render_();
+ if(v07.blocked)v07Lock_();
+}
 /* Read-only V05/V08 queue projection. All decisions rechecked by locked GAS. */
 function v08WaitRender_(app){
  const slotBox=$('v08WaitSlot'),info=$('v08WaitStatus'),join=$('v08WaitJoin'),
@@ -471,64 +529,7 @@ $('v08WaitDecline').addEventListener('click',()=>{
 });
 
 
-function render(){
- if(!model)return;
- const a=current(),stage=chooseStage(),progress=Math.max(0,phases.indexOf(stage));
- const legacy='Study 1｜正式網站整合流程（測試資料模式）';
- if(model.config&&typeof model.config.title==='string'&&model.config.title!==legacy)
-  $('visitorHeroTitle').textContent=model.config.title;
- $('siteNoticeText').textContent=model.config?.notice||'示範報名不接受真人資料。';
- document.querySelectorAll('.step').forEach(s=>{s.hidden=s.id!=='step-'+stage;});
- $('progressText').textContent=stage==='ineligible'?'資格檢查結果':
-  (stage==='done'?'報名流程已完成':'報名步驟 '+(progress+1)+' / 7');
- document.querySelectorAll('#progress span').forEach((s,i)=>{s.className=i<=Math.min(progress,5)?'current':'';});
- let activeOptions=0;
- for(const exp of ['E1','E2']){
-  const d=model.definitions[exp],settings=model.recruitment[exp];
-  if(!settings||!['DEMO_OPEN','COMING_SOON','HIDDEN'].includes(settings.mode)){
-   setStatus('報名顯示設定不正確，已停止操作。',true);return;
-  }
-  $('name'+exp).textContent=d.label;
-  $('desc'+exp).textContent=d.duration+' · '+d.procedure;
-  $('pay'+exp).textContent=d.compensation;
-  $('state'+exp).textContent=settings.mode==='DEMO_OPEN'?'示範報名可體驗':
-     settings.mode==='COMING_SOON'?'預計 '+settings.year+' 年 · 尚未開放報名':'目前未展示';
-  $('choose'+exp).hidden=settings.mode==='HIDDEN';
-  $('choose'+exp).disabled=busy||settings.mode!=='DEMO_OPEN';
-  if(settings.mode==='DEMO_OPEN')activeOptions++;
- }
- $('noAvailable').hidden=activeOptions>0;
- if(!a){v05Clear_('請先選擇示範實驗並完成驗證。');v08Clear_('目前沒有可核實的虛構預約。');setStatus('請選擇目前開放體驗的實驗。');return;}
- const q=model.policy.screening.questions;
- for(const [id,key] of [['qAdult','adult'],['qCycu','cycu'],['qNoDx','diagnosed'],['qNoTreatment','treatment'],['qNoPractice','frequentPractice'],['qNoE1','joinedE1']]){
-  $(id).textContent=q[key];
- }
- $('e2Only').hidden=a.experiment!=='E2';
- $('otpSend').disabled=busy||a.phase!=='SCREENED';
- $('otpInputWrap').hidden=a.phase!=='OTP_SENT';
- $('otpVerify').disabled=busy||a.phase!=='OTP_SENT';
- $('consentStudyTitle').textContent=studyName(a.experiment)+'｜同意說明流程示範';
- v05Render_(a);v08WaitRender_(a);
- const available=model.slots.filter(s=>s.experiment===a.experiment&&s.bookable&&s.remaining>0);
- const other=available.filter(s=>s.id!==a.slotId);makeOptions($('moveSlot'),other);
- $('move').disabled=busy||a.phase!=='CONFIRMED'||other.length===0;
- $('cancel').disabled=busy||!['CONFIRMED'].includes(a.phase);
- $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
- $('review').disabled=busy||!$('readPdf').checked||!!a.consentReviewedAt;
- $('finish').disabled=busy||!a.consentReviewedAt||!$('agree').checked;
- $('consentStatus').textContent=a.consentReviewedAt?'範例已確認，可繼續完成示範同意。':'請先開啟並確認範例文件。';
- $('receiptId').textContent=a.id+'（虛構）';$('receiptStudy').textContent=studyName(a.experiment);
- const slot=model.slots.find(s=>s.id===a.slotId);
- $('receiptSlot').textContent=slot?slot.when:'未建立預約';
- $('e2Hint').hidden=a.experiment!=='E2';
- $('doneHeading').textContent=a.phase==='CANCELLED'?'示範預約已取消':'示範報名已完成';
- $('newStart').disabled=busy;
- $('screenNext').disabled=busy;v06Render_();
- $('otpPaste').disabled=busy;
- if(!busy)setStatus(a.phase==='CONFIRMED'?'示範報名已完成，您可以測試改期或取消。':'您目前操作的是虛構資料報名示範。');
- v08Render_();
- if(v07.blocked)v07Lock_();
-}
+
 /* V07: a failed booking write is UNKNOWN, not necessarily uncommitted.
  * Only the existing OWNER-only TEST view can establish the current phase.
  * Never automatically replay a write or invent a manual-review approval. */
