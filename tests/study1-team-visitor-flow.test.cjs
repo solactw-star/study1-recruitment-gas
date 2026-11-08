@@ -3939,3 +3939,134 @@ test('P1-08 §70-D stale B02 cancel tab loses CAS to FIFO JOIN, clears old cross
  assert.equal(stale.get('calCancelCommit').disabled,true,'fresh FIFO-aware review blocks cancellation');
  closed(srv);
 });
+
+
+/* §70-E original TEST owner pre-cancel, no real mail, no live-data adapter.
+ * Source: original GAS/Team/Visitor DOM VM with shared CAS and FIFO. */
+const resolveNode_=(team,id)=>{
+ const queue=team.get('waitlistRows');
+ const row=queue.children.find(x=>x.children.some(n=>n.textContent.includes(id)));
+ return row?.children.find(n=>n.dataset.waitlistResolveId===id)||null;
+};
+const resolvePayload_=(id,status,slotId='SIM-SLOT-E1-A')=>({
+ ack:'OWNER_TEST_PRE_CANCEL_REVIEWED',expectedStatus:status,id,
+ reason:'TEST_SESSION_CANCELLATION',slotId
+});
+test('P1-08 §70-E OWNER resolves WAITING one by one in original FIFO, then B02 cancels; B09/B12 retain distinct current status',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv);first.v.click('v08WaitJoin');
+ const second=waitlistVerifiedVisitor_(srv);second.v.click('v08WaitJoin');
+ const before=srv.read(),notices=before.notifications.length,team=page(srv,'team');
+ assert.ok(resolveNode_(team,first.id));
+ assert.equal(resolveNode_(team,second.id),null,'later FIFO cannot be closed first');
+ assert.throws(()=>srv.command('ADMIN_WAITLIST_RESOLVE',
+  resolvePayload_(second.id,'WAITING')),/FIFO/);
+ const a=srv.writes;
+ resolveNode_(team,first.id).handlers.click();
+ assert.equal(srv.writes,a+1,'one exact locked write and independent GET read');
+ assert.equal(team.calls.filter(x=>x==='ADMIN_WAITLIST_RESOLVE').length,1);
+ assert.equal(team.calls.at(-1),'READ');
+ assert.equal(srv.read().waitlist.entries[0].status,'OWNER_CLOSED');
+ assert.equal(srv.read().waitlist.entries[1].status,'WAITING');
+ assert.equal(srv.read().waitlist.entries[0].rank,0);
+ assert.equal(srv.read().waitlist.summary.total.OWNER_CLOSED,1);
+ assert.equal(srv.read().waitlist.summary.byStage['E1:SINGLE_SESSION'].OWNER_CLOSED,1);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/OWNER人工結束 1/);
+ first.v.click('v08WaitRefresh');
+ assert.match(first.v.get('v08WaitStatus').textContent,/OWNER人工結束/);
+ assert.ok(resolveNode_(team,second.id));
+ const b=srv.writes;resolveNode_(team,second.id).handlers.click();
+ assert.equal(srv.writes,b+1);assert.equal(srv.read().waitlist.summary.total.OWNER_CLOSED,2);
+ assert.equal(srv.read().waitlist.summary.total.WAITING,0);
+ assert.equal(srv.read().notifications.length,notices,'no mail or simulated notification');
+ const review=cancelTestSession_(team);
+ assert.equal(review.hidden,false);
+ assert.match(team.get('calCancelSummary').textContent,/候補未結 0 筆/);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ assert.equal(team.get('calCancelCommit').disabled,false);
+ team.click('calCancelCommit');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(srv.read().waitlist.summary.total.OWNER_CLOSED,2);
+ const data=srv.read();
+ const audit=srv.ctx.study1UnifiedB12AuditPage({
+  after:'',expectedB06Revision:data.b06.revision,expectedFixtureRevision:data.revision,
+  limit:30,module:'WAITLIST',result:'CURRENT_SNAPSHOT',search:'',snapshotHash:'',sort:'DESC'});
+ assert.equal(audit.items.length,2);
+ assert.ok(audit.items.every(e=>e.action==='OWNER_CLOSED'&&e.historical===false&&
+  e.at===null&&e.provenance==='CURRENT_TEST_WAITLIST_ONLY'));
+ assert.equal(audit.coverage.waitlistSummary.total.OWNER_CLOSED,2);
+ closed(srv);
+});
+test('P1-08 §70-E live OFFERED never revoked; expired OFFERED manually closes without auto-promotion before FIFO waiting',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv,{Date:Clock});first.v.click('v08WaitJoin');
+ const second=waitlistVerifiedVisitor_(srv,{Date:Clock});second.v.click('v08WaitJoin');
+ srv.command('CANCEL',{id:'SIM-001'});
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ const offered=srv.read().waitlist.entries[0],n=srv.read().notifications.length;
+ const one=page(srv,'team',{Date:Clock});
+ assert.equal(resolveNode_(one,first.id),null,'live OFFERED has no closure control');
+ const before=srv.writes;
+ assert.throws(()=>srv.command('ADMIN_WAITLIST_RESOLVE',
+  resolvePayload_(first.id,'OFFERED')),/有效期限/);
+ assert.throws(()=>srv.command('ADMIN_WAITLIST_RESOLVE',
+  resolvePayload_(second.id,'WAITING')),/邀請/);
+ assert.equal(srv.writes,before);
+ clock.now=offered.expiresAt+1;one.click('refresh');
+ assert.ok(resolveNode_(one,first.id),'expired OFFERED can close exactly once');
+ resolveNode_(one,first.id).handlers.click();
+ const after=srv.read();
+ assert.equal(after.waitlist.entries[0].status,'EXPIRED');
+ assert.equal(after.waitlist.entries[1].status,'WAITING','no automatic next offer');
+ assert.equal(after.waitlist.summary.total.OFFERED,0);
+ assert.equal(after.waitlist.summary.total.EXPIRED,1);
+ assert.equal(after.waitlist.summary.total.WAITING,1);
+ assert.equal(after.notifications.length,n);
+ assert.throws(()=>srv.command('ADMIN_B02_SLOT',
+  waitlistB02Payload_(srv,'CANCEL')),/WAITING|OFFERED/);
+ assert.ok(resolveNode_(one,second.id));
+ resolveNode_(one,second.id).handlers.click();
+ assert.deepEqual(srv.read().waitlist.entries.map(e=>e.status),['EXPIRED','OWNER_CLOSED']);
+ const audit=srv.ctx.study1UnifiedB12AuditPage({
+  after:'',expectedB06Revision:srv.read().b06.revision,expectedFixtureRevision:srv.read().revision,
+  limit:30,module:'WAITLIST',result:'CURRENT_SNAPSHOT',search:'',snapshotHash:'',sort:'DESC'});
+ assert.deepEqual(audit.items.map(e=>e.action).sort(),['EXPIRED','OWNER_CLOSED']);
+ assert.ok(audit.items.every(e=>e.historical===false&&e.at===null));
+ closed(srv);
+});
+test('P1-08 §70-E stale B02 close CAS, forged status and owner readback refusal fail closed without replay',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const first=waitlistVerifiedVisitor_(srv);first.v.click('v08WaitJoin');
+ const stale=page(srv,'team'),second=waitlistVerifiedVisitor_(srv);
+ second.v.click('v08WaitJoin');
+ const version=srv.read().revision,writes=srv.writes,n=stale.calls.length;
+ assert.ok(resolveNode_(stale,first.id));
+ resolveNode_(stale,first.id).handlers.click();
+ assert.equal(srv.writes,writes);
+ assert.equal(srv.read().revision,version);
+ assert.deepEqual(stale.calls.slice(n).filter(c=>c==='ADMIN_WAITLIST_RESOLVE'),
+  ['ADMIN_WAITLIST_RESOLVE'],'stale request is never replayed');
+ assert.equal(stale.get('waitlistRows').children.length,0);
+ const fresh=page(srv,'team');
+ const origin=srv.read;
+ srv.read=()=>{const v=origin();v.waitlist.entries[0].status='OWNER_CLOSED';
+  v.waitlist.entries[0].closedAt=null;v.waitlist.summary.total.OWNER_CLOSED=1;return v;};
+ fresh.click('refresh');
+ assert.equal(fresh.get('waitlistRows').children.length,0);
+ srv.read=origin;fresh.click('refresh');
+ const original=srv.ctx.study1UnifiedPreviewGet;
+ srv.ctx.study1UnifiedPreviewGet=()=>{throw Error('OWNER GET revoked');};
+ const curWrites=srv.writes,requestCount=fresh.calls.length;
+ resolveNode_(fresh,first.id).handlers.click();
+ assert.equal(srv.writes,curWrites+1,'single write may have succeeded');
+ assert.deepEqual(fresh.calls.slice(requestCount).filter(c=>c==='ADMIN_WAITLIST_RESOLVE'),
+  ['ADMIN_WAITLIST_RESOLVE']);
+ assert.equal(fresh.get('waitlistRows').children.length,0);
+ assert.equal(fresh.get('profileModule').hidden,true);
+ srv.ctx.study1UnifiedPreviewGet=original;
+ assert.equal(srv.read().waitlist.entries[0].status,'OWNER_CLOSED');
+ closed(srv);
+});
