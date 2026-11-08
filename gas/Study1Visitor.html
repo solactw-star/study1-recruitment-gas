@@ -808,6 +808,71 @@ function load(){
  }).withFailureHandler(e=>refuseReply('無法載入示範：'+String(e.message||e)))
  .study1UnifiedPreviewGet();
 }
+/* §70-I V08: MOVE/CANCEL are ONE existing TEST CAS write followed by an
+ * independent owner GET. A successful write response is not final evidence
+ * of the current booking. Fail closed on read failure, later revisions or
+ * altered original ACCEPTED FIFO provenance; NEVER automatically replay. */
+function v08IndependentGet_(action,payload,response,before,onSuccess){
+ const id=payload.id,
+  old=before.applications.find(a=>a.id===id),
+  oldEntry=before.waitlist.entries.find(e=>e.id===id&&e.status==='ACCEPTED'),
+  originalSlot=old?.slotId,
+  priorEvents=before.b02.history,
+  priorB04=before.b04.history,
+  beforeNotice=before.notifications.length,
+  fail=()=>refuseReply('V08操作可能已寫入，但獨立OWNER GET／修訂版／原候補FIFO或有限歷程無法核對；已鎖定舊畫面，禁止重送。');
+ google.script.run.withSuccessHandler(fresh=>{
+  const person=fresh?.applications?.find(a=>a.id===id),
+   accepted=fresh?.waitlist?.entries?.find(e=>e.id===id&&e.status==='ACCEPTED'),
+   lastNotice=Array.isArray(fresh?.notifications)?fresh.notifications.at(-1):null,
+   originalWasCancelled=before.b02.sessions[originalSlot]?.status==='CANCELLED',
+   originalNow=fresh?.b02?.sessions?.[originalSlot]?.status||'OPEN',
+   acceptedSlot=oldEntry?.slotId,
+   acceptedOrigin=fresh?.postCancel?.bySlot?.find(s=>s.slotId===acceptedSlot),
+   acceptedRow=acceptedOrigin?.acceptedOrigins?.find(e=>e.id===id),
+   updatedPhase=action==='CANCEL'?'CANCELLED':'CONFIRMED',
+   updatedSlot=action==='MOVE'?payload.slotId:originalSlot;
+  if(!v07SafeRead_(fresh,null)||!old||old.phase!=='CONFIRMED'||
+   !person||person.experiment!==old.experiment||
+   person.phase!==updatedPhase||person.slotId!==updatedSlot||
+   fresh.revision!==response.revision||
+   !Array.isArray(priorEvents)||!Array.isArray(priorB04)||
+   !Array.isArray(fresh.b02?.history)||!Array.isArray(fresh.b04?.history)||
+   fresh.b02.history.length!==priorEvents.length||
+   fresh.b04.history.length!==priorB04.length||
+   fresh.waitlist.asOf<response.waitlist.asOf||
+   !lastNotice||lastNotice.id!==id||lastNotice.event!==action||
+   !['SIM_PENDING','SIM_FAILED','SIM_DELIVERED'].includes(lastNotice.status)||
+   !Array.isArray(fresh.notifications)||
+   fresh.notifications.length<Math.min(15,beforeNotice+1)||
+   (originalWasCancelled&&originalNow!=='CANCELLED')||
+   (!!oldEntry!==!!accepted)||
+   (oldEntry&&(accepted.id!==oldEntry.id||accepted.seq!==oldEntry.seq||
+    accepted.slotId!==oldEntry.slotId||accepted.experiment!==oldEntry.experiment||
+    accepted.offeredAt!==oldEntry.offeredAt||accepted.expiresAt!==oldEntry.expiresAt||
+    accepted.closedAt!==oldEntry.closedAt||accepted.status!=='ACCEPTED'))||
+   (oldEntry&&acceptedOrigin?.mode==='FORMAL')||
+   (oldEntry&&acceptedOrigin&&
+    (acceptedRow?.currentSlotId!==updatedSlot||acceptedRow?.phase!==updatedPhase||
+     acceptedRow?.originalSlotId!==acceptedSlot||acceptedRow?.seq!==oldEntry.seq))||
+   (originalWasCancelled&&
+    (!fresh.postCancel||fresh.postCancel.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
+     fresh.postCancel.completeHistory!==false||
+     fresh.postCancel.mailSent!==false)))
+    {fail();return;}
+  // No second command is sent. This success is grounded in a fresh read with
+  // the same exact revision as the acknowledged original CAS write.
+  busy=false;model=fresh;pending=null;v07.blocked=false;v07.last=null;
+  $('v07Result').textContent=action==='MOVE'?
+   '已獨立GET核對TEST改期；原ACCEPTED FIFO來源未更動，非正式招募。':
+   '已獨立GET核對TEST個別取消；原場次與有限歷程保留，非正式招募。';
+  render();
+  setStatus('V08單次TEST '+(action==='MOVE'?'改期':'取消')+
+   '已由原GAS回應及獨立OWNER GET共同核實；未寄信、未重送。');
+  if(typeof onSuccess==='function')onSuccess(fresh);
+ }).withFailureHandler(()=>fail()).study1UnifiedPreviewGet();
+}
+
 function issue(action,payload,onSuccess){
  if(busy||v07.blocked||!model)return;
  const fingerprint=JSON.stringify([action,payload]);
@@ -815,11 +880,15 @@ function issue(action,payload,onSuccess){
   pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)+'_'+Math.floor(Math.random()*100000000)};
  }
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
- const priorRevision=model.revision,priorApp=current();
+ const priorRevision=model.revision,priorApp=current(),priorModel=model;
  busy=true;setStatus('正在確認您的操作…');render();
  google.script.run.withSuccessHandler(response=>{
   if(!safePreview(response)||!v07ConfirmResponse_(action,payload,response,priorRevision)){
    refuseReply('示範操作回應無法驗證：原GAS安全來源或預期狀態不一致；請重新載入頁面並以V07唯讀核對，已停止操作。');return;
+  }
+  if(action==='MOVE'||action==='CANCEL'){
+   v08IndependentGet_(action,payload,response,priorModel,onSuccess);
+   return;
   }
   busy=false;model=response;pending=null;
   v07.blocked=false;v07.last=null;
