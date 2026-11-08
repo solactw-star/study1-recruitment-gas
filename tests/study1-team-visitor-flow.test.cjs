@@ -2022,6 +2022,137 @@ function cancelTestSession_(team,id='SIM-SLOT-E1-A'){
  return team.get('calCancelReview');
 }
 
+
+test('P1 cancelled-session queue derives linked booking and attendance, filters, and opens B02/B03/B04 without writes',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv);
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',progress:'PARTIAL',note:'虛構出席交接'});
+ const team=page(srv,'team');
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ const writes=srv.writes,rev=srv.read().revision,queue=team.get('cancelQueueRows');
+ assert.equal(queue.children.length,1);
+ const row=queue.children[0];
+ assert.equal(row.dataset.participantId,'SIM-001');
+ assert.equal(row.dataset.reviewKind,'REVIEW');
+ assert.match(row.children.map(x=>x.textContent).join(' '),/預約成立仍關聯已取消場次，待人工核對/);
+ assert.match(row.children.map(x=>x.textContent).join(' '),/已出席.*部分完成/);
+ assert.match(row.children.map(x=>x.textContent).join(' '),/虛構出席交接/);
+ assert.match(team.get('cancelQueueStatus').textContent,/關聯 1 筆（待人工核對 1、僅保留歷程 0）/);
+ team.set('cancelQueueFilter','HISTORY');team.change('cancelQueueFilter');
+ assert.equal(queue.children.some(x=>x.dataset.participantId),false);
+ team.set('cancelQueueFilter','REVIEW');team.change('cancelQueueFilter');
+ assert.equal(queue.children[0].dataset.participantId,'SIM-001');
+ team.set('cancelQueueSearch','SIM-999');team.get('cancelQueueSearch').handlers.input();
+ assert.equal(queue.children.some(x=>x.dataset.participantId),false);
+ team.click('cancelQueueClear');
+ assert.equal(queue.children[0].dataset.participantId,'SIM-001');
+ const actions=queue.children[0].children.at(-1).children;
+ actions[0].handlers.click();
+ assert.equal(team.get('profileModule').hidden,false);
+ assert.match(team.get('profileSummary').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),/已出席/);
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');booking.handlers.click();
+ const bookingGrid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ assert.match(bookingGrid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),/預約成立仍關聯已取消場次，待人工核對/);
+ team.click('profileBack');
+ assert.equal(team.get('profileModule').hidden,true);
+ actions[2].handlers.click();
+ assert.equal(team.get('b03Search').value,'SIM-001');
+ assert.equal(team.get('entries').children.length,1);
+ assert.match(team.get('entries').children[0].children.map(x=>x.textContent).join(' '),/場次 已取消（個別預約未取消，待人工處理）/);
+ actions[1].handlers.click();
+ assert.equal(team.get('calStatus').value,'CANCELLED');
+ assert.match(team.get('calSessionDetail').children.map(x=>x.textContent).join(' '),/已取消/);
+ const n=team.calls.length;team.click('cancelQueueRefresh');
+ assert.deepEqual(team.calls.slice(n).filter(x=>x!=='B01_GET'),['READ']);
+ assert.equal(team.get('cancelQueueRows').children[0].dataset.participantId,'SIM-001');
+ assert.match(team.get('cancelQueueStatus').textContent,new RegExp('修訂版 '+rev));
+ assert.equal(srv.writes,writes,'filters and all source navigation are view-only');
+ closed(srv);
+});
+test('P1 cancelled-session queue classifies individually cancelled booking as history, never as human completed',()=>{
+ const srv=server(),v=v08ConfirmedVisitor_(srv);
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ assert.equal(srv.read().applications[0].phase,'CANCELLED');
+ const team=page(srv,'team');
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ const writes=srv.writes,rows=team.get('cancelQueueRows');
+ assert.equal(rows.children[0].dataset.reviewKind,'HISTORY');
+ assert.match(rows.children[0].children.map(x=>x.textContent).join(' '),/個別申請已取消，僅保留歷程（非人工核結）/);
+ assert.match(team.get('cancelQueueStatus').textContent,/待人工核對 0、僅保留歷程 1/);
+ team.set('cancelQueueFilter','REVIEW');team.change('cancelQueueFilter');
+ assert.equal(rows.children.some(x=>x.dataset.participantId),false);
+ team.set('cancelQueueFilter','HISTORY');team.change('cancelQueueFilter');
+ assert.equal(rows.children[0].dataset.participantId,'SIM-001');
+ const actions=rows.children[0].children.at(-1).children;
+ actions[2].handlers.click();
+ assert.match(team.get('entries').children[0].children.map(x=>x.textContent).join(' '),/個別關聯僅保留歷程/);
+ actions[0].handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');booking.handlers.click();
+ const grid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ assert.match(grid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),/個別關聯僅保留歷程，未判定人工完成/);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 cancelled-session queue follows B02 owner scope and refuses cross-scope B03 navigation',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team');
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ const writes=srv.writes;
+ team.set('adminScopeB02','E2');team.change('adminScopeB02');
+ assert.match(team.get('cancelQueueStatus').textContent,/B02本頁範圍 E2.*關聯 0/);
+ assert.equal(team.get('cancelQueueRows').children.some(x=>x.dataset.participantId),false);
+ team.set('adminScopeB02','E1');team.change('adminScopeB02');
+ assert.equal(team.get('cancelQueueRows').children[0].dataset.participantId,'SIM-001');
+ team.set('adminScopeB03','E2');team.change('adminScopeB03');
+ const n=team.get('cancelQueueRows').children[0].children.at(-1).children;
+ n[2].handlers.click();
+ assert.match(team.get('cancelQueueStatus').textContent,/B03本頁範圍不含此實驗/);
+ assert.equal(team.get('b03Search').value,'');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 cancelled-session queue independent GET denial clears source, stays read-only and recovers',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team');
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ const writes=srv.writes,read=srv.read;
+ srv.read=()=>{throw Error('OWNER revoked');};
+ const n=team.calls.length;team.click('cancelQueueRefresh');
+ assert.deepEqual(team.calls.slice(n),['READ']);
+ assert.equal(team.get('cancelQueueRows').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('profileModule').hidden,true);
+ assert.equal(team.get('cancelQueueRefresh').disabled,true);
+ assert.match(team.get('cancelQueueStatus').textContent,/清空|清除/);
+ assert.equal(srv.writes,writes);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueRows').children[0].dataset.participantId,'SIM-001');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 cancelled-session queue rejects forged cross-experiment booking snapshot on GET',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ const team=page(srv,'team');
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ team.click('calCancelCommit');
+ const writes=srv.writes,read=srv.read;
+ srv.read=()=>{const d=read();d.applications[0].slotId='SIM-SLOT-E2-A';return d;};
+ const n=team.calls.length;team.click('cancelQueueRefresh');
+ assert.deepEqual(team.calls.slice(n),['READ']);
+ assert.equal(team.get('cancelQueueRows').children.length,0);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('cancelQueueRefresh').disabled,true);
+ assert.equal(srv.writes,writes);
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('cancelQueueRows').children[0].dataset.participantId,'SIM-001');
+ closed(srv);
+});
+
 test('P1 B02 cancel independently GETs B03 board and B04 booking without cancelling a held attendee',()=>{
  const srv=server(),visitor=v07VerifiedVisitor_(srv);
  visitor.click('hold');
