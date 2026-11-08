@@ -2239,7 +2239,24 @@ function cancelQueueState_(a){
   return {kind:'REVIEW',label:'預約成立仍關聯已取消場次，待人工核對'};
  return {kind:'REVIEW',label:'其他流程仍保留場次關聯，待人工查明'};
 }
+function cancelQueueMatrixCounts_(entries){
+ // Counts use original person/slot/attendance fields, never derived "completed".
+ const kinds={REVIEW:0,HISTORY:0},
+  attendance={PENDING:0,PRESENT:0,LATE:0,ABSENT:0},
+  progress={NOT_STARTED:0,IN_PROGRESS:0,PARTIAL:0,COMPLETE:0};
+ for(const row of entries){
+  if(!Object.prototype.hasOwnProperty.call(kinds,row.status.kind)||
+   !Object.prototype.hasOwnProperty.call(attendance,row.att.attendance)||
+   !Object.prototype.hasOwnProperty.call(progress,row.att.progress))return null;
+  kinds[row.status.kind]++;attendance[row.att.attendance]++;progress[row.att.progress]++;
+ }
+ if(Object.values(kinds).reduce((a,b)=>a+b,0)!==entries.length||
+  Object.values(attendance).reduce((a,b)=>a+b,0)!==entries.length||
+  Object.values(progress).reduce((a,b)=>a+b,0)!==entries.length)return null;
+ return {kinds,attendance,progress};
+}
 function cancelQueueClear_(messageText){
+ $('cancelQueueMatrix').replaceChildren();
  $('cancelQueueRows').replaceChildren();
  $('cancelQueueStatus').textContent=messageText||'來源未核實；清單不可操作。';
  $('cancelQueueRefresh').disabled=true;
@@ -2266,19 +2283,59 @@ function cancelQueueRender_(){
   a.slot.id.localeCompare(b.slot.id)||a.a.id.localeCompare(b.a.id));
  const all=rows.length,pending=rows.filter(x=>x.status.kind==='REVIEW').length,
   history=all-pending,term=$('cancelQueueSearch').value.trim().toLowerCase(),
-  filter=$('cancelQueueFilter').value;
- if(!['ALL','REVIEW','HISTORY'].includes(filter)){
-  cancelQueueClear_('核對分類不合法；已停止顯示，請重新選擇。');return;
+  filter=$('cancelQueueFilter').value,
+  attFilter=$('cancelQueueAttendance').value,
+  progressFilter=$('cancelQueueProgress').value,
+  picker=$('cancelQueueSlot'),requested=picker.value||'ALL';
+ if(!['ALL','REVIEW','HISTORY'].includes(filter)||
+  !['ALL','PENDING','PRESENT','LATE','ABSENT'].includes(attFilter)||
+  !['ALL','NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(progressFilter)){
+  cancelQueueClear_('核對分類、出席或施測篩選不合法；已停止顯示，請重新選擇。');return;
  }
+ // Preserve a valid scoped selection across owner GET; a removed/out-of-scope
+ // slot resets to ALL instead of leaking the previous scope.
+ picker.replaceChildren();
+ const allOption=calElem('option','全部取消場次');allOption.value='ALL';picker.append(allOption);
+ for(const slot of sessions){
+  const option=calElem('option',slot.id+'｜'+slot.when);option.value=slot.id;picker.append(option);
+ }
+ const selected=sessions.some(s=>s.id===requested)?requested:'ALL';
+ picker.value=selected;
  const visible=rows.filter(x=>(filter==='ALL'||x.status.kind===filter)&&
+  (selected==='ALL'||x.slot.id===selected)&&
+  (attFilter==='ALL'||x.att.attendance===attFilter)&&
+  (progressFilter==='ALL'||x.att.progress===progressFilter)&&
   (!term||[x.a.id,x.slot.id,x.a.experiment].join(' ').toLowerCase().includes(term)));
  const target=$('cancelQueueRows');target.replaceChildren();
  $('cancelQueueStatus').textContent='原GAS純TEST修訂版 '+model.revision+
   '｜B02本頁範圍 '+adminScopeEffective_('B02')+
   '｜已取消場次 '+sessions.length+' 場｜關聯 '+all+
   ' 筆（待人工核對 '+pending+'、僅保留歷程 '+history+'）｜符合篩選 '+visible.length+
-  ' 筆｜不儲存人工核對結果、不寄信。';
+  ' 筆｜場次 '+selected+'｜出席 '+attFilter+'｜施測 '+progressFilter+
+  '｜各場次總數不受逐人篩選影響；不儲存人工核對結果、不寄信。';
  $('cancelQueueRefresh').disabled=busy;
+ const matrix=$('cancelQueueMatrix');matrix.replaceChildren();
+ for(const slot of sessions){
+  const group=rows.filter(x=>x.slot.id===slot.id);
+  const counts=cancelQueueMatrixCounts_(group);
+  if(!counts){
+   cancelQueueClear_('同場次核對人數、出席或施測來源不一致；已清空，須重新讀取。');return;
+  }
+  const card=calElem('section',undefined,'calQueueMatrixCard');
+  card.dataset.sessionId=slot.id;
+  card.append(calElem('strong',slot.id+'｜'+slot.experiment+'｜'+slot.when),
+   calElem('p','原關聯 '+group.length+' 筆｜待人工核對 '+counts.kinds.REVIEW+
+    '｜僅保留歷程 '+counts.kinds.HISTORY),
+   calElem('p','出席：待確認 '+counts.attendance.PENDING+
+    '｜已出席 '+counts.attendance.PRESENT+'｜遲到 '+counts.attendance.LATE+
+    '｜缺席 '+counts.attendance.ABSENT),
+   calElem('p','施測：未開始 '+counts.progress.NOT_STARTED+
+    '｜進行中 '+counts.progress.IN_PROGRESS+'｜部分完成 '+counts.progress.PARTIAL+
+    '｜行政完成 '+counts.progress.COMPLETE+'（非研究完成）'));
+  const only=calElem('button','只看此場次（不寫入）','secondary');
+  only.type='button';only.addEventListener('click',()=>{picker.value=slot.id;cancelQueueRender_();});
+  card.append(only);matrix.append(card);
+ }
  for(const r of visible){
   const row=calElem('div',undefined,'calQueueRow');
   row.dataset.participantId=r.a.id;row.dataset.sessionId=r.slot.id;
@@ -2319,10 +2376,16 @@ function cancelQueueRender_(){
 }
 function cancelQueueInit_(){
  $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';
- $('cancelQueueFilter').addEventListener('change',cancelQueueRender_);
+ for(const id of ['cancelQueueSlot','cancelQueueAttendance','cancelQueueProgress'])
+  $(id).value='ALL';
+ for(const id of ['cancelQueueFilter','cancelQueueSlot','cancelQueueAttendance','cancelQueueProgress'])
+  $(id).addEventListener('change',cancelQueueRender_);
  $('cancelQueueSearch').addEventListener('input',cancelQueueRender_);
  $('cancelQueueClear').addEventListener('click',()=>{
-  $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';cancelQueueRender_();
+  $('cancelQueueFilter').value='ALL';$('cancelQueueSearch').value='';
+  for(const id of ['cancelQueueSlot','cancelQueueAttendance','cancelQueueProgress'])
+   $(id).value='ALL';
+  cancelQueueRender_();
  });
  $('cancelQueueRefresh').addEventListener('click',()=>{
   if(!calAllowed()||busy)return;
