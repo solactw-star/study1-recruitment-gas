@@ -2105,8 +2105,8 @@ test('P1 B02 two cancelled sessions compare real mixed attendance/progress count
  const cards=team.get('cancelQueueCompareCards');
  assert.equal(cards.children.length,2);
  assert.deepEqual(cards.children.map(x=>x.dataset.sessionId),['SIM-SLOT-E1-A','SIM-SLOT-E1-B']);
- assert.match(cards.children[0].textContent,/原關聯 2 筆.*已出席 1.*缺席 1.*部分完成 1/);
- assert.match(cards.children[1].textContent,/原關聯 1 筆.*遲到 1.*行政完成 1/);
+ assert.match(cards.children[0].children.map(x=>x.textContent).join(' '),/原關聯 2 筆.*已出席 1.*缺席 1.*部分完成 1/);
+ assert.match(cards.children[1].children.map(x=>x.textContent).join(' '),/原關聯 1 筆.*遲到 1.*行政完成 1/);
  const delta=team.get('cancelQueueCompareDelta').textContent;
  assert.match(delta,/B−A僅人數差｜原關聯 -1/);
  assert.match(delta,/待人工核對 -1/);
