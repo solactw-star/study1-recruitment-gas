@@ -3204,6 +3204,91 @@ function waitlistVerifiedVisitor_(srv,options){
 function policyChange_(srv,experiment,level,mode,{stage=null,slotId=null}={}){
  return srv.command('ADMIN_WAITLIST_POLICY',{experiment,level,stage,slotId,mode});
 }
+/* P1-08 §70-C: real original GAS writes; five B02/B03/B04/B09/B12
+ * views consume a single strictly checked current-state summary, not an event. */
+function waitlistNodeText_(n){return [n.textContent,...n.children.map(waitlistNodeText_)].join(' ');}
+test('P1-08 B02 B03 B04 B09 and B12 reconcile a genuine FIFO WAITING record without fictitious bookings',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const person=waitlistVerifiedVisitor_(srv);person.v.click('v08WaitJoin');
+ const data=srv.read(),total=data.waitlist.summary.total;
+ assert.equal(total.WAITING,1);assert.equal(total.OFFERED,0);
+ assert.equal(total.ACCEPTED,0);assert.equal(total.total,1);
+ assert.equal(data.waitlist.summary.byStage['E1:SINGLE_SESSION'].WAITING,1);
+ assert.equal(data.waitlist.summary.byExperiment.E2.total,0);
+ assert.equal(data.applications.find(a=>a.id===person.id).phase,'VERIFIED');
+ const team=page(srv,'team'),reads=srv.writes;
+ const b02=team.get('waitlistStatus').textContent;
+ assert.match(b02,/等待1，邀請待處理0，已接受0，逾期0，退出0/);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/等待順位 1/);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/不計入原B09已成立預約/);
+ const row=team.get('entries').children.find(x=>x.dataset.participantId===person.id);
+ assert.ok(row);
+ assert.match(waitlistNodeText_(row),/候補現況.*等待順位/);
+ row.children.find(x=>x.tagName==='button').handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileSummary')),/候補目前狀態.*等待順位/);
+ const audit=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='audit');
+ audit.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTimeline')),/目前候補狀態（非稽核事件）/);
+ const before=srv.read().b06.revision;
+ const b12=srv.ctx.study1UnifiedB12AuditPage({
+  after:'',expectedB06Revision:before,expectedFixtureRevision:srv.read().revision,
+  limit:30,module:'WAITLIST',result:'CURRENT_SNAPSHOT',search:'',snapshotHash:'',sort:'DESC'});
+ assert.equal(b12.total,1);assert.equal(b12.items.length,1);
+ assert.equal(b12.items[0].action,'WAITING');
+ assert.equal(b12.items[0].historical,false);
+ assert.equal(b12.items[0].at,null);
+ assert.equal(b12.items[0].result,'CURRENT_SNAPSHOT');
+ assert.equal(b12.coverage.waitlistSummary.total.WAITING,1);
+ assert.equal(b12.coverage.complete,false);
+ assert.ok(b12.coverage.warnings.some(w=>w.code==='WAITLIST_CURRENT_ONLY'));
+ team.set('b12ModuleFilter','WAITLIST');team.change('b12ModuleFilter');
+ team.set('b12Result','CURRENT_SNAPSHOT');team.change('b12Result');
+ team.click('b12SearchButton');
+ assert.match(waitlistNodeText_(team.get('b12List')),/CURRENT_TEST_WAITLIST_ONLY/);
+ assert.match(team.get('b12Coverage').textContent,/不是完整稽核歷程/);
+ assert.equal(srv.writes,reads,'cross-module views and B12 are read-only');
+ closed(srv);
+});
+test('P1-08 B09 scoped and date-filtered waitlist snapshot never changes booked/attendance metrics',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const p=waitlistVerifiedVisitor_(srv);p.v.click('v08WaitJoin');
+ const team=page(srv,'team'),base=waitlistNodeText_(team.get('b09Metrics'));
+ assert.match(base,/期間已成立預約/);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/合計 1 個虛構候補代碼/);
+ team.set('b09Scope','E2');team.click('b09Apply');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/合計 0 個虛構候補代碼/);
+ team.set('b09Scope','E1');
+ team.set('b09Start','2027-02-01');team.set('b09End','2027-02-28');team.click('b09Apply');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/合計 0 個虛構候補代碼/);
+ team.set('b09Start','2027-01-05');team.set('b09End','2027-01-05');team.click('b09Apply');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/合計 1 個虛構候補代碼/);
+ assert.match(team.get('b09Notes').textContent,/候補另依其原始場次日期統計/);
+ closed(srv);
+});
+test('P1-08 source tampering of shared status counts, slot stage or audit snapshot must reject B02 B03 B04 B09 B12',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const p=waitlistVerifiedVisitor_(srv);p.v.click('v08WaitJoin');
+ const team=page(srv,'team'),read=srv.read,writes=srv.writes;
+ const corrupt=change=>{
+  srv.read=()=>{const d=read();change(d);return d;};
+  team.click('refresh');
+  assert.equal(team.get('waitlistRows').children.length,0);
+  assert.equal(team.get('waitlistAdvance').disabled,true);
+  assert.equal(team.get('entries').children.length,0);
+  assert.equal(team.get('profileModule').hidden,true);
+  assert.equal(team.get('b09Metrics').children.length,0);
+  assert.equal(team.get('b09WaitlistSummary').children.length,0);
+ };
+ corrupt(d=>{d.waitlist.summary.total.WAITING=0;});
+ corrupt(d=>{d.waitlist.summary.bySlot[0].counts.ACCEPTED=1;});
+ corrupt(d=>{d.waitlist.summary.byStage['E1:SINGLE_SESSION'].WAITING=7;});
+ corrupt(d=>{d.waitlist.summary.bySlot[0].stage='POSTTEST';});
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('waitlistRows').children.length,1);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
 test('P1-08 TEST source starts with E1 manual and E2 closed with no guessed stage or mail',()=>{
  const srv=server(),v=srv.read();
  assert.equal(v.waitlist.settings.experiments.E1,'MANUAL_TEST');
