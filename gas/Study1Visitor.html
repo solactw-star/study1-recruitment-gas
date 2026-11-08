@@ -276,67 +276,6 @@ function v05Read_(response,a){
  }
  return out.sort((x,y)=>x.day.localeCompare(y.day)||x.time.localeCompare(y.time));
 }
-/* Read-only V05/V08 queue projection. All decisions rechecked by locked GAS. */
-function v08WaitRender_(app){
- const slotBox=$('v08WaitSlot'),info=$('v08WaitStatus'),join=$('v08WaitJoin'),
-  accept=$('v08WaitAccept'),decline=$('v08WaitDecline'),prev=slotBox.value;
- slotBox.replaceChildren();join.disabled=true;accept.disabled=true;decline.disabled=true;
- $('v08WaitRefresh').disabled=busy||v07.blocked;
- if(!safePreview(model)||!app||app.phase!=='VERIFIED'||app.eligible!==true){
-  $('v08WaitBox').hidden=true;info.textContent='尚無可操作的虛構候補資格。';return;
- }
- const list=model.waitlist.entries,entry=list.find(e=>e.id===app.id);
- const full=model.slots.filter(s=>s.experiment===app.experiment&&s.bookable===true&&
-  s.remaining===0&&Date.parse(s.when.replace(' ','T')+':00+08:00')>Date.now()&&
-  !['CANCELLED','CLOSED'].includes(model.b02?.sessions?.[s.id]?.status));
- for(const s of full){
-  const o=document.createElement('option');o.value=s.id;
-  o.textContent=s.when+'｜'+s.id+'｜額滿可候補（非預約）';slotBox.append(o);
- }
- if(full.some(s=>s.id===prev))slotBox.value=prev;
- $('v08WaitBox').hidden=!entry&&full.length===0;
- if(entry){
-  const status=entry.status==='WAITING'?'等待第 '+entry.rank+' 位（依同場序號，非正式錄取）':
-   entry.status==='OFFERED'?
-    (entry.expiredOffer||Date.now()>=entry.expiresAt?
-      '虛構邀請已逾期，需OWNER人工處理下一順位；此邀請不得接受。':
-      '目前有期限內虛構邀請，截止 '+new Date(entry.expiresAt).toISOString()+
-       '；按接受只取得15分鐘暫留，仍須示範同意與最後確認。'):
-   entry.status==='ACCEPTED'?'已接受邀請，後續仍依原TEST流程確認':
-   entry.status==='EXPIRED'?'候補邀請逾期；不代表已通知或完成預約':'已退出候補';
-  info.textContent=entry.slotId+'｜'+status+'｜來源修訂版 '+model.revision;
-  accept.disabled=busy||v07.blocked||entry.status!=='OFFERED'||
-    entry.expiredOffer||Date.now()>=entry.expiresAt;
-  decline.disabled=busy||v07.blocked||!['WAITING','OFFERED'].includes(entry.status);
-  $('hold').disabled=true;return;
- }
- info.textContent=full.length?'目前有 '+full.length+' 個額滿未來虛構場次；加入後等待OWNER人工依序處理，沒有實際郵件。':
-  '目前沒有可核實的額滿候補場次。';
- join.disabled=busy||v07.blocked||!full.some(s=>s.id===slotBox.value);
-}
-$('v08WaitSlot').addEventListener('change',()=>v08WaitRender_(current()));
-$('v08WaitRefresh').addEventListener('click',()=>{
- if(!busy&&!v07.blocked&&model)v07Readback_(false,'手動候補唯讀核對');
-});
-$('v08WaitJoin').addEventListener('click',()=>{
- const app=current(),slot=model?.slots?.find(s=>s.id===$('v08WaitSlot').value);
- if(!app||$('v08WaitJoin').disabled||app.phase!=='VERIFIED'||!slot||
-   slot.experiment!==app.experiment||slot.remaining!==0)return;
- issue('WAITLIST_JOIN',{id:app.id,slotId:slot.id});
-});
-$('v08WaitAccept').addEventListener('click',()=>{
- const app=current(),e=model?.waitlist?.entries?.find(x=>x.id===app?.id);
- if(!app||$('v08WaitAccept').disabled||!e||e.status!=='OFFERED'||
-   e.expiredOffer||Date.now()>=e.expiresAt)return;
- issue('WAITLIST_ACCEPT',{id:app.id});
-});
-$('v08WaitDecline').addEventListener('click',()=>{
- const app=current(),e=model?.waitlist?.entries?.find(x=>x.id===app?.id);
- if(!app||$('v08WaitDecline').disabled||!e||
-  !['WAITING','OFFERED'].includes(e.status))return;
- issue('WAITLIST_DECLINE',{id:app.id});
-});
-
 function v05Render_(a){
  const slots=v05Read_(model,a);
  if(slots===null){
@@ -469,6 +408,68 @@ function v06Render_(){
   '預約場次、同意紀錄或來源版本無法核實；禁止提交，請重新載入。';
  $('confirm').disabled=busy||!values;
 }
+
+/* Read-only V05/V08 queue projection. All decisions rechecked by locked GAS. */
+function v08WaitRender_(app){
+ const slotBox=$('v08WaitSlot'),info=$('v08WaitStatus'),join=$('v08WaitJoin'),
+  accept=$('v08WaitAccept'),decline=$('v08WaitDecline'),prev=slotBox.value;
+ slotBox.replaceChildren();join.disabled=true;accept.disabled=true;decline.disabled=true;
+ $('v08WaitRefresh').disabled=busy||v07.blocked;
+ if(!safePreview(model)||!app||app.phase!=='VERIFIED'||app.eligible!==true){
+  $('v08WaitBox').hidden=true;info.textContent='尚無可操作的虛構候補資格。';return;
+ }
+ const list=model.waitlist.entries,entry=list.find(e=>e.id===app.id);
+ const full=model.slots.filter(s=>s.experiment===app.experiment&&s.bookable===true&&
+  s.remaining===0&&Date.parse(s.when.replace(' ','T')+':00+08:00')>Date.now()&&
+  !['CANCELLED','CLOSED'].includes(model.b02?.sessions?.[s.id]?.status));
+ for(const s of full){
+  const o=document.createElement('option');o.value=s.id;
+  o.textContent=s.when+'｜'+s.id+'｜額滿可候補（非預約）';slotBox.append(o);
+ }
+ if(full.some(s=>s.id===prev))slotBox.value=prev;
+ $('v08WaitBox').hidden=!entry&&full.length===0;
+ if(entry){
+  const status=entry.status==='WAITING'?'等待第 '+entry.rank+' 位（依同場序號，非正式錄取）':
+   entry.status==='OFFERED'?
+    (entry.expiredOffer||Date.now()>=entry.expiresAt?
+      '虛構邀請已逾期，需OWNER人工處理下一順位；此邀請不得接受。':
+      '目前有期限內虛構邀請，截止 '+new Date(entry.expiresAt).toISOString()+
+       '；按接受只取得15分鐘暫留，仍須示範同意與最後確認。'):
+   entry.status==='ACCEPTED'?'已接受邀請，後續仍依原TEST流程確認':
+   entry.status==='EXPIRED'?'候補邀請逾期；不代表已通知或完成預約':'已退出候補';
+  info.textContent=entry.slotId+'｜'+status+'｜來源修訂版 '+model.revision;
+  accept.disabled=busy||v07.blocked||entry.status!=='OFFERED'||
+    entry.expiredOffer||Date.now()>=entry.expiresAt;
+  decline.disabled=busy||v07.blocked||!['WAITING','OFFERED'].includes(entry.status);
+  $('hold').disabled=true;return;
+ }
+ info.textContent=full.length?'目前有 '+full.length+' 個額滿未來虛構場次；加入後等待OWNER人工依序處理，沒有實際郵件。':
+  '目前沒有可核實的額滿候補場次。';
+ join.disabled=busy||v07.blocked||!full.some(s=>s.id===slotBox.value);
+}
+$('v08WaitSlot').addEventListener('change',()=>v08WaitRender_(current()));
+$('v08WaitRefresh').addEventListener('click',()=>{
+ if(!busy&&!v07.blocked&&model)v07Readback_(false,'手動候補唯讀核對');
+});
+$('v08WaitJoin').addEventListener('click',()=>{
+ const app=current(),slot=model?.slots?.find(s=>s.id===$('v08WaitSlot').value);
+ if(!app||$('v08WaitJoin').disabled||app.phase!=='VERIFIED'||!slot||
+   slot.experiment!==app.experiment||slot.remaining!==0)return;
+ issue('WAITLIST_JOIN',{id:app.id,slotId:slot.id});
+});
+$('v08WaitAccept').addEventListener('click',()=>{
+ const app=current(),e=model?.waitlist?.entries?.find(x=>x.id===app?.id);
+ if(!app||$('v08WaitAccept').disabled||!e||e.status!=='OFFERED'||
+   e.expiredOffer||Date.now()>=e.expiresAt)return;
+ issue('WAITLIST_ACCEPT',{id:app.id});
+});
+$('v08WaitDecline').addEventListener('click',()=>{
+ const app=current(),e=model?.waitlist?.entries?.find(x=>x.id===app?.id);
+ if(!app||$('v08WaitDecline').disabled||!e||
+  !['WAITING','OFFERED'].includes(e.status))return;
+ issue('WAITLIST_DECLINE',{id:app.id});
+});
+
 
 function render(){
  if(!model)return;
