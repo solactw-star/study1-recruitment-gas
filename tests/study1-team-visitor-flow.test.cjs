@@ -3225,8 +3225,9 @@ test('P1-08 owner manual expiry advances to next ranked offer, then V08 accepts 
  srv.ctx.Date=Clock;
  waitlistFillConfirmed_(srv);
  const first=waitlistVerifiedVisitor_(srv,{Date:Clock});
+ first.v.click('v08WaitJoin'); // first original-GAS CAS must complete before another tab reads the revision
  const second=waitlistVerifiedVisitor_(srv,{Date:Clock});
- first.v.click('v08WaitJoin');second.v.click('v08WaitJoin');
+ second.v.click('v08WaitJoin');
  const notices=srv.read().notifications.length;
  srv.command('CANCEL',{id:'SIM-001'}); // one seat; never a queue promotion
  const team=page(srv,'team',{Date:Clock});
