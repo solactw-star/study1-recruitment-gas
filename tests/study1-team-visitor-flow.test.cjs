@@ -3225,7 +3225,10 @@ test('P1-08 B02 B03 B04 B09 and B12 reconcile a genuine FIFO WAITING record with
  assert.ok(row);
  assert.match(waitlistNodeText_(row),/候補現況.*等待順位/);
  row.children.find(x=>x.tagName==='button').handlers.click();
- assert.match(waitlistNodeText_(team.get('profileSummary')),/候補目前狀態.*等待順位/);
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');
+ booking.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTabBody')),/候補目前狀態.*等待順位/);
  const audit=[...team.context.document.querySelectorAll('[data-b04-tab]')]
   .find(x=>x.dataset.b04Tab==='audit');
  audit.handlers.click();
@@ -3244,6 +3247,7 @@ test('P1-08 B02 B03 B04 B09 and B12 reconcile a genuine FIFO WAITING record with
  assert.ok(b12.coverage.warnings.some(w=>w.code==='WAITLIST_CURRENT_ONLY'));
  team.set('b12ModuleFilter','WAITLIST');team.change('b12ModuleFilter');
  team.set('b12Result','CURRENT_SNAPSHOT');team.change('b12Result');
+ team.set('b12Limit','10');team.set('b12Sort','DESC');
  team.click('b12SearchButton');
  assert.match(waitlistNodeText_(team.get('b12List')),/CURRENT_TEST_WAITLIST_ONLY/);
  assert.match(team.get('b12Coverage').textContent,/不是完整稽核歷程/);
