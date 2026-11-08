@@ -102,6 +102,16 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <div id="v05Choices" class="v05SlotCards" role="group" aria-label="當日可預約的虛構時段"></div>
 <label class="field" for="slot">當日虛構場次（可使用鍵盤與選單操作）</label><select id="slot"></select>
 <div class="actionrow"><button id="hold" type="button" disabled>保留此虛構時段並繼續</button></div>
+<div id="v08WaitBox" class="box" aria-label="純TEST候補順位與有效期限">
+ <strong>V05～V08｜虛構額滿候補與遞補回覆</strong>
+ <p class="help">只可在原GAS額滿的未來時段排候補；順位依入列順序，需OWNER人工處理。十分鐘邀請不寄信、不自動成立預約；逾期不得接受。</p>
+ <label for="v08WaitSlot" class="field">額滿場次（虛構）</label><select id="v08WaitSlot"></select>
+ <button id="v08WaitRefresh" type="button" class="ghost" disabled>唯讀重新核對候補與邀請（不重送）</button>
+ <div class="actionrow"><button id="v08WaitJoin" type="button" disabled>加入虛構候補</button>
+ <button id="v08WaitAccept" type="button" disabled>接受有效邀請並暫留</button>
+ <button id="v08WaitDecline" type="button" disabled>退出虛構候補</button></div>
+ <p id="v08WaitStatus" class="help" role="status">候補來源尚未核實。</p>
+</div>
 <p class="help">未列出的日期不代表沒有申請者。若來源或日期異常，所有選擇會停用；虛構操作不會占用正式研究名額。</p></section>
 <section class="step" id="step-consent" hidden><span class="tag">STEP 05 · 同意說明</span><h2>了解研究與參與者權益</h2>
 <p class="lead" id="consentStudyTitle">您正在體驗研究同意程序。</p>
@@ -166,7 +176,19 @@ function safePreview(response){
   response.recruitment?.E1?.year===2026&&response.recruitment?.E2?.year===2027&&
   !!response.definitions?.E1&&!!response.definitions?.E2&&
   !!response.policy?.screening?.questions&&!!response.config&&
-  Array.isArray(response.applications)&&Array.isArray(response.slots);
+  Array.isArray(response.applications)&&Array.isArray(response.slots)&&
+  response.waitlist?.mode==='MANUAL_TEST_NO_MAIL'&&
+  Number.isSafeInteger(response.waitlist?.asOf)&&
+  Array.isArray(response.waitlist.entries)&&response.waitlist.entries.length<=8&&
+   response.waitlist.entries.every((e,i)=>{
+    const a=response.applications.find(x=>x.id===e?.id),
+     slot=response.slots.find(s=>s.id===e?.slotId);
+    return !!a&&!!slot&&a.experiment===e.experiment&&
+     slot.experiment===e.experiment&&e.seq===i+1&&
+     ['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'].includes(e.status)&&
+     Number.isSafeInteger(e.joinedAt)&&
+     (e.expiresAt===null||Number.isSafeInteger(e.expiresAt));
+   });
 }
 function refuseReply(message){
  busy=false;model=null;selected=null;pending=null;
@@ -174,6 +196,9 @@ function refuseReply(message){
  $('v07Result').textContent='狀態未知：OWNER或研究安全來源無法核實；不能視為提交成功或失敗。';
  $('v07Rescan').disabled=false;
  v05Clear_('安全來源已拒絕，虛構日期與時段已清空。');
+ $('v08WaitSlot').replaceChildren();$('v08WaitJoin').disabled=true;$('v08WaitRefresh').disabled=true;
+ $('v08WaitAccept').disabled=true;$('v08WaitDecline').disabled=true;
+ $('v08WaitStatus').textContent='候補來源或OWNER安全資料不可信，已清空。';
  v08Clear_('OWNER或研究安全來源遭拒，變更預覽已清空。');
  $('chooseE1').disabled=true;$('chooseE2').disabled=true;
  v07Lock_();
@@ -421,7 +446,7 @@ function render(){
  $('otpInputWrap').hidden=a.phase!=='OTP_SENT';
  $('otpVerify').disabled=busy||a.phase!=='OTP_SENT';
  $('consentStudyTitle').textContent=studyName(a.experiment)+'｜同意說明流程示範';
- v05Render_(a);
+ v05Render_(a);v08WaitRender_(a);
  const available=model.slots.filter(s=>s.experiment===a.experiment&&s.bookable&&s.remaining>0);
  const other=available.filter(s=>s.id!==a.slotId);makeOptions($('moveSlot'),other);
  $('move').disabled=busy||a.phase!=='CONFIRMED'||other.length===0;
@@ -442,13 +467,77 @@ function render(){
  v08Render_();
  if(v07.blocked)v07Lock_();
 }
+/* Read-only V05/V08 queue projection. All decisions rechecked by locked GAS. */
+function v08WaitRender_(app){
+ const slotBox=$('v08WaitSlot'),info=$('v08WaitStatus'),join=$('v08WaitJoin'),
+  accept=$('v08WaitAccept'),decline=$('v08WaitDecline'),prev=slotBox.value;
+ slotBox.replaceChildren();join.disabled=true;accept.disabled=true;decline.disabled=true;
+ $('v08WaitRefresh').disabled=busy||v07.blocked;
+ if(!safePreview(model)||!app||app.phase!=='VERIFIED'||app.eligible!==true){
+  $('v08WaitBox').hidden=true;info.textContent='尚無可操作的虛構候補資格。';return;
+ }
+ const list=model.waitlist.entries,entry=list.find(e=>e.id===app.id);
+ const full=model.slots.filter(s=>s.experiment===app.experiment&&s.bookable===true&&
+  s.remaining===0&&Date.parse(s.when.replace(' ','T')+':00+08:00')>Date.now()&&
+  !['CANCELLED','CLOSED'].includes(model.b02?.sessions?.[s.id]?.status));
+ for(const s of full){
+  const o=document.createElement('option');o.value=s.id;
+  o.textContent=s.when+'｜'+s.id+'｜額滿可候補（非預約）';slotBox.append(o);
+ }
+ if(full.some(s=>s.id===prev))slotBox.value=prev;
+ $('v08WaitBox').hidden=!entry&&full.length===0;
+ if(entry){
+  const status=entry.status==='WAITING'?'等待第 '+entry.rank+' 位（依同場序號，非正式錄取）':
+   entry.status==='OFFERED'?
+    (entry.expiredOffer||Date.now()>=entry.expiresAt?
+      '虛構邀請已逾期，需OWNER人工處理下一順位；此邀請不得接受。':
+      '目前有期限內虛構邀請，截止 '+new Date(entry.expiresAt).toISOString()+
+       '；按接受只取得15分鐘暫留，仍須示範同意與最後確認。'):
+   entry.status==='ACCEPTED'?'已接受邀請，後續仍依原TEST流程確認':
+   entry.status==='EXPIRED'?'候補邀請逾期；不代表已通知或完成預約':'已退出候補';
+  info.textContent=entry.slotId+'｜'+status+'｜來源修訂版 '+model.revision;
+  accept.disabled=busy||v07.blocked||entry.status!=='OFFERED'||
+    entry.expiredOffer||Date.now()>=entry.expiresAt;
+  decline.disabled=busy||v07.blocked||!['WAITING','OFFERED'].includes(entry.status);
+  $('hold').disabled=true;return;
+ }
+ info.textContent=full.length?'目前有 '+full.length+' 個額滿未來虛構場次；加入後等待OWNER人工依序處理，沒有實際郵件。':
+  '目前沒有可核實的額滿候補場次。';
+ join.disabled=busy||v07.blocked||!full.some(s=>s.id===slotBox.value);
+}
+$('v08WaitSlot').addEventListener('change',()=>v08WaitRender_(current()));
+$('v08WaitRefresh').addEventListener('click',()=>{
+ if(!busy&&!v07.blocked&&model)v07Readback_(false,'手動候補唯讀核對');
+});
+$('v08WaitJoin').addEventListener('click',()=>{
+ const app=current(),slot=model?.slots?.find(s=>s.id===$('v08WaitSlot').value);
+ if(!app||$('v08WaitJoin').disabled||app.phase!=='VERIFIED'||!slot||
+   slot.experiment!==app.experiment||slot.remaining!==0)return;
+ issue('WAITLIST_JOIN',{id:app.id,slotId:slot.id});
+});
+$('v08WaitAccept').addEventListener('click',()=>{
+ const app=current(),e=model?.waitlist?.entries?.find(x=>x.id===app?.id);
+ if(!app||$('v08WaitAccept').disabled||!e||e.status!=='OFFERED'||
+   e.expiredOffer||Date.now()>=e.expiresAt)return;
+ issue('WAITLIST_ACCEPT',{id:app.id});
+});
+$('v08WaitDecline').addEventListener('click',()=>{
+ const app=current(),e=model?.waitlist?.entries?.find(x=>x.id===app?.id);
+ if(!app||$('v08WaitDecline').disabled||!e||
+  !['WAITING','OFFERED'].includes(e.status))return;
+ issue('WAITLIST_DECLINE',{id:app.id});
+});
+
+
+
 /* V07: a failed booking write is UNKNOWN, not necessarily uncommitted.
  * Only the existing OWNER-only TEST view can establish the current phase.
  * Never automatically replay a write or invent a manual-review approval. */
 function v07Lock_(){
  for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
   'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
-  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back'])$(id).disabled=true;
+  'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back',
+  'v08WaitSlot','v08WaitJoin','v08WaitAccept','v08WaitDecline','v08WaitRefresh'])$(id).disabled=true;
  for(const id of ['v05Dates','v05Choices'])
   for(const child of $(id).children)if(child.tagName==='button')child.disabled=true;
  $('v07Rescan').disabled=v07.recovering;
@@ -472,6 +561,11 @@ function v07Description_(response,last){
  const a=response.applications.find(x=>x.id===last.id);
  if(a.phase==='INELIGIBLE')
   return '資格不符：目前虛構申請來源標示不符合條件；不是待人工審核。';
+ if(last.action.startsWith('WAITLIST_')){
+  const entry=response.waitlist?.entries?.find(e=>e.id===last.id);
+  return entry?'目前虛構候補狀態：'+entry.status+'；只代表GET現況，無法證明剛才交易的因果結果。':
+   '尚無可核對候補紀錄，不能推定上次提交成功或失敗。';
+ }
  if(last.action==='CONFIRM'&&a.phase==='CONFIRMED'||
     last.action==='MOVE'&&a.phase==='CONFIRMED'&&a.slotId===last.slotId)
   return '目前狀態：虛構預約已成立。此為原GAS目前狀態，無法證明剛才那次提交成功。';
@@ -520,10 +614,14 @@ $('v07Rescan').addEventListener('click',()=>{
  v07Readback_(false,'手動唯讀重新核對');
 });
 function v07ConfirmResponse_(action,payload,response,priorRevision){
- if(!['HOLD','CONFIRM','MOVE','CANCEL'].includes(action))return true;
+ if(!['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action))return true;
  if(!v07SafeRead_(response,null)||response.revision!==priorRevision+1)return false;
  const a=response.applications.find(x=>x.id===payload.id);
  if(!a)return false;
+ const entry=response.waitlist.entries.find(e=>e.id===payload.id);
+ if(action==='WAITLIST_JOIN')return !!entry&&entry.status==='WAITING'&&entry.slotId===payload.slotId;
+ if(action==='WAITLIST_ACCEPT')return !!entry&&entry.status==='ACCEPTED'&&a.phase==='HELD'&&a.slotId===entry.slotId;
+ if(action==='WAITLIST_DECLINE')return !!entry&&entry.status==='DECLINED';
  if(action==='HOLD')return a.phase==='HELD'&&a.slotId===payload.slotId;
  if(action==='CONFIRM')return a.phase==='CONFIRMED';
  if(action==='MOVE')return a.phase==='CONFIRMED'&&a.slotId===payload.slotId;
@@ -676,7 +774,7 @@ function issue(action,payload,onSuccess){
  if(busy||v07.blocked||!model)return;
  const fingerprint=JSON.stringify([action,payload]);
  if(!pending||pending.fingerprint!==fingerprint){
-  pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)};
+  pending={fingerprint,id:'REQ-SIM-TEACHER_'+Date.now()+'_'+(++reqCounter)+'_'+Math.floor(Math.random()*100000000)};
  }
  const envelope={action,payload,requestId:pending.id,expectedRevision:model.revision};
  const priorRevision=model.revision,priorApp=current();
@@ -687,17 +785,20 @@ function issue(action,payload,onSuccess){
   }
   busy=false;model=response;pending=null;
   v07.blocked=false;v07.last=null;
-  if(['HOLD','CONFIRM','MOVE','CANCEL'].includes(action))
+  if(['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action))
    $('v07Result').textContent=action==='HOLD'?'原GAS已確認虛構時段暫留；非正式預約。':
     action==='CONFIRM'?'原GAS已確認虛構預約成立；非正式招募。':
     action==='MOVE'?'原GAS已確認虛構預約改期；非正式招募。':
-    '原GAS已確認虛構預約取消；非正式資料。';
+    action==='CANCEL'?'原GAS已確認虛構預約取消；非正式資料。':
+    action==='WAITLIST_JOIN'?'原GAS已確認虛構候補順位，尚非預約。':
+    action==='WAITLIST_ACCEPT'?'原GAS已確認候補邀請轉為虛構暫留，仍須示範同意與確認。':
+    '已退出虛構候補；未寄信。';
   if(action==='START'&&response.applications.length)selected=response.applications[response.applications.length-1].id;
   render();
   if(typeof onSuccess==='function')onSuccess(response);
  }).withFailureHandler(e=>{
   const detail=String(e&&e.message||e);
-  if(['HOLD','CONFIRM','MOVE','CANCEL'].includes(action)){
+  if(['HOLD','CONFIRM','MOVE','CANCEL','WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action)){
    v07.last={action,id:payload.id,slotId:payload.slotId||null,
     experiment:priorApp?.experiment||null};
    v07Readback_(true,detail);return;

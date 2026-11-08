@@ -526,7 +526,10 @@ test('Owner-only GAS whole-site in-memory acceptance uses same E1/E2 kernels wit
  assert.ok(r.checks.includes('E1_CONFIRM'));assert.ok(r.checks.includes('E2_EXCLUSION'));
  assert.ok(r.checks.includes('FORMAL_ADAPTER_DENIED'));
  assert.equal(s.writes,writes);assert.equal(s.deletes,deletes);
- assert.deepEqual(s.read(),before);
+ const after=s.read();
+ // Queue asOf is a READ-ONLY server timestamp; time may elapse during a zero-write self test.
+ assert.ok(Number.isSafeInteger(after.waitlist.asOf)&&after.waitlist.asOf>=before.waitlist.asOf);
+ assert.deepEqual({...after,waitlist:{...after.waitlist,asOf:before.waitlist.asOf}},before);
  assert.equal(s.p.get('OPEN'),'false');assert.equal(s.p.get('CONSENT_READY'),'false');
  assert.equal(s.held,false);
 });
