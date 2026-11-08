@@ -1675,7 +1675,7 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     for(const id of ids){
      const slot=s.slots.find(z=>z.id===id),oldMeta=meta[id];
      if(oldMeta?.status==='CANCELLED')throw Error('已取消場次不能直接再開放');
-     if(study1UnifiedCapacity_(s,id,now)>p.capacity)throw Error('新容量低於已占用名額');
+     if(study1UnifiedCapacity_(s,id,now)+s.waitlist.entries.filter(e=>e.slotId===id&&e.status==='OFFERED'&&e.expiresAt>now).length>p.capacity)throw Error('新容量低於現有預約與有效候補邀請');
      if(id===p.slotId&&slot.when!==p.when&&s.applications.some(a=>a.slotId===id))
       throw Error('已有預約歷史，須先逐人處理，禁止靜默改期');
      if(id===p.slotId)slot.when=p.when;
@@ -1959,6 +1959,52 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   }
   s.policy=next;return;
  }
+ if(action==='WAITLIST_ADVANCE'){
+  if(Object.keys(p).join(',')!=='slotId'||typeof p.slotId!=='string'||
+   !/^SIM-SLOT-E[12]-[A-H]$/.test(p.slotId))
+   throw Error('候補遞補只接受虛構場次代碼');
+  study1WaitlistAdvance_(s,p.slotId,now);return;
+ }
+ if(['WAITLIST_JOIN','WAITLIST_ACCEPT','WAITLIST_DECLINE'].includes(action)){
+  const joining=action==='WAITLIST_JOIN';
+  if(joining?Object.keys(p).sort().join(',')!=='id,slotId':
+   Object.keys(p).join(',')!=='id')throw Error('候補指令欄位不合法');
+  if(!/^SIM-[0-9]{3}$/.test(p.id))throw Error('非虛構候補代碼');
+  const a=byId(p.id),e=s.waitlist.entries.find(x=>x.id===p.id);
+  if(!a||a.eligible!==true)throw Error('未達TEST候補資格');
+  if(joining){
+   const slot=s.slots.find(x=>x.id===p.slotId&&x.experiment===a.experiment);
+   if(a.phase!=='VERIFIED'||a.slotId!==null||e||s.waitlist.entries.length>=8||
+    !slot||Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now+600000||
+    ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
+    study1WaitlistFree_(s,slot.id,now)!==0)
+    throw Error('候補僅限同實驗已額滿、未取消之未來虛構時段');
+   s.waitlist.entries.push({id:a.id,slotId:slot.id,experiment:a.experiment,
+    seq:++s.waitlist.nextSeq,joinedAt:now,status:'WAITING',
+    offeredAt:null,expiresAt:null,closedAt:null});return;
+  }
+  if(!e||a.phase!=='VERIFIED'||!['WAITING','OFFERED'].includes(e.status))
+   throw Error('虛構候補無可執行的邀請');
+  if(action==='WAITLIST_DECLINE'){
+   e.status='DECLINED';e.closedAt=now;return;
+  }
+  const slot=s.slots.find(x=>x.id===e.slotId&&x.experiment===a.experiment);
+  if(e.status!=='OFFERED'||e.expiresAt<=now||!slot||
+   Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
+   ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
+   study1UnifiedCapacity_(s,slot.id,now)>=slot.capacity)
+   throw Error('候補邀請已過期、場次無效或無可核實名額');
+  // The same locked, CAS-protected core creates a synthetic hold. The
+  // accepted offer consumes its reserved capacity, never auto-confirms.
+  study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock);
+  a.slotId=slot.id;a.phase='HELD';a.holdUntil=now+900000;
+  a.consentVersion=s.policy.consent[a.experiment].version;
+  a.consentSha256=s.policy.consent[a.experiment].sha256;
+  a.consentReviewedAt=null;a.consentReviewedVersion=null;
+  a.consentReviewedSha256=null;a.pdfDemoReviewedAt=null;
+  a.pdfDemoSha256=null;a.signatureDemo=false;
+  e.status='ACCEPTED';e.closedAt=now;return;
+ }
  if(typeof p.id!=='string'||!/^SIM-[0-9]{3}$/.test(p.id))throw Error('只能操作虛構申請識別碼');
  const a=byId(p.id);if(!a)throw Error('虛構申請不存在');
  if(action==='SCREEN'){
@@ -1984,6 +2030,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   return;
  }
  if(action==='HOLD'||action==='MOVE'){
+  if(action==='HOLD'&&s.waitlist.entries.some(e=>e.id===a.id&&['WAITING','OFFERED'].includes(e.status)))
+   throw Error('候補未退出或邀請尚有效，禁止繞過順序直接暫留');
   // Expired synthetic holds can be renewed only after a fresh capacity check.
   const expiredHold=['HELD','CONSENTED'].includes(a.phase)&&
    Number.isFinite(a.holdUntil)&&a.holdUntil<=now;
@@ -1995,7 +2043,8 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
   if(!slot||(slot.id===a.slotId&&!expiredHold)||
      Date.parse(slot.when.replace(' ','T')+':00+08:00')<=now||
      ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
-     !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0)))
+     !(study1UnifiedCoreAvailability_(s,now).some(x=>x.slotId===slot.id&&x.remaining>0))||
+     study1WaitlistFree_(s,slot.id,now)<1)
     throw Error('測試時段不存在、重複、已開始或已額滿');
   if(action==='HOLD')study1FixtureHold_(s,a,slot,cmd.requestId,now,outerLock);
   a.slotId=slot.id;
