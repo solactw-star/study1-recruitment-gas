@@ -2021,6 +2021,127 @@ function cancelTestSession_(team,id='SIM-SLOT-E1-A'){
  cancel.handlers.click();
  return team.get('calCancelReview');
 }
+
+test('P1 B02 cancel independently GETs B03 board and B04 booking without cancelling a held attendee',()=>{
+ const srv=server(),visitor=v07VerifiedVisitor_(srv);
+ visitor.click('hold');
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',progress:'PARTIAL',note:'模擬當日出席'});
+ const original=srv.read(),team=page(srv,'team'),before=srv.writes;
+ team.set('b03Booking','BOOKED');team.change('b03Booking');
+ team.click('b03BoardMode');
+ const preview=cancelTestSession_(team);
+ assert.equal(preview.hidden,false);
+ assert.match(team.get('calCancelRows').children[0].textContent,/SIM-001.*已出席/);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ const callAt=team.calls.length;team.click('calCancelCommit');
+ assert.deepEqual(team.calls.slice(callAt).filter(x=>x!=='B01_GET'),['ADMIN_B02_SLOT','READ']);
+ assert.equal(srv.writes,before+1,'single original GAS CAS write');
+ const fresh=srv.read(),beforeApp=original.applications.find(x=>x.id==='SIM-001');
+ assert.equal(fresh.b02.sessions[beforeApp.slotId].status,'CANCELLED');
+ assert.equal(fresh.applications.find(x=>x.id==='SIM-001').slotId,beforeApp.slotId);
+ assert.equal(fresh.applications.find(x=>x.id==='SIM-001').phase,beforeApp.phase);
+ assert.equal(fresh.b02.attendance['SIM-001'].attendance,'PRESENT');
+ assert.equal(fresh.b02.attendance['SIM-001'].progress,'PARTIAL');
+ assert.equal(fresh.b02.attendance['SIM-001'].note,'模擬當日出席');
+ assert.equal(fresh.b04.history.length,original.b04.history.length,'B04 audit untouched by B02 session cancellation');
+ assert.equal(fresh.notifications.length,0);
+ assert.match(team.get('calStatusMessage').textContent,/取消已獨立回讀確認/);
+ assert.match(team.get('b03ReconcileStatus').textContent,/原個別預約與出席保留 1 筆/);
+ assert.equal(team.get('b03Booking').value,'BOOKED');
+ assert.equal(team.get('b03Board').hidden,false,'B03 board mode retained');
+ const card=team.get('b03Board').children.flatMap(g=>g.children)
+  .filter(x=>x.className==='b03Columns').flatMap(g=>g.children)
+  .flatMap(g=>g.children).find(x=>x.dataset.participantId==='SIM-001');
+ assert.ok(card);assert.match(card.textContent,/場次已取消｜原預約保留，待人工處理/);
+ assert.match(card.textContent,/已出席/);
+ card.handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');booking.handlers.click();
+ const grid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ const labelValues=grid.children.map(x=>x.children.map(y=>y.textContent).join('：')).join(' ');
+ assert.match(labelValues,/場次已取消/);
+ assert.match(labelValues,/原個別預約與出席保留，待人工處理/);
+ assert.match(labelValues,/預約流程.*暫留預約/);
+ assert.match(team.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),
+  /B02場次取消（原預約保留）/);
+ assert.equal(srv.writes,before+1,'B03 board and B04 readback remain read-only');
+ team.click('profileBack');team.click('b03ListMode');
+ assert.match(team.get('entries').children[0].children.map(x=>x.textContent).join(' '),/場次 已取消（個別預約未取消，待人工處理）/);
+ closed(srv);
+});
+test('P1 B02 cancellation without linked participants records one event and independent owner GET',()=>{
+ const srv=server(),team=page(srv,'team'),before=srv.writes;
+ cancelTestSession_(team);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ const n=team.calls.length;team.click('calCancelCommit');
+ assert.deepEqual(team.calls.slice(n).filter(x=>x!=='B01_GET'),['ADMIN_B02_SLOT','READ']);
+ assert.equal(srv.writes,before+1);
+ assert.match(team.get('calStatusMessage').textContent,/原個別預約與出席保留 0 筆/);
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(srv.read().b02.history.at(-1).action,'CANCEL');
+ closed(srv);
+});
+test('P1 B02 cancelled session second OWNER tab stale CAS fails closed and never retries',()=>{
+ const srv=server(),a=page(srv,'team'),b=page(srv,'team');
+ for(const t of [a,b]){cancelTestSession_(t);t.get('calCancelAck').checked=true;t.change('calCancelAck');}
+ a.click('calCancelCommit');
+ const rev=srv.read().revision,writes=srv.writes,n=b.calls.length;
+ b.click('calCancelCommit');
+ assert.deepEqual(b.calls.slice(n),['ADMIN_B02_SLOT'],'rejected stale CAS must not auto-read/retry');
+ assert.equal(srv.writes,writes);assert.equal(srv.read().revision,rev);
+ assert.equal(b.get('entries').children.length,0);
+ assert.equal(b.get('calBoard').children.length,0);
+ assert.equal(b.get('profileModule').hidden,true);
+ assert.equal(b.get('calCancelCommit').disabled,true);
+ assert.match(b.get('calStatusMessage').textContent,/取消結果尚未確認/);
+ b.click('refresh');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1 B02 cancellation write followed by OWNER GET denial is uncertain and never replayed',()=>{
+ const srv=server(),team=page(srv,'team'),read=srv.read;
+ cancelTestSession_(team);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ const before=srv.writes,rev=read().revision;
+ srv.read=()=>{throw Error('OWNER source revoked');};
+ const n=team.calls.length;team.click('calCancelCommit');
+ assert.deepEqual(team.calls.slice(n),['ADMIN_B02_SLOT','READ']);
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.ctx.study1UnifiedPreviewGet().revision,rev+1);
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('calBoard').children.length,0);
+ assert.equal(team.get('calCancelCommit').disabled,true);
+ assert.match(team.get('calStatusMessage').textContent,/OWNER回讀失敗或撤權/);
+ assert.doesNotMatch(team.get('calStatusMessage').textContent,/獨立回讀確認/);
+ srv.read=read;team.click('refresh');
+ assert.equal(srv.writes,before+1);
+ assert.equal(team.get('b03Reconcile').disabled,false);
+ closed(srv);
+});
+test('P1 B02 cancellation rejects tampered post-write booking association before declaring success',()=>{
+ const srv=server(),visitor=v07VerifiedVisitor_(srv);visitor.click('hold');
+ const team=page(srv,'team'),real=srv.ctx.study1UnifiedPreviewCommand;
+ cancelTestSession_(team);team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ const before=srv.writes,n=team.calls.length;
+ srv.ctx.study1UnifiedPreviewCommand=command=>{
+  const d=real(command);
+  if(command.action==='ADMIN_B02_SLOT'&&command.payload.operation==='CANCEL')
+   d.applications[0].slotId='SIM-SLOT-E2-A';
+  return d;
+ };
+ team.click('calCancelCommit');
+ assert.deepEqual(team.calls.slice(n),['ADMIN_B02_SLOT'],'reject forged response, no subsequent GET');
+ assert.equal(srv.writes,before+1,'a single write may have succeeded, no retry');
+ assert.equal(team.get('entries').children.length,0);
+ assert.match(team.get('calStatusMessage').textContent,/取消結果無法證實/);
+ srv.ctx.study1UnifiedPreviewCommand=real;team.click('refresh');
+ assert.equal(srv.read().applications[0].slotId,'SIM-SLOT-E1-A');
+ assert.equal(srv.read().b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(srv.writes,before+1);
+ closed(srv);
+});
+
 test('B02-A explicit cancellation preflight lists linked synthetic holds and writes only after acknowledgement',()=>{
  const srv=server(),visitor=page(srv,'visitor');
  visitor.click('chooseE1');
