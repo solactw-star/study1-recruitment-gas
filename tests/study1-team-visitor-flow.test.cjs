@@ -606,6 +606,87 @@ test('P1 B04 rejects forged success audit and never claims independent readback'
  assert.equal(srv.writes,writes+1);closed(srv);
 });
 
+
+test('P1 B03 recent-source filter unifies real B02 ATTEND, B04 correction and B04 timeline (TEST)',()=>{
+ const srv=server();
+ v08ConfirmedVisitor_(srv);
+ srv.command('START',{experiment:'E2'});
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',progress:'PARTIAL',note:''});
+ srv.command('ADMIN_B04_NOTE',{id:'SIM-002',note:'虛構行政確認備註',reason:'模擬來源整理'});
+ const writes=srv.writes,team=page(srv,'team');
+ assert.equal(team.get('entries').children.length,2);
+ team.set('b03Sort','UPDATED_DESC');team.change('b03Sort');
+ team.set('b03UpdateSource','B02');team.change('b03UpdateSource');
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-001']);
+ assert.match(team.get('entries').children[0].children.at(-1).textContent,/B02出席／施測更正/);
+ team.click('b03BoardMode');
+ const e1=team.get('b03Board').children.find(x=>x.children[0].textContent.includes('實驗一'));
+ const card=e1.children.find(x=>x.className==='b03Columns').children
+  .flatMap(x=>x.children).find(x=>x.dataset.participantId==='SIM-001');
+ assert.match(card.textContent,/B02出席／施測更正/);
+ card.handlers.click();
+ const audit=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='audit');
+ audit.handlers.click();
+ const details=team.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
+ assert.match(details,/出席與施測更新（B02／B04）/);
+ assert.match(details,/PRESENT \/ PARTIAL/);
+ team.click('profileBack');
+ team.set('b03UpdateSource','B04');team.change('b03UpdateSource');
+ assert.deepEqual(team.get('b03Board').children.flatMap(g=>g.children.filter(x=>x.className==='b03Columns'))
+  .flatMap(g=>g.children).flatMap(x=>x.children).filter(x=>x.dataset.participantId)
+  .map(x=>x.dataset.participantId),['SIM-002']);
+ team.click('b03ListMode');
+ assert.match(team.get('entries').children[0].children.at(-1).textContent,/B04行政備註更正/);
+ team.click('b03Reconcile');
+ assert.equal(team.get('b03UpdateSource').value,'B04','source filter survives verified GET');
+ assert.deepEqual(team.get('entries').children.map(x=>x.dataset.participantId),['SIM-002']);
+ team.set('b03UpdateSource','NONE');team.change('b03UpdateSource');
+ assert.equal(team.get('entries').children.length,0);
+ team.click('b03Clear');assert.equal(team.get('b03UpdateSource').value,'ALL');
+ assert.equal(team.get('entries').children.length,2);
+ assert.equal(srv.writes,writes,'source filter, board and audit are read-only');
+ closed(srv);
+});
+
+test('P1 B02 unchanged attendance confirmation has provenance but does not fabricate a B04 correction',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PENDING',progress:'NOT_STARTED',note:''});
+ const source=srv.read();
+ assert.equal(source.b04.history.filter(h=>h.id==='SIM-001').length,0);
+ assert.equal(source.b02.history.at(-1).action,'ATTEND');
+ const team=page(srv,'team'),writes=srv.writes;
+ team.set('b03UpdateSource','B02');team.change('b03UpdateSource');
+ assert.equal(team.get('entries').children.length,1);
+ assert.match(team.get('entries').children[0].children.at(-1).textContent,/B02出席重新確認/);
+ team.get('entries').children[0].children.find(x=>/開啟完整資料/.test(x.textContent)).handlers.click();
+ const audit=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='audit');
+ audit.handlers.click();
+ assert.match(team.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' '),/B02出席狀態重新確認/);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+
+test('P1 B03 provenance guard rejects orphan B02 attendance event and divergent last B04 value',()=>{
+ const srv=server();v08ConfirmedVisitor_(srv);
+ srv.command('ADMIN_B02_ATTEND',{id:'SIM-001',attendance:'PRESENT',progress:'PARTIAL',note:''});
+ const normal=srv.read,team=page(srv,'team'),writes=srv.writes;
+ const forged=normal();forged.b04.history.at(-1).after='ABSENT / COMPLETE';
+ srv.read=()=>forged;
+ team.click('b03Reconcile');
+ assert.equal(team.get('entries').children.length,0);
+ assert.equal(team.get('b03Board').children.length,0);
+ assert.equal(team.get('b03Reconcile').disabled,true);
+ assert.match(team.get('b03ReconcileStatus').textContent,/不一致/);
+ srv.read=()=>{const d=normal();d.b02.history.at(-1).ids=['SIM-999'];return d;};
+ team.click('refresh');assert.equal(team.get('entries').children.length,0);
+ srv.read=normal;team.click('refresh');
+ assert.equal(team.get('entries').children.length,1);
+ assert.equal(srv.writes,writes,'no unsafe source is written back or auto-repaired');
+ closed(srv);
+});
+
 test('B05 is reachable from existing calendar, shows original session and returns without writes',()=>{
  const srv=server(),before=srv.writes;
  const team=page(srv,'team');

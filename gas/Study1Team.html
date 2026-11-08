@@ -552,6 +552,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
    <option value="PENDING">待確認</option><option value="PRESENT">已出席</option><option value="LATE">遲到</option><option value="ABSENT">缺席</option></select></label>
   <label for="b03Booking">預約<select id="b03Booking"><option value="ALL">全部</option>
    <option value="BOOKED">有關聯場次</option><option value="NONE">尚未預約</option><option value="CANCELLED">已取消</option></select></label>
+  <label for="b03UpdateSource">最近更新來源<select id="b03UpdateSource"><option value="ALL">全部來源</option><option value="B02">B02 出席／施測</option><option value="B04">B04 行政備註</option><option value="NONE">尚無更動</option></select></label>
   <label for="b03Sort">排序<select id="b03Sort"><option value="ID_ASC">代碼遞增</option>
    <option value="ID_DESC">代碼遞減</option><option value="BOOKING_ASC">預約時間</option><option value="UPDATED_DESC">最近行政更新</option></select></label>
  </div>
@@ -765,8 +766,28 @@ function b03CrossCheck_(d){
   if(a.progress==='COMPLETE')completed++;
  }
  for(const id of Object.keys(d.b04.notes))if(!people.has(id))return null;
- for(const h of d.b04.history)if(!h||!people.has(h.id)||
-  !['adminNote','attendanceAndProgress'].includes(h.field))return null;
+ // Bounded history: current fields must agree with the latest retained
+ // B04 before/after event, without assuming older trimmed events exist.
+ const latestByField=new Map();
+ for(const h of d.b04.history){
+  if(!h||!people.has(h.id)||!['adminNote','attendanceAndProgress'].includes(h.field)||
+   typeof h.at!=='string'||!Number.isFinite(Date.parse(h.at))||
+   typeof h.before!=='string'||typeof h.after!=='string')return null;
+  latestByField.set(h.id+'|'+h.field,h.after);
+ }
+ for(const [key,after] of latestByField){
+  const sep=key.indexOf('|'),id=key.slice(0,sep),field=key.slice(sep+1);
+  const item=d.b02.attendance[id],current=field==='adminNote'?
+   (d.b04.notes[id]||''):(item?item.attendance+' / '+item.progress+
+    (item.note?' / '+item.note:''):'PENDING / NOT_STARTED');
+  if(current!==after)return null;
+ }
+ for(const h of d.b02.history){
+  if(!h||h.action!=='ATTEND')continue;
+  if(!Array.isArray(h.ids)||h.ids.length!==1||!people.has(h.ids[0])||
+   !people.get(h.ids[0]).slotId||typeof h.at!=='string'||
+   !Number.isFinite(Date.parse(h.at)))return null;
+ }
  return {revision:d.revision,total:people.size,booked,attended,completed};
 }
 function render(data){
@@ -2640,9 +2661,16 @@ function profileEvents(a){
  if(a.consentReviewedAt)e.push({at:new Date(a.consentReviewedAt).toISOString(),
   name:'模擬文件檢視',detail:'僅示範，無正式同意效力'});
  for(const h of model.b04.history.filter(x=>x.id===a.id))
-  e.push({at:h.at,name:h.field==='adminNote'?'行政備註更正':'出席與施測更新',
+  e.push({at:h.at,name:h.field==='adminNote'?'行政備註更正（B04）':'出席與施測更新（B02／B04）',
    detail:'原值：'+(h.before||'空白')+'\n新值：'+(h.after||'空白')+
     '\n原因：'+h.reason+'\n操作者：'+h.actor});
+ // Unchanged B02 confirmation has an ATTEND event but no new before/after
+ // correction. Keep this visible without duplicating the paired B04 event.
+ for(const h of model.b02.history.filter(x=>x.action==='ATTEND'&&x.ids.includes(a.id))){
+  if(!model.b04.history.some(x=>x.id===a.id&&x.field==='attendanceAndProgress'&&x.at===h.at))
+   e.push({at:h.at,name:'B02出席狀態重新確認',
+    detail:'此操作沒有新增可核實的更正前後值；請以目前出席狀態為準（純TEST）。'});
+ }
  for(const h of model.b02.history.filter(x=>slot&&x.ids.includes(slot.id)&&x.action!=='ATTEND'))
   e.push({at:h.at,name:'相關場次操作',detail:slot.id+'｜'+h.action+
    '；是否影響此人需另行確認'});
@@ -2881,18 +2909,32 @@ function b03Category(a){
  if(['HELD','CONSENTED'].includes(a.phase))return 'HOLD';
  return 'NEW';
 }
-function b03Latest(a){
- const events=model.b04.history.filter(x=>x.id===a.id).concat(
-  model.b02.history.filter(x=>x.action==='ATTEND'&&x.ids.includes(a.id)));
- const dates=events.map(x=>x.at).filter(Boolean).sort();
- return dates.length?dates[dates.length-1]:'';
+function b03RecentEvent_(a){
+ // B04 value changes and B02 attendance confirmations share one owner TEST
+ // snapshot. On tied timestamps prefer a B04 note, then a B04 attendance
+ // before/after correction, then its companion B02 ATTEND event.
+ const events=[];
+ for(const h of model.b04.history){
+  if(h.id!==a.id)continue;
+  const isNote=h.field==='adminNote';
+  events.push({at:h.at,source:isNote?'B04':'B02',
+   label:isNote?'B04行政備註更正':'B02出席／施測更正',priority:isNote?3:2});
+ }
+ for(const h of model.b02.history){
+  if(h.action==='ATTEND'&&h.ids.includes(a.id))
+   events.push({at:h.at,source:'B02',label:'B02出席重新確認',priority:1});
+ }
+ events.sort((x,y)=>y.at.localeCompare(x.at)||y.priority-x.priority);
+ return events.length?events[0]:{at:'',source:'NONE',label:'尚無更動',priority:0};
 }
+function b03Latest(a){return b03RecentEvent_(a).at;}
 function b03Rows(){
  if(!model||!model.b02||!model.b04)return [];
  const q=$('b03Search').value.trim().toLowerCase(),
   exp=$('b03Experiment').value,scope=adminScopeEffective_('B03'),elig=$('b03Eligibility').value,
   stage=$('b03Stage').value,att=$('b03Attendance').value,
-  booking=$('b03Booking').value,order=$('b03Sort').value;
+  booking=$('b03Booking').value,updateSource=$('b03UpdateSource').value,
+  order=$('b03Sort').value;
  const result=model.applications.filter(a=>{
   const attendance=model.b02.attendance[a.id]?.attendance||'PENDING';
   const eligible=a.eligible===true?'PASS':a.eligible===false?'FAIL':'PENDING';
@@ -2905,6 +2947,7 @@ function b03Rows(){
   if(booking==='BOOKED'&&(!a.slotId||a.phase==='CANCELLED'))return false;
   if(booking==='NONE'&&a.slotId)return false;
   if(booking==='CANCELLED'&&a.phase!=='CANCELLED')return false;
+  if(updateSource!=='ALL'&&b03RecentEvent_(a).source!==updateSource)return false;
   return true;
  });
  return result.sort((a,b)=>{
@@ -2942,7 +2985,8 @@ function b03Render(){
    '預約：'+(slot?slot.when:'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
-   '最近更新：'+(b03Latest(a)||'未記錄')])item.append(calElem('span',label));
+   '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
+   item.append(calElem('span',label));
   list.append(item);
  }
  for(const exp of ['E1','E2']){
@@ -2959,7 +3003,8 @@ function b03Render(){
     const button=calElem('button',a.id+'\n'+(profilePhases[a.phase]||a.phase)+
      '\n出席 '+(calPresence[status.attendance]||'待確認')+
      '｜施測 '+(calTesting[status.progress]||'未開始')+
-     '\n最近更新 '+(b03Latest(a)||'未記錄'),'b03Person');
+     '\n最近更新 '+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label,
+     'b03Person');
     button.type='button';button.dataset.participantId=a.id;
     button.addEventListener('click',()=>profileOpen(a.id,'board'));
     col.append(button);
@@ -2999,10 +3044,10 @@ function b03ReconcileRead_(){
 function b03Init(){
  // Explicit neutral defaults avoid treating an uninitialized dropdown as an active filter.
  $('b03Search').value='';
- for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
+ for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03UpdateSource'])
   $(id).value='ALL';
  $('b03Sort').value='ID_ASC';
- for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03Sort'])
+ for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03UpdateSource','b03Sort'])
   $(id).addEventListener('change',b03Render);
  $('b03Search').addEventListener('input',b03Render);
  $('b03ListMode').addEventListener('click',()=>{b03.mode='list';b03Render();});
@@ -3010,7 +3055,7 @@ function b03Init(){
  $('b03Reconcile').addEventListener('click',b03ReconcileRead_);
  $('b03Clear').addEventListener('click',()=>{
   $('b03Search').value='';
-  for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking'])
+  for(const id of ['b03Experiment','b03Eligibility','b03Stage','b03Attendance','b03Booking','b03UpdateSource'])
    $(id).value='ALL';
   $('b03Sort').value='ID_ASC';b03Render();
  });
