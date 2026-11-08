@@ -46,9 +46,11 @@ function fingerprint(c){return JSON.stringify([c.action,c.subjectKey,c.applicati
 function transition(state,command,gate){
  const c=normalizedCommand(command);
  const s=copy(validateState(copy(state)));
+ // Replays are authorization-sensitive: a closed gate must not return a prior
+ // successful intake receipt, even when the requestId matches exactly.
+ if(!gate||gate.open!==true||gate.consentReady!==true||gate.identityAuthorized!==true||gate.policyApproved!==true||gate.storageApproved!==true)fail('INTAKE_CLOSED');
  const fp=fingerprint(c),old=s.receipts.find(r=>r.requestId===c.requestId);
  if(old){if(old.fingerprint!==fp)fail('REQUEST_ID_CONFLICT');return {state:s,result:copy(old.result),changed:false};}
- if(!gate||gate.open!==true||gate.consentReady!==true||gate.identityAuthorized!==true||gate.policyApproved!==true||gate.storageApproved!==true)fail('INTAKE_CLOSED');
  let result;
  if(c.action==='SUBMIT'){
   const slot=s.slots.find(x=>x.id===c.slotId);
