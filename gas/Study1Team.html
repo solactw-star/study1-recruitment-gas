@@ -821,6 +821,33 @@ function displayWeeks(){
 /* Independent B02–B09 reconstruction of one OWNER TEST waitlist snapshot.
  * Stored OFFERED means unprocessed (it can be overdue), not proven valid.
  * Never count WAITING or OFFERED as a booked person or study completion. */
+/* Deliberately compare fields instead of parsing/serializing editable JSON:
+ * this admin GUI is forms and immutable read projections, not a raw JSON editor. */
+function teamWaitlistSummarySame_(expected,actual){
+ if(!expected||!actual||typeof actual!=='object'||Array.isArray(actual)||
+  Object.keys(expected).sort().join(',')!==Object.keys(actual).sort().join(',')||
+  expected.mode!==actual.mode||expected.completeHistory!==actual.completeHistory||
+  expected.mailSent!==actual.mailSent||expected.limit!==actual.limit||
+  expected.retained!==actual.retained)return false;
+ const keys=['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','total'];
+ const countSame=(a,b)=>!!a&&!!b&&typeof b==='object'&&!Array.isArray(b)&&
+  Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&
+  keys.every(k=>Number.isSafeInteger(b[k])&&b[k]>=0&&a[k]===b[k]);
+ if(!countSame(expected.total,actual.total))return false;
+ for(const part of ['byExperiment','byStage']){
+  const a=expected[part],b=actual[part];
+  if(!b||typeof b!=='object'||Array.isArray(b)||
+   Object.keys(a).sort().join(',')!==Object.keys(b).sort().join(',')||
+   !Object.keys(a).every(k=>countSame(a[k],b[k])))return false;
+ }
+ if(!Array.isArray(actual.bySlot)||expected.bySlot.length!==actual.bySlot.length)return false;
+ return expected.bySlot.every((row,i)=>{
+  const other=actual.bySlot[i];
+  return !!other&&Object.keys(row).sort().join(',')===Object.keys(other).sort().join(',')&&
+   row.slotId===other.slotId&&row.experiment===other.experiment&&
+   row.stage===other.stage&&row.mode===other.mode&&countSame(row.counts,other.counts);
+ });
+}
 function teamWaitlistSummaryVerified_(d){
  const w=d?.waitlist,cfg=w?.settings;
  if(!w||!cfg||!Array.isArray(w.entries)||!Array.isArray(w.slotPolicies)||
@@ -847,7 +874,7 @@ function teamWaitlistSummaryVerified_(d){
  }
  const expected={mode:'CURRENT_TEST_STATUS_ONLY',completeHistory:false,mailSent:false,
   limit:8,retained:w.entries.length,byExperiment,byStage,bySlot,total};
- return JSON.stringify(expected)===JSON.stringify(w.summary)?expected:null;
+ return teamWaitlistSummarySame_(expected,w.summary)?expected:null;
 }
 function teamWaitlistEntry_(id){
  return model?.waitlist?.entries?.find(e=>e.id===id)||null;
@@ -3829,8 +3856,7 @@ function profileRender(){
   ['電子同意',policy.approval==='PENDING'?'REC未核准，未生效':'待查'],
   ['目前研究流程',profilePhases[a.phase]||a.phase],
   ['整體施測',calTesting[att.progress]],['出席',calPresence[att.attendance]],
-  ['下一次預約',future?slot.when+'｜'+slot.id:'無已核實的未來預約'],
-   ['候補目前狀態',teamWaitlistLabel_(teamWaitlistEntry_(a.id))]])
+  ['下一次預約',future?slot.when+'｜'+slot.id:'無已核實的未來預約']])
   summary.append(profileField(k,v));
  for(const btn of document.querySelectorAll('[data-b04-tab]'))
   btn.setAttribute('aria-selected',String(btn.dataset.b04Tab===profile.tab));
@@ -4651,7 +4677,7 @@ function b12Render(page,after){
   page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
  const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
  const waitlistMatch=!!model&&!!teamWaitlistSummaryVerified_(model)&&
-   JSON.stringify(page?.coverage?.waitlistSummary)===JSON.stringify(model.waitlist.summary)&&
+   teamWaitlistSummarySame_(model.waitlist.summary,page?.coverage?.waitlistSummary)&&
    page?.coverage?.sources?.some(x=>x.module==='WAITLIST'&&
     x.retained===model.waitlist.summary.retained&&x.limit===8&&
     x.provenance==='CURRENT_TEST_WAITLIST_ONLY');
