@@ -2576,7 +2576,11 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
    'B02 A/B比較來源修訂版已改變；請先重新核對，未執行跨頁定位。';return;
  }
  const scopeEpoch=ownerScopeEpoch,loadEpoch=ownerLoadEpoch,
-  selectionEpoch=compareSelectionEpoch;
+  selectionEpoch=compareSelectionEpoch,
+  holdStamp=cancelHoldStamp_(model,slotId,cancelHoldAsOf);
+ if(holdStamp===null){
+  render(null);$('b03ReconcileStatus').textContent='A/B暫留來源不可信，已清空，無寫入。';return;
+ }
  setBusy(true);
  $('cancelQueueCompareStatus').textContent='正在獨立唯讀GET原GAS，確認'+
   experiment+'場次與B03／B04檢視範圍…';
@@ -2611,6 +2615,11 @@ function cancelQueueCompareB03Get_(slotId,experiment,atRevision){
    $('cancelQueueCompareStatus').textContent=
     '獨立GET發現原GAS修訂版改變；已顯示最新資料，舊A/B定位未執行，請重新核對。';
    return;
+  }
+  const newHoldStamp=cancelHoldStamp_(model,slotId,cancelHoldAsOf);
+  if(newHoldStamp===null||newHoldStamp!==holdStamp){
+   $('cancelQueueCompareStatus').textContent='獨立GET發現有效／逾期暫留分類或期限已跨界；'+
+    '已依目前原GAS快照安全重繪，拒絕舊A/B跨頁定位，無寫入。';return;
   }
   if(!target||target.experiment!==experiment||
    model.b02.sessions[slotId]?.status!=='CANCELLED'||
@@ -3376,7 +3385,8 @@ function profileOpen(id,origin){
    adminScopeMatch_('B02',a.experiment)&&adminScopeMatch_('B03',a.experiment):
    origin==='list'||origin==='board'?adminScopeMatch_('B03',a.experiment):
    origin==='calendar'?adminScopeMatch_('B02',a.experiment):true);
- if(!calAllowed()||!model.b04||!a||!scopeOK){
+ if(!calAllowed()||!model.b04||!a||!scopeOK||!b03CrossCheck_(model)||
+  !cancelHoldBoundaryValid_(a)){
   calMsg('B04跨頁檢視拒絕：參與者資料或B02／B03本頁範圍無法核對。',true);
   return;
  }
@@ -3419,8 +3429,13 @@ function profileToCalendar(){
 function profileRender(){
  if(!profile.open)return;
  const a=profileApplication();
- if(!calAllowed()||!model.b04||!a){
-  profileMessage('無法核對B04資料與存取安全狀態，請返回後重新載入。',true);return;
+ if(!calAllowed()||!model.b04||!a||!b03CrossCheck_(model)||
+  !cancelHoldBoundaryValid_(a)){
+  profile.open=false;$('profileModule').hidden=true;
+  $('teamMain').classList.remove('b04Open');
+  $('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();
+  $('profileTimeline').replaceChildren();
+  profileMessage('暫留期限、B04資料或存取邊界已跨界；已清空完整資料，請獨立GET重新核對。',true);return;
  }
  const slot=profileSlot(a),att=profileAttend(a),
   policy=model.policy.consent[a.experiment],notes=model.b04.notes[a.id]||'';
@@ -3464,7 +3479,8 @@ function profileRender(){
       '場次已取消；原個別預約與出席保留，待人工處理')+
       '｜'+(cancelQueueState_(a)?.label||'來源須重新核對'):'無場次取消待處理標記'],
    ['出席',calPresence[att.attendance]],['施測',calTesting[att.progress]],
-   ['暫留是否逾期',a.holdExpired?'是':'否／不適用'],
+   ['暫留是否逾期',['HELD','CONSENTED'].includes(a.phase)?
+    (a.holdUntil<=cancelHoldAsOf?'是（依本頁回讀時間）':'否（依本頁回讀時間）'):'不適用'],
    ['歷史改期與取消','可參閱右側已留存事件；正式完整歷程尚未接入']]);
   if(slot){
    const go=calElem('button','返回行事曆查看此場次','secondary');
@@ -3692,7 +3708,8 @@ function b03Render(){
    '資格：'+(a.eligible===true?'模擬通過':a.eligible===false?'模擬未通過':'未核實'),
    '預約：'+(slot?slot.when+'｜場次 '+calStates[calMeta(slot).status]+
     (calMeta(slot).status==='CANCELLED'?(cancelQueueState_(a)?.kind==='HISTORY'?
-      '（個別關聯僅保留歷程，未判定人工完成）':'（個別預約未取消，待人工處理）'):''):'未記錄'),
+      '（個別關聯僅保留歷程，未判定人工完成）':'（個別預約未取消，待人工處理）')+
+     (['HELD','CONSENTED'].includes(a.phase)?'｜'+(cancelQueueState_(a)?.label||'期限待核對'):''):''):'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
    '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
@@ -3716,7 +3733,9 @@ function b03Render(){
      (a.slotId&&model.b02.sessions[a.slotId]?.status==='CANCELLED'?
       (cancelQueueState_(a)?.kind==='HISTORY'?
        '\n場次已取消｜個別關聯僅保留歷程，未判定完成':
-       '\n場次已取消｜原預約保留，待人工處理'):'')+
+       '\n場次已取消｜原預約保留，待人工處理')+
+      (['HELD','CONSENTED'].includes(a.phase)?
+       '\n'+(cancelQueueState_(a)?.label||'暫留期限待核對'):''):'')+
      '\n最近更新 '+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label,
      'b03Person');
     button.type='button';button.dataset.participantId=a.id;
