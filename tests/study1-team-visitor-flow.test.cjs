@@ -3200,6 +3200,119 @@ function waitlistVerifiedVisitor_(srv,options){
  assert.equal(app.phase,'VERIFIED');assert.equal(app.eligible,true);
  return {v,id:app.id};
 }
+/* P1-08 §70-B original GAS TEST hierarchical scope rules; no REC or email. */
+function policyChange_(srv,experiment,level,mode,{stage=null,slotId=null}={}){
+ return srv.command('ADMIN_WAITLIST_POLICY',{experiment,level,stage,slotId,mode});
+}
+test('P1-08 TEST source starts with E1 manual and E2 closed with no guessed stage or mail',()=>{
+ const srv=server(),v=srv.read();
+ assert.equal(v.waitlist.settings.experiments.E1,'MANUAL_TEST');
+ assert.equal(v.waitlist.settings.experiments.E2,'CLOSED');
+ assert.equal(v.waitlist.settings.stages['E1:SINGLE_SESSION'],'INHERIT');
+ assert.equal(v.waitlist.slotPolicies.filter(p=>p.experiment==='E1').length,2);
+ assert.ok(v.waitlist.slotPolicies.filter(p=>p.experiment==='E1')
+  .every(p=>p.stage==='SINGLE_SESSION'&&p.mode==='MANUAL_TEST'&&p.mail==='DISABLED'&&p.approved===false));
+ assert.ok(v.waitlist.slotPolicies.filter(p=>p.experiment==='E2')
+  .every(p=>p.stage===null&&p.mode==='CLOSED'&&p.mail==='DISABLED'));
+ assert.equal(v.recruitment.E2.mode,'COMING_SOON');
+ assert.equal(srv.writes,0);closed(srv);
+});
+test('P1-08 original B02 policy controls save experiment, stage and activity, and V05 rejects closed queue without mail',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const candidate=waitlistVerifiedVisitor_(srv),team=page(srv,'team'),
+  originalNotices=srv.read().notifications.length;
+ assert.equal(team.get('waitPolicyLevel').value,'EXPERIMENT');
+ assert.equal(team.get('waitPolicyExperiment').value,'E1');
+ team.set('waitPolicyMode','CLOSED');
+ const writes=srv.writes;team.click('waitPolicySave');
+ assert.equal(srv.writes,writes+1);
+ assert.equal(srv.read().waitlist.settings.experiments.E1,'CLOSED');
+ assert.match(team.get('waitPolicyStatus').textContent,/獨立GET核實/);
+ candidate.v.click('v08WaitRefresh');
+ assert.equal(candidate.v.get('v08WaitJoin').disabled,true);
+ assert.throws(()=>srv.command('WAITLIST_JOIN',{id:candidate.id,slotId:'SIM-SLOT-E1-A'}),/候補僅限|尚未|開放/);
+ team.set('waitPolicyMode','MANUAL_TEST');team.click('waitPolicySave');
+ assert.equal(srv.read().waitlist.settings.experiments.E1,'MANUAL_TEST');
+ team.set('waitPolicyLevel','STAGE');team.change('waitPolicyLevel');
+ assert.equal(team.get('waitPolicyStage').value,'SINGLE_SESSION');
+ team.set('waitPolicyMode','CLOSED');team.click('waitPolicySave');
+ assert.equal(srv.read().waitlist.slotPolicies.find(x=>x.slotId==='SIM-SLOT-E1-A').mode,'CLOSED');
+ candidate.v.click('v08WaitRefresh');
+ assert.equal(candidate.v.get('v08WaitJoin').disabled,true);
+ team.set('waitPolicyMode','INHERIT');team.click('waitPolicySave');
+ team.set('waitPolicyLevel','ACTIVITY');team.change('waitPolicyLevel');
+ assert.equal(team.get('waitPolicyActivity').value,'SIM-SLOT-E1-A');
+ team.set('waitPolicyMode','CLOSED');team.click('waitPolicySave');
+ assert.equal(srv.read().waitlist.slotPolicies.find(x=>x.slotId==='SIM-SLOT-E1-A').mode,'CLOSED');
+ assert.equal(srv.read().waitlist.slotPolicies.find(x=>x.slotId==='SIM-SLOT-E1-B').mode,'MANUAL_TEST');
+ candidate.v.click('v08WaitRefresh');
+ assert.equal(candidate.v.get('v08WaitJoin').disabled,true);
+ team.set('waitPolicyMode','INHERIT');team.click('waitPolicySave');
+ candidate.v.click('v08WaitRefresh');
+ assert.equal(candidate.v.get('v08WaitJoin').disabled,false);
+ assert.equal(srv.read().notifications.length,originalNotices);
+ closed(srv);
+});
+test('P1-08 CLOSED parent always overrides child, unknown E2 stage stays CLOSED until explicit OWNER binding',()=>{
+ const srv=server();
+ policyChange_(srv,'E2','EXPERIMENT','MANUAL_TEST');
+ assert.equal(srv.read().waitlist.slotPolicies.find(x=>x.slotId==='SIM-SLOT-E2-A').mode,'CLOSED');
+ policyChange_(srv,'E2','ACTIVITY','MANUAL_TEST',{stage:'PRETEST',slotId:'SIM-SLOT-E2-A'});
+ let policies=srv.read().waitlist.slotPolicies;
+ assert.equal(policies.find(x=>x.slotId==='SIM-SLOT-E2-A').stage,'PRETEST');
+ assert.equal(policies.find(x=>x.slotId==='SIM-SLOT-E2-A').mode,'MANUAL_TEST');
+ assert.equal(policies.find(x=>x.slotId==='SIM-SLOT-E2-B').stage,null);
+ assert.equal(policies.find(x=>x.slotId==='SIM-SLOT-E2-B').mode,'CLOSED');
+ policyChange_(srv,'E2','STAGE','CLOSED',{stage:'PRETEST'});
+ assert.equal(srv.read().waitlist.slotPolicies.find(x=>x.slotId==='SIM-SLOT-E2-A').mode,'CLOSED');
+ policyChange_(srv,'E2','STAGE','INHERIT',{stage:'PRETEST'});
+ policyChange_(srv,'E2','EXPERIMENT','CLOSED');
+ assert.equal(srv.read().waitlist.slotPolicies.find(x=>x.slotId==='SIM-SLOT-E2-A').mode,'CLOSED');
+ assert.equal(srv.read().recruitment.E2.mode,'COMING_SOON','configuration is not recruitment approval');
+ assert.equal(srv.read().notifications.length,0);
+ closed(srv);
+});
+test('P1-08 active FIFO entries block TEST policy closure or stage reassignment without partial write',()=>{
+ const srv=server();waitlistFillConfirmed_(srv);
+ const v=waitlistVerifiedVisitor_(srv);
+ v.v.click('v08WaitJoin');const before=srv.read(),writes=srv.writes;
+ const reject=(exp,level,mode,opts,pattern)=>{
+  assert.throws(()=>policyChange_(srv,exp,level,mode,opts),pattern);
+  assert.equal(srv.writes,writes);assert.equal(srv.read().revision,before.revision);
+  assert.equal(srv.read().waitlist.entries[0].status,'WAITING');
+ };
+ reject('E1','EXPERIMENT','CLOSED',{},/不可關閉/);
+ reject('E1','STAGE','CLOSED',{stage:'SINGLE_SESSION'},/不可關閉/);
+ reject('E1','ACTIVITY','CLOSED',{stage:'SINGLE_SESSION',slotId:'SIM-SLOT-E1-A'},/不可關閉/);
+ assert.throws(()=>policyChange_(srv,'E1','ACTIVITY','MANUAL_TEST',
+  {stage:'PRETEST',slotId:'SIM-SLOT-E1-A'}),/活動|階段/);
+ assert.throws(()=>policyChange_(srv,'E1','EXPERIMENT','AUTO_NOTIFY'),/自動通知|不合法/);
+ assert.throws(()=>policyChange_(srv,'E2','ACTIVITY','MANUAL_TEST',
+  {stage:'PRETEST',slotId:'SIM-SLOT-E1-A'}),/活動|階段/);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
+test('P1-08 forged policy stage/activity/effective-mode projections clear original B02/B03/B04 and block editing',()=>{
+ const srv=server(),team=page(srv,'team'),read=srv.read,writes=srv.writes;
+ assert.equal(team.get('waitPolicySave').disabled,false);
+ const bad=modify=>{
+  srv.read=()=>{const d=read();modify(d);return d;};
+  team.click('refresh');
+  assert.equal(team.get('waitPolicySave').disabled,true);
+  assert.equal(team.get('waitlistRows').children.length,0);
+  assert.equal(team.get('entries').children.length,0);
+  assert.equal(team.get('profileModule').hidden,true);
+  assert.match(team.get('waitPolicyStatus').textContent,/來源|矛盾|鎖定/);
+ };
+ bad(d=>{d.waitlist.settings.experiments.E1='AUTO_NOTIFY';});
+ bad(d=>{d.waitlist.slotPolicies[0].mode='MANUAL_TEST';d.waitlist.settings.experiments.E1='CLOSED';});
+ bad(d=>{d.waitlist.settings.activities['SIM-SLOT-E2-A']={stage:'SINGLE_SESSION',mode:'MANUAL_TEST'};});
+ bad(d=>{d.waitlist.slotPolicies[2].stage='PRETEST';});
+ srv.read=read;team.click('refresh');
+ assert.equal(team.get('waitPolicySave').disabled,false);
+ assert.equal(srv.writes,writes);
+ closed(srv);
+});
 test('P1-08 full slot offers FIFO queue in real V05, with read-only candidate status and no automatic email',()=>{
  const srv=server();waitlistFillConfirmed_(srv);
  const first=waitlistVerifiedVisitor_(srv),prior=srv.read().notifications.length;
