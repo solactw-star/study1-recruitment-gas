@@ -2280,6 +2280,103 @@ $('saveWeeks').addEventListener('click',()=>{
  save('ADMIN_E2_WEEKS',{weeks});
 });
 
+/* Original B02 synthetic policy editor. Modes cannot send mail or grant role. */
+const waitPolicyStages_={E1:['SINGLE_SESSION'],
+ E2:['PRETEST','INTERVENTION_8W','POSTTEST']};
+function teamWaitlistPolicyFill_(node,items,old){
+ node.replaceChildren();
+ for(const [id,title] of items){
+  const o=document.createElement('option');o.value=id;o.textContent=title;node.append(o);
+ }
+ if(items.some(x=>x[0]===old))node.value=old;
+}
+function teamWaitlistPolicyChoices_(){
+ const status=$('waitPolicyStatus'),ex=$('waitPolicyExperiment'),
+  level=$('waitPolicyLevel'),stage=$('waitPolicyStage'),act=$('waitPolicyActivity'),
+  mode=$('waitPolicyMode');
+ if(!model||!b03CrossCheck_(model)||!calAllowed()){
+  $('waitPolicySave').disabled=true;status.textContent='來源或OWNER權限未核實，候補設定鎖定。';return;
+ }
+ const allowed=['E1','E2'].filter(x=>adminScopeMatch_('B02',x));
+ teamWaitlistPolicyFill_(ex,allowed.map(e=>[e,e+'（僅TEST）']),ex.value);
+ const exp=allowed.includes(ex.value)?ex.value:null;
+ if(!exp){$('waitPolicySave').disabled=true;status.textContent='此管理檢視範圍沒有合法實驗。';return;}
+ const cfg=model.waitlist.settings;
+ const oldStage=stage.value,oldActivity=act.value;
+ teamWaitlistPolicyFill_(stage,waitPolicyStages_[exp].map(x=>[x,x]),oldStage);
+ teamWaitlistPolicyFill_(act,model.slots.filter(x=>x.experiment===exp)
+  .map(x=>[x.id,x.id+'｜'+(model.b02.sessions[x.id]?.title||'虛構活動未命名')]),oldActivity);
+ stage.disabled=level.value==='EXPERIMENT';
+ act.disabled=level.value!=='ACTIVITY';
+ const slot=model.slots.find(x=>x.id===act.value&&x.experiment===exp);
+ const assigned=slot?cfg.activities[slot.id]:null;
+ const choice=level.value==='EXPERIMENT'?cfg.experiments[exp]:
+  level.value==='STAGE'?cfg.stages[exp+':'+stage.value]:
+  (assigned?.mode||'INHERIT');
+ // This is a default selected value, not a direct write or approval.
+ if(['CLOSED','MANUAL_TEST','INHERIT'].includes(choice))mode.value=choice;
+ if(level.value==='EXPERIMENT'&&mode.value==='INHERIT')mode.value='CLOSED';
+ const policy=slot?model.waitlist.slotPolicies.find(x=>x.slotId===slot.id):null;
+ status.textContent='檢視修訂版 '+model.revision+'｜'+exp+
+  '｜目前階段 '+(policy?.stage||'未指定；實驗二須由OWNER明確綁定')+
+  '｜活動 '+(slot?.id||'無')+'｜實際候補 '+(policy?.mode||'CLOSED')+
+  '｜僅允許人工TEST，不寄信；上層關閉不可由下層繞過。';
+ $('waitPolicySave').disabled=busy||!['EXPERIMENT','STAGE','ACTIVITY'].includes(level.value)||
+  (level.value==='ACTIVITY'&&!slot);
+}
+function teamWaitlistPolicyActual_(data,p){
+ const cfg=data?.waitlist?.settings;
+ if(!cfg)return null;
+ if(p.level==='EXPERIMENT')return cfg.experiments?.[p.experiment];
+ if(p.level==='STAGE')return cfg.stages?.[p.experiment+':'+p.stage];
+ const assigned=cfg.activities?.[p.slotId];
+ return assigned?.stage===p.stage?assigned.mode:null;
+}
+$('waitPolicyLevel').addEventListener('change',teamWaitlistPolicyChoices_);
+$('waitPolicyExperiment').addEventListener('change',teamWaitlistPolicyChoices_);
+$('waitPolicyStage').addEventListener('change',teamWaitlistPolicyChoices_);
+$('waitPolicyActivity').addEventListener('change',()=>{
+ const rule=model?.waitlist?.settings?.activities?.[$('waitPolicyActivity').value];
+ if(rule)$('waitPolicyStage').value=rule.stage;
+ teamWaitlistPolicyChoices_();
+});
+$('waitPolicySave').addEventListener('click',()=>{
+ if(busy||!model||!b03CrossCheck_(model)||!calAllowed()||
+  $('waitPolicySave').disabled)return;
+ const p={level:$('waitPolicyLevel').value,experiment:$('waitPolicyExperiment').value,
+  stage:$('waitPolicyLevel').value==='EXPERIMENT'?null:$('waitPolicyStage').value,
+  slotId:$('waitPolicyLevel').value==='ACTIVITY'?$('waitPolicyActivity').value:null,
+  mode:$('waitPolicyMode').value};
+ if(!adminScopeMatch_('B02',p.experiment)||
+  !['EXPERIMENT','STAGE','ACTIVITY'].includes(p.level)||
+  !waitPolicyStages_[p.experiment]?.includes(p.stage)&&p.level!=='EXPERIMENT'||
+  !['CLOSED','MANUAL_TEST','INHERIT'].includes(p.mode)||
+  (p.level==='EXPERIMENT'&&(p.mode==='INHERIT'||p.stage!==null||p.slotId!==null))||
+  (p.level==='ACTIVITY'&&!model.slots.some(x=>x.id===p.slotId&&x.experiment===p.experiment)))
+  return;
+ const before=model.revision,scopeEpoch=ownerScopeEpoch,
+  requestId='REQ-SIM-WAIT_POLICY_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+ setBusy(true);$('waitPolicyStatus').textContent='原GAS以單次鎖定CAS儲存，等待獨立OWNER唯讀回讀。';
+ google.script.run.withSuccessHandler(reply=>{
+  if(!b03CrossCheck_(reply)||reply.revision!==before+1||reply.deduplicated||
+   teamWaitlistPolicyActual_(reply,p)!==p.mode){
+   render(null);$('waitPolicyStatus').textContent='寫入回應未核實，結果未知，禁止重送。';return;
+  }
+  google.script.run.withSuccessHandler(fresh=>{
+   if(!b03CrossCheck_(fresh)||fresh.revision<reply.revision){
+    render(null);$('waitPolicyStatus').textContent='獨立GET核對失敗，結果未知，禁止重送。';return;
+   }
+   const confirmed=teamWaitlistPolicyActual_(fresh,p)===p.mode;
+   if(render(fresh))$('waitPolicyStatus').textContent=confirmed&&scopeEpoch===ownerScopeEpoch?
+    '原GAS候補分層設定完成獨立GET核實，修訂版 '+fresh.revision+'；不寄信、不正式開放。':
+    'GET已取得更新狀態，但設定或管理範圍已變更，不能視為本次設定仍有效。';
+  }).withFailureHandler(()=>{render(null);$('waitPolicyStatus').textContent='獨立OWNER GET失敗，設定結果未知，不得重送。';})
+   .study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{render(null);$('waitPolicyStatus').textContent='候補設定提交失敗或結果未知，已鎖定；請另行唯讀核對。';})
+ .study1UnifiedPreviewCommand({action:'ADMIN_WAITLIST_POLICY',payload:p,
+  expectedRevision:before,requestId});
+});
+
 /* P1-08: B02 original OWNER manual FIFO queue; no mail or scheduled writes. */
 function teamWaitlistRender_(){
  const sel=$('waitlistSlot'),rows=$('waitlistRows'),status=$('waitlistStatus'),old=sel.value;
