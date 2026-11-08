@@ -817,6 +817,52 @@ function displayWeeks(){
  });
 }
 
+/* Independent B02–B09 reconstruction of one OWNER TEST waitlist snapshot.
+ * Stored OFFERED means unprocessed (it can be overdue), not proven valid.
+ * Never count WAITING or OFFERED as a booked person or study completion. */
+function teamWaitlistSummaryVerified_(d){
+ const w=d?.waitlist,cfg=w?.settings;
+ if(!w||!cfg||!Array.isArray(w.entries)||!Array.isArray(w.slotPolicies)||
+  !Array.isArray(d.slots)||!w.summary)return null;
+ const zero=()=>({WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,total:0});
+ const total=zero(),byExperiment={E1:zero(),E2:zero()},
+  byStage=Object.fromEntries(Object.keys(cfg.stages).map(k=>[k,zero()])),
+  bySlot=d.slots.map(slot=>{
+   const p=w.slotPolicies.find(x=>x.slotId===slot.id);
+   if(!p)return null;
+   return {slotId:slot.id,experiment:slot.experiment,stage:p.stage,
+    mode:p.mode,counts:zero()};
+  });
+ if(bySlot.some(x=>!x))return null;
+ const slots=new Map(bySlot.map(x=>[x.slotId,x]));
+ for(const e of w.entries){
+  const row=slots.get(e.slotId);
+  if(!row||row.experiment!==e.experiment||
+   !['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'].includes(e.status))return null;
+  const buckets=[total,byExperiment[e.experiment],row.counts,
+   ...(row.stage?[byStage[e.experiment+':'+row.stage]]:[])];
+  if(buckets.some(x=>!x))return null;
+  buckets.forEach(x=>{x[e.status]++;x.total++;});
+ }
+ const expected={mode:'CURRENT_TEST_STATUS_ONLY',completeHistory:false,mailSent:false,
+  limit:8,retained:w.entries.length,byExperiment,byStage,bySlot,total};
+ return JSON.stringify(expected)===JSON.stringify(w.summary)?expected:null;
+}
+function teamWaitlistEntry_(id){
+ return model?.waitlist?.entries?.find(e=>e.id===id)||null;
+}
+function teamWaitlistLabel_(e){
+ if(!e)return '無虛構候補紀錄（不可視為正式資格判定）';
+ const phase={WAITING:'等待順位',OFFERED:'已提供、待人工核對截止',
+  ACCEPTED:'已接受虛構邀請；非預約完成',EXPIRED:'原邀請已逾期',
+  DECLINED:'已退出'}[e.status]||'來源未核實';
+ return '候補'+phase+'｜'+e.experiment+'｜'+e.slotId+'｜序號'+e.seq+
+  (e.status==='WAITING'?'｜同場順位'+e.rank:'')+
+  (e.status==='OFFERED'?(e.expiredOffer?'｜已過截止仍未人工處理':'｜原回讀尚未核實逾期')+
+   '｜原截止'+new Date(e.expiresAt).toISOString():'')+
+  '｜此為目前狀態，不代表曾寄送通知或保留完整操作歷程';
+}
+
 /* P1 B02/B03/B04 read-only participant reconciliation, same owner TEST source. */
 function b03CrossCheck_(d){
  if(!d||d.mode!=='TEST'||d.open!==false||d.consentReady!==false||
@@ -830,7 +876,8 @@ function b03CrossCheck_(d){
   d.waitlist.nextSeq<0||d.waitlist.nextSeq>8||
   !Array.isArray(d.waitlist.entries)||d.waitlist.entries.length!==d.waitlist.nextSeq||
   !d.waitlist.settings||!Array.isArray(d.waitlist.slotPolicies)||
-  d.waitlist.slotPolicies.length!==d.slots.length)return null;
+  d.waitlist.slotPolicies.length!==d.slots.length||
+  !teamWaitlistSummaryVerified_(d))return null;
  const slots=new Map(),people=new Map();
  for(const s of d.slots){
   if(!s||typeof s.id!=='string'||!/^SIM-SLOT-E[12]-[A-Z]$/.test(s.id)||
@@ -2392,7 +2439,11 @@ function teamWaitlistRender_(){
   const o=document.createElement('option');o.value=slot.id;
   const entries=model.waitlist.entries.filter(e=>e.slotId===slot.id);
   const policy=model.waitlist.slotPolicies.find(x=>x.slotId===slot.id);
+  const snapshot=model.waitlist.summary.bySlot.find(x=>x.slotId===slot.id);
   o.textContent=slot.id+'｜'+slot.experiment+'｜'+(policy?.stage||'未指定階段')+
+   '｜原跨頁彙整：等待'+snapshot.counts.WAITING+'／邀請待處理'+snapshot.counts.OFFERED+
+   '／已接受'+snapshot.counts.ACCEPTED+'／已逾期'+snapshot.counts.EXPIRED+
+   '／退出'+snapshot.counts.DECLINED+
    '｜候補'+(policy?.mode==='MANUAL_TEST'?'人工開放':'關閉')+
    '｜候補 '+entries.filter(e=>e.status==='WAITING').length+
    '｜邀請中 '+entries.filter(e=>e.status==='OFFERED').length;sel.append(o);
@@ -2419,7 +2470,11 @@ function teamWaitlistRender_(){
   start-now<=600000||
   model.waitlist.slotPolicies.find(x=>x.slotId===slot.id)?.mode!=='MANUAL_TEST'||
   !(hasExpired||waiting&&!active&&slot.remaining>0);
- status.textContent='原GAS修訂版 '+model.revision+'｜'+slot.id+
+ const count=model.waitlist.summary.bySlot.find(x=>x.slotId===slot.id)?.counts;
+ status.textContent='B02／B03／B04／B09／B12同來源候補：'+
+  (count?'等待'+count.WAITING+'，邀請待處理'+count.OFFERED+
+   '，已接受'+count.ACCEPTED+'，逾期'+count.EXPIRED+'，退出'+count.DECLINED:'來源未核對')+
+  '｜原GAS修訂版 '+model.revision+'｜'+slot.id+
   '｜順位、期限僅為OWNER TEST資料；伺服器會以獨立時鐘／版本再次核對。';
 }
 $('waitlistSlot').addEventListener('change',teamWaitlistRender_);
@@ -3633,7 +3688,11 @@ function profileNotice(target,message){
  target.append(calElem('p',message,'b04Warning'));
 }
 function profileEvents(a){
- const e=[],slot=profileSlot(a),att=profileAttend(a);
+ const e=[],slot=profileSlot(a),att=profileAttend(a),
+  waiting=teamWaitlistEntry_(a.id);
+ if(waiting)e.push({at:'',name:'目前候補狀態（非稽核事件）',
+  detail:teamWaitlistLabel_(waiting)+
+   '；原GAS沒有完整候補逐次操作歷程，不將加入／提供／過期時間另造歷史事件'});
  e.push({at:'',name:'目前報名流程',detail:profilePhases[a.phase]||a.phase});
  if(a.screeningVersion)e.push({at:'',name:'初篩來源',
   detail:(a.screeningSource||'來源未記錄')+'｜'+a.screeningVersion});
@@ -3734,7 +3793,8 @@ function profileRender(){
   ['電子同意',policy.approval==='PENDING'?'REC未核准，未生效':'待查'],
   ['目前研究流程',profilePhases[a.phase]||a.phase],
   ['整體施測',calTesting[att.progress]],['出席',calPresence[att.attendance]],
-  ['下一次預約',future?slot.when+'｜'+slot.id:'無已核實的未來預約']])
+  ['下一次預約',future?slot.when+'｜'+slot.id:'無已核實的未來預約'],
+   ['候補目前狀態',teamWaitlistLabel_(teamWaitlistEntry_(a.id))]])
   summary.append(profileField(k,v));
  for(const btn of document.querySelectorAll('[data-b04-tab]'))
   btn.setAttribute('aria-selected',String(btn.dataset.b04Tab===profile.tab));
@@ -3755,7 +3815,8 @@ function profileRender(){
    ['人工覆核','無可驗證紀錄'],['補件／更正歷程','無可驗證紀錄']]);
   warn('原始資格問卷答覆不在這個介面保存或顯示；模擬結果不能視為正式研究資格。');break;
  case 'booking':
-  fields([['預約ID',a.slotId||'無'],
+  fields([['候補目前狀態',teamWaitlistLabel_(teamWaitlistEntry_(a.id))],
+   ['預約ID',a.slotId||'無'],
    ['預約日期時間',slot?slot.when:'未記錄'],
    ['場次狀態',slot?calStates[calMeta(slot).status]:'無可驗證場次'],
    ['取消來源歷程',slot&&calMeta(slot).status==='CANCELLED'?cancelHistoryEvidence_(slot):'不適用'],
@@ -4000,6 +4061,7 @@ function b03Render(){
      (['HELD','CONSENTED'].includes(a.phase)?'｜'+(cancelQueueState_(a)?.label||'期限待核對'):''):''):'未記錄'),
    '出席：'+(calPresence[ap.attendance]||'待確認'),
    '施測：'+(calTesting[ap.progress]||'未開始'),
+    '候補現況：'+teamWaitlistLabel_(teamWaitlistEntry_(a.id)),
    '最近更新：'+(b03Latest(a)||'未記錄')+'｜'+b03RecentEvent_(a).label])
    item.append(calElem('span',label));
   list.append(item);
@@ -4018,6 +4080,7 @@ function b03Render(){
     const button=calElem('button',a.id+'\n'+(profilePhases[a.phase]||a.phase)+
      '\n出席 '+(calPresence[status.attendance]||'待確認')+
      '｜施測 '+(calTesting[status.progress]||'未開始')+
+      '\n'+teamWaitlistLabel_(teamWaitlistEntry_(a.id))+
      (a.slotId&&model.b02.sessions[a.slotId]?.status==='CANCELLED'?
       (cancelQueueState_(a)?.kind==='HISTORY'?
        '\n場次已取消｜個別關聯僅保留歷程，未判定完成':
