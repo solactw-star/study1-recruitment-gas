@@ -228,7 +228,7 @@ function assertUnifiedFlow(source){
   'study1UnifiedStoreReadiness_','study1UnifiedStoreHash_','study1UnifiedStoreInitial_',
   'study1UnifiedStoreApply_','study1UnifiedStoreVerify_','study1UnifiedStorePage_',
   'study1WaitlistSettingsInitial_','study1WaitlistSettingsVerify_','study1WaitlistPolicy_',
-   'study1WaitlistInitial_','study1WaitlistVerify_','study1WaitlistSummary_','study1WaitlistFree_','study1WaitlistAdvance_',
+   'study1WaitlistInitial_','study1WaitlistVerify_','study1WaitlistSummary_','study1WaitlistPending_','study1WaitlistFree_','study1WaitlistAdvance_',
    'study1UnifiedRoleAuthorise_','study1UnifiedRestoreOwnedWrite_',
   'study1UnifiedB11FormalPublish_',
   'study1B07Initial_','study1B07Verify_','study1B07PendingSummary_',
