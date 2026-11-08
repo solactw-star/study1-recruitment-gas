@@ -896,12 +896,22 @@ function teamPostCancelSame_(expected,actual){
     other.when!==row.when||!nums.every(k=>Number.isSafeInteger(other[k])&&
      other[k]>=0&&other[k]===row[k])||
     !Array.isArray(other.acceptedOrigins)||
-    row.acceptedOrigins.length!==other.acceptedOrigins.length)return false;
-  return row.acceptedOrigins.every((a,j)=>{
+    row.acceptedOrigins.length!==other.acceptedOrigins.length||
+    !Array.isArray(other.linkedRecords)||
+    row.linkedRecords.length!==other.linkedRecords.length)return false;
+  const originsMatch=row.acceptedOrigins.every((a,j)=>{
    const b=other.acceptedOrigins[j];
    return !!b&&Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&
     a.id===b.id&&a.seq===b.seq&&a.originalSlotId===b.originalSlotId&&
     a.currentSlotId===b.currentSlotId&&a.phase===b.phase;
+  });
+  return originsMatch&&row.linkedRecords.every((a,j)=>{
+   const b=other.linkedRecords[j];
+   return !!b&&Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&
+    a.id===b.id&&a.phase===b.phase&&a.holdUntil===b.holdUntil&&
+    a.attendance===b.attendance&&a.progress===b.progress&&
+    a.originalAcceptedSlotId===b.originalAcceptedSlotId&&
+    a.originalAcceptedSeq===b.originalAcceptedSeq;
   });
  });
 }
@@ -923,8 +933,16 @@ function teamPostCancelVerified_(d){
      currentSlotId:a.slotId,phase:a.phase};
    });
    if(accepted.some(x=>!x))return null;
+   const linkedRecords=linked.slice().sort((a,b)=>a.id.localeCompare(b.id)).map(a=>{
+    const att=d.b02.attendance[a.id]||{attendance:'PENDING',progress:'NOT_STARTED'},
+     acceptedSource=d.waitlist.entries.find(e=>e.id===a.id&&e.status==='ACCEPTED');
+    return {id:a.id,phase:a.phase,holdUntil:a.holdUntil===undefined?null:a.holdUntil,
+     attendance:att.attendance,progress:att.progress,
+     originalAcceptedSlotId:acceptedSource?acceptedSource.slotId:null,
+     originalAcceptedSeq:acceptedSource?acceptedSource.seq:null};
+   });
    return {slotId:slot.id,experiment:slot.experiment,when:slot.when,
-    acceptedOrigins:accepted,
+    acceptedOrigins:accepted,linkedRecords,
     linked:linked.length,
     linkedConfirmed:linked.filter(a=>a.phase==='CONFIRMED').length,
     linkedHoldOrConsented:linked.filter(a=>['HELD','CONSENTED'].includes(a.phase)).length,
@@ -942,6 +960,23 @@ function teamPostCancelVerified_(d){
  return teamPostCancelSame_(expected,d.postCancel)?expected:null;
 }
 
+/* Original cancellation snapshot retains source rows without inventing an
+ * OWNER decision, a new booking, or an unbounded audit history. */
+function teamCancelledRecord_(a){
+ const slot=a?.slotId&&model?.postCancel?.bySlot?.find(x=>x.slotId===a.slotId);
+ return slot?.linkedRecords?.find(x=>x.id===a.id)||null;
+}
+function teamCancelledRecordLabel_(a){
+ const row=teamCancelledRecord_(a);
+ if(!row)return '沒有已核實的已取消場次個別關聯';
+ const hold=['HELD','CONSENTED'].includes(row.phase)?
+   '｜暫留到期來源 '+row.holdUntil+'（期限跨界須重新GET；不等於人工結案）':'';
+ return '個別 '+row.id+'｜'+row.phase+hold+
+  '｜B02出席 '+row.attendance+'｜施測 '+row.progress+
+  (row.originalAcceptedSlotId?'｜原候補接受 '+row.originalAcceptedSlotId+
+   '／FIFO '+row.originalAcceptedSeq:'｜無已接受候補紀錄')+
+  '｜僅目前TEST來源，不是完整操作歷程或人工處理完成';
+}
 function teamWaitlistEntry_(id){
  return model?.waitlist?.entries?.find(e=>e.id===id)||null;
 }
