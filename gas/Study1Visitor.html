@@ -173,7 +173,7 @@ const $=id=>document.getElementById(id);
 const phases=['choose','screen','otp','slots','consent','confirm','done'];
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
 const v08={draft:null};
- const v07={blocked:false,recovering:false,last:null,generation:0,causalUnknown:false};
+ const v07={blocked:false,recovering:false,last:null,generation:0,causalUnknown:false,retiredRequestId:null};
 const setStatus=(message,error=false)=>{$('status').textContent=message;$('status').className=error?'error':'';};
 function safePreview(response){
  return !!response&&response.mode==='TEST'&&response.open===false&&response.consentReady===false&&
@@ -609,12 +609,14 @@ function v07Readback_(afterFailure,detail){
  v08Clear_('V07正在回讀原GAS，變更預覽已作廢。');
  const minimumRevision=Number.isSafeInteger(model?.revision)?model.revision:0,
   generation=++v07.generation;
+ let settled=false; // one OWNER GET may produce at most one handled callback
  busy=true;v07.blocked=true;v07.recovering=true;
  $('v07Rescan').disabled=true;
  $('v07Result').textContent='正在唯讀核對原GAS目前虛構狀態；不重送提交。';
  v07Lock_();
  google.script.run.withSuccessHandler(response=>{
-  if(generation!==v07.generation)return;
+  if(generation!==v07.generation||settled)return;
+  settled=true;
   if(!v07SafeRead_(response,v07.last)||
    response.revision<minimumRevision){
    refuseReply('V07來源、虛構申請或回覆修訂版回退，已停止操作。');return;
@@ -631,7 +633,8 @@ function v07Readback_(afterFailure,detail){
   setStatus(afterFailure?'此次提交結果未確認：'+detail+'；已唯讀回查但不自動重送。':
    '已安全重新讀取原GAS，目前沒有重新送出預約。',afterFailure);
  }).withFailureHandler(error=>{
-  if(generation!==v07.generation)return;
+  if(generation!==v07.generation||settled)return;
+  settled=true;
   refuseReply('V07回讀失敗：'+String(error.message||error)+'；未重新提交。');
  }).study1UnifiedPreviewGet();
 }
@@ -714,7 +717,7 @@ function v08UnknownRecover_(){
   !$('v08UnknownAck').checked||!model||!v07.last||
   !['MOVE','CANCEL'].includes(v07.last.action))return;
  const last={...v07.last},minimumRevision=model.revision,
-  generation=++v07.generation;
+  minimumAsOf=model.waitlist?.asOf,generation=++v07.generation;
  // A repeated/out-of-order OWNER callback must never initiate a third GET.
  let stage=0;
  const fail=()=>refuseReply('V08新操作基準未能完成兩次獨立GET／FIFO／有限歷程一致性驗證，原因果仍UNKNOWN；已拒絕恢復，未重送。');
@@ -733,6 +736,7 @@ function v08UnknownRecover_(){
   const currentAccepted=first?.waitlist?.entries?.find(e=>e.id===last.id&&e.status==='ACCEPTED');
   const immutable=['id','experiment','status','slotId','seq','joinedAt','offeredAt','expiresAt','closedAt'];
   if(firstMark===null||first.revision<minimumRevision||
+   !Number.isSafeInteger(minimumAsOf)||first.waitlist.asOf<minimumAsOf||
    (model.revision===first.revision&&knownMark!==firstMark)||
    (priorAccepted&&(!currentAccepted||
     immutable.some(key=>priorAccepted[key]!==currentAccepted[key])))){
@@ -746,6 +750,7 @@ function v08UnknownRecover_(){
     second.waitlist.asOf<first.waitlist.asOf||
     secondMark!==firstMark){fail();return;}
    busy=false;model=second;selected=last.id;pending=null;
+   v07.retiredRequestId=last.requestId||v07.retiredRequestId;
    v07.blocked=false;v07.recovering=false;v07.last=null;
    v07.causalUnknown=false;
    $('v08UnknownBoundary').hidden=true;
@@ -971,7 +976,7 @@ function load(){
  * independent owner GET. A successful write response is not final evidence
  * of the current booking. Fail closed on read failure, later revisions or
  * altered original ACCEPTED FIFO provenance; NEVER automatically replay. */
-function v08IndependentGet_(action,payload,response,before,onSuccess){
+function v08IndependentGet_(action,payload,response,before,requestId,onSuccess){
  const id=payload.id,
   old=before.applications.find(a=>a.id===id),
   oldEntry=before.waitlist.entries.find(e=>e.id===id&&e.status==='ACCEPTED'),
@@ -979,17 +984,18 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
   priorEvents=before.b02.history,
   priorB04=before.b04.history,
   beforeNotice=before.notifications.length,
-  // Discard any older post-CAS response if a newer GET or security refusal
-  // has already superseded it. No stale callback can unlock an UNKNOWN.
-  generation=++v07.generation,
-  fail=()=>{
+  // A delayed duplicate post-CAS GET must not unlock a newer transaction.
+  generation=++v07.generation;
+ let settled=false;
+ const fail=()=>{
    v07.causalUnknown=true;
    v07.last={action,id,slotId:payload.slotId||null,
-    experiment:old?.experiment||null};
+    experiment:old?.experiment||null,requestId};
    refuseReply('V08操作可能已寫入，但獨立OWNER GET／修訂版／原候補FIFO或有限歷程無法核對；已鎖定舊畫面，禁止重送。');
   };
  google.script.run.withSuccessHandler(fresh=>{
-  if(generation!==v07.generation)return;
+  if(generation!==v07.generation||settled)return;
+  settled=true;
   const person=fresh?.applications?.find(a=>a.id===id),
    accepted=fresh?.waitlist?.entries?.find(e=>e.id===id&&e.status==='ACCEPTED'),
    lastNotice=Array.isArray(fresh?.notifications)?fresh.notifications.at(-1):null,
@@ -1048,7 +1054,7 @@ function v08IndependentGet_(action,payload,response,before,onSuccess){
    '已由原GAS回應及獨立OWNER GET共同核實；未寄信、未重送。');
   if(typeof onSuccess==='function')onSuccess(fresh);
  }).withFailureHandler(()=>{
-  if(generation===v07.generation)fail();
+  if(generation===v07.generation&&!settled){settled=true;fail();}
  }).study1UnifiedPreviewGet();
 }
 
