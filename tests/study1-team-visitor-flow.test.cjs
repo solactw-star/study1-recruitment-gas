@@ -4965,3 +4965,210 @@ test('P1-08 §70-K prior HELD/CONSENTED expiry and original ACCEPTED FIFO cannot
  assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
  closed(srv);
 });
+
+
+/* §70-L: explicit new pure-TEST baseline after UNKNOWN. This never
+ * retroactively proves old MOVE/CANCEL causality or replays its requestId. */
+test('P1-08 §70-L UNKNOWN MOVE recovery requires explicit acknowledgement and two independent matching OWNER GETs; following CANCEL is a new CAS request',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');v.click('move');
+ v.get('v08Ack').checked=true;v.change('v08Ack');
+ const original=srv.ctx.study1UnifiedPreviewCommand,ids=[],start=srv.writes;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(['MOVE','CANCEL'].includes(c.action))ids.push({action:c.action,id:c.requestId});
+  if(c.action==='MOVE'){
+   assert.equal(original(c).deduplicated,false);
+   return original(c);
+  }
+  return original(c);
+ };
+ v.click('v08Commit');
+ assert.equal(srv.writes,start+1);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('cancel').disabled,true);
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ assert.equal(v.get('v08UnknownRecover').disabled,true);
+ assert.match(v.get('v07Result').textContent,/此次操作因果結果尚未確認/);
+ const readStart=v.calls.filter(x=>x==='READ').length;
+ const writesBefore=srv.writes,notices=srv.read().notifications.length;
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ assert.equal(v.get('v08UnknownRecover').disabled,false);
+ v.click('v08UnknownRecover');
+ assert.equal(v.calls.filter(x=>x==='READ').length,readStart+2);
+ assert.equal(srv.writes,writesBefore);
+ assert.equal(srv.read().notifications.length,notices);
+ assert.equal(v.get('v08UnknownBoundary').hidden,true);
+ assert.match(v.get('v07Result').textContent,/原MOVE\/CANCEL交易因果仍UNKNOWN/);
+ assert.doesNotMatch(v.get('v07Result').textContent,/已獨立GET核對TEST改期/);
+ assert.equal(v.get('cancel').disabled,false,'recovery restores new explicit TEST actions from fresh CONFIRMED snapshot');
+ const q=srv.read().waitlist.entries[0];
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ srv.ctx.study1UnifiedPreviewCommand=original;
+ assert.equal(srv.writes,writesBefore+1);
+ assert.equal(ids.length,2);
+ assert.notEqual(ids[0].id,ids[1].id,'fresh action must not reuse original request ID');
+ assert.deepEqual(ids.map(x=>x.action),['MOVE','CANCEL']);
+ assert.match(v.get('v07Result').textContent,/已獨立GET核對TEST個別取消/);
+ const d=srv.read();
+ assert.equal(d.applications.find(a=>a.id===person.id).phase,'CANCELLED');
+ assert.deepEqual([d.waitlist.entries[0].slotId,d.waitlist.entries[0].seq,
+  d.waitlist.entries[0].joinedAt,d.waitlist.entries[0].closedAt],
+  [q.slotId,q.seq,q.joinedAt,q.closedAt]);
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-L UNKNOWN CANCEL recovery with original cancelled B02/FIFO is read-only and cannot enable operations against CANCELLED person',()=>{
+ const srv=server(),person=p108ConfirmedInVisitor_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const v=person.v;v.click('v08Refresh');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');v.click('v08Commit');
+ const before=srv.read(),q=JSON.parse(JSON.stringify(before.waitlist.entries[0])),
+  b02=JSON.parse(JSON.stringify(before.b02.history)),
+  orig=srv.ctx.study1UnifiedPreviewCommand;
+ v.click('cancel');v.get('v08Ack').checked=true;v.change('v08Ack');
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action!=='CANCEL')return orig(c);
+  assert.equal(orig(c).deduplicated,false);
+  return orig(c);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=orig;
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const count=srv.writes,notices=srv.read().notifications.length,
+  readCount=v.calls.filter(x=>x==='READ').length;
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');
+ assert.equal(v.calls.filter(x=>x==='READ').length,readCount+2);
+ assert.equal(srv.writes,count);
+ assert.equal(srv.read().notifications.length,notices);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('cancel').disabled,true);
+ assert.match(v.get('v07Result').textContent,/原因果仍UNKNOWN/);
+ const d=srv.read();
+ assert.deepEqual(d.waitlist.entries[0],q);
+ assert.deepEqual(d.b02.history,b02);
+ assert.equal(d.postCancel.bySlot[0].acceptedOrigins[0].phase,'CANCELLED');
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+ const b12=p108B12_(srv,'WAITLIST');
+ assert.equal(b12.items[0].historical,false);
+ assert.equal(b12.items[0].at,null);
+ assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-L concurrent second-tab CAS between first and second recovery GET rejects new baseline, original UNKNOWN remains and no replay',()=>{
+ const srv=server(),options={deferOwnerReads:false},v=v08ConfirmedVisitor_(srv,options),
+  team=page(srv,'team');
+ v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const original=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action!=='MOVE')return original(c);
+  assert.equal(original(c).deduplicated,false);return original(c);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=original;
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const before=srv.writes;
+ options.deferOwnerReads=true;
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');v.click('v08UnknownRecover');
+ assert.equal(v.pendingOwnerReads.length,1,'first independent read deferred');
+ v.deliverOwnerRead();
+ assert.equal(v.pendingOwnerReads.length,1,'second independent read deferred');
+ assert.equal(srv.writes,before);
+ team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,before,'second stale tab CAS rejected');
+ team.click('refresh');team.set('modeE2','HIDDEN');team.click('saveModes');
+ assert.equal(srv.writes,before+1,'second tab explicitly changed newer GAS revision');
+ v.deliverOwnerRead();
+ assert.equal(v.pendingOwnerReads.length,0);
+ assert.equal(v.get('move').disabled,true);
+ assert.equal(v.get('v08Commit').disabled,true);
+ assert.equal(v.get('v08UnknownRecover').disabled,true);
+ assert.match(v.get('status').textContent,/兩次獨立GET|拒絕恢復|UNKNOWN/);
+ assert.equal(v.calls.filter(x=>x==='MOVE').length,1);
+ assert.equal(srv.writes,before+1);
+ assert.equal(srv.read().recruitment.E2.mode,'HIDDEN');
+ const b12=p108B12_(srv);
+ assert.equal(b12.coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
+test('P1-08 §70-L same-revision forged accepted FIFO or bounded B02/B04 sources blocks explicit UNKNOWN recovery without writes',()=>{
+ for(const kind of ['FIFO','B02','B04']){
+  const srv=server(),person=p108ConfirmedInVisitor_(srv);
+  srv.command('ADMIN_B04_NOTE',{id:person.id,note:'原測試證據',reason:'TEST_NOTE'});
+  srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+  const v=person.v;v.click('v08Refresh');v.click('move');
+  v.get('v08Ack').checked=true;v.change('v08Ack');
+  const native=srv.ctx.study1UnifiedPreviewCommand;
+  srv.ctx.study1UnifiedPreviewCommand=c=>{
+   if(c.action!=='MOVE')return native(c);
+   assert.equal(native(c).deduplicated,false);return native(c);
+  };
+  v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+  assert.equal(v.get('v08UnknownBoundary').hidden,false);
+  const originalRead=srv.read,snapshot=originalRead(),start=srv.writes,notices=snapshot.notifications.length;
+  v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+  let n=0;
+  srv.read=()=>{
+   const d=originalRead();n++;
+   if(n===2){
+    if(kind==='FIFO')d.waitlist.entries[0].joinedAt-=1;
+    if(kind==='B02')d.b02.history[0].action='FORGED_SAME_LENGTH';
+    if(kind==='B04')d.b04.history[0].reason='FORGED_SAME_LENGTH';
+   }
+   return d;
+  };
+  v.click('v08UnknownRecover');srv.read=originalRead;
+  assert.equal(n,2,kind+' must attempt two GETs');
+  assert.equal(srv.writes,start);
+  assert.equal(srv.read().notifications.length,notices);
+  assert.equal(v.get('move').disabled,true);
+  assert.equal(v.get('v08UnknownRecover').disabled,true);
+  assert.match(v.get('status').textContent,/兩次獨立GET|拒絕恢復|UNKNOWN/);
+  assert.deepEqual(srv.read().waitlist.entries,snapshot.waitlist.entries);
+  assert.deepEqual(srv.read().b02.history,snapshot.b02.history);
+  assert.deepEqual(srv.read().b04.history,snapshot.b04.history);
+  const team=page(srv,'team');
+  assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原候補接受 1.*已改期 1/);
+  assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+  closed(srv);
+ }
+});
+test('P1-08 §70-L exact HELD holdUntil crossing between explicit recovery GETs rejects old baseline; original accepted FIFO/phase and B12 unchanged',()=>{
+ const srv=server(),clock={now:Date.now()};
+ class Clock extends Date{static now(){return clock.now;}}
+ srv.ctx.Date=Clock;
+ const v=v08ConfirmedVisitor_(srv);
+ // Second independent HELD participant is a real original GAS TEST fixture.
+ const heldId=postCancelPerson_(srv,'HELD'),hold=srv.read().applications.find(a=>a.id===heldId).holdUntil;
+ v.click('v08Refresh');v.click('move');v.get('v08Ack').checked=true;v.change('v08Ack');
+ const native=srv.ctx.study1UnifiedPreviewCommand;
+ srv.ctx.study1UnifiedPreviewCommand=c=>{
+  if(c.action!=='MOVE')return native(c);
+  assert.equal(native(c).deduplicated,false);return native(c);
+ };
+ v.click('v08Commit');srv.ctx.study1UnifiedPreviewCommand=native;
+ assert.equal(v.get('v08UnknownBoundary').hidden,false);
+ const originalRead=srv.read,before=srv.writes;
+ clock.now=hold-1;
+ let count=0;
+ srv.read=()=>{
+  const d=originalRead();count++;
+  if(count===1)clock.now=hold;
+  return d;
+ };
+ v.get('v08UnknownAck').checked=true;v.change('v08UnknownAck');
+ v.click('v08UnknownRecover');srv.read=originalRead;
+ assert.equal(count,2);
+ assert.equal(srv.writes,before,'hold expiration cannot cause a write or retroactive cancellation');
+ assert.equal(v.get('move').disabled,true);
+ assert.match(v.get('status').textContent,/兩次獨立GET|拒絕恢復|UNKNOWN/);
+ const a=srv.read().applications.find(x=>x.id===heldId);
+ assert.equal(a.phase,'HELD');
+ assert.equal(a.holdUntil,hold);
+ const team=page(srv,'team',{Date:Clock});
+ assert.equal(team.get('entries').children.length>=2,true);
+ assert.equal(p108B12_(srv).coverage.postCancelSummary.completeHistory,false);
+ closed(srv);
+});
