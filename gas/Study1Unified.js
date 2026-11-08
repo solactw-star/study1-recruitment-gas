@@ -1326,7 +1326,7 @@ function study1WaitlistVerify_(s){
    !a||!slot||a.experiment!==e.experiment||slot.experiment!==e.experiment||
    seen.has(e.id)||e.seq!==w.entries.indexOf(e)+1||
    !Number.isSafeInteger(e.joinedAt)||e.joinedAt<0||
-   !['WAITING','OFFERED','ACCEPTED','DECLINED','EXPIRED'].includes(e.status))
+   !['WAITING','OFFERED','ACCEPTED','DECLINED','EXPIRED','OWNER_CLOSED'].includes(e.status))
    throw Error('候補代碼、實驗或順序不合法');
   seen.add(e.id);
   // Cancelled/closed B02 sessions must not retain actionable FIFO entries.
@@ -1347,7 +1347,10 @@ function study1WaitlistVerify_(s){
    e.status==='EXPIRED'&&(!offer||!Number.isSafeInteger(e.closedAt)||
     e.closedAt<e.expiresAt)||
    e.status==='DECLINED'&&(!Number.isSafeInteger(e.closedAt)||
-    (e.offeredAt===null?e.expiresAt!==null:!offer)))
+    (e.offeredAt===null?e.expiresAt!==null:!offer))||
+   e.status==='OWNER_CLOSED'&&(e.offeredAt!==null||e.expiresAt!==null||
+    !Number.isSafeInteger(e.closedAt)||e.closedAt<e.joinedAt||
+    a.phase!=='VERIFIED'))
    throw Error('候補期限、狀態或應答來源不一致');
   if(e.status==='OFFERED')live.add(e.slotId);
  }
@@ -1358,8 +1361,8 @@ function study1WaitlistVerify_(s){
  * participant notification, reservation or eligibility is inferred. */
 function study1WaitlistSummary_(s){
  study1WaitlistVerify_(s);
- const keys=['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'];
- const zero=()=>({WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,total:0});
+ const keys=['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','OWNER_CLOSED'];
+ const zero=()=>({WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,OWNER_CLOSED:0,total:0});
  const total=zero(),byExperiment={E1:zero(),E2:zero()},
   byStage=Object.fromEntries(Object.keys(s.waitlist.settings.stages).map(k=>[k,zero()])),
   bySlot=s.slots.map(slot=>{
@@ -1723,7 +1726,7 @@ function study1UnifiedRequireCommand_(command){
   typeof command.action!=='string'||!/^REQ-SIM-[A-Za-z0-9_-]{8,48}$/.test(command.requestId)||
   !command.payload||typeof command.payload!=='object'||Array.isArray(command.payload)||
   JSON.stringify(command.payload).length>1600)throw Error('統一流程測試指令格式不合法');
- const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE','ADMIN_B07_REVIEW','ADMIN_B07_ITEM_REVIEW','WAITLIST_JOIN','WAITLIST_ADVANCE','WAITLIST_ACCEPT','WAITLIST_DECLINE','ADMIN_WAITLIST_POLICY'];
+ const approved=['START','SCREEN','OTP_REQUEST','OTP_VERIFY','HOLD','CONSENT_REVIEW','PDF_DEMO_REVIEW','CONSENT','CONFIRM','MOVE','CANCEL','ADMIN_EDIT','ADMIN_RESEARCH','ADMIN_SLOTS','ADMIN_POLICY','ADMIN_SCREENING','ADMIN_NOTIFY_ATTEMPT','ADMIN_E2_WEEKS','ADMIN_RECRUITMENT','ADMIN_B11_SETTINGS','ADMIN_RESET','ADMIN_B02_SLOT','ADMIN_B02_ATTEND','ADMIN_B04_NOTE','ADMIN_B05_CLOSURE','ADMIN_B07_REVIEW','ADMIN_B07_ITEM_REVIEW','WAITLIST_JOIN','WAITLIST_ADVANCE','WAITLIST_ACCEPT','WAITLIST_DECLINE','ADMIN_WAITLIST_POLICY','ADMIN_WAITLIST_RESOLVE'];
  if(!approved.includes(command.action))throw Error('未核准的測試指令');
  return command;
 }
@@ -2119,6 +2122,38 @@ function study1UnifiedTransition_(s,cmd,now,outerLock){
     throw Error('有尚未處理的候補或有效邀請，不可關閉其實驗、階段或活動');
   }
   return;
+ }
+ /* §70-E: close exactly one TEST queue entry before a B02 cancellation.
+  * Never offers next FIFO, reschedules, cancels an appointment or sends mail.
+  * Live OFFERED is never revoked; expired OFFERED requires OWNER confirmation.
+  * OWNER_CLOSED distinguishes an admin decision from visitor DECLINED. */
+ if(action==='ADMIN_WAITLIST_RESOLVE'){
+  if(Object.keys(p).sort().join(',')!=='ack,expectedStatus,id,reason,slotId'||
+    p.ack!=='OWNER_TEST_PRE_CANCEL_REVIEWED'||
+    p.reason!=='TEST_SESSION_CANCELLATION'||
+    !/^SIM-SLOT-E[12]-[A-H]$/.test(p.slotId)||
+    !/^SIM-\d{3}$/.test(p.id)||
+    !['WAITING','OFFERED'].includes(p.expectedStatus))
+   throw Error('B02候補單筆核結須明確TEST確認與來源狀態');
+  const slot=s.slots.find(x=>x.id===p.slotId),entry=s.waitlist.entries.find(x=>x.id===p.id);
+  const person=byId(p.id);
+  if(!slot||!entry||!person||entry.slotId!==slot.id||
+     entry.experiment!==slot.experiment||person.experiment!==slot.experiment||
+     person.phase!=='VERIFIED'||entry.status!==p.expectedStatus||
+     ['CANCELLED','CLOSED'].includes(s.b02.sessions[slot.id]?.status)||
+     study1WaitlistPolicy_(s,slot.id).mode!=='MANUAL_TEST')
+   throw Error('候補或場次來源、狀態、實驗或權限已變更，不得核結');
+  if(entry.status==='OFFERED'){
+   if(now<entry.expiresAt)
+    throw Error('TEST邀請仍在有效期限內，不能由OWNER靜默撤銷');
+   entry.status='EXPIRED';entry.closedAt=now;return;
+  }
+  if(s.waitlist.entries.some(x=>x.slotId===slot.id&&x.status==='OFFERED'))
+   throw Error('仍有未核結TEST邀請，須先逐筆檢查後再處理WAITING');
+  const oldest=s.waitlist.entries.find(x=>x.slotId===slot.id&&x.status==='WAITING');
+  if(!oldest||oldest.id!==entry.id)
+   throw Error('人工處理WAITING必須符合該場次既有FIFO順序');
+  entry.status='OWNER_CLOSED';entry.closedAt=now;return;
  }
  if(action==='WAITLIST_ADVANCE'){
   if(Object.keys(p).join(',')!=='slotId'||typeof p.slotId!=='string'||
