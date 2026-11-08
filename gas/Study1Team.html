@@ -3023,6 +3023,7 @@ function cancelQueueRender_(){
      '、個別取消 '+source.linkedCancelled+'）；全部為目前狀態，並非完整歷史':
      '來源未核實';
    })()),
+   calElem('p','逐筆來源 '+group.map(x=>teamCancelledRecordLabel_(x.a)).join('；'),'calMini'),
    calElem('p','出席：待確認 '+counts.attendance.PENDING+
     '｜已出席 '+counts.attendance.PRESENT+'｜遲到 '+counts.attendance.LATE+
     '｜缺席 '+counts.attendance.ABSENT),
@@ -3044,7 +3045,8 @@ function cancelQueueRender_(){
    calElem('p','個別預約流程：'+(profilePhases[r.a.phase]||r.a.phase)+
     '｜出席：'+(calPresence[r.att.attendance]||'未核實')+
     '｜施測：'+(calTesting[r.att.progress]||'未核實')),
-   calElem('p','出席／施測備註：'+(r.att.note||'無可驗證紀錄')));
+   calElem('p','出席／施測備註：'+(r.att.note||'無可驗證紀錄')),
+   calElem('p',teamCancelledRecordLabel_(r.a),'calMini'));
   const actions=calElem('div',undefined,'calQueueActions');
   const full=calElem('button','開啟B04完整資料','secondary');
   full.type='button';full.addEventListener('click',()=>{
@@ -4997,6 +4999,8 @@ function b12Render(page,after){
    '（不是完整稽核歷程）。取消場次目前關聯：'+
    coverage.postCancelSummary.bySlot.map(x=>x.slotId+'：原接受'+
     x.acceptedOrigins.length+'、目前關聯'+x.linked+'、已確認'+x.linkedConfirmed+
+    '、逐筆'+x.linkedRecords.map(a=>a.id+'/'+a.phase+
+     '/出席'+a.attendance+'/施測'+a.progress).join('、')+
     '、歷程取消事件保留'+x.retainedCancelEvents).join('；')+
    '（只有目前來源與近期保留，非完整歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
