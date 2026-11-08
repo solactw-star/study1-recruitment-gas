@@ -106,6 +106,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
  <strong>V05～V08｜虛構額滿候補與遞補回覆</strong>
  <p class="help">只可在原GAS額滿的未來時段排候補；順位依入列順序，需OWNER人工處理。十分鐘邀請不寄信、不自動成立預約；逾期不得接受。</p>
  <label for="v08WaitSlot" class="field">額滿場次（虛構）</label><select id="v08WaitSlot"></select>
+ <button id="v08WaitRefresh" type="button" class="ghost" disabled>唯讀重新核對候補與邀請（不重送）</button>
  <div class="actionrow"><button id="v08WaitJoin" type="button" disabled>加入虛構候補</button>
  <button id="v08WaitAccept" type="button" disabled>接受有效邀請並暫留</button>
  <button id="v08WaitDecline" type="button" disabled>退出虛構候補</button></div>
@@ -195,7 +196,7 @@ function refuseReply(message){
  $('v07Result').textContent='狀態未知：OWNER或研究安全來源無法核實；不能視為提交成功或失敗。';
  $('v07Rescan').disabled=false;
  v05Clear_('安全來源已拒絕，虛構日期與時段已清空。');
- $('v08WaitSlot').replaceChildren();$('v08WaitJoin').disabled=true;
+ $('v08WaitSlot').replaceChildren();$('v08WaitJoin').disabled=true;$('v08WaitRefresh').disabled=true;
  $('v08WaitAccept').disabled=true;$('v08WaitDecline').disabled=true;
  $('v08WaitStatus').textContent='候補來源或OWNER安全資料不可信，已清空。';
  v08Clear_('OWNER或研究安全來源遭拒，變更預覽已清空。');
@@ -280,6 +281,7 @@ function v08WaitRender_(app){
  const slotBox=$('v08WaitSlot'),info=$('v08WaitStatus'),join=$('v08WaitJoin'),
   accept=$('v08WaitAccept'),decline=$('v08WaitDecline'),prev=slotBox.value;
  slotBox.replaceChildren();join.disabled=true;accept.disabled=true;decline.disabled=true;
+ $('v08WaitRefresh').disabled=busy||v07.blocked;
  if(!safePreview(model)||!app||app.phase!=='VERIFIED'||app.eligible!==true){
   $('v08WaitBox').hidden=true;info.textContent='尚無可操作的虛構候補資格。';return;
  }
@@ -313,6 +315,9 @@ function v08WaitRender_(app){
  join.disabled=busy||v07.blocked||!full.some(s=>s.id===slotBox.value);
 }
 $('v08WaitSlot').addEventListener('change',()=>v08WaitRender_(current()));
+$('v08WaitRefresh').addEventListener('click',()=>{
+ if(!busy&&!v07.blocked&&model)v07Readback_(false,'手動候補唯讀核對');
+});
 $('v08WaitJoin').addEventListener('click',()=>{
  const app=current(),slot=model?.slots?.find(s=>s.id===$('v08WaitSlot').value);
  if(!app||$('v08WaitJoin').disabled||app.phase!=='VERIFIED'||!slot||
@@ -530,7 +535,7 @@ function v07Lock_(){
  for(const id of ['chooseE1','chooseE2','screenNext','screenBack','ineligibleRestart',
   'otpSend','otpVerify','otpPaste','hold','review','finish','confirm','move','cancel',
   'newStart','slot','v05Prev','v05Next','v08Ack','v08Commit','v08Back',
-  'v08WaitSlot','v08WaitJoin','v08WaitAccept','v08WaitDecline'])$(id).disabled=true;
+  'v08WaitSlot','v08WaitJoin','v08WaitAccept','v08WaitDecline','v08WaitRefresh'])$(id).disabled=true;
  for(const id of ['v05Dates','v05Choices'])
   for(const child of $(id).children)if(child.tagName==='button')child.disabled=true;
  $('v07Rescan').disabled=v07.recovering;
