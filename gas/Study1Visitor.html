@@ -673,21 +673,48 @@ function v08Plan_(response,a,action,targetId){
  if(fromTime===null||!Number.isSafeInteger(origin.capacity)||origin.capacity<1)return null;
  const originStatus=response.b02.sessions[origin.id]?.status||'OPEN';
  if(!['OPEN','CANCELLED','CLOSED'].includes(originStatus))return null;
+ // B02 cancellation is a slot-level operation, not a silent cancellation of
+ // a confirmed individual booking. Permit explicit TEST MOVE only after the
+ // original GAS post-cancel per-person source has been checked. CLOSED remains
+ // blocked; all transitions and capacity still execute under locked GAS CAS.
+ if(originStatus==='CANCELLED'){
+  const snapshot=response.postCancel?.bySlot?.find(row=>row.slotId===origin.id),
+   linked=snapshot?.linkedRecords?.find(row=>row.id===a.id);
+  if(response.postCancel?.mode!=='CURRENT_CANCELLED_TEST_ONLY'||
+   response.postCancel.completeHistory!==false||response.postCancel.mailSent!==false||
+   snapshot.experiment!==a.experiment||linked?.phase!==a.phase||
+   linked?.holdUntil!==a.holdUntil||
+   linked?.attendance!==(response.b02.attendance[a.id]?.attendance||'PENDING')||
+   linked?.progress!==(response.b02.attendance[a.id]?.progress||'NOT_STARTED'))
+   return null;
+ }
+ const accepted=response.waitlist?.entries?.find(e=>e.id===a.id&&e.status==='ACCEPTED');
+ if(accepted&&(!['E1','E2'].includes(accepted.experiment)||
+  accepted.experiment!==a.experiment||
+  !response.slots.some(s=>s.id===accepted.slotId&&s.experiment===a.experiment)||
+  !Number.isSafeInteger(accepted.seq)||accepted.seq<1||
+  !Number.isSafeInteger(accepted.closedAt)))return null;
  let target=null,toTime=null,toStatus=null;
  if(action==='MOVE'){
-  if(originStatus!=='OPEN'||typeof targetId!=='string'||targetId===origin.id||
+  if(!['OPEN','CANCELLED'].includes(originStatus)||
+   typeof targetId!=='string'||targetId===origin.id||
    !/^SIM-SLOT-E[12]-[A-H]$/.test(targetId))return null;
   const matches=response.slots.filter(s=>s.id===targetId&&s.experiment===a.experiment);
   if(matches.length!==1)return null;
   target=matches[0];toTime=v08CheckTime_(target.when);
   toStatus=response.b02.sessions[target.id]?.status||'OPEN';
-  if(toTime===null||toTime<=Date.now()||toStatus!=='OPEN'||
+  // Server snapshot clock authorizes only this review, not the final move.
+  // GAS still checks live clock, FIFO pending queue and CAS under lock.
+  if(!Number.isSafeInteger(response.waitlist?.asOf)||
+   toTime===null||toTime<=response.waitlist.asOf||toStatus!=='OPEN'||
+   response.waitlist.entries.some(e=>e.slotId===target.id&&e.status==='WAITING')||
    target.bookable!==true||!Number.isSafeInteger(target.capacity)||
    !Number.isSafeInteger(target.remaining)||target.capacity<1||
    target.remaining<1||target.remaining>target.capacity)return null;
  }else if(targetId!==null)return null;
  const signature=JSON.stringify([response.revision,a.id,a.experiment,a.phase,
   a.eligible,a.signatureDemo,a.slotId,origin.when,origin.capacity,originStatus,
+  accepted?.slotId||null,accepted?.seq??null,accepted?.closedAt??null,
   action,target?.id||null,target?.when||null,target?.capacity||null,
   target?.remaining||null,target?.bookable??null,toStatus]);
  return {action,applicationId:a.id,experiment:a.experiment,
