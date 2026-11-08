@@ -3849,10 +3849,10 @@ test('P1-08 §70-D B02 cancel, legacy reschedule/removal, capacity and FIFO prio
  assert.match(team.get('calCancelStatus').textContent,/禁止取消/);
  assert.throws(()=>srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL')),/WAITING|OFFERED/);
  assert.equal(srv.writes,writes,'server refusal and B02 review do not write');
- const moved=srv.read().slots.map(x=>({...x}));
+ const moved=srv.read().slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));
  moved[0].when='2027-02-05 10:00';
  assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:moved}),/候補現況/);
- assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:srv.read().slots.filter(x=>x.id!=='SIM-SLOT-E1-A')}),/候補現況/);
+ assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:srv.read().slots.filter(x=>x.id!=='SIM-SLOT-E1-A').map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}))}),/候補現況/);
  const widened=srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'UPDATE',{capacity:3}));
  assert.equal(widened.slots.find(x=>x.id==='SIM-SLOT-E1-A').capacity,3);
  assert.deepEqual(srv.read().waitlist.entries.map(e=>e.status),['WAITING','WAITING']);
@@ -3868,7 +3868,7 @@ test('P1-08 §70-D B02 cancel, legacy reschedule/removal, capacity and FIFO prio
  const reserved=srv.writes;
  assert.throws(()=>srv.command('ADMIN_B02_SLOT',
   waitlistB02Payload_(srv,'UPDATE',{capacity:2})),/有效候補邀請|容量/);
- const shrink=offered.slots.map(x=>({...x}));shrink[0].capacity=2;
+ const shrink=offered.slots.map(({id,experiment,when,capacity})=>({id,experiment,when,capacity}));shrink[0].capacity=2;
  assert.throws(()=>srv.command('ADMIN_SLOTS',{slots:shrink}),/邀請保留|容量/);
  assert.throws(()=>srv.command('ADMIN_B02_SLOT',
   waitlistB02Payload_(srv,'UPDATE',{capacity:4}),revBeforeOffer),/版本已變更/);
