@@ -714,18 +714,33 @@ function v08UnknownRecover_(){
   !$('v08UnknownAck').checked||!model||!v07.last||
   !['MOVE','CANCEL'].includes(v07.last.action))return;
  const last={...v07.last},minimumRevision=model.revision,
-  generation=++v07.generation,
-  fail=()=>refuseReply('V08新操作基準未能完成兩次獨立GET／FIFO／有限歷程一致性驗證，原因果仍UNKNOWN；已拒絕恢復，未重送。');
+  generation=++v07.generation;
+ // A repeated/out-of-order OWNER callback must never initiate a third GET.
+ let stage=0;
+ const fail=()=>refuseReply('V08新操作基準未能完成兩次獨立GET／FIFO／有限歷程一致性驗證，原因果仍UNKNOWN；已拒絕恢復，未重送。');
  busy=true;v07.recovering=true;
  v08Clear_('因果UNKNOWN的新TEST基準正在進行兩次OWNER GET；原操作不重送。');
  $('v08UnknownRecover').disabled=true;$('v08UnknownAck').disabled=true;
  v07Lock_();
  google.script.run.withSuccessHandler(first=>{
-  if(generation!==v07.generation)return;
+  if(generation!==v07.generation||stage!==0)return;
+  stage=1;
   const firstMark=v08UnknownSnapshot_(first,last);
-  if(firstMark===null||first.revision<minimumRevision){fail();return;}
+  // Same-revision twin forgeries must also match the prior trusted OWNER GET.
+  const knownMark=model.revision===first?.revision?
+   v08UnknownSnapshot_(model,last):null;
+  const priorAccepted=model.waitlist?.entries?.find(e=>e.id===last.id&&e.status==='ACCEPTED');
+  const currentAccepted=first?.waitlist?.entries?.find(e=>e.id===last.id&&e.status==='ACCEPTED');
+  const immutable=['id','experiment','status','slotId','seq','joinedAt','offeredAt','expiresAt','closedAt'];
+  if(firstMark===null||first.revision<minimumRevision||
+   (model.revision===first.revision&&knownMark!==firstMark)||
+   (priorAccepted&&(!currentAccepted||
+    immutable.some(key=>priorAccepted[key]!==currentAccepted[key])))){
+   stage=2;fail();return;
+  }
   google.script.run.withSuccessHandler(second=>{
-   if(generation!==v07.generation)return;
+   if(generation!==v07.generation||stage!==1)return;
+   stage=2;
    const secondMark=v08UnknownSnapshot_(second,last);
    if(secondMark===null||second.revision!==first.revision||
     second.waitlist.asOf<first.waitlist.asOf||
@@ -740,10 +755,10 @@ function v08UnknownRecover_(){
    $('v07Result').textContent='已明確建立新的純TEST操作基準；原MOVE/CANCEL交易因果仍UNKNOWN，不是追認成功。後續須另行預覽、明確確認，使用新requestId及最新CAS。';
    setStatus('兩次獨立OWNER GET的修訂版、原ACCEPTED FIFO、B02/B04有限來源一致；只核對現在狀態，未重送舊操作。');
   }).withFailureHandler(()=>{
-   if(generation===v07.generation)fail();
+   if(generation===v07.generation&&stage===1){stage=2;fail();}
   }).study1UnifiedPreviewGet();
  }).withFailureHandler(()=>{
-  if(generation===v07.generation)fail();
+  if(generation===v07.generation&&stage===0){stage=2;fail();}
  }).study1UnifiedPreviewGet();
 }
 $('v08UnknownAck').addEventListener('change',v08UnknownShow_);
@@ -1058,7 +1073,16 @@ function issue(action,payload,onSuccess){
    return;
   }
   if(!safePreview(response)||!v07ConfirmResponse_(action,payload,response,priorRevision)){
-   refuseReply('示範操作回應無法驗證：原GAS安全來源或預期狀態不一致；請重新載入頁面並以V07唯讀核對，已停止操作。');return;
+   if(['MOVE','CANCEL'].includes(action)){
+    // An invalid success reply may follow a committed CAS; keep causal UNKNOWN.
+    v07.last={action,id:payload.id,slotId:payload.slotId||null,
+     experiment:priorApp?.experiment||null};
+    v07.causalUnknown=true;
+    v07Readback_(true,'V08成功回覆來源或結果無法核實；原交易因果UNKNOWN，僅唯讀GET且不重送');
+   }else{
+    refuseReply('示範操作回應無法驗證：原GAS安全來源或預期狀態不一致；請重新載入頁面並以V07唯讀核對，已停止操作。');
+   }
+   return;
   }
   if(action==='MOVE'||action==='CANCEL'){
    v08IndependentGet_(action,payload,response,priorModel,onSuccess);
