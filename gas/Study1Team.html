@@ -2794,8 +2794,12 @@ function b04NoteCommitted_(d,tx){
  if(!h||h.field!=='adminNote'||h.id!==tx.id||h.actor!=='OWNER'||
   h.before!==tx.before||h.after!==tx.note||h.reason!==tx.reason||
   typeof h.at!=='string'||!Number.isFinite(Date.parse(h.at)))return false;
- return JSON.stringify(d.b04.history.slice(0,-1))===
-  JSON.stringify(tx.history.slice(-29));
+ const prior=tx.history.slice(-29);
+ return d.b04.history.slice(0,-1).every((event,i)=>{
+  const baseline=prior[i];
+  return baseline&&Object.keys(event).sort().join(',')===Object.keys(baseline).sort().join(',')&&
+   Object.keys(baseline).every(key=>event[key]===baseline[key]);
+ });
 }
 function b04NoteStop_(reason){
  b04Save.pending=false;render(null);
@@ -2830,7 +2834,7 @@ function profileInit(){
    b04NoteStop_('B04來源無法核對，沒有提交更正。請重新載入。');return;
   }
   const tx={id,note,reason,before,experiment:app.experiment,revision:model.revision,
-   history:JSON.parse(JSON.stringify(model.b04.history))};
+   history:model.b04.history.map(h=>({...h}))};
   const requestId='REQ-SIM-PROFILE_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
   b04Save.pending=true;
   setBusy(true);profileMessage('已提交一次純TEST更正；核對後端結果及獨立回讀中…',false);
