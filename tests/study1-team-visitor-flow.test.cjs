@@ -727,8 +727,16 @@ test('P1 B02 attendance writes once then independently GETs B03 board and B04 au
  const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
   .find(x=>x.dataset.b04Tab==='booking');
  booking.handlers.click();
- const body=team.get('profileTabBody').children.map(x=>x.textContent).join(' ');
- assert.match(body,/模擬出席/);
+ const bookingGrid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ const bookingValues=bookingGrid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
+ assert.match(bookingValues,/已出席/);
+ assert.match(bookingValues,/部分完成/);
+ const research=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='research');
+ research.handlers.click();
+ const researchGrid=team.get('profileTabBody').children.find(x=>x.className==='b04Fields');
+ const researchValues=researchGrid.children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
+ assert.match(researchValues,/模擬出席紀錄/);
  const timeline=team.get('profileTimeline').children.map(x=>x.children.map(y=>y.textContent).join(' ')).join(' ');
  assert.match(timeline,/出席與施測更新（B02／B04）/);
  assert.match(timeline,/模擬出席紀錄/);
