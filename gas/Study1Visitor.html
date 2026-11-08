@@ -192,7 +192,7 @@ function safePreview(response){
      slot=response.slots.find(s=>s.id===e?.slotId);
     return !!a&&!!slot&&a.experiment===e.experiment&&
      slot.experiment===e.experiment&&e.seq===i+1&&
-     ['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'].includes(e.status)&&
+     ['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','OWNER_CLOSED'].includes(e.status)&&
      Number.isSafeInteger(e.joinedAt)&&
      (e.expiresAt===null||Number.isSafeInteger(e.expiresAt));
    });
@@ -503,7 +503,8 @@ function v08WaitRender_(app){
       '目前有期限內虛構邀請，截止 '+new Date(entry.expiresAt).toISOString()+
        '；按接受只取得15分鐘暫留，仍須示範同意與最後確認。'):
    entry.status==='ACCEPTED'?'已接受邀請，後續仍依原TEST流程確認':
-   entry.status==='EXPIRED'?'候補邀請逾期；不代表已通知或完成預約':'已退出候補';
+   entry.status==='EXPIRED'?'候補邀請逾期；不代表已通知或完成預約':
+    entry.status==='OWNER_CLOSED'?'純TEST候補已由OWNER人工結束（非當事人退出、無寄信）':'已退出候補';
   info.textContent=entry.slotId+'｜'+status+'｜來源修訂版 '+model.revision;
   accept.disabled=busy||v07.blocked||entry.status!=='OFFERED'||
     entry.expiredOffer||Date.now()>=entry.expiresAt;
