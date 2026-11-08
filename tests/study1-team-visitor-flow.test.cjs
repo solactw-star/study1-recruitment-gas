@@ -5045,7 +5045,7 @@ test('P1-08 §70-L UNKNOWN CANCEL recovery with original cancelled B02/FIFO is r
  assert.equal(srv.read().notifications.length,notices);
  assert.equal(v.get('move').disabled,true);
  assert.equal(v.get('cancel').disabled,true);
- assert.match(v.get('v07Result').textContent,/原因果仍UNKNOWN/);
+ assert.match(v.get('v07Result').textContent,/因果仍UNKNOWN/);
  const d=srv.read();
  assert.deepEqual(d.waitlist.entries[0],q);
  assert.deepEqual(d.b02.history,b02);
