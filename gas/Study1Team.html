@@ -409,6 +409,20 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div class="calQueueBox" id="waitlistPanel" aria-label="V05至V08純TEST候補管理">
   <h3>候補順位與期限｜OWNER 純TEST</h3>
   <p class="small">依原GAS虛構來源排序。只有點選人工檢查才會依順位處理逾期邀請並提供下一順位TEST回覆機會，不寄信或成立預約。</p>
+  <fieldset class="calQueueTools" aria-label="依實驗、研究階段及活動設定虛構候補政策">
+   <legend>候補管理模式（原 GAS 純 TEST；不代表正式核准）</legend>
+   <label for="waitPolicyLevel">設定層級<select id="waitPolicyLevel">
+    <option value="EXPERIMENT">實驗</option><option value="STAGE">研究階段</option><option value="ACTIVITY">活動／場次</option></select></label>
+   <label for="waitPolicyExperiment">研究實驗<select id="waitPolicyExperiment">
+    <option value="E1">實驗一（E1）</option><option value="E2">實驗二（E2，正式未開放）</option></select></label>
+   <label for="waitPolicyStage">階段<select id="waitPolicyStage"></select></label>
+   <label for="waitPolicyActivity">活動／虛構場次<select id="waitPolicyActivity"></select></label>
+   <label for="waitPolicyMode">處理模式<select id="waitPolicyMode">
+    <option value="CLOSED">候補關閉</option><option value="MANUAL_TEST">OWNER 人工處理（不寄信）</option>
+    <option value="INHERIT">繼承上層設定</option></select></label>
+   <button type="button" class="secondary" id="waitPolicySave" disabled>儲存純 TEST 候補設定</button>
+  </fieldset>
+  <p id="waitPolicyStatus" class="small" role="status">尚未核實候補分層設定；設定不會開放正式報名。</p>
   <label for="waitlistSlot">候補場次</label><select id="waitlistSlot"><option value="">尚未核對</option></select>
   <button id="waitlistAdvance" type="button" class="secondary" disabled>人工檢查期限及下一順位（不寄信）</button>
   <p id="waitlistStatus" class="small" role="status">候補來源尚未核實。</p>
