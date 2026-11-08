@@ -426,6 +426,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
   <p id="waitPolicyStatus" class="small" role="status">尚未核實候補分層設定；設定不會開放正式報名。</p>
   <label for="waitlistSlot">候補場次</label><select id="waitlistSlot"><option value="">尚未核對</option></select>
   <button id="waitlistAdvance" type="button" class="secondary" disabled>人工檢查期限及下一順位（不寄信）</button>
+   <p class="small">取消場次前可在下列原FIFO清單對單筆WAITING或已逾期OFFERED執行「OWNER單筆核結」，不邀請下一順位；有效邀請不可提前撤銷。此處沒有郵件、真人資料或完整稽核歷程。</p>
   <p id="waitlistStatus" class="small" role="status">候補來源尚未核實。</p>
   <div id="waitlistRows" aria-label="候補順位、期限及歷程"></div>
  </div>
@@ -829,7 +830,7 @@ function teamWaitlistSummarySame_(expected,actual){
   expected.mode!==actual.mode||expected.completeHistory!==actual.completeHistory||
   expected.mailSent!==actual.mailSent||expected.limit!==actual.limit||
   expected.retained!==actual.retained)return false;
- const keys=['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','total'];
+ const keys=['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','OWNER_CLOSED','total'];
  const countSame=(a,b)=>!!a&&!!b&&typeof b==='object'&&!Array.isArray(b)&&
   Object.keys(a).sort().join(',')===Object.keys(b).sort().join(',')&&
   keys.every(k=>Number.isSafeInteger(b[k])&&b[k]>=0&&a[k]===b[k]);
@@ -852,7 +853,7 @@ function teamWaitlistSummaryVerified_(d){
  const w=d?.waitlist,cfg=w?.settings;
  if(!w||!cfg||!Array.isArray(w.entries)||!Array.isArray(w.slotPolicies)||
   !Array.isArray(d.slots)||!w.summary)return null;
- const zero=()=>({WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,total:0});
+ const zero=()=>({WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,OWNER_CLOSED:0,total:0});
  const total=zero(),byExperiment={E1:zero(),E2:zero()},
   byStage=Object.fromEntries(Object.keys(cfg.stages).map(k=>[k,zero()])),
   bySlot=d.slots.map(slot=>{
@@ -866,7 +867,7 @@ function teamWaitlistSummaryVerified_(d){
  for(const e of w.entries){
   const row=slots.get(e.slotId);
   if(!row||row.experiment!==e.experiment||
-   !['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'].includes(e.status))return null;
+   !['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','OWNER_CLOSED'].includes(e.status))return null;
   const buckets=[total,byExperiment[e.experiment],row.counts,
    ...(row.stage?[byStage[e.experiment+':'+row.stage]]:[])];
   if(buckets.some(x=>!x))return null;
@@ -883,7 +884,7 @@ function teamWaitlistLabel_(e){
  if(!e)return '無虛構候補紀錄（不可視為正式資格判定）';
  const phase={WAITING:'等待順位',OFFERED:'已提供、待人工核對截止',
   ACCEPTED:'已接受虛構邀請；非預約完成',EXPIRED:'原邀請已逾期',
-  DECLINED:'已退出'}[e.status]||'來源未核實';
+  DECLINED:'已退出',OWNER_CLOSED:'OWNER人工關閉TEST等待（非當事人退出）'}[e.status]||'來源未核實';
  return '候補'+phase+'｜'+e.experiment+'｜'+e.slotId+'｜序號'+e.seq+
   (e.status==='WAITING'?'｜同場順位'+e.rank:'')+
   (e.status==='OFFERED'?(e.expiredOffer?'｜已過截止仍未人工處理':'｜原回讀尚未核實逾期')+
@@ -980,7 +981,7 @@ function b03CrossCheck_(d){
   const a=people.get(e?.id),slot=slots.get(e?.slotId);
   if(!a||!slot||a.experiment!==e.experiment||slot.experiment!==e.experiment||
    seenWait.has(e.id)||e.seq!==i+1||
-   !['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED'].includes(e.status)||
+   !['WAITING','OFFERED','ACCEPTED','EXPIRED','DECLINED','OWNER_CLOSED'].includes(e.status)||
    !Number.isSafeInteger(e.joinedAt)||e.joinedAt<0||
    (e.status==='WAITING'&&(e.rank!==d.waitlist.entries.filter(q=>q.slotId===e.slotId&&q.status==='WAITING'&&q.seq<=e.seq).length||
     a.phase!=='VERIFIED'||e.expiresAt!==null))||
@@ -1335,7 +1336,7 @@ function b09WaitlistRender_(data,scope,start,end){
   (scope==='ALL'||s.experiment===scope)&&data.slots.some(slot=>
    slot.id===s.slotId&&(!start||slot.when.slice(0,10)>=start)&&
    (!end||slot.when.slice(0,10)<=end)));
- const zero={WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,total:0};
+ const zero={WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,OWNER_CLOSED:0,total:0};
  const subtotal=rows.reduce((n,row)=>{
   for(const k of Object.keys(zero))n[k]+=row.counts[k];
   return n;
@@ -1344,6 +1345,7 @@ function b09WaitlistRender_(data,scope,start,end){
   calElem('p','範圍 '+scope+'｜期間場次 '+rows.length+'｜等待順位 '+subtotal.WAITING+
    '｜邀請待人工處理 '+subtotal.OFFERED+'｜已接受虛構邀請 '+subtotal.ACCEPTED+
    '｜已逾期 '+subtotal.EXPIRED+'｜已退出 '+subtotal.DECLINED+
+    '｜OWNER人工結束 '+subtotal.OWNER_CLOSED+
    '｜合計 '+subtotal.total+' 個虛構候補代碼；所有邀請待處理含可能已過期限者，'+
    '尚未人工處理不等於有效邀請，也不等於已通知。','small'));
  for(const row of rows){
@@ -1351,7 +1353,7 @@ function b09WaitlistRender_(data,scope,start,end){
    (row.stage||'階段尚未指定')+'｜'+row.mode+
    '｜等待 '+row.counts.WAITING+'／待處理 '+row.counts.OFFERED+
    '／接受 '+row.counts.ACCEPTED+'／逾期 '+row.counts.EXPIRED+
-   '／退出 '+row.counts.DECLINED,'small'));
+   '／退出 '+row.counts.DECLINED+'／人工結束 '+row.counts.OWNER_CLOSED,'small'));
  }
  box.append(calElem('p','只依目前場次日期篩選候補的來源場次；不套用目前申請階段篩選、'+
   '不計入原B09已成立預約／出席／完成率，不將0紀錄解讀為沒有歷史。'+
@@ -2506,7 +2508,7 @@ function teamWaitlistRender_(){
   o.textContent=slot.id+'｜'+slot.experiment+'｜'+(policy?.stage||'未指定階段')+
    '｜原跨頁彙整：等待'+snapshot.counts.WAITING+'／邀請待處理'+snapshot.counts.OFFERED+
    '／已接受'+snapshot.counts.ACCEPTED+'／已逾期'+snapshot.counts.EXPIRED+
-   '／退出'+snapshot.counts.DECLINED+
+   '／退出'+snapshot.counts.DECLINED+'／人工結束'+snapshot.counts.OWNER_CLOSED+
    '｜候補'+(policy?.mode==='MANUAL_TEST'?'人工開放':'關閉')+
    '｜候補 '+entries.filter(e=>e.status==='WAITING').length+
    '｜邀請中 '+entries.filter(e=>e.status==='OFFERED').length;sel.append(o);
@@ -2520,8 +2522,22 @@ function teamWaitlistRender_(){
    e.status==='OFFERED'?'已提供虛構回覆機會；截止 '+new Date(e.expiresAt).toISOString()+
     (e.expiredOffer?'（已逾期，待人工檢查）':''):
    e.status==='ACCEPTED'?'已接受邀請，仍須完成原TEST同意與確認':
-   e.status==='EXPIRED'?'原邀請已逾期，未自動通知':'已退出虛構候補';
-  rows.append(calElem('p',e.id+'｜'+e.experiment+'｜序號 '+e.seq+'｜'+info,'small'));
+   e.status==='EXPIRED'?'原邀請已逾期，未自動通知':
+    e.status==='OWNER_CLOSED'?'OWNER人工結束未邀請的TEST候補，非當事人退出':'已退出虛構候補';
+  const row=calElem('div',undefined,'calQueueItem');
+  row.append(calElem('p',e.id+'｜'+e.experiment+'｜序號 '+e.seq+'｜'+info,'small'));
+  const outstanding=entries.some(z=>z.status==='OFFERED');
+  const earliest=entries.find(z=>z.status==='WAITING');
+  const canResolve=e.status==='OFFERED'?(e.expiredOffer||e.expiresAt<=Date.now()):
+   e.status==='WAITING'&&!outstanding&&earliest?.id===e.id;
+  if(canResolve){
+   const done=calElem('button',e.status==='OFFERED'?'單筆核結已逾期邀請（不遞補）':
+    '依FIFO人工結束TEST等待（非退出）','secondary');
+   done.type='button';done.dataset.waitlistResolveId=e.id;done.disabled=busy;
+   done.addEventListener('click',()=>teamWaitlistResolve_(slot.id,e.id,e.status));
+   row.append(done);
+  }
+  rows.append(row);
  }
  if(!entries.length)rows.append(calElem('p','目前沒有候補紀錄（非正式研究統計）','small'));
  const now=Date.now(),start=Date.parse(slot.when.replace(' ','T')+':00+08:00'),
@@ -2536,10 +2552,75 @@ function teamWaitlistRender_(){
  const count=model.waitlist.summary.bySlot.find(x=>x.slotId===slot.id)?.counts;
  status.textContent='B02／B03／B04／B09／B12同來源候補：'+
   (count?'等待'+count.WAITING+'，邀請待處理'+count.OFFERED+
-   '，已接受'+count.ACCEPTED+'，逾期'+count.EXPIRED+'，退出'+count.DECLINED:'來源未核對')+
+   '，已接受'+count.ACCEPTED+'，逾期'+count.EXPIRED+'，退出'+count.DECLINED+
+    '，OWNER人工結束'+count.OWNER_CLOSED:'來源未核對')+
   '｜原GAS修訂版 '+model.revision+'｜'+slot.id+
   '｜順位、期限僅為OWNER TEST資料；伺服器會以獨立時鐘／版本再次核對。';
 }
+
+/* §70-E original OWNER TEST one-entry cancellation preflight. No automatic
+ * ADVANCE, visitor withdrawal, mail or historical audit is fabricated. */
+function teamWaitlistResolve_(slotId,id,expectedStatus){
+ if(busy||!model||!calAllowed()||!b03CrossCheck_(model))return;
+ const entry=model.waitlist.entries.find(e=>e.id===id&&e.slotId===slotId),
+  slot=model.slots.find(s=>s.id===slotId);
+ if(!entry||!slot||!adminScopeMatch_('B02',slot.experiment)||
+   entry.status!==expectedStatus||
+   !['WAITING','OFFERED'].includes(expectedStatus))return;
+ const sameSlot=model.waitlist.entries.filter(e=>e.slotId===slotId);
+ if(expectedStatus==='OFFERED'&&!entry.expiredOffer&&Date.now()<entry.expiresAt)return;
+ if(expectedStatus==='WAITING'&&(sameSlot.some(e=>e.status==='OFFERED')||
+   sameSlot.find(e=>e.status==='WAITING')?.id!==id))return;
+ if(!confirm('只有純TEST！確認依原FIFO／截止來源，單筆核結 '+id+
+   '？不通知、不改期、不自動遞補；有效OFFERED不可撤銷。'))return;
+ const before=model.revision,epoch=ownerScopeEpoch,loadEpoch=ownerLoadEpoch,
+  entries=model.waitlist.entries.map(e=>({...e})),
+  notifications=model.notifications.length,
+  apps=model.applications.map(a=>({id:a.id,phase:a.phase,slotId:a.slotId})),
+  resultStatus=expectedStatus==='OFFERED'?'EXPIRED':'OWNER_CLOSED';
+ const payload={ack:'OWNER_TEST_PRE_CANCEL_REVIEWED',
+  expectedStatus,id,reason:'TEST_SESSION_CANCELLATION',slotId};
+ const sameSnapshot=data=>{
+  if(!b03CrossCheck_(data)||data.deduplicated===true||
+    data.revision!==before+1||data.waitlist.entries.length!==entries.length||
+    data.notifications.length!==notifications||
+    data.applications.length!==apps.length)return false;
+  if(!apps.every((a,i)=>data.applications[i]?.id===a.id&&
+    data.applications[i]?.phase===a.phase&&data.applications[i]?.slotId===a.slotId))return false;
+  return entries.every((e,i)=>{
+   const n=data.waitlist.entries[i];if(!n||n.id!==e.id)return false;
+   const fields=['slotId','experiment','seq','joinedAt','offeredAt','expiresAt'];
+   if(!fields.every(k=>n[k]===e[k]))return false;
+   if(e.id!==id)return n.status===e.status&&n.closedAt===e.closedAt;
+   return n.status===resultStatus&&Number.isSafeInteger(n.closedAt)&&
+    n.closedAt>=e.joinedAt&&(expectedStatus!=='OFFERED'||n.closedAt>=e.expiresAt);
+  });
+ };
+ const requestId='REQ-SIM-PRECANCEL_'+Date.now()+'_'+Math.floor(Math.random()*1e6);
+ setBusy(true);$('waitlistStatus').textContent='單筆TEST核結已提交，等待獨立OWNER GET驗證；不得重送。';
+ google.script.run.withSuccessHandler(reply=>{
+  if(loadEpoch!==ownerLoadEpoch||!sameSnapshot(reply)){
+   render(null);$('waitlistStatus').textContent='單筆核結回應不可信，結果未知，已清空且不重送。';return;
+  }
+  google.script.run.withSuccessHandler(fresh=>{
+   if(loadEpoch!==ownerLoadEpoch||!sameSnapshot(fresh)||
+     fresh.waitlist.entries.find(e=>e.id===id)?.closedAt!==
+      reply.waitlist.entries.find(e=>e.id===id)?.closedAt){
+    render(null);$('waitlistStatus').textContent='核結獨立GET或版本不一致，結果未知，已清空且不重送。';return;
+   }
+   if(render(fresh))$('waitlistStatus').textContent=
+    (epoch===ownerScopeEpoch?'單筆核結已獨立OWNER GET核實：':
+      '檢視範圍已變動，僅呈現重新核實的安全範圍：')+
+    id+' → '+resultStatus+'；沒有下一順位邀請、郵件或自動取消。';
+  }).withFailureHandler(()=>{render(null);$('waitlistStatus').textContent=
+   '核結後獨立OWNER GET失敗，結果未知，已清空且不重送。';})
+   .study1UnifiedPreviewGet();
+ }).withFailureHandler(()=>{render(null);$('waitlistStatus').textContent=
+   '單筆核結被拒或結果未知，已清空且不重送。';})
+  .study1UnifiedPreviewCommand({action:'ADMIN_WAITLIST_RESOLVE',
+   payload,expectedRevision:before,requestId});
+}
+
 $('waitlistSlot').addEventListener('change',teamWaitlistRender_);
 $('waitlistAdvance').addEventListener('click',()=>{
  const slotId=$('waitlistSlot').value,slot=model?.slots?.find(x=>x.id===slotId);
@@ -4763,6 +4844,7 @@ function b12Render(page,after){
    '／已接受'+coverage.waitlistSummary.total.ACCEPTED+
    '／已逾期'+coverage.waitlistSummary.total.EXPIRED+
    '／已退出'+coverage.waitlistSummary.total.DECLINED+
+    '／OWNER人工結束'+coverage.waitlistSummary.total.OWNER_CLOSED+
    '（不是完整稽核歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
  for(const item of page.items){
