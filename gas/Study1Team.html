@@ -989,6 +989,9 @@ function b03CrossCheck_(d){
    (e.status==='OFFERED'&&(!Number.isSafeInteger(e.expiresAt)||
      e.expiresAt<=e.offeredAt||a.phase!=='VERIFIED'||activeWait.has(e.slotId)))||
    (e.status==='ACCEPTED'&&a.slotId!==e.slotId)||
+   (e.status==='OWNER_CLOSED'&&(a.phase!=='VERIFIED'||e.offeredAt!==null||
+    e.expiresAt!==null||!Number.isSafeInteger(e.closedAt)||
+    e.closedAt<e.joinedAt))||
     (['WAITING','OFFERED'].includes(e.status)&&policies.get(e.slotId)?.mode!=='MANUAL_TEST'))return null;
   seenWait.add(e.id);if(e.status==='OFFERED')activeWait.add(e.slotId);
  }
