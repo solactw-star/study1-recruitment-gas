@@ -30,10 +30,14 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 @media(max-width:720px){.grid{grid-template-columns:1fr}.gridtable{grid-template-columns:1fr 1fr}.week{grid-template-columns:1fr}.shell,nav{padding:16px}}
 
 .calQueueBox{margin-top:20px;border-top:1px solid var(--line);padding-top:16px}
-.calQueueTools{display:grid;grid-template-columns:minmax(180px,1fr) minmax(180px,1fr) auto;gap:10px;align-items:end}
+.calQueueTools{display:grid;grid-template-columns:repeat(3,minmax(180px,1fr));gap:10px;align-items:end}
 .calQueueTools label{font-size:13px;font-weight:700}
 .calQueueTools input,.calQueueTools select{min-height:42px;padding:9px}
 .calQueueTools button,.calQueueActions button{margin:0;min-height:38px;padding:7px 10px;font-size:13px}
+.calQueueMatrix{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;margin:12px 0}
+.calQueueMatrixCard{padding:12px;background:#eef7f4;border:1px solid var(--line);border-radius:11px;overflow-wrap:anywhere}
+.calQueueMatrixCard p{font-size:13px;margin:6px 0;white-space:pre-wrap}
+.calQueueMatrixCard button{min-height:36px;padding:6px 10px;font-size:13px}
 .calQueueRows{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px;margin:12px 0}
 .calQueueRow{border:1px solid var(--line);border-radius:12px;padding:12px;background:#f7faf9;overflow-wrap:anywhere}
 .calQueueRow p{font-size:13px;margin:5px 0;white-space:pre-wrap}
@@ -402,8 +406,17 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
     <option value="ALL">全部關聯</option><option value="REVIEW">待人工核對</option>
     <option value="HISTORY">僅保留歷程（不代表已完成）</option></select></label>
    <button type="button" class="secondary" id="cancelQueueClear">清除篩選</button>
+   <label for="cancelQueueSlot">取消場次<select id="cancelQueueSlot"><option value="ALL">全部取消場次</option></select></label>
+   <label for="cancelQueueAttendance">出席狀態<select id="cancelQueueAttendance">
+    <option value="ALL">全部出席</option><option value="PENDING">待確認</option>
+    <option value="PRESENT">已出席</option><option value="LATE">遲到</option><option value="ABSENT">缺席</option></select></label>
+   <label for="cancelQueueProgress">施測狀態<select id="cancelQueueProgress">
+    <option value="ALL">全部施測</option><option value="NOT_STARTED">未開始</option>
+    <option value="IN_PROGRESS">進行中</option><option value="PARTIAL">部分完成</option>
+    <option value="COMPLETE">已完成</option></select></label>
   </div>
   <p id="cancelQueueStatus" role="status" aria-live="polite" class="small">尚未核對同一份TEST來源。</p>
+  <div id="cancelQueueMatrix" class="calQueueMatrix" aria-label="各取消場次的關聯人數、出席及施測交叉核對總覽"></div>
   <div id="cancelQueueRows" class="calQueueRows" aria-label="已取消場次的虛構關聯預約與出席核對清單"></div>
   <p class="small">「待人工核對」和「僅保留歷程」都是從現行流程推導的檢視分類；不表示研究已核准、行政已結案，亦不儲存人工裁決。不可由此直接取消個別預約、改期或寄信。</p>
  </div>
