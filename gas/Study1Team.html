@@ -2884,6 +2884,8 @@ function cancelQueueRender_(){
  const sessions=model.slots.filter(s=>calMeta(s).status==='CANCELLED'&&
   adminScopeMatch_('B02',s.experiment));
  const rows=[];
+ const cancelledSource=teamPostCancelVerified_(model);
+ if(!cancelledSource){cancelQueueClear_('已取消場次來源無法驗證，已清空。');return;}
  for(const slot of sessions){
   for(const a of model.applications.filter(x=>x.slotId===slot.id)){
    const status=cancelQueueState_(a);
@@ -2948,6 +2950,15 @@ function cancelQueueRender_(){
    calElem('p','暫留：有效 '+counts.holds.ACTIVE+'｜逾期 '+counts.holds.EXPIRED+
     '｜非暫留 '+counts.holds.OTHER+'（依原GAS回讀時的本頁時間）'),
    calElem('p',cancelHistoryEvidence_(slot)),
+   calElem('p',(()=>{
+    const source=cancelledSource.bySlot.find(x=>x.slotId===slot.id);
+    return source?'原候補接受 '+source.acceptedOrigins.length+
+     '｜接受後移往他場次 '+source.acceptedOrigins.filter(x=>x.currentSlotId!==slot.id).length+
+     '｜取消後原場次關聯 '+source.linked+
+     '（已確認 '+source.linkedConfirmed+'、暫留／同意 '+source.linkedHoldOrConsented+
+     '、個別取消 '+source.linkedCancelled+'）；全部為目前狀態，並非完整歷史':
+     '來源未核實';
+   })()),
    calElem('p','出席：待確認 '+counts.attendance.PENDING+
     '｜已出席 '+counts.attendance.PRESENT+'｜遲到 '+counts.attendance.LATE+
     '｜缺席 '+counts.attendance.ABSENT),
@@ -3924,11 +3935,20 @@ function profileNotice(target,message){
 }
 function profileEvents(a){
  const e=[],slot=profileSlot(a),att=profileAttend(a),
-  waiting=teamWaitlistEntry_(a.id);
+  waiting=teamWaitlistEntry_(a.id),
+  origin=waiting?.status==='ACCEPTED'&&waiting.slotId!==a.slotId?
+   model.slots.find(x=>x.id===waiting.slotId):null;
  if(waiting)e.push({at:'',name:'目前候補狀態（非稽核事件）',
   detail:teamWaitlistLabel_(waiting)+
    '；原GAS沒有完整候補逐次操作歷程，不將加入／提供／過期時間另造歷史事件'});
  e.push({at:'',name:'目前報名流程',detail:profilePhases[a.phase]||a.phase});
+ if(origin)e.push({at:'',name:'原接受候補場次（非操作事件）',
+   detail:origin.id+'｜'+origin.when+'｜目前預約場次 '+(a.slotId||'無')+
+    '；候補原FIFO來源保留，原接受時刻不是可完整重建的預約改期歷史'});
+ if(origin&&calMeta(origin).status==='CANCELLED')
+  e.push({at:'',name:'原接受邀請場次已取消（目前狀態）',
+   detail:cancelHistoryEvidence_(origin)+
+    '；原場次取消不代表目前另場預約被取消，也不代表曾發通知'});
  if(a.screeningVersion)e.push({at:'',name:'初篩來源',
   detail:(a.screeningSource||'來源未記錄')+'｜'+a.screeningVersion});
  if(slot)e.push({at:'',name:'目前預約時段',
@@ -4051,6 +4071,9 @@ function profileRender(){
  case 'booking':
   fields([['候補目前狀態',teamWaitlistLabel_(teamWaitlistEntry_(a.id))],
    ['預約ID',a.slotId||'無'],
+   ['接受候補原始場次',teamWaitlistEntry_(a.id)?.status==='ACCEPTED'?
+     teamWaitlistEntry_(a.id).slotId+'（FIFO原來源；目前預約場次 '+
+      (a.slotId||'無')+'，不能從原候補推定目前有效預約）':'未核實曾接受候補'],
    ['預約日期時間',slot?slot.when:'未記錄'],
    ['場次狀態',slot?calStates[calMeta(slot).status]:'無可驗證場次'],
    ['取消來源歷程',slot&&calMeta(slot).status==='CANCELLED'?cancelHistoryEvidence_(slot):'不適用'],
@@ -4848,6 +4871,8 @@ function b12Render(page,after){
  try{b07Consistent=b07SummaryEquals_(b07SummaryVerified_(model),
   page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
  const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
+ const postCancelMatch=!!model&&!!teamPostCancelVerified_(model)&&
+  JSON.stringify(model.postCancel)===JSON.stringify(page?.coverage?.postCancelSummary);
  const waitlistMatch=!!model&&!!teamWaitlistSummaryVerified_(model)&&
    teamWaitlistSummarySame_(model.waitlist.summary,page?.coverage?.waitlistSummary)&&
    page?.coverage?.sources?.some(x=>x.module==='WAITLIST'&&
@@ -4871,7 +4896,7 @@ function b12Render(page,after){
    e.before?.stage===e.after?.stage&&b07StageNames[e.after?.stage]&&
    pendingStatuses.includes(e.before?.status)&&e.before?.status!==e.after?.status&&
    Object.keys(b07Statuses).includes(e.after?.status)&&Object.keys(b07Reasons).includes(e.reason)));
- if(!b07Consistent||!waitlistMatch||waitlistEventsSafe!==true||
+ if(!b07Consistent||!waitlistMatch||!postCancelMatch||waitlistEventsSafe!==true||
    b07EventsSafe!==true||!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
     page.formalExport!==false||page.completeImmutableArchive!==false||
     page.b06ChainVerified!==true||page.legacyHistoryBounded!==true||
@@ -4902,7 +4927,11 @@ function b12Render(page,after){
    '／已逾期'+coverage.waitlistSummary.total.EXPIRED+
    '／已退出'+coverage.waitlistSummary.total.DECLINED+
     '／OWNER人工結束'+coverage.waitlistSummary.total.OWNER_CLOSED+
-   '（不是完整稽核歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
+   '（不是完整稽核歷程）。取消場次目前關聯：'+
+   coverage.postCancelSummary.bySlot.map(x=>x.slotId+'：原接受'+
+    x.acceptedOrigins.length+'、目前關聯'+x.linked+'、已確認'+x.linkedConfirmed+
+    '、歷程取消事件保留'+x.retainedCancelEvents).join('；')+
+   '（只有目前來源與近期保留，非完整歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
  for(const item of page.items){
   const box=calElem('article',undefined,'b12Event');
