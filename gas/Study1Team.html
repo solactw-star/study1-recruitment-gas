@@ -323,6 +323,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <div class="b06Actions"><button type="button" id="b09Apply" class="secondary">重新計算</button><button type="button" id="b09Reset" class="secondary">清除篩選</button><span id="b09Status" role="status" aria-live="polite" class="small">尚未核對虛構資料。</span></div>
  <div id="b09Metrics" class="b09Metrics" aria-label="統計數值、分子、分母與排除條件"></div>
  <p id="b09B07Consistency" class="small" role="status" aria-live="polite">B07逐階段待核：尚未核實。</p>
+  <div id="b09WaitlistSummary" role="status" aria-live="polite" class="small" aria-label="B09候補目前狀態、非預約與有限歷程">尚未核對候補現況。</div>
  <h3>依實驗統計（不重複虛構申請代碼）</h3>
  <div class="b09TableWrap"><table class="b09Table"><thead><tr><th scope="col">實驗</th><th scope="col">申請代碼／全期</th><th scope="col">初篩通過／已評估</th><th scope="col">未取消且具場次關聯／期間</th><th scope="col">預約成立／期間</th><th scope="col">出席／期間</th><th scope="col">施測行政完成／期間</th></tr></thead><tbody id="b09ByExperiment"></tbody></table></div>
  <h3>按場次日期分布（不是報名日期趨勢）</h3>
@@ -761,12 +762,12 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 
 <section class="panel" id="b12Module" aria-labelledby="b12Heading">
  <span class="tag">B12｜原網站唯讀稽核</span><h2 id="b12Heading">虛構資料操作歷程與異常狀態</h2>
- <p class="sub">僅原 GAS owner 可以查詢。B02只保留動作、時間與虛構代碼；B04／B05／B07逐階段更正為有限前後值歷程；B06的SHA256鏈可驗證。跨來源對照找不到事件可能只是截斷，不可推定遭刪除。B08顯示虛構通知失敗<strong>現況</strong>，並非歷史事件。沒有正式稽核匯出或永久不可改寫庫。</p>
+ <p class="sub">僅原 GAS owner 可以查詢。B02只保留動作、時間與虛構代碼；B04／B05／B07逐階段更正為有限前後值歷程；B06的SHA256鏈可驗證。跨來源對照找不到事件可能只是截斷，不可推定遭刪除。B08顯示虛構通知失敗<strong>現況</strong>，並非歷史事件。候補亦只有同一份原GAS目前TEST狀態快照，未保存逐次不可改寫的候補遞補事件；不能將快照或附帶時間冒充完整歷程。沒有正式稽核匯出或永久不可改寫庫。</p>
  <div class="b12Tools">
   <label for="b12Search">關鍵字<input type="search" id="b12Search" maxlength="60" placeholder="代碼、動作或原因"></label>
   <label for="b12Sort">時間排序<select id="b12Sort"><option value="DESC">最新在前</option><option value="ASC">最早在前</option></select></label>
-  <label for="b12ModuleFilter">模組<select id="b12ModuleFilter"><option value="ALL">全部</option><option value="B02">B02 行事曆</option><option value="B06">B06 待辦</option><option value="B04">B04 管理</option><option value="B05">B05 場次</option><option value="B07">B07 逐階段待核</option><option value="B08">B08 虛構失敗</option></select></label>
-  <label for="b12Result">結果<select id="b12Result"><option value="ALL">全部</option><option value="SUCCESS">成功</option><option value="SIM_FAILED_SNAPSHOT">虛構失敗狀態</option></select></label>
+  <label for="b12ModuleFilter">模組<select id="b12ModuleFilter"><option value="ALL">全部</option><option value="B02">B02 行事曆</option><option value="B06">B06 待辦</option><option value="B04">B04 管理</option><option value="B05">B05 場次</option><option value="B07">B07 逐階段待核</option><option value="B08">B08 虛構失敗</option><option value="WAITLIST">候補目前快照（非歷史事件）</option></select></label>
+  <label for="b12Result">結果<select id="b12Result"><option value="ALL">全部</option><option value="SUCCESS">成功</option><option value="SIM_FAILED_SNAPSHOT">虛構失敗狀態</option><option value="CURRENT_SNAPSHOT">候補目前狀態（非歷史）</option></select></label>
   <label for="b12Limit">每頁筆數<select id="b12Limit"><option value="10">10</option><option value="20">20</option><option value="30">30</option></select></label>
  </div>
  <div class="b06Actions"><button type="button" id="b12SearchButton" class="secondary">查詢稽核</button>
@@ -1293,9 +1294,43 @@ function b09Rate_(numerator,denominator){
 function b09Clear_(msg){
  $('b09B07Consistency').textContent='B07來源或數量未核實，不顯示逐階段待核統計。';
  $('b09Metrics').replaceChildren();$('b09ByExperiment').replaceChildren();
+ $('b09WaitlistSummary').replaceChildren();
  $('b09Trend').replaceChildren();$('b09Visual').replaceChildren();
  $('b09Status').textContent=msg;
 }
+/* B09 is a separate waitlist CURRENT-status slice; it never changes booking
+ * denominators or invents signup dates/REC stages. Only slot dates filter it. */
+function b09WaitlistRender_(data,scope,start,end){
+ const box=$('b09WaitlistSummary');box.replaceChildren();
+ const verified=teamWaitlistSummaryVerified_(data);
+ if(!verified)throw Error('B09候補彙整與B02／B03／B04原始狀態不一致');
+ const rows=verified.bySlot.filter(s=>
+  (scope==='ALL'||s.experiment===scope)&&data.slots.some(slot=>
+   slot.id===s.slotId&&(!start||slot.when.slice(0,10)>=start)&&
+   (!end||slot.when.slice(0,10)<=end)));
+ const zero={WAITING:0,OFFERED:0,ACCEPTED:0,EXPIRED:0,DECLINED:0,total:0};
+ const subtotal=rows.reduce((n,row)=>{
+  for(const k of Object.keys(zero))n[k]+=row.counts[k];
+  return n;
+ },{...zero});
+ box.append(calElem('strong','B09候補現況（B02／B03／B04／B12相同來源，不是預約）'),
+  calElem('p','範圍 '+scope+'｜期間場次 '+rows.length+'｜等待順位 '+subtotal.WAITING+
+   '｜邀請待人工處理 '+subtotal.OFFERED+'｜已接受虛構邀請 '+subtotal.ACCEPTED+
+   '｜已逾期 '+subtotal.EXPIRED+'｜已退出 '+subtotal.DECLINED+
+   '｜合計 '+subtotal.total+' 個虛構候補代碼；所有邀請待處理含可能已過期限者，'+
+   '尚未人工處理不等於有效邀請，也不等於已通知。','small'));
+ for(const row of rows){
+  box.append(calElem('p',row.slotId+'｜'+row.experiment+'｜'+
+   (row.stage||'階段尚未指定')+'｜'+row.mode+
+   '｜等待 '+row.counts.WAITING+'／待處理 '+row.counts.OFFERED+
+   '／接受 '+row.counts.ACCEPTED+'／逾期 '+row.counts.EXPIRED+
+   '／退出 '+row.counts.DECLINED,'small'));
+ }
+ box.append(calElem('p','只依目前場次日期篩選候補的來源場次；不套用目前申請階段篩選、'+
+  '不計入原B09已成立預約／出席／完成率，不將0紀錄解讀為沒有歷史。'+
+  '來源只保留目前狀態，不是完整時間序列或正式候補報表。','small'));
+}
+
 function b09Render(){
  if(!model){b09Clear_('無授權資料快照，報表已清空');return;}
  try{
@@ -1307,7 +1342,8 @@ function b09Render(){
   const effective=admin==='ALL'?local:admin;
   const result=b09Compute_(model,effective,
    $('b09Phase').value||'ALL',start,end);
-  const metrics=$('b09Metrics');metrics.replaceChildren();
+  b09WaitlistRender_(model,effective,start,end);
+   const metrics=$('b09Metrics');metrics.replaceChildren();
   const items=[
    ['全期目前階段申請代碼',result.applications,'單位：不重複虛構申請代碼；不依場次日期過濾'],
    ['初篩通過／已評估',b09Rate_(result.passed,result.screened),
@@ -1357,7 +1393,7 @@ function b09Render(){
   $('b09Status').textContent='已核對同一 TEST 快照｜實驗：'+result.scope+
    '｜目前階段：'+result.phase+'｜場次日期：'+(result.start||'不限')+
    ' 至 '+(result.end||'不限')+'｜已核實修訂版 '+model.revision;
-  $('b09Notes').textContent='方法：全期申請／初篩不套用場次日期；期間數字只用場次日期與目前場次關聯。每個申請代碼每個實驗只計一次；此系統沒有跨申請代碼的真人身分去重、可信報名時間、候補狀態、正式完成認定或核准目標。B06/B08只顯示目前現況。正式CSV／XLSX匯出與資料讀寫一律未開放。';
+  $('b09Notes').textContent='方法：全期申請／初篩不套用場次日期；期間數字只用場次日期與目前場次關聯。每個申請代碼每個實驗只計一次；此系統沒有跨申請代碼的真人身分去重、可信報名時間、候補狀態、正式完成認定或核准目標。B06/B08與候補只顯示目前現況，候補另依其原始場次日期統計、不計入預約分母。正式CSV／XLSX匯出與資料讀寫一律未開放。';
  }catch(error){
   b09Clear_('B09來源或日期範圍無法核實，報表已清空：'+String(error.message||error));
  }
@@ -4614,13 +4650,31 @@ function b12Render(page,after){
  try{b07Consistent=b07SummaryEquals_(b07SummaryVerified_(model),
   page?.coverage?.b07Summary);}catch(error){b07Consistent=false;}
  const pendingStatuses=['UNRECORDED','SOURCE_PENDING','DOCUMENTS_PENDING','PI_REVIEW_PENDING'];
- const b07EventsSafe=page?.items?.every(e=>e.module!=='B07'||
+ const waitlistMatch=!!model&&!!teamWaitlistSummaryVerified_(model)&&
+   JSON.stringify(page?.coverage?.waitlistSummary)===JSON.stringify(model.waitlist.summary)&&
+   page?.coverage?.sources?.some(x=>x.module==='WAITLIST'&&
+    x.retained===model.waitlist.summary.retained&&x.limit===8&&
+    x.provenance==='CURRENT_TEST_WAITLIST_ONLY');
+  const waitlistEventsSafe=page?.items?.every(e=>e.module!=='WAITLIST'||(()=>{
+   const src=model?.waitlist?.entries?.find(x=>x.id===e.target),
+    slot=model?.waitlist?.summary?.bySlot?.find(x=>x.slotId===src?.slotId);
+   return !!src&&!!slot&&e.at===null&&e.before===null&&
+    e.action===src.status&&e.actor==='SYSTEM_TEST_SNAPSHOT'&&
+    e.result==='CURRENT_SNAPSHOT'&&e.provenance==='CURRENT_TEST_WAITLIST_ONLY'&&
+    e.historical===false&&e.after?.seq===src.seq&&
+    e.after?.status===src.status&&e.after?.slotId===src.slotId&&
+    e.after?.experiment===src.experiment&&e.after?.stage===slot.stage&&
+    e.after?.expiresAt===src.expiresAt&&e.after?.closedAt===src.closedAt&&
+    e.after?.offeredAt===src.offeredAt;
+  })());
+  const b07EventsSafe=page?.items?.every(e=>e.module!=='B07'||
   (e.action==='ADMIN_B07_ITEM_REVIEW'&&e.provenance==='BOUNDED_PENDING_HISTORY'&&
    e.historical===true&&e.result==='SUCCESS'&&e.actor==='OWNER'&&
    e.before?.stage===e.after?.stage&&b07StageNames[e.after?.stage]&&
    pendingStatuses.includes(e.before?.status)&&e.before?.status!==e.after?.status&&
    Object.keys(b07Statuses).includes(e.after?.status)&&Object.keys(b07Reasons).includes(e.reason)));
- if(!b07Consistent||b07EventsSafe!==true||!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
+ if(!b07Consistent||!waitlistMatch||waitlistEventsSafe!==true||
+   b07EventsSafe!==true||!model||!page||page.mode!=='SYNTHETIC_AUDIT_ONLY'||
     page.formalExport!==false||page.completeImmutableArchive!==false||
     page.b06ChainVerified!==true||page.legacyHistoryBounded!==true||
     !page.coverage||page.coverage.scope!=='BOUNDED_SYNTHETIC_SNAPSHOT'||
@@ -4636,14 +4690,20 @@ function b12Render(page,after){
  b12.page++;$('b12Prev').disabled=b12.history.length===0;
  $('b12Next').disabled=!page.nextAfter;
  b12Status('已核實 '+page.items.length+'／'+page.total+' 筆符合條件｜目前頁 '+b12.page+
-  '｜只顯示既有虛構歷程，不提供匯出。',false);
+  '｜僅既有有限歷程／候補目前快照，不提供匯出。',false);
  // Show coverage on every filtered page; never hide truncated or unmatched
  // legacy source events merely because the selected page has zero items.
  const coverage=page.coverage;
  $('b12Coverage').textContent='可見保留量：'+coverage.sources.map(s=>
   s.module+' '+s.retained+'／最多'+s.limit+'筆').join('；')+
   '。B07逐階段分類：'+b07CountText_(coverage.b07Summary.total)+
-  '（僅TEST）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
+  '（僅TEST）。候補目前狀態：'+
+   '等待'+coverage.waitlistSummary.total.WAITING+
+   '／邀請未人工處理'+coverage.waitlistSummary.total.OFFERED+
+   '／已接受'+coverage.waitlistSummary.total.ACCEPTED+
+   '／已逾期'+coverage.waitlistSummary.total.EXPIRED+
+   '／已退出'+coverage.waitlistSummary.total.DECLINED+
+   '（不是完整稽核歷程）。來源提醒：'+coverage.warnings.map(w=>w.text).join('；');
  const target=$('b12List');target.replaceChildren();
  for(const item of page.items){
   const box=calElem('article',undefined,'b12Event');
