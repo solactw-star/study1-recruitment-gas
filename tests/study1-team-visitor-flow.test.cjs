@@ -4071,3 +4071,143 @@ test('P1-08 §70-E stale B02 close CAS, forged status and owner readback refusal
  assert.equal(srv.read().waitlist.entries[0].status,'OWNER_CLOSED');
  closed(srv);
 });
+
+
+/* §70-F: same original TEST GAS/Team/Visitor VM. Postcancel is a derived
+ * CURRENT-only projection; never mutate booking or invent full audit events. */
+const p108AcceptedConfirmed_=(srv)=>{
+ waitlistFillConfirmed_(srv);
+ const a=waitlistVerifiedVisitor_(srv);a.v.click('v08WaitJoin');
+ srv.command('CANCEL',{id:'SIM-001'}); // synthetic booking cancellation only
+ srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
+ assert.equal(srv.read().waitlist.entries[0].status,'OFFERED');
+ a.v.click('v08WaitRefresh');a.v.click('v08WaitAccept');
+ assert.equal(srv.read().applications.find(x=>x.id===a.id).phase,'HELD');
+ const version=srv.read().policy.consent.E1.version;
+ srv.command('CONSENT_REVIEW',{id:a.id,version,sha256:''});
+ srv.command('CONSENT',{id:a.id,accepted:true,version,signature:'SIMULATED_SIGN_ONLY'});
+ srv.command('CONFIRM',{id:a.id});
+ assert.equal(srv.read().applications.find(x=>x.id===a.id).phase,'CONFIRMED');
+ return a;
+};
+const p108B12_=(srv,module='ALL')=>srv.ctx.study1UnifiedB12AuditPage({
+ after:'',expectedB06Revision:srv.read().b06.revision,
+ expectedFixtureRevision:srv.read().revision,limit:30,
+ module,result:'ALL',search:'',snapshotHash:'',sort:'DESC'
+});
+test('P1-08 §70-F accepted TEST invitation becomes CONFIRMED, B02 cancels but preserves original booking, attendance and B03/B04/B09/B12 boundaries',()=>{
+ const srv=server(),a=p108AcceptedConfirmed_(srv);
+ const before=srv.read(),original=before.waitlist.entries[0];
+ const noticeCount=before.notifications.length;
+ const team=page(srv,'team'),review=cancelTestSession_(team);
+ assert.equal(review.hidden,false);
+ assert.equal(team.get('calCancelCommit').disabled,true);
+ team.get('calCancelAck').checked=true;team.change('calCancelAck');
+ assert.equal(team.get('calCancelCommit').disabled,false);
+ team.click('calCancelCommit');
+ const view=srv.read(),slot=view.postCancel.bySlot.find(x=>x.slotId==='SIM-SLOT-E1-A');
+ assert.equal(view.b02.sessions['SIM-SLOT-E1-A'].status,'CANCELLED');
+ assert.equal(slot.acceptedOrigins.length,1);
+ assert.deepEqual(slot.acceptedOrigins[0],{
+  id:a.id,seq:1,originalSlotId:'SIM-SLOT-E1-A',
+  currentSlotId:'SIM-SLOT-E1-A',phase:'CONFIRMED'});
+ assert.equal(slot.linked,3,'includes confirmed and cancelled individual applications as historical association');
+ assert.equal(slot.linkedConfirmed,2);
+ assert.equal(slot.linkedCancelled,1);
+ assert.equal(slot.pendingQueue,0);
+ assert.equal(slot.retainedCancelEvents,1);
+ assert.equal(view.waitlist.entries[0].status,'ACCEPTED');
+ assert.equal(view.waitlist.entries[0].slotId,original.slotId);
+ assert.equal(view.waitlist.entries[0].seq,original.seq);
+ assert.equal(view.waitlist.entries[0].offeredAt,original.offeredAt);
+ assert.equal(view.waitlist.entries[0].closedAt,original.closedAt);
+ assert.equal(view.applications.find(x=>x.id===a.id).phase,'CONFIRMED',
+  'administrative slot cancellation does not silently cancel participant');
+ assert.equal(view.notifications.length,noticeCount,'no phantom cancellation mail');
+ assert.equal(view.slots.find(x=>x.id==='SIM-SLOT-E1-A').remaining,0);
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/原B02已取消 SIM-SLOT-E1-A.*原候補接受 1/);
+ assert.match(team.get('b09Metrics').children.map(waitlistNodeText_).join(' '),/期間已成立預約/);
+ assert.match(waitlistNodeText_(team.get('cancelQueueMatrix')),/原候補接受 1/);
+ assert.equal(team.get('cancelQueueStatus').textContent.includes('待人工核對'),true);
+ const profile=team.get('entries').children.find(x=>x.dataset.participantId===a.id);
+ assert.ok(profile);
+ profile.children.find(x=>x.tagName==='button').handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');booking.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTabBody')),/接受候補原始場次.*SIM-SLOT-E1-A/);
+ assert.match(waitlistNodeText_(team.get('profileTabBody')),/場次取消後關聯/);
+ const audit=p108B12_(srv);
+ assert.deepEqual(audit.coverage.postCancelSummary,view.postCancel);
+ assert.equal(audit.coverage.complete,false);
+ assert.ok(audit.items.some(e=>e.module==='B02'&&e.action==='CANCEL'&&
+  e.provenance==='BOUNDED_EVENT_ONLY'&&e.historical===true));
+ const queue=p108B12_(srv,'WAITLIST');
+ assert.equal(queue.items.length,1);
+ assert.equal(queue.items[0].action,'ACCEPTED');
+ assert.equal(queue.items[0].after.slotId,'SIM-SLOT-E1-A');
+ assert.equal(queue.items[0].historical,false);
+ closed(srv);
+});
+test('P1-08 §70-F confirmed booking MOVE keeps original accepted FIFO source; cancelling original does not cancel current booking or corrupt B09 denominator',()=>{
+ const srv=server(),a=p108AcceptedConfirmed_(srv);
+ const original=srv.read().waitlist.entries[0],notices=srv.read().notifications.length;
+ srv.command('MOVE',{id:a.id,slotId:'SIM-SLOT-E1-B'});
+ const moved=srv.read();
+ assert.equal(moved.applications.find(x=>x.id===a.id).slotId,'SIM-SLOT-E1-B');
+ assert.equal(moved.waitlist.entries[0].slotId,'SIM-SLOT-E1-A');
+ assert.equal(moved.waitlist.entries[0].status,'ACCEPTED');
+ assert.equal(moved.notifications.length,notices+1,'only old synthetic MOVE notice');
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const view=srv.read(),old=view.postCancel.bySlot.find(x=>x.slotId==='SIM-SLOT-E1-A');
+ assert.equal(old.acceptedOrigins.length,1);
+ assert.equal(old.acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ assert.equal(old.acceptedOrigins[0].originalSlotId,'SIM-SLOT-E1-A');
+ assert.equal(old.linked,2);
+ assert.equal(old.linkedConfirmed,1);
+ assert.equal(view.waitlist.summary.total.ACCEPTED,1);
+ assert.equal(view.waitlist.entries[0].closedAt,original.closedAt);
+ assert.equal(view.applications.find(x=>x.id===a.id).phase,'CONFIRMED');
+ assert.equal(view.slots.find(x=>x.id==='SIM-SLOT-E1-B').bookable,true);
+ const team=page(srv,'team');
+ assert.match(waitlistNodeText_(team.get('b09WaitlistSummary')),/已改期 1/);
+ assert.match(waitlistNodeText_(team.get('cancelQueueMatrix')),/接受後移往他場次 1/);
+ const entry=team.get('entries').children.find(x=>x.dataset.participantId===a.id);
+ assert.ok(entry);entry.children.find(x=>x.tagName==='button').handlers.click();
+ const booking=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='booking');booking.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTabBody')),/接受候補原始場次.*SIM-SLOT-E1-A/);
+ const audit=[...team.context.document.querySelectorAll('[data-b04-tab]')]
+  .find(x=>x.dataset.b04Tab==='audit');audit.handlers.click();
+ assert.match(waitlistNodeText_(team.get('profileTimeline')),/原接受邀請場次已取消/);
+ const b12=p108B12_(srv,'WAITLIST');
+ assert.equal(b12.items[0].after.slotId,'SIM-SLOT-E1-A');
+ assert.equal(b12.coverage.postCancelSummary.bySlot[0].acceptedOrigins[0].currentSlotId,'SIM-SLOT-E1-B');
+ closed(srv);
+});
+test('P1-08 §70-F forged postcancel current snapshot and B12 bounded coverage fail closed; no booking or queue mutation',()=>{
+ const srv=server(),a=p108AcceptedConfirmed_(srv);
+ srv.command('ADMIN_B02_SLOT',waitlistB02Payload_(srv,'CANCEL'));
+ const baseline=srv.read(),writes=srv.writes,read=srv.read;
+ const team=page(srv,'team');
+ const bad=mutate=>{
+  srv.read=()=>{const d=read();mutate(d);return d;};
+  team.click('refresh');
+  assert.equal(team.get('entries').children.length,0);
+  assert.equal(team.get('cancelQueueRows').children.length,0);
+  assert.equal(team.get('waitlistRows').children.length,0);
+  assert.equal(team.get('b12List').children.length,0);
+  srv.read=read;team.click('refresh');
+ };
+ bad(d=>{d.postCancel.bySlot[0].linkedConfirmed++;});
+ bad(d=>{d.postCancel.bySlot[0].acceptedOrigins[0].currentSlotId='SIM-SLOT-E2-A';});
+ bad(d=>{d.waitlist.entries[0].slotId='SIM-SLOT-E2-A';});
+ assert.equal(srv.writes,writes);
+ assert.deepEqual(srv.read().postCancel,baseline.postCancel);
+ assert.deepEqual(srv.read().waitlist.entries,baseline.waitlist.entries);
+ const audit=p108B12_(srv,'WAITLIST');
+ assert.equal(audit.coverage.postCancelSummary.mode,'CURRENT_CANCELLED_TEST_ONLY');
+ assert.equal(audit.coverage.postCancelSummary.completeHistory,false);
+ assert.equal(audit.coverage.postCancelSummary.mailSent,false);
+ assert.equal(audit.items[0].provenance,'CURRENT_TEST_WAITLIST_ONLY');
+ closed(srv);
+});
