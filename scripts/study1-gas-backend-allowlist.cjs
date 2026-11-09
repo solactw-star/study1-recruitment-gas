@@ -36,6 +36,7 @@ function assertClosedWebsite(source){
   'function submitConsent(){return rejectIntake_();}',
   'function listSlots(){return [];}', 
   'function setOpen_(){return rejectIntake_();}',
+  "function getPublicConsentDocument(experiment){return study1ConsentPublicRead_(experiment);}",
   "p.setProperties({OPEN:'false',CONSENT_READY:'false'},false)"
  ];
  for(const token of required)if(!source.includes(token))throw Error('CLOSED Website guard changed: '+token);
