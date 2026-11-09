@@ -186,3 +186,44 @@ test('Anonymous info may propagate but private-view exposure fails closed immedi
  await assert.rejects(release.waitForAnonymousAccess('https://script.google.com/macros/s/AKfycbPublicReadOnlyUniqueId123/exec',
   async()=>{throw Error('Anonymous request exposed private team HTML');},4,async()=>{}),/exposed private team/);
 });
+
+
+test('Official page presents complete owner-published source PDF, researcher Q&A, signature, withdrawal and original copy without active collection',()=>{
+ const index=source('gas/Index.html');
+ const website=source('gas/Website.js');
+ const admin=source('gas/AdminSandbox.js');
+ for(const id of ['consentExperiment','consentDocument','consentStatus','consentPdfViewer',
+  'consentDownload','consentDocumentHash','consentReadAck','consentAnsweredAck',
+  'consentAgreeAck','consentSigner','consentSignature','consentSubmit','consentWithdraw'])
+  assert.ok(index.includes('id="'+id+'"'),'missing formal consent component '+id);
+ assert.match(index,/getPublicConsentDocument\(exp\)/);
+ assert.match(index,/crypto\.subtle\.digest\('SHA-256',bytes\)/);
+ assert.match(index,/consentEl\('consentSubmit'\)\.disabled=true/);
+ assert.match(index,/URL\.revokeObjectURL\(consentBlobUrl\)/);
+ assert.match(index,/readAsDataURL|canvas\.getContext\('2d'\)|consentCanvas\.getContext\('2d'\)/);
+ assert.doesNotMatch(index,/<(?:form|textarea)\b/i);
+ const inputs=[...index.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+ assert.equal(inputs.length,4);assert.ok(inputs.every(x=>/\bdisabled\b/.test(x)));
+ assert.doesNotMatch(index,/localStorage|sessionStorage|\.sendBeacon\(|fetch\(/);
+ assert.match(website,/function submitConsent\(\)\{return rejectIntake_\(\);\}/);
+ assert.match(website,/function getPublicConsentDocument\(experiment\)\{return study1ConsentPublicRead_\(experiment\);\}/);
+ assert.match(admin,/if\(!fileId\)return \{available:false,experiment\}/);
+ assert.match(admin,/if\(hash!==entry\.sha256\)throw Error\(/);
+ assert.match(admin,/getParents\(\)/);
+ assert.match(admin,/study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\);/);
+ assert.doesNotThrow(()=>release.assertClosedPublicSources(remote()));
+});
+test('The public-release gate rejects a changed consent signer, missing approved PDF GET or unauthorized private file exposure',()=>{
+ for(const mutate of [
+  r=>{const idx=r.files.find(x=>x.name==='Index');idx.source=idx.source.replace(
+   "consentEl('consentSubmit').disabled=true;","consentEl('consentSubmit').disabled=false;");},
+  r=>{const site=r.files.find(x=>x.name==='Website');site.source=site.source.replace(
+   'return study1ConsentPublicRead_(experiment);','return DriveApp.getFileById(experiment);');},
+  r=>{const admin=r.files.find(x=>x.name==='AdminSandbox');admin.source=admin.source.replace(
+   'if(hash!==entry.sha256)throw Error(', 'if(false)throw Error(');},
+  r=>{const html=r.files.find(x=>x.name==='Index');html.source+='\n<form><input name="identity"></form>';}
+ ]){
+  const candidate=remote();mutate(candidate);
+  assert.throws(()=>release.assertClosedPublicSources(candidate));
+ }
+});
