@@ -136,3 +136,21 @@ test('Anonymous probes refuse login redirects and even a single leaked private o
  assert.equal(ok.status,200);assert.deepEqual(Object.keys(ok.privateViewStatuses),
   ['team','admin','demo','preview']);
 });
+
+test('Public release GitHub workflow never edits existing private /exec, keeps secret off disk after use',()=>{
+ const yaml=source('.github/workflows/study1-gas-public-release.yml');
+ assert.match(yaml,/^on:\n  push:/m);
+ assert.match(yaml,/workflow_run:/);
+ assert.match(yaml,/group: study1-gas-source-sync/);
+ assert.match(yaml,/cancel-in-progress: false/);
+ assert.match(yaml,/secrets.CLASPRC_JSON/);
+ assert.match(yaml,/persist-credentials: false/);
+ assert.match(yaml,/rm -f "\$RUNNER_TEMP\/.clasprc.json"/);
+ assert.doesNotMatch(yaml,/clasp push|publicPortals|makeAnyoneOwner/);
+ const code=source('scripts/study1-gas-public-release.cjs');
+ assert.match(code,/getDeployment\(PRIVATE_ID\)/);
+ assert.doesNotMatch(code,/putDeployment\(PRIVATE_ID/);
+ assert.match(code,/createDeployment\(/);
+ assert.match(code,/anonymousProbe/);
+ assert.match(code,/backupToDrive/);
+});
