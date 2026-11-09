@@ -307,6 +307,7 @@ test('P0 consent registry refuses spoofed owner, malicious HTML and non-PDF byte
  assert.throws(()=>h.scope.study1ConsentVersionSelect({}),/拒絕存取/);
  assert.equal(h.values.size,0);
  const owner=harness();
+ owner.scope.Utilities={base64Decode:v=>Array.from(Buffer.from(v,'base64'))};
  const base={experiment:'E1',title:'合法空白同意書',version:'v1',expectedRevision:0,
   base64:Buffer.from('NOT_PDF'+'x'.repeat(180)).toString('base64')};
  assert.throws(()=>owner.scope.study1ConsentVersionUpload(base),/只能上傳/);
