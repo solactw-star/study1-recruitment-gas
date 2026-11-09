@@ -141,11 +141,18 @@ async function anonymousProbe(url,fetcher=fetch){
  }
  return {status:res.status,privateViewStatuses:blocked,contentLength:text.length};
 }
-async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new Promise(done=>setTimeout(done,ms))){
+async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new Promise(done=>setTimeout(done,ms)),previousVersion=null){
  let last;
  for(let i=0;i<attempts;i++){
   try{
    const deployed=await api.getDeployment(id);
+   if(previousVersion!==null&&deployed?.deploymentConfig?.versionNumber===previousVersion){
+    core.deploymentCheck(deployed,id,previousVersion);
+    if(deployed.deploymentConfig.description!==PUBLIC_DESCRIPTION)
+     throw Error('Previously reviewed public deployment changed its identity');
+    if(i===attempts-1)throw Error('Verified old public version did not propagate');
+    await pause(Math.min(2000,600+100*i));continue;
+   }
    const info=core.deploymentCheck(deployed,id,version);
    return {deployment:deployed,info};
   }catch(e){
@@ -226,7 +233,8 @@ async function publish(api,env,probe=anonymousProbe){
   }
   const depId=oldPublic?oldPublic.deploymentId:created?.deploymentId;
   check(depId&&depId!==PRIVATE_ID,'Missing separate official public deployment ID');
-  const {info}=await waitForPublicDeployment(api,depId,ver.versionNumber);
+  const {info}=await waitForPublicDeployment(api,depId,ver.versionNumber,24,
+    ms=>new Promise(done=>setTimeout(done,ms)),oldPublic?.deploymentConfig.versionNumber??null);
   const final=await api.getContent();
   check(core.digest(final.files)===remoteSha,'Original GAS HEAD changed after public deployment');
   const ownerAfter=await api.getDeployment(PRIVATE_ID);
