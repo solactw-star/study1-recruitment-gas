@@ -38,9 +38,24 @@ function assertClosedPublicSources(remote){
  check(manifest.webapp?.executeAs==='USER_DEPLOYING'&&
   manifest.webapp?.access==='ANYONE_ANONYMOUS','GAS HEAD must be public-info-capable but no source has been deployed publicly');
  core.assertIndex(idx);gate.assertClosedWebsite(site);
- check(idx===script('gas/Index.html')&&site===script('gas/Website.js')&&
-  admin===script('gas/AdminSandbox.js')&&flow===script('gas/Study1Unified.js'),
-  'GAS remote original source is not the current GitHub main');
+ const sourceMap={
+  Index:['HTML','gas/Index.html'],Website:['SERVER_JS','gas/Website.js'],
+  AdminSandbox:['SERVER_JS','gas/AdminSandbox.js'],
+  AdminConsole:['HTML','gas/AdminConsole.html'],
+  Study1Flow:['SERVER_JS','gas/Study1Unified.js'],
+  Study1Unified:['HTML','gas/Study1Unified.html'],
+  OtpCore:['SERVER_JS','gas/OtpCore.js'],BookingCore:['SERVER_JS','gas/BookingCore.js'],
+  OtpThrottle:['SERVER_JS','gas/OtpThrottle.js'],
+  OtpTransaction:['SERVER_JS','gas/OtpTransaction.js'],
+  BookingHoldTransaction:['SERVER_JS','gas/BookingHoldTransaction.js'],
+  Study1FixtureAdapter:['SERVER_JS','gas/Study1FixtureAdapter.js'],
+  Study1Visitor:['HTML','gas/Study1Visitor.html'],
+  Study1Team:['HTML','gas/Study1Team.html']
+ };
+ for(const [name,[type,filename]] of Object.entries(sourceMap)){
+  check(one(remote.files,name,type).source===script(filename),
+   'Original GAS remote source diverged from reviewed GitHub main: '+name);
+ }
  check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
   !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
  check(!/<(?:input|form|textarea|canvas|iframe)\b/i.test(idx),'Public page must not collect data or signatures');
