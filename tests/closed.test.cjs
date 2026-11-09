@@ -76,7 +76,7 @@ test('Public formal product UI contains complete consent architecture but no liv
   }
   assert.doesNotMatch(html,/view=demo|Demo|純TEST|虛構|示範 PDF|00000000/);
   assert.doesNotMatch(html,/<(?:form|input|canvas|iframe)\\b/i);
-  assert.match(html,/線上簽署與取得副本（尚未開放）<\\/button>/);
+  assert.ok(html.includes('線上簽署與取得副本（尚未開放）</button>'));
   const {ctx}=harness();
   assert.throws(()=>ctx.submitConsent({signature:'real',name:'person'}),/尚未開放/);
   assert.throws(()=>ctx.requestOtp({email:'real@example.com'}),/尚未開放/);
