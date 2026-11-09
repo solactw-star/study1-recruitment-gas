@@ -20,6 +20,16 @@ function assertEnvironment(env){
 }
 function assertClosedPublicSources(remote){
  check(remote&&Array.isArray(remote.files),'Missing complete remote GAS source');
+ // Never publish unknown or unreviewed callable remote-only modules, even when
+ // the private sync workflow conservatively preserves their source bytes.
+ const reviewed=new Set(['appsscript','Index','Website','AdminSandbox','AdminConsole',
+  'Study1Flow','Study1Unified','OtpCore','BookingCore','OtpThrottle',
+  'OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter',
+  'Study1Visitor','Study1Team']);
+ check(remote.files.length===reviewed.size&&
+  remote.files.every(x=>reviewed.has(x.name))&&
+  new Set(remote.files.map(x=>x.name)).size===reviewed.size,
+  'Unknown GAS module found; public release requires explicit global RPC review');
  const idx=one(remote.files,'Index','HTML').source;
  const site=one(remote.files,'Website','SERVER_JS').source;
  const admin=one(remote.files,'AdminSandbox','SERVER_JS').source;
@@ -77,11 +87,16 @@ async function anonymousProbe(url,fetcher=fetch){
  check(res.status===200&&!/accounts\.google\.com/.test(res.url)&&
   !/Sign in to continue|需要登入|Request access|您需要存取權限/.test(text),
   'Anonymous public information GET is not actually available');
- const probe=await fetcher(url+'?view=team',{redirect:'follow',signal:AbortSignal.timeout(25000)});
- const body=await probe.text();
- check(!/id="b03Module"|id="profileModule"|id="calendarModule"/.test(body),
-  'Anonymous request exposed owner/team HTML');
- return {status:res.status,teamStatus:probe.status,contentLength:text.length};
+ const privateViews=['team','admin','demo','preview'];
+ const blocked={};
+ for(const view of privateViews){
+  const probe=await fetcher(url+'?view='+view,{redirect:'follow',signal:AbortSignal.timeout(25000)});
+  const body=await probe.text();
+  check(!/id="b03Module"|id="profileModule"|id="calendarModule"|id="step-otp"|id="adminTabs"|id="adminPanel"/.test(body),
+   'Anonymous request exposed private '+view+' HTML');
+  blocked[view]=probe.status;
+ }
+ return {status:res.status,privateViewStatuses:blocked,contentLength:text.length};
 }
 async function publish(api,env){
  assertEnvironment(env);
