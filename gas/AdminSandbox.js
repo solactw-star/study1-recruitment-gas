@@ -435,3 +435,117 @@ function adminChangeTestBooking(input){
     return outcome.view;
   }finally{lock.releaseLock();}
 }
+
+/* P0 consent-document content registry. PDF originals stay immutable in the
+ * existing PRIVATE research Drive folder, never public or a signature record.
+ * Only the authenticated OWNER can list, upload or select a document version. */
+const STUDY1_CONSENT_DOC_FOLDER_='1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU';
+const STUDY1_CONSENT_DOC_INDEX_='STUDY1_CONSENT_DOCUMENT_INDEX_V1';
+function study1ConsentVersionRead_(){
+ const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_CONSENT_DOC_INDEX_);
+ if(!raw)return {schemaVersion:1,revision:0,documents:[],current:{E1:null,E2:null}};
+ const s=JSON.parse(raw);
+ if(!s||s.schemaVersion!==1||!Number.isSafeInteger(s.revision)||s.revision<1||
+  !Array.isArray(s.documents)||s.documents.length>24||!s.current||
+  Object.keys(s.current).sort().join(',')!=='E1,E2')throw Error('同意書版本目錄損毀，拒絕使用');
+ for(const x of s.documents){
+  if(!x||!['E1','E2'].includes(x.experiment)||typeof x.id!=='string'||
+   !/^[A-Za-z0-9_-]{15,100}$/.test(x.id)||typeof x.version!=='string'||
+   !/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(x.version)||
+   typeof x.title!=='string'||x.title.length>100||
+   !/^[a-f0-9]{64}$/.test(x.sha256)||!Number.isSafeInteger(x.bytes)||
+   x.bytes<100||x.bytes>3000000||typeof x.url!=='string'||
+   !/^https:\/\/drive\.google\.com\//.test(x.url))
+   throw Error('同意書來源、版號或雜湊紀錄不合法，拒絕使用');
+ }
+ if(new Set(s.documents.map(x=>x.id)).size!==s.documents.length||
+  new Set(s.documents.map(x=>x.experiment+':'+x.version)).size!==s.documents.length||
+  ['E1','E2'].some(exp=>s.current[exp]!==null&&
+   !s.documents.some(x=>x.experiment===exp&&x.id===s.current[exp])))
+  throw Error('同意書版本索引不一致，拒絕使用');
+ return s;
+}
+function study1ConsentVersionList(){
+ study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+ return study1ConsentVersionRead_();
+}
+function study1ConsentVersionUpload(input){
+ study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+ if(!input||Array.isArray(input)||typeof input!=='object'||
+  Object.keys(input).sort().join(',')!=='base64,expectedRevision,experiment,title,version'||
+  !['E1','E2'].includes(input.experiment)||
+  typeof input.title!=='string'||!input.title.trim()||
+  input.title.trim().length>100||/[<>]/.test(input.title)||
+  typeof input.version!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(input.version)||
+  !Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0||
+  typeof input.base64!=='string'||input.base64.length<130||
+  input.base64.length>4200000||
+  !/^[A-Za-z0-9+/]+={0,2}$/.test(input.base64))
+  throw Error('請選擇符合規格的PDF、實驗與獨立文件版本');
+ let bytes;
+ try{bytes=Utilities.base64Decode(input.base64);}catch(_){throw Error('PDF內容編碼錯誤');}
+ if(bytes.length<100||bytes.length>3000000||String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('只能上傳完整且不超過3MB的PDF檔案');
+ const sha256=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
+  .map(b=>(b&255).toString(16).padStart(2,'0')).join('');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(10000))throw Error('另一筆同意書版本作業進行中，請重試');
+ let file=null;
+ try{
+  study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+  const current=study1ConsentVersionRead_();
+  if(current.revision!==input.expectedRevision)throw Error('同意書版本已由其他分頁變更，請先重新載入');
+  if(current.documents.length>=24)throw Error('版本目錄已滿，請由管理者處理歸檔');
+  if(current.documents.some(x=>x.experiment===input.experiment&&x.version===input.version))
+   throw Error('這個實驗的同意書版號已存在，舊版不可覆寫');
+  const folder=DriveApp.getFolderById(STUDY1_CONSENT_DOC_FOLDER_);
+  if(folder.getSharingAccess()!==DriveApp.Access.PRIVATE)
+   throw Error('同意書資料夾不是私人權限，已拒絕上傳');
+  const name='Study1_'+input.experiment+'_Consent_v'+input.version+'_'+sha256.slice(0,12)+'.pdf';
+  file=folder.createFile(Utilities.newBlob(bytes,'application/pdf',name));
+  file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.VIEW);
+  if(file.getSharingAccess()!==DriveApp.Access.PRIVATE||file.getSize()!==bytes.length)
+   throw Error('同意書檔案權限或完整性核對失敗');
+  const entry={experiment:input.experiment,id:file.getId(),title:input.title.trim(),
+   version:input.version,sha256,bytes:bytes.length,url:file.getUrl(),at:new Date().toISOString()};
+  const next={schemaVersion:1,revision:current.revision+1,
+   documents:current.documents.concat([entry]),current:{...current.current}};
+  const payload=JSON.stringify(next);
+  if(payload.length>7500)throw Error('文件索引容量不足，未接受新版本');
+  const prop=PropertiesService.getScriptProperties();
+  prop.setProperty(STUDY1_CONSENT_DOC_INDEX_,payload);
+  if(prop.getProperty(STUDY1_CONSENT_DOC_INDEX_)!==payload)
+   throw Error('同意書版本索引寫後回讀不一致');
+  return next;
+ }catch(e){
+  // Only the newly created file may be discarded; existing versions are immutable.
+  if(file)try{file.setTrashed(true);}catch(_){}
+  throw e;
+ }finally{lock.releaseLock();}
+}
+function study1ConsentVersionSelect(input){
+ study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+ if(!input||Array.isArray(input)||typeof input!=='object'||
+  Object.keys(input).sort().join(',')!=='expectedRevision,id'||
+  !Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0||
+  typeof input.id!=='string')throw Error('請提供已上傳的版本及最新目錄修訂版');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(10000))throw Error('同意書版本目前正在更新');
+ try{
+  study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+  const current=study1ConsentVersionRead_();
+  if(current.revision!==input.expectedRevision)throw Error('版本選用衝突，請先重新載入');
+  const entry=current.documents.find(x=>x.id===input.id);
+  if(!entry)throw Error('只能選擇原私人資料夾中的已存版本');
+  if(current.current[entry.experiment]===entry.id)return current;
+  // Selection changes only the owner's reference, never REC approval, signatures,
+  // public routes, existing signed records or the formal intake switch.
+  const next={...current,revision:current.revision+1,
+   current:{...current.current,[entry.experiment]:entry.id}};
+  const payload=JSON.stringify(next),prop=PropertiesService.getScriptProperties();
+  if(payload.length>7500)throw Error('同意書版本索引容量不足');
+  prop.setProperty(STUDY1_CONSENT_DOC_INDEX_,payload);
+  if(prop.getProperty(STUDY1_CONSENT_DOC_INDEX_)!==payload)throw Error('同意書版本選用回讀失敗');
+  return next;
+ }finally{lock.releaseLock();}
+}

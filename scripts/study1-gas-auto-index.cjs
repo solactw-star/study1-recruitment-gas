@@ -161,12 +161,15 @@ async function apply(api,indexSource,websiteSource,adminScript,adminHtml,unified
    // Existing /exec is MYSELF, while HEAD is ANYONE_ANONYMOUS. Preserve both:
    // temporarily stage only the previous deployed webapp settings for immutable
    // version creation, then restore HEAD from the verified backup BEFORE deployment.
-   ensure(s.deployedWebapp?.access==='MYSELF'&&s.deployedWebapp?.executeAs==='USER_DEPLOYING','Unexpected existing deployed audience: do not alter /exec');
+   ensure(s.deployedWebapp?.access==='MYSELF'&&['USER_DEPLOYING','USER_ACCESSING'].includes(s.deployedWebapp?.executeAs),'Unexpected owner-private deployment audience');
+   const ownerAuthWebapp={access:'MYSELF',executeAs:'USER_ACCESSING'};
+   // Execute-as-deployer may redact ActiveUser; the private MYSELF deployment
+   // must authorize the accessing owner. Public read-only deployment stays intact.
    const manifest=core.file(desired,'appsscript','JSON');
    const stagedManifest=JSON.parse(manifest.source);
    const oldWebapp=JSON.parse(core.file(s.original.files,'appsscript','JSON').source).webapp;
    ensure(oldWebapp?.access==='ANYONE_ANONYMOUS'&&oldWebapp?.executeAs==='USER_DEPLOYING','GAS HEAD audience unexpectedly changed');
-   stagedManifest.webapp=s.deployedWebapp;
+   stagedManifest.webapp=ownerAuthWebapp;
    const staged=structuredClone(desired);
    core.file(staged,'appsscript','JSON').source=JSON.stringify(stagedManifest,null,2);
    ensure(compareNoIndex(staged,desired)===false,'Temporary manifest staging not detected');
@@ -197,8 +200,8 @@ async function apply(api,indexSource,websiteSource,adminScript,adminHtml,unified
  ensure(newVersion&&Number.isInteger(newVersion.versionNumber)&&newVersion.versionNumber>s.oldVersion,'Version creation failed');
  const immutable=await api.getVersion(newVersion.versionNumber);
  ensure(same(immutable.files,expectedVersionFiles),'New version does not match the intended Index and existing deployment audience');
- const originalAudience=JSON.stringify(s.deployedWebapp);
- ensure(JSON.stringify(JSON.parse(core.file(immutable.files,'appsscript','JSON').source).webapp)===originalAudience,'New immutable version changes original /exec audience');
+ const ownerAudience=JSON.stringify({access:'MYSELF',executeAs:'USER_ACCESSING'});
+ ensure(JSON.stringify(JSON.parse(core.file(immutable.files,'appsscript','JSON').source).webapp)===ownerAudience,'Private owner deployment must require active user authorization');
  const current=await api.getDeployment(s.deploymentId);
  console.log('DEPLOYMENT_BEFORE_UPDATE:',current.deploymentConfig?.versionNumber,'expected:',s.oldVersion,'newly created:',newVersion.versionNumber);
  core.deploymentCheck(current,s.deploymentId,s.oldVersion);
@@ -212,6 +215,7 @@ async function apply(api,indexSource,websiteSource,adminScript,adminHtml,unified
  ensure(same(deployed.files,expectedVersionFiles),'The deployed version differs from approved sources / preserved audience');
  const final=await api.getContent();
  ensure(same(final.files,desired)&&compareUnapproved(final.files,s.original.files),'Final GAS HEAD mismatch');
+ console.log('OWNER_PRIVATE_EXECUTION=USER_ACCESSING; MYSELF only; public deployment untouched');
  console.log('SYNC_VERIFIED=true; original /exec deployment preserved; version',newVersion.versionNumber,'sha256',s.desiredSha256);
  return {status:'deployed',id:s.deploymentId,version:newVersion.versionNumber,sha:s.desiredSha256};
 }

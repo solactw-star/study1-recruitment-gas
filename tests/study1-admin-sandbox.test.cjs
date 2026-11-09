@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const src=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
 function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDelete=null,defaultClosed=true){
  const values=new Map();let writes=0,locks=0;
- const p={getProperty:k=>values.has(k)?values.get(k):(defaultClosed&&['OPEN','CONSENT_READY'].includes(k)?'false':null),setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
+ const p={getProperty:k=>values.has(k)?values.get(k):(defaultClosed&&['OPEN','CONSENT_READY'].includes(k)?'false':null),setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_CONSENT_DOCUMENT_INDEX_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
@@ -247,4 +247,70 @@ test('Owner self-test refuses same-length but mismatched synthetic booking histo
  assert.equal(JSON.stringify([...h.values]),before);
  assert.equal(h.values.has('STUDY1_SANDBOX_SELFTEST_V1'),false);
  assert.equal(h.locks(),0);
+});
+
+test('P0 consent originals: only owner may upload PDF, versions are immutable, explicit selection has revision CAS',()=>{
+ const crypto=require('node:crypto'),h=harness(),files=[],privateAccess='PRIVATE';
+ const pdf=Buffer.from('%PDF-1.7\n'+'a'.repeat(220)+'\n%%EOF','utf8');
+ let serial=0,access=privateAccess;
+ h.scope.Utilities={
+  DigestAlgorithm:{SHA_256:'SHA_256'},
+  base64Decode:s=>Array.from(Buffer.from(s,'base64')),
+  newBlob:(bytes,mime,name)=>({bytes,mime,name}),
+  computeDigest:(_,bytes)=>Array.from(crypto.createHash('sha256').update(Buffer.from(bytes)).digest())
+ };
+ h.scope.DriveApp={
+  Access:{PRIVATE:privateAccess},Permission:{VIEW:'VIEW'},
+  getFolderById:id=>{
+   assert.equal(id,'1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU');
+   return {getSharingAccess:()=>access,createFile:blob=>{
+    const entry={blob,trashed:false,sharing:'SHARED',id:'pdfstoredowner'+String(++serial).padStart(20,'0')};
+    const file={
+     setSharing:(a,p)=>{assert.equal(p,'VIEW');entry.sharing=a},
+     getSharingAccess:()=>entry.sharing,getSize:()=>blob.bytes.length,
+     getUrl:()=> 'https://drive.google.com/file/d/'+entry.id+'/view',
+     getId:()=>entry.id,setTrashed:v=>{entry.trashed=v}
+    };
+    files.push(entry);return file;
+   }};
+  }
+ };
+ const make=(version,expectedRevision)=>({base64:pdf.toString('base64'),
+  expectedRevision,experiment:'E1',title:'空白研究知情同意書',version});
+ assert.equal(h.scope.study1ConsentVersionList().documents.length,0);
+ const first=h.scope.study1ConsentVersionUpload(make('v1',0));
+ assert.equal(first.revision,1);assert.equal(first.documents.length,1);
+ assert.equal(first.current.E1,null);
+ assert.equal(files.length,1);assert.equal(files[0].trashed,false);
+ assert.equal(first.documents[0].sha256,crypto.createHash('sha256').update(pdf).digest('hex'));
+ assert.throws(()=>h.scope.study1ConsentVersionUpload(make('v1',1)),/已存在/);
+ assert.throws(()=>h.scope.study1ConsentVersionUpload(make('v2',0)),/其他分頁變更/);
+ assert.equal(files.length,1,'duplicate/stale version cannot create Drive files');
+ const selected=h.scope.study1ConsentVersionSelect({id:first.documents[0].id,expectedRevision:1});
+ assert.equal(selected.revision,2);assert.equal(selected.current.E1,first.documents[0].id);
+ const second=h.scope.study1ConsentVersionUpload(make('v2',2));
+ assert.equal(second.documents.length,2);assert.equal(second.current.E1,first.documents[0].id);
+ assert.equal(files.length,2);assert.equal(files[0].trashed,false,'original PDF preserved');
+ assert.throws(()=>h.scope.study1ConsentVersionSelect({id:second.documents[1].id,expectedRevision:2}),/衝突/);
+ const switched=h.scope.study1ConsentVersionSelect({id:second.documents[1].id,expectedRevision:3});
+ assert.equal(switched.current.E1,second.documents[1].id);
+ assert.equal(switched.documents[0].sha256,first.documents[0].sha256);
+ access='PUBLIC';
+ assert.throws(()=>h.scope.study1ConsentVersionUpload(make('v3',4)),/不是私人權限/);
+ assert.equal(files.length,2,'unsafe folder must never receive a PDF');
+ assert.equal(h.locks(),0);
+});
+test('P0 consent registry refuses spoofed owner, malicious HTML and non-PDF bytes without any Drive write',()=>{
+ const h=harness('', 'solac.tw@gmail.com');
+ assert.throws(()=>h.scope.study1ConsentVersionList(),/拒絕存取/);
+ assert.throws(()=>h.scope.study1ConsentVersionUpload({}),/拒絕存取/);
+ assert.throws(()=>h.scope.study1ConsentVersionSelect({}),/拒絕存取/);
+ assert.equal(h.values.size,0);
+ const owner=harness();
+ owner.scope.Utilities={base64Decode:v=>Array.from(Buffer.from(v,'base64'))};
+ const base={experiment:'E1',title:'合法空白同意書',version:'v1',expectedRevision:0,
+  base64:Buffer.from('NOT_PDF'+'x'.repeat(180)).toString('base64')};
+ assert.throws(()=>owner.scope.study1ConsentVersionUpload(base),/只能上傳/);
+ assert.throws(()=>owner.scope.study1ConsentVersionUpload({...base,title:'<script>'}),/符合規格/);
+ assert.equal(owner.values.size,0);
 });
