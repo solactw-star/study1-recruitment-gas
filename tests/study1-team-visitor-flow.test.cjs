@@ -74,9 +74,9 @@ function server({active='solac.tw@gmail.com',effective='solac.tw@gmail.com',open
 function element(id='',tagName='div'){
  return {id,tagName,dataset:{},handlers:{},children:[],value:'',textContent:'',className:'',
   checked:false,disabled:false,hidden:false,href:'',type:'',attributes:{},
-  style:{setProperty(){}},classList:{toggle(){},add(){},remove(){}},focus(){},scrollTop:0,
+  style:{setProperty(){}},classList:{toggle(){},add(){},remove(){},contains(){return false;}},focus(){},scrollTop:0,
   addEventListener(type,handler){this.handlers[type]=handler;},
-  setAttribute(name,value){this.attributes[name]=value;},
+  setAttribute(name,value){this.attributes[name]=value;},removeAttribute(name){delete this.attributes[name];},
   append(...els){for(const e of els)this.appendChild(e);},
   appendChild(el){this.children.push(el);
    if(this.tagName==='select'&&this.children.length===1&&!this.value)this.value=el.value;
@@ -86,6 +86,7 @@ function element(id='',tagName='div'){
    this.value=this.children.length?this.children[0].value:'';
   },
   querySelector(selector){
+   if(selector==='h2,h3')return {textContent:this.id};
    const m=selector.match(/^\[data-role="([a-z]+)"\]$/);
    assert.ok(m,'Unmocked row selector '+selector);
    return this.children.find(x=>x.dataset.role===m[1])||null;
@@ -107,6 +108,18 @@ function documentFor(html,kind){
  const profileTabs=[...html.matchAll(/<button[^>]*data-b04-tab="([^"]+)"[^>]*>/g)].map(m=>{
   const node=element('b04-tab-'+m[1],'button');node.dataset.b04Tab=m[1];return node;
  });
+ const teamNav=[...html.matchAll(/<button\b[^>]*data-team-target="([^"]+)"[^>]*>/g)].map((m,i)=>{
+  const n=element('nav-'+i,'button');n.dataset.teamTarget=m[1];
+  const sub=/data-b02-target="([^"]+)"/.exec(m[0]);if(sub)n.dataset.b02Target=sub[1];
+  return n;
+ });
+ const b02Tabs=[...html.matchAll(/<button\b[^>]*data-b02-tab="([^"]+)"[^>]*>/g)].map((m,i)=>{
+  const n=element('b02-tab-'+i,'button');n.dataset.b02Tab=m[1];return n;
+ });
+ const teamSections=['b01Module','b09Module','calendarModule','b05Module','profileModule',
+ 'b11Module','teamExperimentModule','teamCopyModule','teamSlotsModule','teamWeeksModule',
+ 'b03Module','b06Module','b07Module','b08Module','b10Module','consentVersionsModule',
+ 'b12Module','teamApprovalModule'].filter(id=>ids.has(id)).map(id=>ids.get(id));
  const get=id=>{const e=ids.get(id);assert.ok(e,'Unknown element '+kind+': '+id);return e;};
  const query=selector=>{
   if(selector==='#slotRows [data-slot-id]')
@@ -116,6 +129,9 @@ function documentFor(html,kind){
   if(selector==='.step')return [...ids.values()].filter(x=>x.id.startsWith('step-'));
   if(selector==='#progress span')return progress;
   if(selector==='[data-b04-tab]')return profileTabs;
+  if(selector==='[data-team-target]')return teamNav;
+  if(selector==='[data-b02-tab]')return b02Tabs;
+  if(selector==='#teamMain > section.panel')return teamSections;
   throw Error('Unmocked querySelectorAll '+selector);
  };
  return {ids,get,doc:{getElementById:get,createElement:tag=>element('',tag),
