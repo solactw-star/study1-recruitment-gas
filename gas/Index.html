@@ -230,7 +230,137 @@ for(const type of ['pointerup','pointercancel','pointerleave'])
 consentEl('consentClearSignature').addEventListener('click',()=>{
  penDown=false;consentInk=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
 });
-window.addEventListener('pagehide',()=>{consentReset_();});
+
+ // The identity and withdrawal inputs are created disabled in the CLOSED
+ // product, never used for private data unless the server readiness gate
+ // confirms owner-issued verified access is genuinely available.
+ const accessCode=document.createElement('input');
+ accessCode.type='password';accessCode.id='consentAccessCode';
+ accessCode.setAttribute('aria-label','研究人員提供的專屬簽署邀請碼');
+ accessCode.setAttribute('autocomplete','off');accessCode.maxLength=90;
+ accessCode.disabled=true;accessCode.placeholder='研究人員現場核對身分後提供的專屬邀請碼';
+ consentEl('consentTokenMount').append(accessCode);
+ const withdrawReason=document.createElement('input');
+ withdrawReason.type='text';withdrawReason.id='consentWithdrawReason';
+ withdrawReason.disabled=true;withdrawReason.maxLength=600;
+ withdrawReason.setAttribute('aria-label','撤回本人的電子同意');
+ withdrawReason.placeholder='撤回理由（至少四字）';
+ consentEl('consentWithdrawalMount').append(withdrawReason);
+ const sessionStatus_=msg=>{consentEl('consentSessionStatus').textContent=msg;};
+ function consentVerifiedSession_(result,token){
+  if(!consentDocumentMeta||!result||result.experiment!==consentDocumentMeta.experiment||
+   result.version!==consentDocumentMeta.version||
+   result.sha256!==consentDocumentMeta.sha256||
+   !Number.isSafeInteger(result.expires)||result.expires<Date.now())
+   throw Error('邀請碼與目前已閱讀的文件來源或版號不一致');
+  consentActiveToken=token;consentSessionState=result.state;
+  if(result.explanation){
+   consentEl('consentExplanation').hidden=false;
+   consentEl('consentExplanationQuestion').textContent='已記錄疑問：'+(result.explanation.question||'無特別疑問');
+   consentEl('consentExplanationAnswer').textContent='研究人員答覆：'+result.explanation.answer;
+  }
+  consentEl('consentSigner').disabled=result.state!=='EXPLAINED';
+  consentEl('consentSubmit').disabled=result.state!=='EXPLAINED';
+  consentEl('consentCopy').disabled=!['CONFIRMED','WITHDRAWN'].includes(result.state);
+  consentEl('consentWithdrawSubmit').disabled=result.state!=='CONFIRMED';
+  withdrawReason.disabled=result.state!=='CONFIRMED';
+  sessionStatus_(({ISSUED:'請先取得研究人員的說明與答覆。',
+   EXPLAINED:'已核對當次文件及研究人員說明。請依序確認並親自簽署。',
+   SIGNED:'本人簽名已封存，等待研究人員確認。',
+   CONFIRMED:'雙方確認已完成，可取得個人簽署副本。',
+   WITHDRAWN:'此同意已撤回，原簽署和撤回事件均留存。'})[result.state]||'狀態不明，請聯絡研究人員。');
+ }
+ consentEl('consentCheckSession').addEventListener('click',()=>{
+  if(!consentRuntimeOn||!consentUsable||consentPending)return;
+  const token=accessCode.value.trim(),epoch=consentEpoch;
+  if(!/^[-a-f0-9]{70,90}$/i.test(token))return sessionStatus_('邀請碼格式錯誤。');
+  consentPending=true;consentEl('consentCheckSession').disabled=true;
+  google.script.run.withSuccessHandler(r=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   try{consentVerifiedSession_(r,token);}catch(e){sessionStatus_(String(e.message||e));}
+   consentEl('consentCheckSession').disabled=false;
+  }).withFailureHandler(e=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   sessionStatus_('邀請核對失敗：'+String(e.message||e));
+   consentEl('consentCheckSession').disabled=false;
+  }).study1EConsentSession(token);
+ });
+ consentEl('consentSubmit').addEventListener('click',()=>{
+  if(!consentRuntimeOn||!consentDocumentMeta||!consentUsable||!consentInk||
+   !consentActiveToken||consentSessionState!=='EXPLAINED'||consentPending)return;
+  const name=consentEl('consentSigner').value.trim();
+  if(!name||name.length>80||/[<>]/.test(name)||
+   !['consentReadAck','consentAnsweredAck','consentAgreeAck'].every(x=>consentEl(x).checked))
+   return sessionStatus_('請確認完整PDF、研究人員答覆、自願參與並填寫姓名及本人簽名。');
+  const token=consentActiveToken,epoch=consentEpoch,
+   png=consentCanvas.toDataURL('image/png').split(',')[1];
+  consentPending=true;consentEl('consentSubmit').disabled=true;
+  sessionStatus_('正在將本人簽名與當次原PDF雜湊綁定封存…');
+  google.script.run.withSuccessHandler(r=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   consentSessionState=r?.state;
+   consentEl('consentSigner').disabled=true;
+   sessionStatus_(r?.state==='SIGNED'?'簽名已存證，請研究人員進行第二次身分確認後再取得副本。':'簽署回覆無法核對，請研究人員確認。');
+  }).withFailureHandler(e=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   consentEl('consentSigner').disabled=true;
+   sessionStatus_('簽署結果未知：'+String(e.message||e)+'。不得自動重送，請先核對。');
+  }).study1EConsentSign({token,name,signature:png,
+   documentSha:consentDocumentMeta.sha256,read:true,answerAcknowledged:true,agree:true});
+ });
+ consentEl('consentCopy').addEventListener('click',()=>{
+  if(!consentActiveToken||consentPending)return;
+  consentPending=true;consentEl('consentCopy').disabled=true;
+  google.script.run.withSuccessHandler(receipt=>{
+   consentPending=false;
+   if(!receipt||!['CONFIRMED','WITHDRAWN'].includes(receipt.state)||
+    !consentDocumentMeta||receipt.documentSha256!==consentDocumentMeta.sha256||
+    !/^[a-f0-9]{64}$/.test(receipt.signatureEvidenceSha256)||
+    !/^[a-f0-9]{64}$/.test(receipt.confirmationEvidenceSha256)){
+    consentEl('consentCopyStatus').textContent='副本與目前原PDF不一致，停止提供。';return;
+   }
+   // Personal JSON evidence is downloaded only by the holder of the secret
+   // invitation, paired with the unchanged original full PDF downloaded above.
+   const blob=new Blob([JSON.stringify(receipt,null,2)],{type:'application/json'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='Study1_EConsent_Signed_Evidence.json';
+   document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),20000);
+   consentEl('consentCopyStatus').textContent='已提供個人簽署證據副本，請與上方完整原版PDF一併保留。';
+   consentEl('consentCopy').disabled=false;
+  }).withFailureHandler(e=>{
+   consentPending=false;consentEl('consentCopy').disabled=false;
+   consentEl('consentCopyStatus').textContent='個人副本核對失敗：'+String(e.message||e);
+  }).study1EConsentCopy(consentActiveToken);
+ });
+ consentEl('consentWithdrawSubmit').addEventListener('click',()=>{
+  if(consentPending||consentSessionState!=='CONFIRMED'||!consentActiveToken)return;
+  const reason=withdrawReason.value.trim();
+  if(reason.length<4||reason.length>600||/[<>]/.test(reason))
+   return consentEl('consentCopyStatus').textContent='請填寫至少四字撤回原因。';
+  if(!window.confirm('確認撤回本人電子同意？原簽署不會刪除，另記撤回事件。'))return;
+  consentPending=true;consentEl('consentWithdrawSubmit').disabled=true;
+  google.script.run.withSuccessHandler(r=>{
+   consentPending=false;consentSessionState=r?.state;
+   consentEl('consentCopyStatus').textContent=r?.state==='WITHDRAWN'?
+    '撤回事件已存證，可再取得包含撤回狀態的個人副本。':'撤回狀態未能核實，請聯絡研究人員。';
+  }).withFailureHandler(e=>{
+   consentPending=false;
+   consentEl('consentCopyStatus').textContent='撤回結果尚未核對：'+String(e.message||e)+'。請聯絡研究人員，不要重複送出。';
+  }).study1EConsentWithdraw({token:consentActiveToken,reason});
+ });
+ google.script.run.withSuccessHandler(s=>{
+  consentRuntimeOn=s?.enabled===true;
+  if(consentRuntimeOn&&consentUsable){
+   accessCode.disabled=false;consentEl('consentCheckSession').disabled=false;
+   sessionStatus_('請輸入研究人員核身後提供的專屬邀請碼。');
+  }else if(!consentRuntimeOn)
+   sessionStatus_('目前尚未啟用有效簽署收件。正式原版PDF仍可閱覽與下載。');
+ }).withFailureHandler(()=>{
+  consentRuntimeOn=false;sessionStatus_('無法確認電子簽署服務，收件保持關閉。');
+ }).study1EConsentAvailability();
+
+ window.addEventListener('pagehide',()=>{consentReset_();});
 consentLoad_();
 }
 if(document.getElementById('consentSignature'))initConsentPortal_();
