@@ -820,6 +820,49 @@ body>header nav{max-width:none;padding:14px 24px}
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
+
+ // Module routes are actual view switches; avoid GAS iframe hash links to
+ // hidden panels. All original same-page DOM and GAS handlers stay mounted.
+ const teamPages=new Set(['b01Module','b09Module','calendarModule','b03Module',
+ 'b06Module','b07Module','b08Module','b10Module','b11Module',
+ 'teamExperimentModule','teamCopyModule','teamSlotsModule','teamWeeksModule',
+ 'teamApprovalModule','b12Module','consentVersionsModule']);
+ let teamPage='b01Module',teamB02Sub='calendar';
+ function teamNavigate_(page,sub){
+  if(!teamPages.has(page)||!document.getElementById(page))return false;
+  if($('teamMain').classList.contains('b04Open'))$('profileBack').click();
+  if($('teamMain').classList.contains('b05Open'))$('b05Back').click();
+  for(const section of document.querySelectorAll('#teamMain > section.panel')){
+   if(section.id==='b05Module'||section.id==='profileModule')continue;
+   section.hidden=section.id!==page;
+  }
+  teamPage=page;
+  if(page==='calendarModule'){
+   teamB02Sub=['calendar','waitlist','cancel'].includes(sub)?sub:teamB02Sub;
+   $('calendarModule').dataset.b02View=teamB02Sub;
+  }
+  for(const b of document.querySelectorAll('[data-team-target]')){
+   const selected=b.dataset.teamTarget===page&&
+    (page!=='calendarModule'||b.dataset.b02Target===teamB02Sub);
+   if(selected)b.setAttribute('aria-current','page');
+   else b.removeAttribute('aria-current');
+  }
+  for(const b of document.querySelectorAll('[data-b02-tab]'))
+   b.setAttribute('aria-selected',String(b.dataset.b02Tab===teamB02Sub));
+  const heading=document.getElementById(page).querySelector('h2,h3');
+  if(heading)document.title='Study 1｜'+heading.textContent.trim();
+  return true;
+ }
+ document.querySelectorAll('[data-team-target]').forEach(b=>b.addEventListener('click',()=>teamNavigate_(b.dataset.teamTarget,b.dataset.b02Target)));
+ document.querySelectorAll('[data-b02-tab]').forEach(b=>b.addEventListener('click',()=>teamNavigate_('calendarModule',b.dataset.b02Tab)));
+ document.addEventListener('click',e=>{
+  const target=e.target&&e.target.closest&&e.target.closest('a[href^="#"]');
+  if(!target)return;
+  const id=target.getAttribute('href').slice(1);
+  if(teamPages.has(id)){e.preventDefault();teamNavigate_(id);}
+ });
+ teamNavigate_('b01Module');
+
 let model=null,busy=false,requestId=null;
 // TEST-only GAS owner GET cutoff, not the device clock or formal authorization.
 let cancelHoldAsOf=null;
