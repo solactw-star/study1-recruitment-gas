@@ -57,6 +57,15 @@
   </div>
   <div class="consentPanel" aria-label="同意書理解、說明、簽署與退出">
    <h3>同意與簽署程序</h3>
+    <div class="consentStep" id="consentIdentityStep">
+     <span class="stepNum">身分核對｜研究人員專屬邀請碼</span>
+     <p>研究人員先核對你的身分並向你提供當次文件專屬的高強度邀請碼。任何人不能只靠姓名或公開頁建立有效簽署。邀請碼只在你的裝置中使用，不應傳給他人。</p>
+     <div id="consentTokenMount"></div>
+     <button id="consentCheckSession" type="button" class="btn light" disabled>核對我的同意書與研究人員說明</button>
+     <p id="consentSessionStatus" role="status" aria-live="polite">目前尚未開放有效線上簽署。完整原版PDF仍可獨立閱讀。</p>
+     <div id="consentExplanation" class="consentNotice" hidden><strong>研究人員說明及疑問答覆</strong>
+      <p id="consentExplanationQuestion"></p><p id="consentExplanationAnswer"></p></div>
+    </div>
    <div class="consentStep">
     <span class="stepNum">01｜閱讀與理解</span>
     <p>請先完整閱讀左側 PDF，包含研究方法、可能風險、研究補貼、資料保護、退出方式及雙方簽署欄位。</p>
@@ -78,13 +87,17 @@
     <p><strong>本人手寫電子簽名</strong></p>
     <canvas id="consentSignature" class="consentSignature" width="700" height="160" aria-label="手寫電子簽名區，尚未開放有效簽署"></canvas>
     <div class="consentRow"><button id="consentClearSignature" type="button" class="btn light">清除簽名筆跡</button></div>
-    <p class="small">目前尚未開放線上簽署。簽名筆跡只在這個瀏覽器分頁中暫時顯示，不會送往伺服器、保存或構成有效同意；關閉頁面後消失。</p>
+    <p class="small">尚未啟用時，簽名筆跡只在本機暫存，不構成有效同意。經身分、研究人員說明及固定文件版本核對，並由研究室明確啟用後，正式提交會封存獨立簽名事件，等待研究人員再次確認。</p>
     <button id="consentSubmit" type="button" class="btn" disabled aria-disabled="true">確認簽署並取得已簽署副本（尚未開放）</button>
     <p class="consentNotice"><strong>目前尚未開放線上簽署</strong>：尚未接通具身分驗證、雙方確認及不可變簽署存證的正式收件服務。文件公開閱讀並不代表同意、報名或預約已完成。</p>
    </div>
    <div class="consentStep">
     <span class="stepNum">04｜副本與撤回同意</span>
-    <p>可以使用左側按鈕保存<strong>未簽署的原版 PDF</strong>。有效簽署副本需於正式收件啟用且研究人員確認後，按原文約定安全交付，不會把未簽署文件誤標為簽署完成。</p>
+    <p>可以先保存左側的<strong>未簽署原版 PDF</strong>。有效簽署需經研究人員確認後才能取得與同意書版號、原文件 SHA-256、簽署及確認證據 SHA 相連結的個人副本。</p>
+     <button id="consentCopy" type="button" class="btn light" disabled>取得本人簽署與研究人員確認副本</button>
+     <div id="consentWithdrawalMount"></div>
+     <button id="consentWithdrawSubmit" type="button" class="btn light" disabled>送出本人的撤回請求</button>
+     <p id="consentCopyStatus" role="status" aria-live="polite">未建立經雙方確認的有效簽署紀錄。</p>
     <p>可隨時依同意書所載方式，透過電子郵件、電話或研究現場通知研究人員退出或撤回。研究團隊將依適用文件處理原有資料。</p>
     <a id="consentWithdraw" class="btn light" href="mailto:lily4318@cycu.edu.tw?subject=Study1%20%E6%92%A4%E5%9B%9E%E5%90%8C%E6%84%8F%E8%88%87%E9%80%80%E5%87%BA%E7%A0%94%E7%A9%B6">聯絡研究團隊撤回／退出</a>
    </div>
