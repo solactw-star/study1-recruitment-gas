@@ -48,7 +48,11 @@ test('Closed initialization retains unrelated GAS properties',()=>{
 test('The information-only HTML has no intake or external scripts',()=>{
   assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
   assert.match(html,/disabled type="button"/);
-  assert.doesNotMatch(html,/<(?:input|form|canvas|iframe)\b/i);
+  assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
+  const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+  assert.equal(inputs.length,4);assert.ok(inputs.every(x=>/\bdisabled\b/.test(x)));
+  assert.match(html,/id="consentSubmit"/);
+  assert.match(html,/consentEl\('consentSubmit'\)\.disabled=true/);
   assert.doesNotMatch(html,/<script[^>]+\bsrc\s*=/i);
 });
 test('GAS manifest restricts access to the deploying account',()=>{
@@ -67,17 +71,22 @@ test('Original source manifest is preserved for remote drift detection',()=>{
   for(const v of Object.values(data.files)){assert.ok(v.bytes>0);assert.match(v.sha256,/^[a-f0-9]{64}$/);}
 });
 
-test('Public formal product UI contains complete consent architecture but no live signature collection',()=>{
+test('Public official consent product shows full published PDF and protected unsigned signature steps',()=>{
   assert.match(html,/id="consent"/);
-  assert.match(html,/完整閱讀，再決定是否簽署知情同意書/);
-  for(const s of ['閱讀完整文件','提出問題及確認理解','本人明確簽署','取得副本及撤回',
-    '研究目的','研究參與者簽章與日期','目前尚未開放線上簽署']){
-    assert.ok(html.includes(s),'missing formal consent stage '+s);
+  assert.match(html,/完整閱讀研究文件，再決定是否同意/);
+  for(const text of ['完整 PDF','研究人員說明與答疑','核對版本並親自簽署',
+   '取得副本／撤回','目前尚未開放線上簽署']){
+   assert.ok(html.includes(text),'missing consent step '+text);
   }
+  assert.match(html,/getPublicConsentDocument\(exp\)/);
+  assert.match(html,/crypto\.subtle\.digest\('SHA-256',bytes\)/);
   assert.doesNotMatch(html,/view=demo|Demo|純TEST|虛構|示範 PDF|00000000/);
-  assert.doesNotMatch(html,/<(?:form|input|canvas|iframe)\\b/i);
-  assert.ok(html.includes('線上簽署與取得副本（尚未開放）</button>'));
+  assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
+  const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+  assert.equal(inputs.length,4);
+  assert.ok(inputs.every(x=>/\bdisabled\b/.test(x)));
+  assert.match(html,/consentEl\('consentSubmit'\)\.disabled=true/);
   const {ctx}=harness();
   assert.throws(()=>ctx.submitConsent({signature:'real',name:'person'}),/尚未開放/);
   assert.throws(()=>ctx.requestOtp({email:'real@example.com'}),/尚未開放/);
-});
+ });
