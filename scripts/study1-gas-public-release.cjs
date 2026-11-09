@@ -252,4 +252,4 @@ async function publish(api,env,probe=anonymousProbe){
  }
 }
 if(require.main===module)core.authorizedApi().then(api=>publish(api,process.env)).catch(e=>{console.error('PUBLIC_DEPLOYMENT_BLOCKED:',e.message);process.exitCode=1;});
-module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,anonymousProbe,waitForPublicDeployment,waitForAnonymousAccess,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};
+module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,waitForReviewedPrivateVersion,anonymousProbe,waitForPublicDeployment,waitForAnonymousAccess,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};
