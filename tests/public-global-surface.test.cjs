@@ -13,7 +13,7 @@ const gasDir = path.join(__dirname, '..', 'gas');
 const approvedPublicFunctions = [
   'adminGetSandboxConfig', 'adminSaveSandboxConfig', 'adminValidateSandboxConfig', 'adminRunSandboxSelfTest', 'adminGetTestBookings', 'adminChangeTestBooking', 'study1ConsentVersionList', 'study1ConsentVersionUpload', 'study1ConsentVersionSelect', // strictly owner-authorized, sandbox-only
   'study1UnifiedPreviewGet', 'study1UnifiedPreviewCommand', 'study1UnifiedPreviewSelfTest', 'study1UnifiedB06Command', 'study1UnifiedB12AuditPage', 'study1UnifiedB01LayoutGet', 'study1UnifiedB01LayoutSave', // owner-only shared formal workflow TEST adapter; NOT public enrollment
-  'cancelHold', 'doGet', 'getPublicConfig', 'holdSlot', 'listSlots',
+  'cancelHold', 'doGet', 'getPublicConfig', 'getPublicConsentDocument', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
   'requestOtp', 'submitConsent', 'verifyOtp'
 ].sort();
