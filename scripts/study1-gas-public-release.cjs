@@ -107,6 +107,21 @@ async function readVersion(api,deployment){
  check(Number.isInteger(v)&&v>0,'Missing effective deployment version');
  return api.getVersion(v);
 }
+async function waitForReviewedPrivateVersion(api,reviewed,attempts=15,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))){
+ const digest=core.digest(reviewed.files.filter(x=>x.name!=='appsscript'));
+ for(let attempt=0;attempt<attempts;attempt++){
+  const deployment=await api.getDeployment(PRIVATE_ID);
+  core.deploymentCheck(deployment,PRIVATE_ID);
+  const immutable=await readVersion(api,deployment);
+  const manifest=JSON.parse(one(immutable.files,'appsscript','JSON').source);
+  const bytesMatch=core.digest(immutable.files.filter(x=>x.name!=='appsscript'))===digest;
+  if(manifest.webapp?.access==='MYSELF'&&manifest.webapp?.executeAs==='USER_ACCESSING'&&bytesMatch)
+   return {deployment,immutable};
+  if(attempt<attempts-1)await pause(1000);
+ }
+ throw Error('Private owner source has not converged with reviewed main; public release blocked');
+}
+
 async function anonymousProbe(url,fetcher=fetch){
  check(/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url),
   'Public URL is not the expected GAS /exec');
