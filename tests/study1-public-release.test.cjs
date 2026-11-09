@@ -53,8 +53,11 @@ function fixture(){
   backupToDrive:async()=>{backup++;return {id:'private-backup',sha256:'a'.repeat(64)};},
   verifyDriveBackup:async()=>{},
   createDeployment:async config=>{
+   assert.deepEqual(Object.keys(config).sort(),['description','manifestFileName','versionNumber'],
+    'Official GAS create API requires a FLAT body; deploymentConfig is response-only');
    mutation++;createCalled++;
-   publicDeploy={deploymentId:'AKfycbPublicReadOnlyUniqueId123',deploymentConfig:config,
+   publicDeploy={deploymentId:'AKfycbPublicReadOnlyUniqueId123',
+    deploymentConfig:{scriptId:'1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z',...config},
     entryPoints:[{webApp:{url:'https://script.google.com/macros/s/AKfycbPublicReadOnlyUniqueId123/exec'}}]};
    return structuredClone(publicDeploy);
   },
