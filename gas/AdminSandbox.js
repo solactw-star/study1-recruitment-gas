@@ -652,6 +652,7 @@ function study1EConsentEnabled_(){
  return p.getProperty('OPEN')==='true'&&p.getProperty('CONSENT_READY')==='true'&&
   p.getProperty('STUDY1_ECONSENT_PROVIDER_VERIFIED')==='true';
 }
+function study1EConsentAvailability(){return {enabled:study1EConsentEnabled_()};}
 function study1EConsentRegistry_(){
  const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_ECONSENT_REGISTRY_);
  if(!raw)return {schemaVersion:1,revision:0,records:[]};
