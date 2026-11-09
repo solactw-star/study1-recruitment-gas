@@ -80,6 +80,7 @@ function assertAdminSandbox(source){
   "function study1EConsentCopy(token){",
   "function study1EConsentWithdraw(input){",
   "function study1EConsentConfirm(input){",
+  "function study1EConsentOwnerWithdraw(input){",
   "function study1EConsentOwnerList(){",
   "function study1EConsentReadyDocument_(experiment){",
   "function study1EConsentEnabled_(){",
@@ -103,7 +104,7 @@ function assertAdminSandbox(source){
    'study1ConsentVersionUpload','study1ConsentVersionSelect',
    'study1ConsentDocumentBytes_','study1ConsentVersionPublication',
    'study1ConsentPublicRead_',
-   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList']);
+   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList','study1EConsentOwnerWithdraw']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
