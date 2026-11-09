@@ -67,6 +67,13 @@ function assertAdminSandbox(source){
   'function adminGetSandboxConfig(){',
   'function adminSaveSandboxConfig(input,expectedRevision){',
   'function adminValidateSandboxConfig(input){',
+  "function study1ConsentVersionRead_(){",
+  "function study1ConsentVersionList(){",
+  "function study1ConsentVersionUpload(input){",
+  "function study1ConsentVersionSelect(input){",
+  "DriveApp.getFolderById(STUDY1_CONSENT_DOC_FOLDER_)",
+  "folder.getSharingAccess()!==DriveApp.Access.PRIVATE",
+  "file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.VIEW)",
   'study1AdminOwnerRequired_();',
   'LockService.getScriptLock()',
   "PropertiesService.getScriptProperties()",
@@ -75,10 +82,15 @@ function assertAdminSandbox(source){
   "mode:'SANDBOX_ONLY',open:false,consentReady:false"
  ];
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
- const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingMutation_','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingIntegrity_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking']);
+ const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingMutation_','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingIntegrity_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking',
+   'study1ConsentVersionRead_','study1ConsentVersionList',
+   'study1ConsentVersionUpload','study1ConsentVersionSelect']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
- if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
+ if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
+ const driveOps=[...source.matchAll(/\bDriveApp\.([A-Za-z_$][\w$]*)/g)].map(x=>x[1]);
+ if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access')
+  throw Error('Unreviewed private consent Drive operation');
 }
 function assertAdminHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>'))throw Error('Missing admin HTML');
