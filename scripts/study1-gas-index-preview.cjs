@@ -83,7 +83,7 @@ async function authorizedApi(){
   async function request(method,p,body){
     const res=await fetch(base+p,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
     check(res.ok,'GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+'; do not assume write or deploy success');
-    return res.json();
+    return res.status===204?{}:res.json();
   }
   return {
     backupToDrive:snapshot=>driveBackup.create(fetch,token,snapshot),
