@@ -12,7 +12,7 @@ const vm = require('node:vm');
 const gasDir = path.join(__dirname, '..', 'gas');
 const approvedPublicFunctions = [
   'adminGetSandboxConfig', 'adminSaveSandboxConfig', 'adminValidateSandboxConfig', 'adminRunSandboxSelfTest', 'adminGetTestBookings', 'adminChangeTestBooking', 'study1ConsentVersionList', 'study1ConsentVersionUpload', 'study1ConsentVersionSelect', 'study1ConsentVersionPublication',
-  'study1EConsentIssue','study1EConsentExplain','study1EConsentConfirm','study1EConsentOwnerList',
+  'study1EConsentIssue','study1EConsentExplain','study1EConsentConfirm','study1EConsentOwnerList','study1EConsentOwnerWithdraw',
   'study1EConsentAvailability','study1EConsentSession','study1EConsentSign',
   'study1EConsentCopy','study1EConsentWithdraw', // owner / fixed-capability authenticated endpoints, each gated
   // strictly owner-authorized, sandbox-only
