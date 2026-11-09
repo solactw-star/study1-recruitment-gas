@@ -6,6 +6,8 @@ const SITE_CONTACT_ = 'lily4318@cycu.edu.tw';
 const SITE_RESOURCES_ = Object.freeze({workspace:'1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU',sourceFolder:'1O6j7PQWMNUbb_a6cWHegy7lBZPMQ0Hiu',personal:'1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI',operations:'1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ'});
 function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();return HtmlService.createHtmlOutputFromFile('AdminConsole').setTitle('Study 1｜研究室測試後台').addMetaTag('viewport','width=device-width, initial-scale=1');}if(e&&e.parameter&&e.parameter.view==='preview'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified').setTitle('Study 1｜完整招募流程測試模式').addMetaTag('viewport','width=device-width, initial-scale=1');}if(e&&e.parameter&&e.parameter.view==='team'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Team').setTitle('Study 1｜研究團隊網站管理').addMetaTag('viewport','width=device-width, initial-scale=1');}if(e&&e.parameter&&e.parameter.view==='demo'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Visitor').setTitle('Study 1｜參與者報名示範').addMetaTag('viewport','width=device-width, initial-scale=1');}return HtmlService.createHtmlOutputFromFile('Index').setTitle('Study 1｜研究招募資訊').addMetaTag('viewport','width=device-width, initial-scale=1');}
 function getPublicConfig(){return {open:false,consentReady:false,contact:SITE_CONTACT_,mode:'CLOSED_INFORMATION'};}
+/** Only owner-explicit published, source-SHA-verified full blank PDFs; no Drive URLs. */
+function getPublicConsentDocument(experiment){return study1ConsentPublicRead_(experiment);}
 function rejectIntake_(){throw new Error('目前尚未開放正式報名與電子簽署。請聯絡研究團隊：'+SITE_CONTACT_);}
 function requestOtp(){return rejectIntake_();}
 function verifyOtp(){return rejectIntake_();}
@@ -34,7 +36,11 @@ function runClosedChecks_(){
  assert(listSlots().length===0,'no public slots');
  const html=HtmlService.createHtmlOutputFromFile('Index').getContent();
  assert(html.startsWith('<!doctype html>'),'complete HTML document');
- assert(!/<(?:input|canvas|form|iframe)\b/i.test(html),'no data or signature collection');
+ assert(!/<(?:form|textarea)\b/i.test(html),'no live collection form');
+ const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+ assert(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'identity and consent inputs disabled');
+ assert(html.includes('id="consentSignature"')&&html.includes('id="consentSubmit"')&&
+  html.includes("consentEl('consentSubmit').disabled=true;"),'signature UI cannot submit');
  assert(!/<script[^>]+src=/i.test(html),'no external script');
  assert(html.includes('id="apply"')&&html.includes('id="contact"'),'required navigation destinations');
  assert(html.includes('disabled type="button"'),'intake button disabled');

@@ -58,7 +58,20 @@ function assertClosedPublicSources(remote){
  }
  check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
   !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
- check(!/<(?:input|form|textarea|canvas|iframe)\b/i.test(idx),'Public page must not collect data or signatures');
+ check(!/<(?:form|textarea)\b/i.test(idx),'Public site has no active collection form');
+ const inputs=[...idx.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+ check(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'All collection inputs must be disabled');
+ check(idx.includes('id="consentSubmit"')&&idx.includes('id="consentSignature"')&&
+  idx.includes('id="consentPdfViewer"')&&
+  idx.includes("consentEl('consentSubmit').disabled=true;")&&
+  !/<iframe\b[^>]*\bsrc=/i.test(idx),'Unreviewed signature submit or embedded remote URL');
+ check(site.includes("function getPublicConsentDocument(experiment){return study1ConsentPublicRead_(experiment);}")&&
+  admin.includes("function study1ConsentPublicRead_(experiment){")&&
+  admin.includes("function study1ConsentVersionPublication(input){")&&
+  admin.includes("study1ConsentDocumentBytes_(entry)")&&
+  admin.includes("if(hash!==entry.sha256)throw Error(")&&
+  admin.includes("file.getSharingAccess()!==DriveApp.Access.PRIVATE"),
+  'Public PDF can only originate from explicitly published private SHA-verified original');
  check(site.includes("function requestOtp(){return rejectIntake_();}")&&
   site.includes("function submitConsent(){return rejectIntake_();}")&&
   site.includes("function holdSlot(){return rejectIntake_();}")&&
@@ -71,7 +84,7 @@ function assertClosedPublicSources(remote){
   admin.includes("Session.getEffectiveUser().getEmail()")&&
   admin.includes("effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_"),
   'The original OWNER must be verified as ACTIVE and EFFECTIVE caller; public access forbidden otherwise');
- for(const fn of ['adminGetSandboxConfig','adminSaveSandboxConfig','adminGetTestBookings','adminChangeTestBooking']){
+ for(const fn of ['adminGetSandboxConfig','adminSaveSandboxConfig','adminGetTestBookings','adminChangeTestBooking','study1ConsentVersionPublication']){
   const pos=admin.indexOf('function '+fn+'(');
   check(pos>=0&&admin.slice(pos,pos+200).includes('study1AdminOwnerRequired_();'),
    'Unprotected admin RPC: '+fn);

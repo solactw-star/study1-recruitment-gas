@@ -88,6 +88,10 @@ test('Latest user-authorized website contact details are shown',()=>{
 });
 test('Contact and navigation improvement does not activate intake or signing',()=>{
  assert.match(html,/<button class="btn" disabled type="button">/);
- assert.doesNotMatch(html,/<(?:form|input|textarea|canvas|iframe)\b/i);
+ assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
+  const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+  assert.equal(inputs.length,4);
+  assert.ok(inputs.every(x=>/\bdisabled\b/.test(x)));
+  assert.match(html,/consentEl\('consentSubmit'\)\.disabled=true/);
  assert.doesNotMatch(html,/<script[^>]+src=/i);
 });

@@ -443,7 +443,7 @@ const STUDY1_CONSENT_DOC_FOLDER_='1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU';
 const STUDY1_CONSENT_DOC_INDEX_='STUDY1_CONSENT_DOCUMENT_INDEX_V1';
 function study1ConsentVersionRead_(){
  const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_CONSENT_DOC_INDEX_);
- if(!raw)return {schemaVersion:1,revision:0,documents:[],current:{E1:null,E2:null}};
+ if(!raw)return {schemaVersion:1,revision:0,documents:[],current:{E1:null,E2:null},published:{E1:null,E2:null}};
  const s=JSON.parse(raw);
  if(!s||s.schemaVersion!==1||!Number.isSafeInteger(s.revision)||s.revision<1||
   !Array.isArray(s.documents)||s.documents.length>24||!s.current||
@@ -463,6 +463,13 @@ function study1ConsentVersionRead_(){
   ['E1','E2'].some(exp=>s.current[exp]!==null&&
    !s.documents.some(x=>x.experiment===exp&&x.id===s.current[exp])))
   throw Error('同意書版本索引不一致，拒絕使用');
+ // V117 documents predate separate explicit public-presentation permission.
+ // Never infer publication from current selection; missing means NOT published.
+ if(s.published===undefined)s.published={E1:null,E2:null};
+ if(!s.published||Object.keys(s.published).sort().join(',')!=='E1,E2'||
+  ['E1','E2'].some(exp=>s.published[exp]!==null&&
+    !s.documents.some(x=>x.experiment===exp&&x.id===s.published[exp])))
+  throw Error('公開同意書版本指標不一致，拒絕使用');
  return s;
 }
 function study1ConsentVersionList(){
@@ -509,7 +516,7 @@ function study1ConsentVersionUpload(input){
   const entry={experiment:input.experiment,id:file.getId(),title:input.title.trim(),
    version:input.version,sha256,bytes:bytes.length,url:file.getUrl(),at:new Date().toISOString()};
   const next={schemaVersion:1,revision:current.revision+1,
-   documents:current.documents.concat([entry]),current:{...current.current}};
+   documents:current.documents.concat([entry]),current:{...current.current},published:{...current.published}};
   const payload=JSON.stringify(next);
   if(payload.length>7500)throw Error('文件索引容量不足，未接受新版本');
   const prop=PropertiesService.getScriptProperties();
@@ -548,4 +555,79 @@ function study1ConsentVersionSelect(input){
   if(prop.getProperty(STUDY1_CONSENT_DOC_INDEX_)!==payload)throw Error('同意書版本選用回讀失敗');
   return next;
  }finally{lock.releaseLock();}
+}
+
+/** Original owner-only public-read permission, not REC approval or e-signature.
+ * Publish only an explicitly selected, byte-verified BLANK source document.
+ * Anyone can later read the explicitly published PDF; the Drive original stays PRIVATE.
+ */
+function study1ConsentDocumentBytes_(entry){
+ const folder=DriveApp.getFolderById(STUDY1_CONSENT_DOC_FOLDER_);
+ if(folder.getSharingAccess()!==DriveApp.Access.PRIVATE)throw Error('原同意書資料夾權限異常，停止提供');
+ const file=DriveApp.getFileById(entry.id);
+ if(file.getSharingAccess()!==DriveApp.Access.PRIVATE||
+  file.getMimeType()!=='application/pdf'||file.getSize()!==entry.bytes)
+  throw Error('原同意書檔案格式或私人權限異常');
+ const parents=file.getParents();
+ let inOriginalFolder=false;
+ while(parents.hasNext())if(parents.next().getId()===STUDY1_CONSENT_DOC_FOLDER_)inOriginalFolder=true;
+ if(!inOriginalFolder)throw Error('PDF原始檔已不在指定私人資料夾');
+ const bytes=file.getBlob().getBytes();
+ if(bytes.length!==entry.bytes||String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('同意書原始位元組已變更');
+ const hash=Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,bytes)
+  .map(b=>(b&255).toString(16).padStart(2,'0')).join('');
+ if(hash!==entry.sha256)throw Error('原始PDF雜湊已改變，不可提供或簽署');
+ return bytes;
+}
+/** OWNER explicitly approves READ-ONLY publication of a selected blank PDF,
+ * or deactivates a published pointer; neither operation enables enrollment. */
+function study1ConsentVersionPublication(input){
+ study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+ if(!input||Array.isArray(input)||typeof input!=='object'||
+  Object.keys(input).sort().join(',')!=='confirmSha256,expectedRevision,experiment,id'||
+  !['E1','E2'].includes(input.experiment)||
+  !Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0||
+  !(input.id===null||typeof input.id==='string')||
+  typeof input.confirmSha256!=='string')throw Error('請提供明確版號、實驗及完整雜湊確認');
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(10000))throw Error('同意書版本更新正在進行，請重新載入');
+ try{
+  study1AdminOwnerRequired_();study1SandboxBookingFlags_();
+  const before=study1ConsentVersionRead_();
+  if(before.revision!==input.expectedRevision)throw Error('公開文件版本已更新，請重新載入');
+  if(before.published[input.experiment]===input.id)return before;
+  if(input.id!==null){
+   const entry=before.documents.find(x=>x.id===input.id&&x.experiment===input.experiment);
+   if(!entry||before.current[input.experiment]!==input.id||
+    input.confirmSha256!==entry.sha256)
+    throw Error('只能公開已選用且原SHA完全吻合的文件版本');
+   study1ConsentDocumentBytes_(entry);
+  }else if(input.confirmSha256!=='')throw Error('停止提供時不應附帶文件雜湊');
+  const after={...before,revision:before.revision+1,
+   published:{...before.published,[input.experiment]:input.id}};
+  const payload=JSON.stringify(after);
+  if(payload.length>7500)throw Error('公開文件索引容量不足');
+  const prop=PropertiesService.getScriptProperties();
+  prop.setProperty(STUDY1_CONSENT_DOC_INDEX_,payload);
+  if(prop.getProperty(STUDY1_CONSENT_DOC_INDEX_)!==payload)
+   throw Error('公開文件索引回讀失敗');
+  return after;
+ }finally{lock.releaseLock();}
+}
+/** Anonymous public READ ONLY. Never returns Drive file IDs, private URLs,
+ * the list of draft versions, personal data, or participant signature records. */
+function study1ConsentPublicRead_(experiment){
+ if(!['E1','E2'].includes(experiment))throw Error('不合法的研究實驗');
+ const props=PropertiesService.getScriptProperties();
+ if(props.getProperty('OPEN')!=='false'||props.getProperty('CONSENT_READY')!=='false')
+  throw Error('研究站點狀態不可信，拒絕提供文件');
+ const index=study1ConsentVersionRead_(),fileId=index.published[experiment];
+ if(!fileId)return {available:false,experiment};
+ const entry=index.documents.find(x=>x.id===fileId&&x.experiment===experiment);
+ if(!entry)throw Error('已發布的文件來源不存在');
+ const bytes=study1ConsentDocumentBytes_(entry);
+ return {available:true,experiment,title:entry.title,version:entry.version,
+  sha256:entry.sha256,bytes:bytes.length,mime:'application/pdf',
+  base64:Utilities.base64Encode(bytes)};
 }

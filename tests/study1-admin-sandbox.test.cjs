@@ -314,3 +314,111 @@ test('P0 consent registry refuses spoofed owner, malicious HTML and non-PDF byte
  assert.throws(()=>owner.scope.study1ConsentVersionUpload({...base,title:'<script>'}),/符合規格/);
  assert.equal(owner.values.size,0);
 });
+
+
+test('P0 official consent PDF: OWNER publication is explicit, SHA-verified, independent from selection, original remains private, and public read is bounded',()=>{
+ const crypto=require('node:crypto'),h=harness(),docs=new Map(),privateAccess='PRIVATE';
+ const content=Buffer.from('%PDF-1.7\n% Study1 blank official consent document\n'+ 'x'.repeat(320)+'\n%%EOF','utf8');
+ let serial=0,folderAccess=privateAccess;
+ const folderId='1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU';
+ const signedBytes=bytes=>Array.from(bytes).map(x=>x>127?x-256:x);
+ h.scope.Utilities={
+  DigestAlgorithm:{SHA_256:'SHA_256'},
+  base64Decode:x=>signedBytes(Buffer.from(x,'base64')),
+  base64Encode:bytes=>Buffer.from(bytes.map(x=>x&255)).toString('base64'),
+  newBlob:(bytes,mime,name)=>({bytes,mime,name}),
+  computeDigest:(_,bytes)=>signedBytes(crypto.createHash('sha256').update(Buffer.from(bytes.map(x=>x&255))).digest())
+ };
+ const folder={getId:()=>folderId,getSharingAccess:()=>folderAccess,createFile:blob=>{
+  const id='consentOwnerPdfStoredFile'+String(++serial).padStart(20,'0');
+  const record={id,bytes:[...blob.bytes],sharing:privateAccess,parent:folderId,mime:'application/pdf'};
+  docs.set(id,record);
+  return makeFile(record);
+ }};
+ function makeFile(record){return {
+  setSharing:(access,perm)=>{assert.equal(perm,'VIEW');record.sharing=access},
+  getSharingAccess:()=>record.sharing,
+  getMimeType:()=>record.mime,
+  getSize:()=>record.bytes.length,
+  getId:()=>record.id,
+  getUrl:()=> 'https://drive.google.com/file/d/'+record.id+'/view',
+  getParents:()=>{let used=false;return {hasNext:()=>!used,next:()=>{used=true;return {getId:()=>record.parent}}}},
+  getBlob:()=>({getBytes:()=>[...record.bytes]})
+ }};
+ h.scope.DriveApp={
+  Access:{PRIVATE:privateAccess},Permission:{VIEW:'VIEW'},
+  getFolderById:id=>{assert.equal(id,folderId);return folder},
+  getFileById:id=>{assert.ok(docs.has(id),'unreviewed Drive file');return makeFile(docs.get(id))}
+ };
+ const submit=(version,expectedRevision)=>({base64:content.toString('base64'),
+  expectedRevision,experiment:'E1',title:'研究參與者知情同意書',version});
+ assert.equal(h.scope.study1ConsentPublicRead_('E1').available,false);
+ const uploaded=h.scope.study1ConsentVersionUpload(submit('v1',0));
+ assert.deepEqual(JSON.parse(JSON.stringify(uploaded.published)),{E1:null,E2:null});
+ const id=uploaded.documents[0].id,sha=uploaded.documents[0].sha256;
+ assert.equal(h.scope.study1ConsentPublicRead_('E1').available,false,'upload never auto-publishes');
+ const selected=h.scope.study1ConsentVersionSelect({id,expectedRevision:1});
+ assert.equal(selected.current.E1,id);
+ assert.equal(h.scope.study1ConsentPublicRead_('E1').available,false,'selection never auto-publishes');
+ const pub={experiment:'E1',id,confirmSha256:sha,expectedRevision:2};
+ assert.throws(()=>h.scope.study1ConsentVersionPublication({...pub,confirmSha256:'0'.repeat(64)}),/SHA/);
+ assert.throws(()=>h.scope.study1ConsentVersionPublication({...pub,expectedRevision:1}),/已更新/);
+ const publicIndex=h.scope.study1ConsentVersionPublication(pub);
+ assert.equal(publicIndex.revision,3);assert.equal(publicIndex.published.E1,id);
+ const document=h.scope.study1ConsentPublicRead_('E1');
+ assert.equal(document.available,true);
+ assert.deepEqual(Object.keys(document).sort(),['available','base64','bytes','experiment','mime','sha256','title','version'].sort());
+ assert.equal(Buffer.from(document.base64,'base64').toString('hex'),content.toString('hex'));
+ assert.equal(document.sha256,sha);assert.equal(document.version,'v1');
+ assert.equal(docs.get(id).sharing,privateAccess);
+ const v2=h.scope.study1ConsentVersionUpload(submit('v2',3));
+ assert.equal(v2.published.E1,id,'upload must not replace public document');
+ const changed=h.scope.study1ConsentVersionSelect({id:v2.documents[1].id,expectedRevision:4});
+ assert.equal(changed.published.E1,id,'staff selection remains separate from public document');
+ assert.equal(h.scope.study1ConsentPublicRead_('E1').version,'v1');
+ assert.throws(()=>h.scope.study1ConsentVersionPublication({
+  experiment:'E1',id:v2.documents[1].id,confirmSha256:v2.documents[1].sha256,expectedRevision:4
+ }),/已更新/);
+ const revoked=h.scope.study1ConsentVersionPublication({experiment:'E1',id:null,
+  confirmSha256:'',expectedRevision:5});
+ assert.equal(revoked.published.E1,null);
+ assert.equal(h.scope.study1ConsentPublicRead_('E1').available,false);
+ assert.equal(docs.get(id).sharing,privateAccess);
+ assert.throws(()=>h.scope.study1ConsentPublicRead_('X1'),/不合法/);
+ assert.equal(h.locks(),0);
+});
+test('P0 full-consent source fails closed if private PDF bytes, path or sharing changed; anonymous visitor cannot publish',()=>{
+ const h=harness(),pdf=Buffer.from('%PDF-1.7\n'+'a'.repeat(260)+'\n%%EOF');
+ const crypto=require('node:crypto');
+ const sha=crypto.createHash('sha256').update(pdf).digest('hex');
+ const id='blankConsentSourceFile01234567890';
+ const entry={experiment:'E1',id,title:'同意書完整原版',version:'v1',sha256:sha,bytes:pdf.length,
+  url:'https://drive.google.com/file/d/'+id+'/view',at:new Date().toISOString()};
+ h.values.set('STUDY1_CONSENT_DOCUMENT_INDEX_V1',JSON.stringify({
+  schemaVersion:1,revision:2,documents:[entry],current:{E1:id,E2:null},published:{E1:id,E2:null}
+ }));
+ let access='PRIVATE',parent='1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU',raw=[...pdf];
+ h.scope.DriveApp={Access:{PRIVATE:'PRIVATE'},Permission:{VIEW:'VIEW'},
+  getFolderById:()=>({getSharingAccess:()=>access}),
+  getFileById:key=>{assert.equal(key,id);return {
+   getSharingAccess:()=>access,getMimeType:()=> 'application/pdf',getSize:()=>pdf.length,
+   getParents:()=>{let next=true;return {hasNext:()=>next,next:()=>{next=false;return {getId:()=>parent}}}},
+   getBlob:()=>({getBytes:()=>raw})
+  }}
+ };
+ h.scope.Utilities={DigestAlgorithm:{SHA_256:'SHA_256'},
+  computeDigest:(_,bytes)=>[...crypto.createHash('sha256').update(Buffer.from(bytes)).digest()],
+  base64Encode:bytes=>Buffer.from(bytes).toString('base64')};
+ assert.equal(h.scope.study1ConsentPublicRead_('E1').available,true);
+ raw=[...pdf];raw[44]=raw[44]^1;
+ assert.throws(()=>h.scope.study1ConsentPublicRead_('E1'),/雜湊/);
+ raw=[...pdf];parent='another-private-folder';
+ assert.throws(()=>h.scope.study1ConsentPublicRead_('E1'),/指定私人資料夾/);
+ parent='1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU';access='PUBLIC';
+ assert.throws(()=>h.scope.study1ConsentPublicRead_('E1'),/權限/);
+ const anon=harness('visitor@gmail.com','solac.tw@gmail.com');
+ assert.throws(()=>anon.scope.study1ConsentVersionPublication({}),/拒絕存取/);
+ assert.throws(()=>anon.scope.study1ConsentVersionUpload({}),/拒絕存取/);
+ assert.throws(()=>anon.scope.study1ConsentVersionSelect({}),/拒絕存取/);
+ assert.equal(anon.values.size,0);
+});

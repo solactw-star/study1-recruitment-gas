@@ -29,6 +29,10 @@ test('async closed-state message has an existing polite, atomic status region', 
 
 test('accessibility fix cannot enable data collection or signing', () => {
   assert.match(html, /<button\s+class="btn"\s+disabled\s+type="button">/);
-  assert.doesNotMatch(html, /<(?:form|input|textarea|canvas|iframe)\b/i);
+  assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
+  const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+  assert.equal(inputs.length,4);
+  assert.ok(inputs.every(x=>/\bdisabled\b/.test(x)));
+  assert.match(html,/consentEl\('consentSubmit'\)\.disabled=true/);
   assert.match(html, /@media\(prefers-reduced-motion:reduce\)/);
 });
