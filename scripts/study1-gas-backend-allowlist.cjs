@@ -109,7 +109,7 @@ function assertAdminSandbox(source){
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
  const driveOps=[...source.matchAll(/\bDriveApp\.([A-Za-z_$][\w$]*)/g)].map(x=>x[1]);
- if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access')
+ if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access,getFileById')
   throw Error('Unreviewed private consent Drive operation');
 }
 function assertAdminHtml(html){
