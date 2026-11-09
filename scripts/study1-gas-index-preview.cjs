@@ -82,7 +82,16 @@ async function authorizedApi(){
   const base='https://script.googleapis.com/v1/projects/'+encodeURIComponent(SCRIPT_ID);
   async function request(method,p,body){
     const res=await fetch(base+p,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
-    check(res.ok,'GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+'; do not assume write or deploy success');
+    if(!res.ok){
+      let errorCode='NO_DETAILS',reason='unspecified';
+      try{
+        const response=await res.json();
+        errorCode=String(response?.error?.status||'UNKNOWN').slice(0,50);
+        reason=String(response?.error?.message||'unspecified').replace(/https?:\/\/[^\s]+/g,'[URL]').slice(0,400);
+      }catch(_e){}
+      throw Error('GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+
+       ' ('+errorCode+'): '+reason+'; no successful mutation assumed');
+    }
     return res.status===204?{}:res.json();
   }
   return {
@@ -94,7 +103,7 @@ async function authorizedApi(){
     createVersion:description=>request('POST','/versions',{description}),
     getDeployment:id=>request('GET','/deployments/'+encodeURIComponent(id)),
     putDeployment:(id,c)=>request('PUT','/deployments/'+encodeURIComponent(id),{deploymentConfig:c}),
-    createDeployment:config=>request('POST','/deployments',{deploymentConfig:config}),
+    createDeployment:config=>request('POST','/deployments',config),
     deleteDeployment:id=>request('DELETE','/deployments/'+encodeURIComponent(id)),
     deployments:async()=>{let all=[],next='';for(let i=0;i<20;i++){const p=await request('GET','/deployments?pageSize=50'+(next?'&pageToken='+encodeURIComponent(next):''));all.push(...(p.deployments||[]));if(!p.nextPageToken)return all;next=p.nextPageToken;}throw Error('Too many deployments to audit safely');}
   };

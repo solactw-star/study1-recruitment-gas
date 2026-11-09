@@ -159,7 +159,7 @@ async function publish(api,env,probe=anonymousProbe){
    await api.putDeployment(oldPublic.deploymentId,{...oldPublic.deploymentConfig,versionNumber:ver.versionNumber});
    changed=true;
   }else{
-   created=await api.createDeployment({scriptId:SCRIPT_ID,versionNumber:ver.versionNumber,
+   created=await api.createDeployment({versionNumber:ver.versionNumber,
     manifestFileName:'appsscript',description:PUBLIC_DESCRIPTION});
    changed=true;
   }

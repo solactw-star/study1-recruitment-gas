@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/study1-gas-public-release.yml'
       - 'scripts/study1-gas-public-release.cjs'
+      - 'scripts/study1-gas-index-preview.cjs'
       - 'tests/study1-public-release.test.cjs'
   workflow_run:
     workflows: ['Study1 GAS auto-sync approved closed site and admin sandbox']
