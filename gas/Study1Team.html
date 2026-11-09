@@ -780,7 +780,7 @@ body>header nav{max-width:none;padding:14px 24px}
  </form>
  <p id="consentVersionsStatus" role="status" aria-live="polite">尚未讀取文件版本目錄。</p>
  <h3>已上傳的各版文件</h3><div id="consentVersionsRows" class="entries" aria-live="polite"></div>
- <p class="small">選用僅改變管理目錄的預設文件版本，不會自動發布到公開頁；正式簽署須另有受保護的存證程序。</p>
+ <p class="small">「選用版本」與「公開全文」為不同作業：先選用，再核對原 PDF 為不含任何個資的空白知情同意書及 SHA，才能單獨按「提供正式首頁閱讀」。可隨時停止對外提供全文，不會覆寫舊版或開放簽署。</p>
 </section>
 
 <section class="panel" id="b10Module" aria-labelledby="b10Heading">
@@ -5155,7 +5155,7 @@ $('b12Search').addEventListener('input',b12Reset);
  function consentStatus_(text,bad=false){const n=$('consentVersionsStatus');n.textContent=text;n.className=bad?'err':'small';}
  function consentRender_(state){
   if(!state||state.schemaVersion!==1||!Number.isSafeInteger(state.revision)||
-   !Array.isArray(state.documents)||state.documents.length>24||!state.current){
+   !Array.isArray(state.documents)||state.documents.length>24||!state.current||!state.published){
    consentIndex=null;return consentStatus_('版本索引來源無法驗證，已拒絕顯示。',true);
   }
   consentIndex=state;const target=$('consentVersionsRows');target.replaceChildren();
@@ -5164,7 +5164,8 @@ $('b12Search').addEventListener('input',b12Reset);
    const box=document.createElement('article');box.className='consentVersionCard';
    const title=document.createElement('strong');title.textContent=(doc.experiment==='E1'?'實驗一':'實驗二')+'｜'+doc.title;
    const version=document.createElement('p');version.textContent='版本：'+doc.version+
-    (state.current[doc.experiment]===doc.id?'｜目前選用':'｜已封存');
+    (state.current[doc.experiment]===doc.id?'｜目前選用':'｜已封存')+
+    (state.published[doc.experiment]===doc.id?'｜目前提供正式首頁閱讀':'');
    const hash=document.createElement('span');hash.className='small';hash.textContent='SHA-256：'+doc.sha256;
    const link=document.createElement('a');link.textContent='開啟私人原版PDF';
    if(/^https:\/\/drive\.google\.com\//.test(doc.url)){
@@ -5181,7 +5182,27 @@ $('b12Search').addEventListener('input',b12Reset);
     }).withFailureHandler(e=>{consentWorking=false;consentStatus_('選用未完成：'+String(e.message||e),true);})
     .study1ConsentVersionSelect({id:doc.id,expectedRevision:consentIndex.revision});
    });
-   box.append(title,version,hash,link,select);target.append(box);
+   const publish=document.createElement('button');publish.type='button';publish.className='secondary';
+   const publicNow=state.published[doc.experiment]===doc.id;
+   publish.textContent=publicNow?'停止對外提供此版全文':'提供正式首頁閱讀此版PDF';
+   publish.disabled=!publicNow&&state.current[doc.experiment]!==doc.id;
+   publish.addEventListener('click',()=>{
+    if(consentWorking||!consentIndex)return;
+    const prompt=publicNow?
+     '確認停止對外提供'+doc.experiment+'這份全文？原版仍保存於私人資料夾。':
+     '確認這是可對外公開的空白知情同意書、沒有任何個人資料，且已核對完整PDF與SHA-256：'+doc.sha256+'？此操作只供全文閱讀，不開啟電子簽署或報名。';
+    if(!confirm(prompt))return;
+    consentWorking=true;consentStatus_('正在核對PDF原始位元組與公開版本…');
+    google.script.run.withSuccessHandler(next=>{
+     consentWorking=false;consentRender_(next);
+     consentStatus_(publicNow?'已停止公開提供全文，原版及版號保留。':
+      '原 PDF 已核對並設為正式首頁可閱讀版本；簽署及報名仍關閉。');
+    }).withFailureHandler(e=>{consentWorking=false;consentStatus_('文件發布未完成：'+String(e.message||e),true);})
+     .study1ConsentVersionPublication({experiment:doc.experiment,
+      id:publicNow?null:doc.id,confirmSha256:publicNow?'':doc.sha256,
+      expectedRevision:consentIndex.revision});
+   });
+   box.append(title,version,hash,link,select,publish);target.append(box);
   }
  }
  function consentLoad_(){
