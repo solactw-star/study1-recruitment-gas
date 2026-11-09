@@ -40,7 +40,7 @@ function assertClosedWebsite(source){
   "p.setProperties({OPEN:'false',CONSENT_READY:'false'},false)"
  ];
  for(const token of required)if(!source.includes(token))throw Error('CLOSED Website guard changed: '+token);
- const allowed=new Set(['doGet','getPublicConfig','rejectIntake_','requestOtp','verifyOtp','holdSlot','cancelHold','submitConsent','listSlots','setOpen_','initializeClosedSystem_','runClosedChecks_']);
+ const allowed=new Set(['doGet','getPublicConfig','getPublicConsentDocument','rejectIntake_','requestOtp','verifyOtp','holdSlot','cancelHold','submitConsent','listSlots','setOpen_','initializeClosedSystem_','runClosedChecks_']);
  const functions=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(functions.length!==allowed.size||new Set(functions).size!==functions.length||functions.some(name=>!allowed.has(name)))throw Error('Unreviewed Website server entry point');
  if(/\b(?:SpreadsheetApp|DriveApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval)\b/.test(source))throw Error('Live data or external operation in CLOSED Website');
@@ -72,6 +72,12 @@ function assertAdminSandbox(source){
   "function study1ConsentVersionList(){",
   "function study1ConsentVersionUpload(input){",
   "function study1ConsentVersionSelect(input){",
+  "function study1ConsentVersionPublication(input){",
+  "function study1ConsentPublicRead_(experiment){",
+  "function study1ConsentDocumentBytes_(entry){",
+  "DriveApp.getFileById(entry.id)",
+  "input.confirmSha256!==entry.sha256",
+  "Utilities.base64Encode(bytes)",
   "DriveApp.getFolderById(STUDY1_CONSENT_DOC_FOLDER_)",
   "folder.getSharingAccess()!==DriveApp.Access.PRIVATE",
   "file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.VIEW)",
@@ -85,12 +91,14 @@ function assertAdminSandbox(source){
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
  const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingMutation_','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingIntegrity_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking',
    'study1ConsentVersionRead_','study1ConsentVersionList',
-   'study1ConsentVersionUpload','study1ConsentVersionSelect']);
+   'study1ConsentVersionUpload','study1ConsentVersionSelect',
+   'study1ConsentDocumentBytes_','study1ConsentVersionPublication',
+   'study1ConsentPublicRead_']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
  const driveOps=[...source.matchAll(/\bDriveApp\.([A-Za-z_$][\w$]*)/g)].map(x=>x[1]);
- if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access')
+ if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access')
   throw Error('Unreviewed private consent Drive operation');
 }
 function assertAdminHtml(html){
