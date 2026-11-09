@@ -87,7 +87,7 @@ async function authorizedApi(){
       try{
         const response=await res.json();
         errorCode=String(response?.error?.status||'UNKNOWN').slice(0,50);
-        reason=String(response?.error?.message||'unspecified').replace(/https?:\\/\\/[^\\s]+/g,'[URL]').slice(0,400);
+        reason=String(response?.error?.message||'unspecified').replace(/https?:\/\/[^\s]+/g,'[URL]').slice(0,400);
       }catch(_e){}
       throw Error('GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+
        ' ('+errorCode+'): '+reason+'; no successful mutation assumed');
