@@ -57,6 +57,15 @@
   </div>
   <div class="consentPanel" aria-label="同意書理解、說明、簽署與退出">
    <h3>同意與簽署程序</h3>
+    <div class="consentStep" id="consentIdentityStep">
+     <span class="stepNum">身分核對｜研究人員專屬邀請碼</span>
+     <p>研究人員先核對你的身分並向你提供當次文件專屬的高強度邀請碼。任何人不能只靠姓名或公開頁建立有效簽署。邀請碼只在你的裝置中使用，不應傳給他人。</p>
+     <div id="consentTokenMount"></div>
+     <button id="consentCheckSession" type="button" class="btn light" disabled>核對我的同意書與研究人員說明</button>
+     <p id="consentSessionStatus" role="status" aria-live="polite">目前尚未開放有效線上簽署。完整原版PDF仍可獨立閱讀。</p>
+     <div id="consentExplanation" class="consentNotice" hidden><strong>研究人員說明及疑問答覆</strong>
+      <p id="consentExplanationQuestion"></p><p id="consentExplanationAnswer"></p></div>
+    </div>
    <div class="consentStep">
     <span class="stepNum">01｜閱讀與理解</span>
     <p>請先完整閱讀左側 PDF，包含研究方法、可能風險、研究補貼、資料保護、退出方式及雙方簽署欄位。</p>
@@ -78,41 +87,23 @@
     <p><strong>本人手寫電子簽名</strong></p>
     <canvas id="consentSignature" class="consentSignature" width="700" height="160" aria-label="手寫電子簽名區，尚未開放有效簽署"></canvas>
     <div class="consentRow"><button id="consentClearSignature" type="button" class="btn light">清除簽名筆跡</button></div>
-    <p class="small">目前尚未開放線上簽署。簽名筆跡只在這個瀏覽器分頁中暫時顯示，不會送往伺服器、保存或構成有效同意；關閉頁面後消失。</p>
+    <p class="small">尚未啟用時，簽名筆跡只在本機暫存，不構成有效同意。經身分、研究人員說明及固定文件版本核對，並由研究室明確啟用後，正式提交會封存獨立簽名事件，等待研究人員再次確認。</p>
     <button id="consentSubmit" type="button" class="btn" disabled aria-disabled="true">確認簽署並取得已簽署副本（尚未開放）</button>
-    <p class="consentNotice"><strong>目前尚未開放線上簽署</strong>：尚未接通具身分驗證、雙方確認及不可變簽署存證的正式收件服務。文件公開閱讀並不代表同意、報名或預約已完成。</p>
+    <p id="consentActivationNotice" class="consentNotice"><strong>目前尚未開放線上簽署</strong>：尚未接通具身分驗證、雙方確認及不可變簽署存證的正式收件服務。文件公開閱讀並不代表同意、報名或預約已完成。</p>
    </div>
    <div class="consentStep">
     <span class="stepNum">04｜副本與撤回同意</span>
-    <p>可以使用左側按鈕保存<strong>未簽署的原版 PDF</strong>。有效簽署副本需於正式收件啟用且研究人員確認後，按原文約定安全交付，不會把未簽署文件誤標為簽署完成。</p>
+    <p>可以先保存左側的<strong>未簽署原版 PDF</strong>。有效簽署需經研究人員確認後才能取得與同意書版號、原文件 SHA-256、簽署及確認證據 SHA 相連結的個人副本。</p>
+     <button id="consentCopy" type="button" class="btn light" disabled>取得本人簽署與研究人員確認副本</button>
+     <div id="consentWithdrawalMount"></div>
+     <button id="consentWithdrawSubmit" type="button" class="btn light" disabled>送出本人的撤回請求</button>
+     <p id="consentCopyStatus" role="status" aria-live="polite">未建立經雙方確認的有效簽署紀錄。</p>
     <p>可隨時依同意書所載方式，透過電子郵件、電話或研究現場通知研究人員退出或撤回。研究團隊將依適用文件處理原有資料。</p>
     <a id="consentWithdraw" class="btn light" href="mailto:lily4318@cycu.edu.tw?subject=Study1%20%E6%92%A4%E5%9B%9E%E5%90%8C%E6%84%8F%E8%88%87%E9%80%80%E5%87%BA%E7%A0%94%E7%A9%B6">聯絡研究團隊撤回／退出</a>
    </div>
   </div>
  </div>
 </section>
-rticle><article><span class="number">4</span><h3>取得預約確認</h3><p>完成必要程序後取得確認資訊；暫時保留時段不代表完成預約。</p></article></div></div></section>
-
-<section id="consent" class="section container" aria-labelledby="consentTitle">
-<span class="eyebrow">研究參與者權利</span>
-<h2 id="consentTitle">完整閱讀，再決定是否簽署知情同意書</h2>
-<p class="sub">正式線上簽署將與研究說明、疑問解答及個人資料保護程序整合在同一報名流程。閱讀、詢問、簽署及取得副本都是獨立而必要的步驟；不會以單一勾選取代完整研究參與者同意書。</p>
-<div class="consent-flow" aria-label="電子知情同意程序">
-<article><span class="number">01</span><strong>閱讀完整文件</strong><p>取得研究倫理審查適用版本的同意書全文，包括研究目的、程序、限制、風險、補償、資料保存與研究人員聯絡資訊。</p></article>
-<article><span class="number">02</span><strong>提出問題及確認理解</strong><p>可向研究人員提出疑問，獲得必要說明後再自行決定；不必為了保留名額而立即同意。</p></article>
-<article><span class="number">03</span><strong>本人明確簽署</strong><p>在完成適用的身分、文件版本及研究人員說明核對後，才提供正式簽署及日期記錄；不同意時可退出。</p></article>
-<article><span class="number">04</span><strong>取得副本及撤回</strong><p>保留與當次核准文件相符的簽署紀錄，提供參與者可留存的副本及退出、撤回同意的聯絡途徑。</p></article>
-</div>
-<div class="consent-paper">
-<h3>研究參與者知情同意書</h3>
-<p class="consent-meta">國科會 NSTC 115-2410-H-033-015 · 實驗一／實驗二依適用文件分別提供</p>
-<p>正式文件會完整包含以下必要項目，並標示核准版本及適用範圍。每一項均應可逐段閱讀，不以摘要取代完整文件。</p>
-<ol><li>研究目的</li><li>參與條件與限制</li><li>研究方法與程序</li><li>參與時須配合事項</li><li>潛在風險與處理措施</li><li>研究效益與參與補貼</li><li>商業利益及應用約定</li><li>個人資料保存、使用與保密</li><li>損害補償與研究保險</li><li>退出及撤回同意方式</li><li>研究參與者權利與申訴管道</li><li>研究人員說明及簽章</li><li>研究參與者簽章與日期</li></ol>
-<div class="consent-foot">
-<p class="state">目前尚未開放線上簽署</p>
-<p>正式文件版本、研究人員說明程序及電子簽署方式仍須依有效研究倫理審查核准範圍確認。本頁不收集姓名、簽名或同意紀錄。</p>
-<div class="consent-actions"><button type="button" class="btn" disabled aria-disabled="true">閱讀完整同意書（尚未開放）</button><button type="button" class="btn" disabled aria-disabled="true">線上簽署與取得副本（尚未開放）</button></div>
-</div></div></section>
 <section id="apply" class="section container"><span class="eyebrow">報名與預約</span><h2>目前尚未開放報名</h2><div class="apply-grid"><div class="closed"><span class="preview-label">準備中</span><h3>正式流程驗證完成後，才會開放</h3><p>報名、信箱驗證、時段選擇、知情同意書簽署及預約確認將在同一流程完成。目前仍待適用核准文件、資料保護與正式收件程序完成，不寄送驗證碼、不保留時段，也不接收簽名。</p><button class="btn" disabled type="button">報名尚未開放</button><p id="health" role="status" aria-live="polite" aria-atomic="true">正在確認系統狀態；報名維持關閉。</p><noscript><p>你的瀏覽器未啟用 JavaScript。仍可閱讀本頁及使用下方信箱聯絡研究團隊；報名功能維持關閉。</p></noscript></div><aside class="aside"><h3>研究聯絡資訊</h3><p>若對研究內容或未來參與安排有疑問，可聯絡研究團隊。</p><p><strong>研究計畫聯絡人：賴詩潔</strong><span class="contact-person"><a href="mailto:lily4318@cycu.edu.tw">lily4318@cycu.edu.tw</a><a href="tel:+88632563414">03-256-3414</a></span></p><p><strong>研究計畫主持人：葉理豪</strong><span class="contact-person"><a href="mailto:lhyeh@cycu.edu.tw">lhyeh@cycu.edu.tw</a><a href="tel:+88632653413">03-265-3413</a></span></p><p>來信詢問時，請避免提供不必要的健康資料或身分證明文件。</p></aside></div></section>
 <section class="section soft"><div class="container faq"><h2>常見問題</h2><details><summary>現在可以報名或選時間嗎？</summary><p>目前尚未開放。本頁沒有報名資料輸入欄位；研究團隊完成驗證並核准開放後，才會提供正式流程。</p></details><details><summary>我可以先看看同意書嗎？</summary><p>請至上方「知情同意」選擇實驗，若研究團隊已對外提供該版本，可在線閱讀或下載完整原PDF；若尚未提供，請聯絡研究團隊索取。現階段尚未開放有效線上簽署。</p></details><details><summary>按下報名會不會直接完成預約？</summary><p>目前按鈕停用。未來開放後，完成預約將另有明確確認；保留時段、信箱驗證或閱讀頁面都不代表已完成預約。</p></details><details><summary>這個頁面會收取簽名或個人資料嗎？</summary><p>本頁可以查看經研究團隊確認可對外提供的完整文件，也設有尚未開放有效簽署的操作區。填寫欄位仍停用；手寫筆跡只存在本機分頁記憶體，不傳送到系統、不形成正式簽署。公開信箱連結由你自行決定是否寄送。</p></details></div></section>
 <section id="contact" class="section contact"><div class="container contact-inner"><div><h2>有問題，歡迎聯絡研究團隊</h2><p>中原大學心理學系 · Study 1</p><p>研究計畫聯絡人：賴詩潔｜電話：<a href="tel:+88632563414">03-256-3414</a>｜電子郵件：<a href="mailto:lily4318@cycu.edu.tw">lily4318@cycu.edu.tw</a></p><p>研究計畫主持人：葉理豪｜電話：<a href="tel:+88632653413">03-265-3413</a>｜電子郵件：<a href="mailto:lhyeh@cycu.edu.tw">lhyeh@cycu.edu.tw</a></p></div><a class="btn light" href="mailto:lily4318@cycu.edu.tw">聯絡研究團隊</a></div></section></main><footer><div class="container">中原大學心理學系研究團隊 · Study 1｜目前尚未開放報名</div></footer>
@@ -138,10 +129,14 @@ function initConsentPortal_(){
 const consentEl=id=>document.getElementById(id);
 const consentCanvas=consentEl('consentSignature'),consentCtx=consentCanvas.getContext('2d');
 let consentEpoch=0,consentBlobUrl=null,consentUsable=false,penDown=false;
+ let consentDocumentMeta=null,consentRuntimeOn=false,consentActiveToken='',consentSessionState=null,consentInk=false,consentPending=false;
 consentCtx.lineCap='round';consentCtx.lineJoin='round';consentCtx.lineWidth=2.5;
 consentCtx.strokeStyle='#173944';
 function consentReset_(){
- consentUsable=false;penDown=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ consentUsable=false;penDown=false;consentDocumentMeta=null;consentActiveToken='';consentSessionState=null;consentInk=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ if(consentEl('consentAccessCode')){consentEl('consentAccessCode').value='';consentEl('consentAccessCode').disabled=true;}
+ consentEl('consentCheckSession').disabled=true;consentEl('consentCopy').disabled=true;
+ consentEl('consentWithdrawSubmit').disabled=true;consentEl('consentExplanation').hidden=true;
  for(const id of ['consentReadAck','consentAnsweredAck','consentAgreeAck']){
   const input=consentEl(id);input.checked=false;input.disabled=true;
  }
@@ -190,7 +185,9 @@ async function consentPresent_(documentData,epoch){
  consentEl('consentDocument').hidden=false;
  for(const id of ['consentReadAck','consentAnsweredAck','consentAgreeAck'])
   consentEl(id).disabled=false;
+ consentDocumentMeta={experiment:d.experiment,version:d.version,sha256:d.sha256};
  consentUsable=true;
+ if(consentRuntimeOn){consentEl('consentAccessCode').disabled=false;consentEl('consentCheckSession').disabled=false;}
  consentStatus_('已取得研究團隊提供的完整PDF並獨立核對SHA-256。請先完整閱讀全文；正式簽署與收件目前仍關閉。');
 }
 function consentLoad_(){
@@ -226,14 +223,166 @@ consentCanvas.addEventListener('pointerdown',event=>{
 });
 consentCanvas.addEventListener('pointermove',event=>{
  if(!penDown||!consentUsable)return;
- const p=consentPosition_(event);consentCtx.lineTo(p.x,p.y);consentCtx.stroke();
+ const p=consentPosition_(event);consentCtx.lineTo(p.x,p.y);consentCtx.stroke();consentInk=true;
 });
 for(const type of ['pointerup','pointercancel','pointerleave'])
  consentCanvas.addEventListener(type,()=>{penDown=false;});
 consentEl('consentClearSignature').addEventListener('click',()=>{
- penDown=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ penDown=false;consentInk=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
 });
-window.addEventListener('pagehide',()=>{consentReset_();});
+
+ // The identity and withdrawal inputs are created disabled in the CLOSED
+ // product, never used for private data unless the server readiness gate
+ // confirms owner-issued verified access is genuinely available.
+ const accessCode=document.createElement('input');
+ accessCode.type='password';accessCode.id='consentAccessCode';
+ accessCode.setAttribute('aria-label','研究人員提供的專屬簽署邀請碼');
+ accessCode.setAttribute('autocomplete','off');accessCode.maxLength=90;
+ accessCode.disabled=true;accessCode.placeholder='研究人員現場核對身分後提供的專屬邀請碼';
+ consentEl('consentTokenMount').append(accessCode);
+ const withdrawReason=document.createElement('input');
+ withdrawReason.type='text';withdrawReason.id='consentWithdrawReason';
+ withdrawReason.disabled=true;withdrawReason.maxLength=600;
+ withdrawReason.setAttribute('aria-label','撤回本人的電子同意');
+ withdrawReason.placeholder='撤回理由（至少四字）';
+ consentEl('consentWithdrawalMount').append(withdrawReason);
+ const sessionStatus_=msg=>{consentEl('consentSessionStatus').textContent=msg;};
+ function consentVerifiedSession_(result,token){
+  if(!consentDocumentMeta||!result||result.experiment!==consentDocumentMeta.experiment||
+   result.version!==consentDocumentMeta.version||
+   result.sha256!==consentDocumentMeta.sha256||
+   !Number.isSafeInteger(result.expires)||result.expires<Date.now())
+   throw Error('邀請碼與目前已閱讀的文件來源或版號不一致');
+  consentActiveToken=token;consentSessionState=result.state;
+  if(result.explanation){
+   consentEl('consentExplanation').hidden=false;
+   consentEl('consentExplanationQuestion').textContent='已記錄疑問：'+(result.explanation.question||'無特別疑問');
+   consentEl('consentExplanationAnswer').textContent='研究人員答覆：'+result.explanation.answer;
+  }
+  consentEl('consentSigner').disabled=result.state!=='EXPLAINED';
+  consentEl('consentSubmit').disabled=result.state!=='EXPLAINED';
+  consentEl('consentCopy').disabled=!['CONFIRMED','WITHDRAWN'].includes(result.state);
+  consentEl('consentWithdrawSubmit').disabled=result.state!=='CONFIRMED';
+  withdrawReason.disabled=result.state!=='CONFIRMED';
+  sessionStatus_(({ISSUED:'請先取得研究人員的說明與答覆。',
+   EXPLAINED:'已核對當次文件及研究人員說明。請依序確認並親自簽署。',
+   SIGNED:'本人簽名已封存，等待研究人員確認。',
+   CONFIRMED:'雙方確認已完成，可取得個人簽署副本。',
+   WITHDRAWN:'此同意已撤回，原簽署和撤回事件均留存。'})[result.state]||'狀態不明，請聯絡研究人員。');
+ }
+ consentEl('consentCheckSession').addEventListener('click',()=>{
+  if(!consentRuntimeOn||!consentUsable||consentPending)return;
+  const token=accessCode.value.trim(),epoch=consentEpoch;
+  if(!/^[-a-f0-9]{70,90}$/i.test(token))return sessionStatus_('邀請碼格式錯誤。');
+  consentPending=true;consentEl('consentCheckSession').disabled=true;
+  google.script.run.withSuccessHandler(r=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   try{consentVerifiedSession_(r,token);}catch(e){sessionStatus_(String(e.message||e));}
+   consentEl('consentCheckSession').disabled=false;
+  }).withFailureHandler(e=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   sessionStatus_('邀請核對失敗：'+String(e.message||e));
+   consentEl('consentCheckSession').disabled=false;
+  }).study1EConsentSession(token);
+ });
+ consentEl('consentSubmit').addEventListener('click',()=>{
+  if(!consentRuntimeOn||!consentDocumentMeta||!consentUsable||!consentInk||
+   !consentActiveToken||consentSessionState!=='EXPLAINED'||consentPending)return;
+  const name=consentEl('consentSigner').value.trim();
+  if(!name||name.length>80||/[<>]/.test(name)||
+   !['consentReadAck','consentAnsweredAck','consentAgreeAck'].every(x=>consentEl(x).checked))
+   return sessionStatus_('請確認完整PDF、研究人員答覆、自願參與並填寫姓名及本人簽名。');
+  const token=consentActiveToken,epoch=consentEpoch,
+   png=consentCanvas.toDataURL('image/png').split(',')[1];
+  consentPending=true;consentEl('consentSubmit').disabled=true;
+  sessionStatus_('正在將本人簽名與當次原PDF雜湊綁定封存…');
+  google.script.run.withSuccessHandler(r=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   consentSessionState=r?.state;
+   consentEl('consentSigner').disabled=true;
+   sessionStatus_(r?.state==='SIGNED'?'簽名已存證，請研究人員進行第二次身分確認後再取得副本。':'簽署回覆無法核對，請研究人員確認。');
+  }).withFailureHandler(e=>{
+   consentPending=false;if(epoch!==consentEpoch)return;
+   consentEl('consentSigner').disabled=true;
+   sessionStatus_('簽署結果未知：'+String(e.message||e)+'。不得自動重送，請先核對。');
+  }).study1EConsentSign({token,name,signature:png,
+   documentSha:consentDocumentMeta.sha256,read:true,answerAcknowledged:true,agree:true});
+ });
+ consentEl('consentCopy').addEventListener('click',()=>{
+  if(!consentActiveToken||consentPending)return;
+  consentPending=true;consentEl('consentCopy').disabled=true;
+  google.script.run.withSuccessHandler(receipt=>{
+   consentPending=false;
+   if(!receipt||!['CONFIRMED','WITHDRAWN'].includes(receipt.state)||
+    !consentDocumentMeta||receipt.documentSha256!==consentDocumentMeta.sha256||
+    !/^[a-f0-9]{64}$/.test(receipt.signatureEvidenceSha256)||
+    !/^[a-f0-9]{64}$/.test(receipt.confirmationEvidenceSha256)){
+    consentEl('consentCopyStatus').textContent='副本與目前原PDF不一致，停止提供。';return;
+   }
+   // Present a person-readable receipt containing document/source/evidence hashes,
+   // verified OWNER reviewer, timestamps and original handwritten PNG. Pair it
+   // with the separate original PDF; never silently modify that PDF.
+   const esc=s=>String(s??'').replace(/[&<>"']/g,ch=>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+   if(typeof receipt.signaturePngBase64!=='string'||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(receipt.signaturePngBase64)||
+    receipt.signaturePngBase64.length>125000)throw Error('簽名檔案來源不合法');
+   const html='<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">'+
+    '<title>Study1 個人電子同意簽署副本</title><style>body{font:16px/1.7 sans-serif;max-width:820px;margin:32px auto;padding:0 16px;overflow-wrap:anywhere}dt{font-weight:bold}dd{margin:0 0 13px}img{border:1px solid #ccc;max-width:100%}footer{font-size:12px;margin-top:40px}</style></head><body>'+
+    '<h1>Study 1｜電子同意個人簽署副本</h1><p>請與另外下載的同一版本完整原始同意書PDF一起保留。原PDF未被改寫。</p><dl>'+
+    '<dt>適用實驗與文件版本</dt><dd>'+esc(receipt.experiment)+'｜'+esc(receipt.version)+'</dd>'+
+    '<dt>原PDF SHA-256</dt><dd>'+esc(receipt.documentSha256)+'</dd>'+
+    '<dt>參與者姓名</dt><dd>'+esc(receipt.participant)+'</dd>'+
+    '<dt>參與者簽署時間（UTC）</dt><dd>'+esc(receipt.signedAt)+'</dd>'+
+    '<dt>研究人員確認帳號</dt><dd>'+esc(receipt.reviewer)+'</dd>'+
+    '<dt>研究人員確認時間（UTC）</dt><dd>'+esc(receipt.confirmedAt)+'</dd>'+
+    '<dt>簽署證據SHA-256</dt><dd>'+esc(receipt.signatureEvidenceSha256)+'</dd>'+
+    '<dt>研究人員確認證據SHA-256</dt><dd>'+esc(receipt.confirmationEvidenceSha256)+'</dd>'+
+    '<dt>目前狀態</dt><dd>'+esc(receipt.state)+(receipt.withdrawalAt?'｜撤回時間：'+esc(receipt.withdrawalAt):'')+'</dd>'+
+    '</dl><h2>本人電子簽名筆跡</h2><img alt="本人簽名" src="data:image/png;base64,'+
+    receipt.signaturePngBase64+'"><footer>此為已核實來源的可列印電子簽署副本。可使用瀏覽器「列印／另存成PDF」。Google Drive來源存證具SHA可驗證性，但非WORM不可刪除儲存。</footer></body></html>';
+   const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+   const url=URL.createObjectURL(blob),a=document.createElement('a');
+   a.href=url;a.download='Study1_EConsent_Signed_Receipt.html';
+   document.body.append(a);a.click();a.remove();
+   setTimeout(()=>URL.revokeObjectURL(url),20000);
+   consentEl('consentCopyStatus').textContent='已提供可列印的簽署副本，請與上方完整原版PDF一併留存。';
+   consentEl('consentCopy').disabled=false;
+  }).withFailureHandler(e=>{
+   consentPending=false;consentEl('consentCopy').disabled=false;
+   consentEl('consentCopyStatus').textContent='個人副本核對失敗：'+String(e.message||e);
+  }).study1EConsentCopy(consentActiveToken);
+ });
+ consentEl('consentWithdrawSubmit').addEventListener('click',()=>{
+  if(consentPending||consentSessionState!=='CONFIRMED'||!consentActiveToken)return;
+  const reason=withdrawReason.value.trim();
+  if(reason.length<4||reason.length>600||/[<>]/.test(reason))
+   return consentEl('consentCopyStatus').textContent='請填寫至少四字撤回原因。';
+  if(!window.confirm('確認撤回本人電子同意？原簽署不會刪除，另記撤回事件。'))return;
+  consentPending=true;consentEl('consentWithdrawSubmit').disabled=true;
+  google.script.run.withSuccessHandler(r=>{
+   consentPending=false;consentSessionState=r?.state;
+   consentEl('consentCopyStatus').textContent=r?.state==='WITHDRAWN'?
+    '撤回事件已存證，可再取得包含撤回狀態的個人副本。':'撤回狀態未能核實，請聯絡研究人員。';
+  }).withFailureHandler(e=>{
+   consentPending=false;
+   consentEl('consentCopyStatus').textContent='撤回結果尚未核對：'+String(e.message||e)+'。請聯絡研究人員，不要重複送出。';
+  }).study1EConsentWithdraw({token:consentActiveToken,reason});
+ });
+ google.script.run.withSuccessHandler(s=>{
+  consentRuntimeOn=s?.enabled===true;
+  if(consentRuntimeOn){consentEl('consentSubmit').textContent='確認提交本人電子簽署';consentEl('consentActivationNotice').hidden=true;}
+  else{consentEl('consentActivationNotice').hidden=false;}
+  if(consentRuntimeOn&&consentUsable){
+   accessCode.disabled=false;consentEl('consentCheckSession').disabled=false;
+   sessionStatus_('請輸入研究人員核身後提供的專屬邀請碼。');
+  }else if(!consentRuntimeOn)
+   sessionStatus_('目前尚未啟用有效簽署收件。正式原版PDF仍可閱覽與下載。');
+ }).withFailureHandler(()=>{
+  consentRuntimeOn=false;sessionStatus_('無法確認電子簽署服務，收件保持關閉。');
+ }).study1EConsentAvailability();
+
+ window.addEventListener('pagehide',()=>{consentReset_();});
 consentLoad_();
 }
 if(document.getElementById('consentSignature'))initConsentPortal_();

@@ -3,7 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const src=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
 function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDelete=null,defaultClosed=true){
  const values=new Map();let writes=0,locks=0;
- const p={getProperty:k=>values.has(k)?values.get(k):(defaultClosed&&['OPEN','CONSENT_READY'].includes(k)?'false':null),setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_CONSENT_DOCUMENT_INDEX_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
+ const p={getProperty:k=>values.has(k)?values.get(k):(defaultClosed&&['OPEN','CONSENT_READY'].includes(k)?'false':null),setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_CONSENT_DOCUMENT_INDEX_V1','STUDY1_ECONSENT_PRIVATE_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
@@ -421,4 +421,118 @@ test('P0 full-consent source fails closed if private PDF bytes, path or sharing 
  assert.throws(()=>anon.scope.study1ConsentVersionUpload({}),/拒絕存取/);
  assert.throws(()=>anon.scope.study1ConsentVersionSelect({}),/拒絕存取/);
  assert.equal(anon.values.size,0);
+});
+
+
+test('P0 formal e-consent: closed owner/public refuses any invitation or signature and never touches PII',()=>{
+ const h=harness(),fake='01234567-89ab-cdef-0123-456789abcdef';
+ h.scope.Utilities={DigestAlgorithm:{SHA_256:'SHA_256'},computeDigest:(alg,value)=>[...require('node:crypto').createHash('sha256').update(value).digest()]};
+ assert.deepEqual(JSON.parse(JSON.stringify(h.scope.study1EConsentAvailability())),{enabled:false});
+ assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E1'}),/尚未開放/);
+ assert.throws(()=>h.scope.study1EConsentSign({}),/尚未開放/);
+ assert.throws(()=>h.scope.study1EConsentSession(fake+'-'+fake),/邀請|尚未開放|無效/);
+ const anon=harness('another@gmail.com','solac.tw@gmail.com');
+ assert.throws(()=>anon.scope.study1EConsentIssue({experiment:'E1'}),/拒絕存取/);
+ assert.throws(()=>anon.scope.study1EConsentConfirm({}),/拒絕存取/);
+ assert.throws(()=>anon.scope.study1EConsentOwnerList(),/拒絕存取/);
+ assert.throws(()=>anon.scope.study1EConsentOwnerWithdraw({}),/拒絕存取/);
+ assert.equal(h.values.size,0);
+ assert.equal(anon.values.size,0);
+});
+test('P0 formal e-consent owner-verified one-time private invitation, Q&A, signature, countersign, copy, withdrawal and evidence SHA',()=>{
+ const crypto=require('node:crypto');
+ const h=harness(),pdf=Buffer.from('%PDF-1.7\n'+'a'.repeat(240)+'\n%%EOF'),privateAccess='PRIVATE';
+ const docId='sourceBlankPdfOwnerDocumentId001',files=new Map();
+ const pdfSha=crypto.createHash('sha256').update(pdf).digest('hex');
+ const bin=x=>typeof x==='string'?Buffer.from(x,'utf8'):Buffer.from(x.map(v=>v&255));
+ let serial=0;
+ const uuid=()=>String(++serial).padStart(8,'0')+'-0000-0000-0000-000000000000';
+ function file(id,bytes,mime){
+  const item={id,bytes:bin(bytes),mime,access:privateAccess,trashed:false};
+  files.set(id,item);
+  return {
+   getId:()=>id,getMimeType:()=>item.mime,getSize:()=>item.bytes.length,
+   getSharingAccess:()=>item.access,
+   setSharing:(a,p)=>{assert.equal(p,'VIEW');item.access=a},
+   setTrashed:v=>{item.trashed=v},
+   getParents:()=>{let first=true;return {hasNext:()=>first,next:()=>{first=false;
+    return {getId:()=> '1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU'}}}},
+   getBlob:()=>({getBytes:()=>[...item.bytes],getDataAsString:()=>item.bytes.toString('utf8')})
+  };
+ }
+ file(docId,pdf,'application/pdf');
+ h.scope.DriveApp={
+  Access:{PRIVATE:privateAccess},Permission:{VIEW:'VIEW'},
+  getFolderById:id=>{
+   assert.equal(id,'1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU');
+   return {getSharingAccess:()=>privateAccess,
+    createFile:blob=>file('privateEvidenceFileId'+String(++serial).padStart(20,'0'),blob.bytes,blob.mime)};
+  },
+  getFileById:id=>{
+   assert.ok(files.has(id),'unknown evidence file');
+   const x=files.get(id);
+   return {
+    getId:()=>id,getMimeType:()=>x.mime,getSize:()=>x.bytes.length,
+    getSharingAccess:()=>x.access,
+    getBlob:()=>({getBytes:()=>[...x.bytes],getDataAsString:()=>x.bytes.toString('utf8')}),
+    getParents:()=>{let first=true;return {hasNext:()=>first,next:()=>{
+     first=false;return {getId:()=> '1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU'}}}}
+   };
+  }
+ };
+ h.scope.Utilities={
+  DigestAlgorithm:{SHA_256:'SHA_256'},getUuid:uuid,
+  computeDigest:(alg,value)=>{
+   assert.equal(alg,'SHA_256');
+   return [...crypto.createHash('sha256').update(bin(value)).digest()];
+  },
+  base64Decode:text=>[...Buffer.from(text,'base64')],
+  newBlob:(value,mime='application/octet-stream',name='')=>({
+   bytes:bin(value),mime,name,getBytes(){return [...this.bytes]}
+  })
+ };
+ const doc={experiment:'E1',id:docId,title:'空白研究同意書',
+  version:'E1-v1',sha256:pdfSha,bytes:pdf.length,
+  url:'https://drive.google.com/file/d/'+docId+'/view',at:new Date().toISOString()};
+ h.values.set('STUDY1_CONSENT_DOCUMENT_INDEX_V1',JSON.stringify({
+  schemaVersion:1,revision:2,documents:[doc],
+  current:{E1:docId,E2:null},published:{E1:docId,E2:null}
+ }));
+ h.values.set('OPEN','true');h.values.set('CONSENT_READY','true');
+ h.values.set('STUDY1_ECONSENT_PROVIDER_VERIFIED','true');
+ assert.equal(h.scope.study1EConsentAvailability().enabled,true);
+ assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E2'}),/實驗二尚未/);
+ const issued=h.scope.study1EConsentIssue({experiment:'E1'});
+ assert.equal(issued.version,'E1-v1');assert.equal(issued.sha256,pdfSha);
+ assert.equal(h.scope.study1EConsentSession(issued.token).state,'ISSUED');
+ const explained=h.scope.study1EConsentExplain({
+  id:issued.id,question:'研究資料將保存多久？',
+  answer:'已按原版全文說明保存政策與退出管道。',resolved:true
+ });
+ assert.equal(explained.state,'EXPLAINED');
+ const session=h.scope.study1EConsentSession(issued.token);
+ assert.equal(session.explanation.answer,'已按原版全文說明保存政策與退出管道。');
+ const png=Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),Buffer.alloc(180,17)]);
+ const signature={token:issued.token,name:'合成參與者',signature:png.toString('base64'),
+  documentSha:pdfSha,read:true,answerAcknowledged:true,agree:true};
+ assert.throws(()=>h.scope.study1EConsentSign({...signature,documentSha:'0'.repeat(64)}),/版本/);
+ assert.equal(h.scope.study1EConsentSign(signature).state,'SIGNED');
+ assert.throws(()=>h.scope.study1EConsentSign(signature),/失效/);
+ assert.throws(()=>h.scope.study1EConsentCopy(issued.token),/尚未完成/);
+ const confirmed=h.scope.study1EConsentConfirm({id:issued.id,
+  identityVerified:true,notes:'已當面核對本人與原簽名'});
+ assert.equal(confirmed.state,'CONFIRMED');
+ const copy=h.scope.study1EConsentCopy(issued.token);
+ assert.equal(copy.participant,'合成參與者');assert.equal(copy.documentSha256,pdfSha);
+ assert.equal(copy.signaturePngBase64,signature.signature);
+ assert.equal(copy.state,'CONFIRMED');
+ const privateFiles=[...files.values()].filter(x=>x.mime==='application/json');
+ assert.equal(privateFiles.length,3);
+ assert.ok(privateFiles.every(x=>x.access===privateAccess&&!x.trashed));
+ assert.equal(h.scope.study1EConsentWithdraw({token:issued.token,reason:'本人要求退出研究'}).state,'WITHDRAWN');
+ assert.equal(h.scope.study1EConsentCopy(issued.token).state,'WITHDRAWN');
+ assert.throws(()=>h.scope.study1EConsentWithdraw({token:issued.token,reason:'本人要求退出研究'}),/重複撤回/);
+ assert.equal(files.size,5,'original PDF plus four independently sealed events');
+ assert.equal(h.scope.study1EConsentOwnerList().records[0].state,'WITHDRAWN');
+ assert.equal(h.locks(),0);
 });

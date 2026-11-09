@@ -780,6 +780,33 @@ body>header nav{max-width:none;padding:14px 24px}
  </form>
  <p id="consentVersionsStatus" role="status" aria-live="polite">尚未讀取文件版本目錄。</p>
  <h3>已上傳的各版文件</h3><div id="consentVersionsRows" class="entries" aria-live="polite"></div>
+ <div class="panel" id="eConsentStaffModule" aria-labelledby="eConsentStaffHeading">
+  <h3 id="eConsentStaffHeading">線上知情同意｜研究人員說明、簽署與撤回管理</h3>
+  <p>正式產品的研究人員工作區。先核對參與者身分，再交付固定文件專屬邀請碼；所有事件逐筆封存。尚未啟用正式收件時不能建立真人邀請。</p>
+  <label for="eConsentIssueExperiment">建立邀請的研究實驗
+   <select id="eConsentIssueExperiment"><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <button id="eConsentIssue" type="button">核對已發布文件並建立專屬邀請</button>
+  <p id="eConsentIssuedToken" class="small" role="status" aria-live="polite">專屬邀請碼只在建立成功時顯示一次，請以安全方式交給本人。</p>
+  <hr><h4>研究人員說明與個別疑問答覆</h4>
+  <p>先選擇下方邀請紀錄。請記錄參與者的實際疑問與研究人員說明，未完成說明前不能接受本人簽署。</p>
+  <label for="eConsentStaffId">當次邀請紀錄<select id="eConsentStaffId"><option value="">請先核對紀錄</option></select></label>
+  <label for="eConsentStaffQuestion">參與者提出的疑問（無特別疑問可留空）
+   <textarea id="eConsentStaffQuestion" maxlength="1600" rows="3"></textarea></label>
+  <label for="eConsentStaffAnswer">研究人員實際說明及答覆（必填）
+   <textarea id="eConsentStaffAnswer" maxlength="2400" rows="4" placeholder="請填寫實際解釋內容，不用通用空白模板取代"></textarea></label>
+  <button id="eConsentExplain" type="button">封存本次說明及答覆</button>
+  <hr><h4>研究人員確認與撤回</h4>
+  <label for="eConsentStaffReviewNote">再次核身及簽署確認說明
+   <textarea id="eConsentStaffReviewNote" maxlength="1000" rows="3"></textarea></label>
+  <button id="eConsentConfirm" type="button">核對本人身分並完成研究人員確認</button>
+  <label for="eConsentStaffWithdrawal">經核對身分的人工撤回理由
+   <textarea id="eConsentStaffWithdrawal" maxlength="600" rows="3"></textarea></label>
+  <button id="eConsentOwnerWithdraw" type="button" class="secondary">核對本人身分並封存撤回事件</button>
+  <button id="eConsentStaffRefresh" type="button" class="secondary">重新核對所有邀請與狀態</button>
+  <p id="eConsentStaffStatus" role="status" aria-live="polite">尚未核對電子同意存證來源。</p>
+  <div id="eConsentStaffList" class="entries" aria-label="已建立的同意邀請與其狀態"></div>
+  <p class="small">Google Drive 各事件只新增獨立私人檔並核對 SHA；這是防改寫／可查核的系統層紀錄，尚不是不可刪除的外部 WORM 存證。實際寄送、多人角色及正式大量收件需另外驗證。</p>
+ </div>
  <p class="small">「選用版本」與「公開全文」為不同作業：先選用，再核對原 PDF 為不含任何個資的空白知情同意書及 SHA，才能單獨按「提供正式首頁閱讀」。可隨時停止對外提供全文，不會覆寫舊版或開放簽署。</p>
 </section>
 
@@ -871,7 +898,7 @@ const $=id=>document.getElementById(id);
    b.setAttribute('aria-selected',String(b.dataset.b02Tab===teamB02Sub));
   const heading=document.getElementById(page).querySelector('h2,h3');
   if(heading)document.title='Study 1｜'+heading.textContent.trim();
-  if(page==='consentVersionsModule')consentLoad_();
+  if(page==='consentVersionsModule'){consentLoad_();eConsentStaffLoad_();}
   return true;
  }
  document.querySelectorAll('[data-team-target]').forEach(b=>b.addEventListener('click',()=>teamNavigate_(b.dataset.teamTarget,b.dataset.b02Target)));
@@ -5245,6 +5272,83 @@ $('b12Search').addEventListener('input',b12Reset);
   };
   reader.readAsDataURL(file);
  });
+
+
+ // Researcher e-consent operations stay in the existing OWNER-only sidebar.
+ let eConsentStaffRows=[],eConsentStaffBusy=false;
+ const eConsentStaffStatus_=text=>{$('eConsentStaffStatus').textContent=text;};
+ function eConsentStaffRender_(list){
+  if(!list||!Array.isArray(list.records)||list.records.length>12){
+   eConsentStaffRows=[];return eConsentStaffStatus_('電子同意狀態來源無法核對，停止操作。');
+  }
+  eConsentStaffRows=list.records;
+  const select=$('eConsentStaffId'),prior=select.value;
+  select.replaceChildren();
+  const empty=document.createElement('option');empty.value='';empty.textContent='請選擇一筆邀請';select.append(empty);
+  const view=$('eConsentStaffList');view.replaceChildren();
+  for(const x of list.records.slice().reverse()){
+   const option=document.createElement('option');option.value=x.id;
+   option.textContent=x.experiment+'｜'+x.version+'｜'+x.state+'｜'+x.id.slice(0,8);
+   select.append(option);
+   const box=document.createElement('div');box.className='consentVersionCard';
+   const heading=document.createElement('strong');heading.textContent=x.experiment+'｜'+x.version+'｜'+x.state;
+   const meta=document.createElement('p');
+   meta.textContent='紀錄ID：'+x.id+'｜固定原PDF SHA-256：'+x.sha256;
+   box.append(heading,meta);view.append(box);
+  }
+  select.value=list.records.some(x=>x.id===prior)?prior:'';
+ }
+ function eConsentStaffLoad_(){
+  if(eConsentStaffBusy)return;
+  eConsentStaffStatus_('正在核對私人簽署索引與研究人員權限…');
+  google.script.run.withSuccessHandler(data=>{
+   eConsentStaffRender_(data);eConsentStaffStatus_('已核對研究人員私人同意紀錄。');
+  }).withFailureHandler(e=>{
+   eConsentStaffRows=[];$('eConsentStaffList').replaceChildren();
+   eConsentStaffStatus_('同意紀錄尚不能使用：'+String(e.message||e));
+  }).study1EConsentOwnerList();
+ }
+ function eConsentStaffCommand_(label,method,payload){
+  if(eConsentStaffBusy)return;
+  eConsentStaffBusy=true;eConsentStaffStatus_('正在獨立執行 '+label+' 並核對伺服器存證…');
+  google.script.run.withSuccessHandler(result=>{
+   eConsentStaffBusy=false;
+   if(method==='study1EConsentIssue'){
+    $('eConsentIssuedToken').textContent='請只交給已核對身分的本人（只顯示一次）：'+result.token+
+     '｜文件版號 '+result.version+'｜SHA '+result.sha256;
+   }
+   eConsentStaffStatus_(label+'已由原GAS完成。請重新核對來源；不得以訊息取代真正存證。');
+   eConsentStaffLoad_();
+  }).withFailureHandler(e=>{
+   eConsentStaffBusy=false;
+   eConsentStaffStatus_(label+'未完成或狀態未知：'+String(e.message||e)+'。請先唯讀核對，勿盲目重送。');
+  })[method](payload);
+ }
+ $('eConsentIssue').addEventListener('click',()=>{
+  if(!confirm('已核對同意書版號、研究參與者身分及當次適用條件，建立一個24小時內有效的專屬邀請碼？'))return;
+  $('eConsentIssuedToken').textContent='正在建立；不可傳送至未經核實的第三人。';
+  eConsentStaffCommand_('專屬邀請','study1EConsentIssue',{experiment:$('eConsentIssueExperiment').value});
+ });
+ $('eConsentExplain').addEventListener('click',()=>{
+  const id=$('eConsentStaffId').value;
+  if(!id||!confirm('確定已向本人說明研究並回答所有疑問，將獨立封存本次內容？'))return;
+  eConsentStaffCommand_('研究人員說明','study1EConsentExplain',{
+   id,question:$('eConsentStaffQuestion').value,
+   answer:$('eConsentStaffAnswer').value,resolved:true});
+ });
+ $('eConsentConfirm').addEventListener('click',()=>{
+  const id=$('eConsentStaffId').value,notes=$('eConsentStaffReviewNote').value.trim();
+  if(!id||!notes||!confirm('再次核實本人身分及當次簽名，並將研究人員確認封存成獨立證據？'))return;
+  eConsentStaffCommand_('研究人員簽署確認','study1EConsentConfirm',{
+   id,identityVerified:true,notes});
+ });
+ $('eConsentOwnerWithdraw').addEventListener('click',()=>{
+  const id=$('eConsentStaffId').value,reason=$('eConsentStaffWithdrawal').value.trim();
+  if(!id||reason.length<4||!confirm('已核實當事人本人撤回要求；保留原簽署，另新增不可覆寫的撤回事件？'))return;
+  eConsentStaffCommand_('人工撤回','study1EConsentOwnerWithdraw',{
+   id,identityVerified:true,reason});
+ });
+ $('eConsentStaffRefresh').addEventListener('click',eConsentStaffLoad_);
 
 adminScopeInit_();$('refresh').addEventListener('click',load);load();
 })();

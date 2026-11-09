@@ -74,6 +74,16 @@ function assertAdminSandbox(source){
   "function study1ConsentVersionSelect(input){",
   "function study1ConsentVersionPublication(input){",
   "function study1ConsentPublicRead_(experiment){",
+  "function study1EConsentIssue(input){",
+  "function study1EConsentExplain(input){",
+  "function study1EConsentSign(input){",
+  "function study1EConsentCopy(token){",
+  "function study1EConsentWithdraw(input){",
+  "function study1EConsentConfirm(input){",
+  "function study1EConsentOwnerWithdraw(input){",
+  "function study1EConsentOwnerList(){",
+  "function study1EConsentReadyDocument_(experiment){",
+  "function study1EConsentEnabled_(){",
   "function study1ConsentDocumentBytes_(entry){",
   "DriveApp.getFileById(entry.id)",
   "input.confirmSha256!==entry.sha256",
@@ -89,16 +99,25 @@ function assertAdminSandbox(source){
   "mode:'SANDBOX_ONLY',open:false,consentReady:false"
  ];
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
+ const ownerStart=source.indexOf('function study1AdminOwnerRequired_(){'),
+  ownerEnd=source.indexOf('function study1AdminDefault_(){',ownerStart);
+ const identityOwner=ownerStart>=0&&ownerEnd>ownerStart?source.slice(ownerStart,ownerEnd):'';
+ if(!identityOwner.includes('Session.getActiveUser().getEmail()')||
+  !identityOwner.includes('Session.getEffectiveUser().getEmail()')||
+  !identityOwner.includes('if(effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_)'))
+  throw Error('Unreviewed AdminSandbox owner identity guard');
+
  const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingMutation_','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingIntegrity_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking',
    'study1ConsentVersionRead_','study1ConsentVersionList',
    'study1ConsentVersionUpload','study1ConsentVersionSelect',
    'study1ConsentDocumentBytes_','study1ConsentVersionPublication',
-   'study1ConsentPublicRead_']);
+   'study1ConsentPublicRead_',
+   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList','study1EConsentOwnerWithdraw']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
  const driveOps=[...source.matchAll(/\bDriveApp\.([A-Za-z_$][\w$]*)/g)].map(x=>x[1]);
- if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access')
+ if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access,getFileById')
   throw Error('Unreviewed private consent Drive operation');
 }
 function assertAdminHtml(html){
