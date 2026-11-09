@@ -83,7 +83,7 @@ async function authorizedApi(){
   async function request(method,p,body){
     const res=await fetch(base+p,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
     check(res.ok,'GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+'; do not assume write or deploy success');
-    return res.json();
+    return res.status===204?{}:res.json();
   }
   return {
     backupToDrive:snapshot=>driveBackup.create(fetch,token,snapshot),
@@ -94,6 +94,8 @@ async function authorizedApi(){
     createVersion:description=>request('POST','/versions',{description}),
     getDeployment:id=>request('GET','/deployments/'+encodeURIComponent(id)),
     putDeployment:(id,c)=>request('PUT','/deployments/'+encodeURIComponent(id),{deploymentConfig:c}),
+    createDeployment:config=>request('POST','/deployments',{deploymentConfig:config}),
+    deleteDeployment:id=>request('DELETE','/deployments/'+encodeURIComponent(id)),
     deployments:async()=>{let all=[],next='';for(let i=0;i<20;i++){const p=await request('GET','/deployments?pageSize=50'+(next?'&pageToken='+encodeURIComponent(next):''));all.push(...(p.deployments||[]));if(!p.nextPageToken)return all;next=p.nextPageToken;}throw Error('Too many deployments to audit safely');}
   };
 }
