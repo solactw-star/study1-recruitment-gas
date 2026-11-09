@@ -426,6 +426,7 @@ test('P0 full-consent source fails closed if private PDF bytes, path or sharing 
 
 test('P0 formal e-consent: closed owner/public refuses any invitation or signature and never touches PII',()=>{
  const h=harness(),fake='01234567-89ab-cdef-0123-456789abcdef';
+ h.scope.Utilities={DigestAlgorithm:{SHA_256:'SHA_256'},computeDigest:(alg,value)=>[...require('node:crypto').createHash('sha256').update(value).digest()]};
  assert.deepEqual(JSON.parse(JSON.stringify(h.scope.study1EConsentAvailability())),{enabled:false});
  assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E1'}),/尚未開放/);
  assert.throws(()=>h.scope.study1EConsentSign({}),/尚未開放/);
