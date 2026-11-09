@@ -1,0 +1,165 @@
+'use strict';
+/** Study1 original GAS Script ID, second PUBLIC-READONLY /exec audience only.
+ * The existing versioned MYSELF /exec remains unchanged for the owner portal.
+ * Public means INFORMATION ONLY. No real enrollment, mail, signatures, or Sheets.
+ */
+const fs=require('node:fs'),path=require('node:path');
+const core=require('./study1-gas-index-preview.cjs');
+const gate=require('./study1-gas-backend-allowlist.cjs');
+const SCRIPT_ID=core.SCRIPT_ID;
+const PRIVATE_ID='AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s';
+const PUBLIC_DESCRIPTION='Study1 OFFICIAL public information | enrollment CLOSED | V1';
+const check=(value,message)=>{if(!value)throw Error(message)};
+const script=(p)=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
+const one=(files,name,type)=>core.file(files,name,type);
+function assertEnvironment(env){
+ check(env.GITHUB_REPOSITORY==='solactw-star/study1-recruitment-gas','Wrong GitHub repository');
+ check(env.GITHUB_REPOSITORY_PRIVATE==='true','Refuse nonprivate source repository');
+ check(env.GITHUB_REF==='refs/heads/main','Only current main can publish');
+ check(env.STUDY1_PUBLIC_INFO_RELEASE==='OWNER_APPROVED_2026_11_09','No explicit public information release authorization');
+}
+function assertClosedPublicSources(remote){
+ check(remote&&Array.isArray(remote.files),'Missing complete remote GAS source');
+ const idx=one(remote.files,'Index','HTML').source;
+ const site=one(remote.files,'Website','SERVER_JS').source;
+ const admin=one(remote.files,'AdminSandbox','SERVER_JS').source;
+ const flow=one(remote.files,'Study1Flow','SERVER_JS').source;
+ const manifest=JSON.parse(one(remote.files,'appsscript','JSON').source);
+ check(manifest.webapp?.executeAs==='USER_DEPLOYING'&&
+  manifest.webapp?.access==='ANYONE_ANONYMOUS','GAS HEAD must be public-info-capable but no source has been deployed publicly');
+ core.assertIndex(idx);gate.assertClosedWebsite(site);
+ check(idx===script('gas/Index.html')&&site===script('gas/Website.js')&&
+  admin===script('gas/AdminSandbox.js')&&flow===script('gas/Study1Unified.js'),
+  'GAS remote original source is not the current GitHub main');
+ check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
+  !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
+ check(!/<(?:input|form|textarea|canvas|iframe)\b/i.test(idx),'Public page must not collect data or signatures');
+ check(site.includes("function requestOtp(){return rejectIntake_();}")&&
+  site.includes("function submitConsent(){return rejectIntake_();}")&&
+  site.includes("function holdSlot(){return rejectIntake_();}")&&
+  site.includes("function listSlots(){return [];}"),
+  'Any live enrollment API is an absolute blocker');
+ for(const route of ["view==='admin'","view==='team'","view==='preview'","view==='demo'"]){
+  check(site.includes(route),'Missing protected route '+route);
+ }
+ check(admin.includes("Session.getActiveUser().getEmail()")&&
+  admin.includes("Session.getEffectiveUser().getEmail()")&&
+  admin.includes("effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_"),
+  'The original OWNER must be verified as ACTIVE and EFFECTIVE caller; public access forbidden otherwise');
+ for(const fn of ['adminGetSandboxConfig','adminSaveSandboxConfig','adminGetTestBookings','adminChangeTestBooking']){
+  const pos=admin.indexOf('function '+fn+'(');
+  check(pos>=0&&admin.slice(pos,pos+200).includes('study1AdminOwnerRequired_();'),
+   'Unprotected admin RPC: '+fn);
+ }
+ for(const fn of ['study1UnifiedPreviewGet','study1UnifiedPreviewCommand','study1UnifiedPreviewSelfTest']){
+  const pos=flow.indexOf('function '+fn+'(');
+  check(pos>=0&&flow.slice(pos,pos+250).includes('study1UnifiedAssertOwner_();'),
+   'Unprotected owner RPC: '+fn);
+ }
+ return {idx,manifest};
+}
+function selectDeployments(all){
+ const original=all.filter(x=>x.deploymentId===PRIVATE_ID);
+ const publicOne=all.filter(x=>x.deploymentConfig?.description===PUBLIC_DESCRIPTION);
+ check(original.length===1&&publicOne.length<=1,'Private or official public deployment conflict');
+ return {private:original[0],publicExisting:publicOne[0]||null};
+}
+async function readVersion(api,deployment){
+ const v=deployment?.deploymentConfig?.versionNumber;
+ check(Number.isInteger(v)&&v>0,'Missing effective deployment version');
+ return api.getVersion(v);
+}
+async function anonymousProbe(url,fetcher=fetch){
+ check(/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url),
+  'Public URL is not the expected GAS /exec');
+ const res=await fetcher(url,{redirect:'follow',signal:AbortSignal.timeout(25000)});
+ const text=await res.text();
+ check(res.status===200&&!/accounts\.google\.com/.test(res.url)&&
+  !/Sign in to continue|需要登入|Request access|您需要存取權限/.test(text),
+  'Anonymous public information GET is not actually available');
+ const probe=await fetcher(url+'?view=team',{redirect:'follow',signal:AbortSignal.timeout(25000)});
+ const body=await probe.text();
+ check(!/id="b03Module"|id="profileModule"|id="calendarModule"/.test(body),
+  'Anonymous request exposed owner/team HTML');
+ return {status:res.status,teamStatus:probe.status,contentLength:text.length};
+}
+async function publish(api,env){
+ assertEnvironment(env);
+ const remote=await api.getContent();
+ assertClosedPublicSources(remote);
+ const remoteSha=core.digest(remote.files),all=await api.deployments();
+ const {private:owner,publicExisting}=selectDeployments(all);
+ const privateFull=await api.getDeployment(PRIVATE_ID);
+ const privateBefore=await readVersion(api,privateFull);
+ check(JSON.parse(one(privateBefore.files,'appsscript','JSON').source).webapp?.access==='MYSELF',
+  'Original owner deployment is not private, STOP');
+ const privateVersion=privateFull.deploymentConfig.versionNumber;
+ let oldPublic=publicExisting?await api.getDeployment(publicExisting.deploymentId):null;
+ if(oldPublic){
+  const old=await readVersion(api,oldPublic);
+  check(JSON.parse(one(old.files,'appsscript','JSON').source).webapp?.access==='ANYONE_ANONYMOUS',
+   'Existing official public deployment audience changed');
+ }
+ const deployedOld=oldPublic?await readVersion(api,oldPublic):null;
+ const needsUpdate=!deployedOld||core.digest(deployedOld.files)!==remoteSha;
+ const before={at:new Date().toISOString(),scriptId:SCRIPT_ID,sourceMain:env.GITHUB_SHA||'',
+  original:remote,remoteSha256:remoteSha,originalPrivateDeployment:privateFull,
+  publicDeploymentBefore:oldPublic,publicUpdateRequired:needsUpdate};
+ if(!needsUpdate){console.log('PUBLIC_INFO_ALREADY_CURRENT=true URL',oldPublic.entryPoints?.[0]?.webApp?.url);
+  return {publicUrl:oldPublic.entryPoints?.[0]?.webApp?.url,sha:remoteSha,unchanged:true};}
+ const backup=await api.backupToDrive(before);
+ check(backup?.id&&backup.sha256,'Missing PRIVATE Drive prewrite backup');
+ await api.verifyDriveBackup(backup.id,backup.sha256);
+ console.log('PUBLIC_INFO_PRIVATE_PREWRITE_BACKUP_ID:',backup.id);
+ const current=await api.getContent();
+ check(core.digest(current.files)===remoteSha,'GAS HEAD changed after private backup');
+ check(JSON.stringify(await api.getDeployment(PRIVATE_ID))===JSON.stringify(privateFull),
+  'Private owner deployment changed while publishing');
+ if(oldPublic)check(JSON.stringify(await api.getDeployment(oldPublic.deploymentId))===JSON.stringify(oldPublic),
+  'Public deployment changed while publishing');
+ const ver=await api.createVersion('Study1 REC-gated PUBLIC information ONLY; no enrollment ('+String(env.GITHUB_SHA||'').slice(0,12)+')');
+ check(Number.isInteger(ver.versionNumber)&&ver.versionNumber>privateVersion,'Invalid public version');
+ const immutable=await api.getVersion(ver.versionNumber);
+ check(core.digest(immutable.files)===remoteSha,'Public immutable version differs from approved original GAS source');
+ check(JSON.parse(one(immutable.files,'appsscript','JSON').source).webapp?.access==='ANYONE_ANONYMOUS',
+  'Public immutable version lacks explicit anonymous information access');
+ let created=null,changed=false;
+ try{
+  if(oldPublic){
+   await api.putDeployment(oldPublic.deploymentId,{...oldPublic.deploymentConfig,versionNumber:ver.versionNumber});
+   changed=true;
+  }else{
+   created=await api.createDeployment({scriptId:SCRIPT_ID,versionNumber:ver.versionNumber,
+    manifestFileName:'appsscript',description:PUBLIC_DESCRIPTION});
+   changed=true;
+  }
+  const depId=oldPublic?oldPublic.deploymentId:created?.deploymentId;
+  check(depId&&depId!==PRIVATE_ID,'Missing separate official public deployment ID');
+  const updated=await api.getDeployment(depId);
+  const info=core.deploymentCheck(updated,depId,ver.versionNumber);
+  const final=await api.getContent();
+  check(core.digest(final.files)===remoteSha,'Original GAS HEAD changed after public deployment');
+  const ownerAfter=await api.getDeployment(PRIVATE_ID);
+  check(JSON.stringify(ownerAfter)===JSON.stringify(privateFull),'Original private OWNER deployment was touched');
+  const privateAfter=await readVersion(api,ownerAfter);
+  check(JSON.parse(one(privateAfter.files,'appsscript','JSON').source).webapp?.access==='MYSELF',
+   'Owner audience changed unexpectedly after public release');
+  const anonymous=await anonymousProbe(info.url);
+  console.log('PUBLIC_INFO_URL:',info.url);
+  console.log('PUBLIC_INFO_VERSION:',ver.versionNumber);
+  console.log('PUBLIC_INFO_SHA256:',remoteSha);
+  console.log('PUBLIC_INFO_ANONYMOUS_HTTP:',JSON.stringify(anonymous));
+  console.log('PRIVATE_OWNER_STILL_MYSELF=true; OPEN=false; CONSENT_READY=false; REAL_CONSENT_DISABLED=true');
+  console.log('PUBLIC_INFO_RELEASE_VERIFIED=true');
+  return {url:info.url,version:ver.versionNumber,sha:remoteSha,backupId:backup.id};
+ }catch(error){
+  if(changed)try{
+   if(oldPublic)await api.putDeployment(oldPublic.deploymentId,oldPublic.deploymentConfig);
+   else if(created?.deploymentId)await api.deleteDeployment(created.deploymentId);
+   console.log('PUBLIC_RELEASE_ROLLBACK_ATTEMPTED=true; refusal:',String(error.message));
+  }catch(rollbackError){console.log('PUBLIC_RELEASE_ROLLBACK_FAILED:',String(rollbackError.message));}
+  throw error;
+ }
+}
+if(require.main===module)core.authorizedApi().then(api=>publish(api,process.env)).catch(e=>{console.error('PUBLIC_DEPLOYMENT_BLOCKED:',e.message);process.exitCode=1;});
+module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,anonymousProbe,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};
