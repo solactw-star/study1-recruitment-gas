@@ -301,6 +301,7 @@ body>header nav{max-width:none;padding:14px 24px}
 #calendarModule[data-b02-view="waitlist"]>:not(.b02Tabs):not(#waitlistPanel){display:none!important}
 #calendarModule[data-b02-view="cancel"]>:not(.b02Tabs):not(#cancelQueueModule){display:none!important}
 @media(max-width:900px){body{display:block}body>header{position:static}.teamSidebar{position:static;height:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;border-right:0;border-bottom:1px solid var(--line);padding:8px}.teamSidebar h2,.teamSidebar details{grid-column:1/-1}#teamMain{padding:12px 16px 40px}}
+#consentVersionsForm{max-width:900px;margin:18px 0}#consentVersionsForm label{font-weight:700;font-size:14px;display:block}#consentVersionsRows{display:grid;grid-template-columns:repeat(auto-fit,minmax(275px,1fr));gap:12px}.consentVersionCard{background:#f8fbfa;border:1px solid var(--line);padding:15px;border-radius:12px;overflow-wrap:anywhere}.consentVersionCard strong{display:block}.consentVersionCard .small{display:block;word-break:break-all}.consentVersionCard a{color:var(--teal);display:block;margin:8px 0}
 </style></head><body>
 <header><nav><div><strong>Study 1 研究管理</strong><div class="small">中原大學心理學系 · 管理工作台</div></div><a href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec" target="_blank" rel="noopener">查看正式網站</a></nav></header>
 <aside id="teamSidebar" class="teamSidebar" aria-label="研究管理側邊導覽">
@@ -763,6 +764,25 @@ body>header nav{max-width:none;padding:14px 24px}
  <p class="small">原始通知文字於建立當下封存，日後修改頁面通知範本不回寫舊文字。這是有上限的示範資料，尚無正式範本版本核准、寄送服務回執、送達證據或保存政策。</p>
 </section>
 
+<section class="panel" id="consentVersionsModule" aria-labelledby="consentVersionsHeading" hidden>
+ <span class="tag">正式文件版本管理</span><h2 id="consentVersionsHeading">知情同意書上傳與版本管理</h2>
+ <p class="sub">上傳實驗一與實驗二不同時期的同意書。每次上傳保存原PDF及 SHA-256；已封存文件不可覆寫。選用版本不會自動開放收件或更改已簽署文件。</p>
+ <div class="warn"><strong>請上傳空白知情同意書</strong><p>不要上傳參與者已簽署、含姓名或其他個資的文件。原始PDF存入研究室私人資料夾。</p></div>
+ <form id="consentVersionsForm">
+  <div class="grid">
+   <label for="consentVersionsExperiment">實驗<select id="consentVersionsExperiment" required><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+   <label for="consentVersionsName">版號<input id="consentVersionsName" required maxlength="33" placeholder="例如 2026-11-09-v2" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,32}"></label>
+   <label for="consentVersionsTitle">文件名稱<input id="consentVersionsTitle" required maxlength="100" placeholder="研究參與者知情同意書"></label>
+   <label for="consentPdfFile">選擇 PDF（3 MB以下）<input id="consentPdfFile" type="file" accept=".pdf,application/pdf" required></label>
+  </div>
+  <button type="submit" id="consentUpload">上傳並封存新版本</button>
+  <button type="button" id="consentVersionsRefresh" class="secondary">重新載入</button>
+ </form>
+ <p id="consentVersionsStatus" role="status" aria-live="polite">尚未讀取文件版本目錄。</p>
+ <h3>已上傳的各版文件</h3><div id="consentVersionsRows" class="entries" aria-live="polite"></div>
+ <p class="small">選用僅改變管理目錄的預設文件版本，不會自動發布到公開頁；正式簽署須另有受保護的存證程序。</p>
+</section>
+
 <section class="panel" id="b10Module" aria-labelledby="b10Heading">
  <span class="tag">B10｜研究文件（OWNER-only 唯讀來源檢視）</span>
  <h2 id="b10Heading">虛構文件版本與正式來源核對狀態</h2>
@@ -851,6 +871,7 @@ const $=id=>document.getElementById(id);
    b.setAttribute('aria-selected',String(b.dataset.b02Tab===teamB02Sub));
   const heading=document.getElementById(page).querySelector('h2,h3');
   if(heading)document.title='Study 1｜'+heading.textContent.trim();
+  if(page==='consentVersionsModule')consentLoad_();
   return true;
  }
  document.querySelectorAll('[data-team-target]').forEach(b=>b.addEventListener('click',()=>teamNavigate_(b.dataset.teamTarget,b.dataset.b02Target)));
