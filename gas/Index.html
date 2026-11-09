@@ -128,4 +128,109 @@ document.querySelectorAll('a[href^="#"]').forEach(link=>{
   target.scrollIntoView({behavior:reduced?'auto':'smooth',block:'start'});
  });
 });
+
+/* Full REC-source PDF from OWNER-reviewed publication, not from stale fixture
+ * metadata, URLs or HTML strings. Never collects a signature on GAS while
+ * OPEN/CONSENT_READY remain false. */
+const consentEl=id=>document.getElementById(id);
+const consentCanvas=consentEl('consentSignature'),consentCtx=consentCanvas.getContext('2d');
+let consentEpoch=0,consentBlobUrl=null,consentUsable=false,penDown=false;
+consentCtx.lineCap='round';consentCtx.lineJoin='round';consentCtx.lineWidth=2.5;
+consentCtx.strokeStyle='#173944';
+function consentReset_(){
+ consentUsable=false;penDown=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ for(const id of ['consentReadAck','consentAnsweredAck','consentAgreeAck']){
+  const input=consentEl(id);input.checked=false;input.disabled=true;
+ }
+ consentEl('consentSubmit').disabled=true;
+ consentEl('consentSigner').disabled=true;consentEl('consentSigner').value='';
+ consentEl('consentDocument').hidden=true;consentEl('consentNoFile').hidden=true;
+ consentEl('consentPdfViewer').removeAttribute('src');
+ consentEl('consentDownload').removeAttribute('href');consentEl('consentOpenPdf').removeAttribute('href');
+ if(consentBlobUrl){URL.revokeObjectURL(consentBlobUrl);consentBlobUrl=null;}
+}
+function consentStatus_(message){consentEl('consentStatus').textContent=message;}
+async function consentPresent_(documentData,epoch){
+ if(epoch!==consentEpoch)return;
+ if(documentData&&documentData.available===false){
+  consentEl('consentNoFile').hidden=false;
+  consentStatus_('目前此實驗尚無研究團隊明確核對並提供的完整PDF。');
+  return;
+ }
+ const d=documentData;
+ if(!d||d.available!==true||d.experiment!==consentEl('consentExperiment').value||
+  d.mime!=='application/pdf'||!Number.isSafeInteger(d.bytes)||d.bytes<100||d.bytes>3000000||
+  typeof d.base64!=='string'||d.base64.length>4200000||
+  typeof d.sha256!=='string'||!/^[a-f0-9]{64}$/.test(d.sha256)||
+  typeof d.title!=='string'||d.title.length>100||
+  typeof d.version!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(d.version))
+  throw Error('文件來源、格式或版本資訊不符合安全核對');
+ if(!window.crypto||!crypto.subtle)throw Error('此瀏覽器不支援完整PDF SHA-256 核對');
+ const binary=atob(d.base64),bytes=new Uint8Array(binary.length);
+ for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+ if(epoch!==consentEpoch)return;
+ if(bytes.length!==d.bytes||String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('PDF內容長度或檔頭與來源不一致');
+ const digest=await crypto.subtle.digest('SHA-256',bytes);
+ const hash=Array.from(new Uint8Array(digest),x=>x.toString(16).padStart(2,'0')).join('');
+ if(hash!==d.sha256)throw Error('PDF原始內容與公布SHA-256不一致');
+ if(epoch!==consentEpoch)return;
+ const blob=new Blob([bytes],{type:'application/pdf'}),url=URL.createObjectURL(blob);
+ if(epoch!==consentEpoch){URL.revokeObjectURL(url);return;}
+ consentBlobUrl=url;
+ consentEl('consentPdfViewer').src=url+'#toolbar=1';
+ consentEl('consentDownload').href=url;
+ consentEl('consentDownload').download='Study1_'+d.experiment+'_Consent_'+d.version+'.pdf';
+ consentEl('consentOpenPdf').href=url;
+ consentEl('consentDocumentName').textContent=d.title+'｜文件版本：'+d.version;
+ consentEl('consentDocumentHash').textContent='SHA-256（原始完整PDF）：'+d.sha256;
+ consentEl('consentDocument').hidden=false;
+ for(const id of ['consentReadAck','consentAnsweredAck','consentAgreeAck'])
+  consentEl(id).disabled=false;
+ consentUsable=true;
+ consentStatus_('已取得研究團隊提供的完整PDF並獨立核對SHA-256。請先完整閱讀全文；正式簽署與收件目前仍關閉。');
+}
+function consentLoad_(){
+ const epoch=++consentEpoch;consentReset_();
+ consentStatus_('正在讀取研究團隊指定的完整知情同意書並核對原始版本…');
+ if(!window.google||!google.script||!google.script.run){
+  consentStatus_('目前無法連線到正式文件服務；請聯絡研究團隊索取完整原版PDF。');return;
+ }
+ const exp=consentEl('consentExperiment').value;
+ google.script.run.withSuccessHandler(data=>{
+  Promise.resolve(consentPresent_(data,epoch)).catch(error=>{
+   if(epoch!==consentEpoch)return;
+   consentReset_();consentEl('consentNoFile').hidden=false;
+   consentStatus_('完整PDF未通過來源或SHA核對：'+String(error.message||error));
+  });
+ }).withFailureHandler(error=>{
+  if(epoch!==consentEpoch)return;
+  consentReset_();consentEl('consentNoFile').hidden=false;
+  consentStatus_('無法取得完整同意書：'+String(error.message||error)+'。請聯絡研究團隊。');
+ }).getPublicConsentDocument(exp);
+}
+consentEl('consentExperiment').addEventListener('change',consentLoad_);
+function consentPosition_(event){
+ const rect=consentCanvas.getBoundingClientRect();
+ return {x:(event.clientX-rect.left)*(consentCanvas.width/rect.width),
+  y:(event.clientY-rect.top)*(consentCanvas.height/rect.height)};
+}
+consentCanvas.addEventListener('pointerdown',event=>{
+ if(!consentUsable||event.button!==0)return;
+ penDown=true;const p=consentPosition_(event);
+ consentCtx.beginPath();consentCtx.moveTo(p.x,p.y);
+ if(consentCanvas.setPointerCapture)consentCanvas.setPointerCapture(event.pointerId);
+});
+consentCanvas.addEventListener('pointermove',event=>{
+ if(!penDown||!consentUsable)return;
+ const p=consentPosition_(event);consentCtx.lineTo(p.x,p.y);consentCtx.stroke();
+});
+for(const type of ['pointerup','pointercancel','pointerleave'])
+ consentCanvas.addEventListener(type,()=>{penDown=false;});
+consentEl('consentClearSignature').addEventListener('click',()=>{
+ penDown=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+});
+window.addEventListener('pagehide',()=>{consentReset_();});
+consentLoad_();
+
 const status=document.getElementById('health');if(!window.google||!google.script||!google.script.run){status.textContent='資訊預覽：未連線至正式系統，報名維持關閉。';return;}google.script.run.withSuccessHandler(c=>{status.textContent=c&&c.open===false&&c.consentReady===false?'已確認：正式報名與電子簽署均關閉。':'設定狀態需要研究團隊檢查；報名維持關閉。';}).withFailureHandler(()=>{status.textContent='暫時無法確認系統狀態；報名維持關閉。需要協助請聯絡研究團隊。';}).getPublicConfig();})();</script></body></html>
