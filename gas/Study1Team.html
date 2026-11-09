@@ -278,9 +278,40 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 .b10RefsTable th{background:#f2f8f5}
 .b10Refs label{font-size:13px;font-weight:700;display:block;max-width:330px}
 
+
+/* Owner console: fixed sidebar, independently selectable module pages. */
+body{display:grid;grid-template-columns:250px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);align-items:start}
+body>header{grid-column:1/-1;grid-row:1;position:sticky;top:0;z-index:12}
+body>header nav{max-width:none;padding:14px 24px}
+.teamSidebar{grid-column:1;grid-row:2;position:sticky;top:72px;height:calc(100vh - 72px);overflow:auto;background:white;border-right:1px solid var(--line);padding:15px}
+.teamSidebar h2{font-size:12px;letter-spacing:.06em;color:var(--muted);margin:12px 0 3px;padding:5px 10px}
+.teamSidebar button{display:block;width:100%;min-height:40px;margin:1px 0;padding:8px 12px;border-radius:9px;background:transparent;color:var(--ink);font-size:14px;font-weight:650;text-align:left}
+.teamSidebar button:hover,.teamSidebar a:hover{background:#edf6f2}
+.teamSidebar button[aria-current="page"],.b02Tabs button[aria-selected="true"]{background:#d9eae6;color:#155760;border:1px solid #a5c8c0}
+.teamSidebar details{margin:3px 0}.teamSidebar summary{padding:9px 12px;font-weight:750;cursor:pointer}
+.teamSidebar details button{padding-left:22px}.teamSidebar a{display:block;padding:9px 12px;font-size:13px;color:var(--teal)}
+#teamMain{grid-column:2;grid-row:2;max-width:none;min-width:0;margin:0;padding:12px 24px 60px}
+#teamMain>section.panel[hidden]{display:none!important}
+#teamMain>.panel:first-child{padding:16px 22px;margin:10px 0 14px}
+#teamMain>.panel:first-child h1{font-size:21px;margin:0}
+#teamMain>.panel:first-child>.sub{display:none}
+.b02Tabs{display:flex;gap:8px;flex-wrap:wrap;padding:7px 0 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.b02Tabs button{margin:0;background:#e8f2ee;color:#175960;font-size:13px}
+#calendarModule[data-b02-view="calendar"]>#waitlistPanel,#calendarModule[data-b02-view="calendar"]>#cancelQueueModule{display:none!important}
+#calendarModule[data-b02-view="waitlist"]>:not(.b02Tabs):not(#waitlistPanel){display:none!important}
+#calendarModule[data-b02-view="cancel"]>:not(.b02Tabs):not(#cancelQueueModule){display:none!important}
+@media(max-width:900px){body{display:block}body>header{position:static}.teamSidebar{position:static;height:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;border-right:0;border-bottom:1px solid var(--line);padding:8px}.teamSidebar h2,.teamSidebar details{grid-column:1/-1}#teamMain{padding:12px 16px 40px}}
 </style></head><body>
-<header><nav><div><strong>Study 1 研究團隊</strong><div class="small">網站管理與研究報名設定</div></div>
-<div><a href="#b01Module">研究總覽</a>　<a href="#b09Module">統計報表</a>　<a href="#b11Module">系統設定</a>　<a href="#b10Module">文件來源</a>　<a href="#calendarModule">研究行事曆</a>　<a href="#b03Module">參與者名單／看板</a>　<a href="#b06Module">人工待辦</a>　<a href="#b07Module">補貼行政待核</a>　<a href="#b08Module">虛構通知</a>　<a href="#b12Module">操作稽核</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究首頁</a>　<a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_top">查看參與者畫面</a></div></nav></header>
+<header><nav><div><strong>Study 1 研究管理</strong><div class="small">中原大學心理學系 · 管理工作台</div></div><a href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec" target="_blank" rel="noopener">查看正式網站</a></nav></header>
+<aside id="teamSidebar" class="teamSidebar" aria-label="研究管理側邊導覽">
+<h2>研究工作台</h2><button type="button" data-team-target="b01Module">研究總覽</button><button type="button" data-team-target="b09Module">統計報表</button>
+<h2>參與者與場次</h2><details open><summary>研究行事曆 B02</summary><button type="button" data-team-target="calendarModule" data-b02-target="calendar">場次／日曆</button><button type="button" data-team-target="calendarModule" data-b02-target="waitlist">候補管理</button><button type="button" data-team-target="calendarModule" data-b02-target="cancel">取消場次核對</button></details>
+<button type="button" data-team-target="b03Module">參與者名單／流程看板</button><button type="button" data-team-target="b06Module">人工待辦</button><button type="button" data-team-target="b07Module">研究補貼行政</button>
+<h2>文件、通知與知情同意</h2><button type="button" data-team-target="b10Module">文件來源</button><button type="button" data-team-target="consentVersionsModule">同意書版本管理</button><button type="button" data-team-target="b08Module">通知紀錄</button>
+<h2>系統與網站</h2><details><summary>網站內容與設定</summary><button type="button" data-team-target="b11Module">網站設定</button><button type="button" data-team-target="teamExperimentModule">研究顯示</button><button type="button" data-team-target="teamCopyModule">研究介紹／文字</button><button type="button" data-team-target="teamSlotsModule">時段與名額</button><button type="button" data-team-target="teamWeeksModule">八週營運規劃</button></details>
+<button type="button" data-team-target="b12Module">稽核與操作紀錄</button><button type="button" data-team-target="teamApprovalModule">正式上線準備</button>
+<h2>私人工程功能</h2><a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo" target="_blank" rel="noopener">內部流程驗證（OWNER）</a>
+</aside>
 <main class="shell" id="teamMain">
 <div class="panel"><span class="tag">研究團隊專用</span><h1>網站管理</h1>
 <p class="sub">不必修改程式碼，直接調整參與者報名示範頁的實驗顯示、研究介紹、預約時段與八週規劃。</p>
@@ -334,7 +365,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p id="b09Notes" class="small">報名日期、候補紀錄、正式研究目標、真人身分去重與正式匯出均尚未核准或沒有資料，不以0代替缺值。</p>
 </section>
 
-<section class="panel" id="calendarModule" aria-labelledby="calHeading">
+<section class="panel" id="calendarModule" data-b02-view="calendar" aria-labelledby="calHeading"><nav class="b02Tabs" aria-label="B02分頁"><button type="button" data-b02-tab="calendar" aria-selected="true">場次／日曆</button><button type="button" data-b02-tab="waitlist" aria-selected="false">候補管理</button><button type="button" data-b02-tab="cancel" aria-selected="false">取消場次核對</button></nav>
  <div class="calTop"><div><span class="tag">B02 · 隔離測試</span><h2 id="calHeading">整合式研究行事曆</h2>
  <p class="sub">日／週／月、場次及參與者快速面板。僅虛構資料，與本頁示範時段共用資料來源。</p></div>
  <button type="button" class="secondary" id="calNew" disabled>＋新增測試場次</button></div>
@@ -580,7 +611,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p class="small">B11正式發布必須先有適用REC、文件版本、授權角色及內容審核來源；不能從此頁開啟。所有管理範圍切換、預覽及差異比較都不會寫入任何資料。</p>
 </section>
 
-<section class="panel" aria-labelledby="expHeading"><h2 id="expHeading">各實驗的顯示與報名狀態</h2>
+<section class="panel" id="teamExperimentModule" aria-labelledby="expHeading"><h2 id="expHeading">各實驗的顯示與報名狀態</h2>
 <p class="sub">研究團隊可隨時調整示範網站顯示方式；正式報名不會因此開啟。</p>
 <div class="grid">
 <div class="card"><span class="tag">實驗一 · 2026</span><h3>記憶與內感覺</h3>
@@ -592,7 +623,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <option value="COMING_SOON">顯示「預計 2027 年，尚未開放」</option><option value="DEMO_OPEN">顯示並開放示範報名（非正式招募）</option><option value="HIDDEN">暫時隱藏</option></select>
 <p class="small">2026 年不會因這個設定啟用真人招募。</p></div>
 </div><button id="saveModes" type="button" disabled>儲存實驗顯示狀態</button></section>
-<section class="panel" aria-labelledby="copyHeading"><h2 id="copyHeading">網站文字與研究介紹</h2>
+<section class="panel" id="teamCopyModule" aria-labelledby="copyHeading"><h2 id="copyHeading">網站文字與研究介紹</h2>
 <p class="sub">變更下列內容後，參與者 Demo 重新載入即可看到更新。這些是待核對的展示文字，不修改正式 REC 文件。</p>
 <div class="grid">
 <div><label class="label" for="siteTitle">頁首主標題</label><input id="siteTitle" maxlength="300">
@@ -612,13 +643,13 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
 <label class="label" for="e2Procedure">研究流程</label><textarea id="e2Procedure" maxlength="350"></textarea>
 <label class="label" for="e2Compensation">補貼說明</label><input id="e2Compensation" maxlength="350"></div>
 </div><button id="saveResearch" type="button" disabled>儲存實驗一、二介紹</button></section>
-<section class="panel" aria-labelledby="slotsHeading"><h2 id="slotsHeading">預約時段與名額</h2>
+<section class="panel" id="teamSlotsModule" aria-labelledby="slotsHeading"><h2 id="slotsHeading">預約時段與名額</h2>
 <p class="sub">調整示範報名會顯示的日期、時間與名額。已有歷史預約的時段不可改日期或刪除。每次儲存均重新驗證名額。</p>
 <div id="slotRows"></div>
 <div class="grid"><div><label class="label" for="newSlotExp">新增時段所屬實驗</label><select id="newSlotExp"><option value="E1">實驗一</option><option value="E2">實驗二</option></select></div>
 <div><button id="addSlot" class="secondary" type="button" disabled>新增一個示範時段</button></div></div>
 <button id="saveSlots" type="button" disabled>儲存預約時段</button></section>
-<section class="panel" aria-labelledby="weeksHeading"><h2 id="weeksHeading">實驗二｜八週營運安排</h2>
+<section class="panel" id="teamWeeksModule" aria-labelledby="weeksHeading"><h2 id="weeksHeading">實驗二｜八週營運安排</h2>
 <p class="sub">先規劃日期與備註。正式團課、居家練習、分組及出缺席流程仍以核准的研究文件為準。</p>
 <div id="weekRows"></div><button id="saveWeeks" type="button" disabled>儲存八週規劃</button></section>
 <section class="panel" id="b03Module" aria-labelledby="bookingsHeading">
@@ -780,7 +811,7 @@ button:disabled{opacity:.45;cursor:not-allowed}button.secondary{background:#e3f0
  <p class="small">拒絕操作僅記錄不含輸入內容的執行診斷，不能當成持久稽核歷史；無CSV、檔案下載或匯出權限。</p>
 </section>
 
-<section class="panel" aria-labelledby="approvalHeading"><h2 id="approvalHeading">正式上線前需完成</h2>
+<section class="panel" id="teamApprovalModule" aria-labelledby="approvalHeading"><h2 id="approvalHeading">正式上線前需完成</h2>
 <div class="grid"><div><h3>倫理與文件</h3><p>兩實驗 REC 核准 PDF、研究人員簽署版本及電子簽署授權。</p></div>
 <div><h3>安全與服務</h3><p>正式身分驗證、研究團隊角色、預約資料庫、實際通知、保存與撤回政策。</p></div></div>
 <p class="warn"><strong>正式收件開關保持鎖定。</strong> 本管理畫面沒有解除正式招募安全限制的按鈕。</p></section>
