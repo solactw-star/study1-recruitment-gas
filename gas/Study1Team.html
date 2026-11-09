@@ -780,6 +780,33 @@ body>header nav{max-width:none;padding:14px 24px}
  </form>
  <p id="consentVersionsStatus" role="status" aria-live="polite">尚未讀取文件版本目錄。</p>
  <h3>已上傳的各版文件</h3><div id="consentVersionsRows" class="entries" aria-live="polite"></div>
+ <div class="panel" id="eConsentStaffModule" aria-labelledby="eConsentStaffHeading">
+  <h3 id="eConsentStaffHeading">線上知情同意｜研究人員說明、簽署與撤回管理</h3>
+  <p>正式產品的研究人員工作區。先核對參與者身分，再交付固定文件專屬邀請碼；所有事件逐筆封存。尚未啟用正式收件時不能建立真人邀請。</p>
+  <label for="eConsentIssueExperiment">建立邀請的研究實驗
+   <select id="eConsentIssueExperiment"><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
+  <button id="eConsentIssue" type="button">核對已發布文件並建立專屬邀請</button>
+  <p id="eConsentIssuedToken" class="small" role="status" aria-live="polite">專屬邀請碼只在建立成功時顯示一次，請以安全方式交給本人。</p>
+  <hr><h4>研究人員說明與個別疑問答覆</h4>
+  <p>先選擇下方邀請紀錄。請記錄參與者的實際疑問與研究人員說明，未完成說明前不能接受本人簽署。</p>
+  <label for="eConsentStaffId">當次邀請紀錄<select id="eConsentStaffId"><option value="">請先核對紀錄</option></select></label>
+  <label for="eConsentStaffQuestion">參與者提出的疑問（無特別疑問可留空）
+   <textarea id="eConsentStaffQuestion" maxlength="1600" rows="3"></textarea></label>
+  <label for="eConsentStaffAnswer">研究人員實際說明及答覆（必填）
+   <textarea id="eConsentStaffAnswer" maxlength="2400" rows="4" placeholder="請填寫實際解釋內容，不用通用空白模板取代"></textarea></label>
+  <button id="eConsentExplain" type="button">封存本次說明及答覆</button>
+  <hr><h4>研究人員確認與撤回</h4>
+  <label for="eConsentStaffReviewNote">再次核身及簽署確認說明
+   <textarea id="eConsentStaffReviewNote" maxlength="1000" rows="3"></textarea></label>
+  <button id="eConsentConfirm" type="button">核對本人身分並完成研究人員確認</button>
+  <label for="eConsentStaffWithdrawal">經核對身分的人工撤回理由
+   <textarea id="eConsentStaffWithdrawal" maxlength="600" rows="3"></textarea></label>
+  <button id="eConsentOwnerWithdraw" type="button" class="secondary">核對本人身分並封存撤回事件</button>
+  <button id="eConsentStaffRefresh" type="button" class="secondary">重新核對所有邀請與狀態</button>
+  <p id="eConsentStaffStatus" role="status" aria-live="polite">尚未核對電子同意存證來源。</p>
+  <div id="eConsentStaffList" class="entries" aria-label="已建立的同意邀請與其狀態"></div>
+  <p class="small">Google Drive 各事件只新增獨立私人檔並核對 SHA；這是防改寫／可查核的系統層紀錄，尚不是不可刪除的外部 WORM 存證。實際寄送、多人角色及正式大量收件需另外驗證。</p>
+ </div>
  <p class="small">「選用版本」與「公開全文」為不同作業：先選用，再核對原 PDF 為不含任何個資的空白知情同意書及 SHA，才能單獨按「提供正式首頁閱讀」。可隨時停止對外提供全文，不會覆寫舊版或開放簽署。</p>
 </section>
 
