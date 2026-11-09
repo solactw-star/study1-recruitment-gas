@@ -5150,6 +5150,81 @@ for(const id of ['b12ModuleFilter','b12Result','b12Limit','b12Sort'])
  $(id).addEventListener('change',b12Reset);
 $('b12Search').addEventListener('input',b12Reset);
 
+
+ let consentIndex=null,consentWorking=false;
+ function consentStatus_(text,bad=false){const n=$('consentVersionsStatus');n.textContent=text;n.className=bad?'err':'small';}
+ function consentRender_(state){
+  if(!state||state.schemaVersion!==1||!Number.isSafeInteger(state.revision)||
+   !Array.isArray(state.documents)||state.documents.length>24||!state.current){
+   consentIndex=null;return consentStatus_('版本索引來源無法驗證，已拒絕顯示。',true);
+  }
+  consentIndex=state;const target=$('consentVersionsRows');target.replaceChildren();
+  if(!state.documents.length){const p=document.createElement('p');p.textContent='尚未上傳同意書。';target.append(p);}
+  for(const doc of state.documents.slice().reverse()){
+   const box=document.createElement('article');box.className='consentVersionCard';
+   const title=document.createElement('strong');title.textContent=(doc.experiment==='E1'?'實驗一':'實驗二')+'｜'+doc.title;
+   const version=document.createElement('p');version.textContent='版本：'+doc.version+
+    (state.current[doc.experiment]===doc.id?'｜目前選用':'｜已封存');
+   const hash=document.createElement('span');hash.className='small';hash.textContent='SHA-256：'+doc.sha256;
+   const link=document.createElement('a');link.textContent='開啟私人原版PDF';
+   if(/^https:\/\/drive\.google\.com\//.test(doc.url)){
+    link.href=doc.url;link.rel='noopener';link.target='_blank';
+   }else link.removeAttribute('href');
+   const select=document.createElement('button');select.type='button';select.className='secondary';
+   select.textContent='選用此版本';select.disabled=state.current[doc.experiment]===doc.id;
+   select.addEventListener('click',()=>{
+    if(consentWorking||!consentIndex)return;
+    consentWorking=true;consentStatus_('正在核對選用版本…');
+    google.script.run.withSuccessHandler(next=>{
+     consentWorking=false;consentRender_(next);
+     consentStatus_('已選用 '+doc.version+'，原版PDF與舊版本保留。');
+    }).withFailureHandler(e=>{consentWorking=false;consentStatus_('選用未完成：'+String(e.message||e),true);})
+    .study1ConsentVersionSelect({id:doc.id,expectedRevision:consentIndex.revision});
+   });
+   box.append(title,version,hash,link,select);target.append(box);
+  }
+ }
+ function consentLoad_(){
+  if(consentWorking)return;consentStatus_('正在核對 OWNER 和版本索引…');
+  google.script.run.withSuccessHandler(result=>{
+   consentRender_(result);
+   if(consentIndex)consentStatus_('已讀取私人版本目錄，修訂版 '+result.revision+'。');
+  }).withFailureHandler(e=>{
+   consentIndex=null;$('consentVersionsRows').replaceChildren();
+   consentStatus_('後台身分或文件目錄無法核實：'+String(e.message||e)+
+    '。請使用真正研究室擁有者登入原私人部署；不會放寬身分驗證。',true);
+  }).study1ConsentVersionList();
+ }
+ $('consentVersionsRefresh').addEventListener('click',consentLoad_);
+ $('consentVersionsForm').addEventListener('submit',event=>{
+  event.preventDefault();
+  if(consentWorking||!consentIndex)return consentStatus_('請先讀取目前目錄。',true);
+  const file=$('consentPdfFile').files[0];
+  if(!file||file.size<100||file.size>3000000||!/\.pdf$/i.test(file.name)||
+   (file.type&&file.type!=='application/pdf'))
+   return consentStatus_('請選擇小於3MB的PDF檔案。',true);
+  const experiment=$('consentVersionsExperiment').value,
+   version=$('consentVersionsName').value.trim(),title=$('consentVersionsTitle').value.trim();
+  if(!['E1','E2'].includes(experiment)||!title||title.length>100||
+   !/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(version))
+   return consentStatus_('請檢查文件名稱、版號及實驗。',true);
+  consentWorking=true;consentStatus_('讀取PDF並封存原檔中，請勿關閉頁面…');
+  const reader=new FileReader();
+  reader.onerror=()=>{consentWorking=false;consentStatus_('本機PDF讀取失敗，未提交。',true);};
+  reader.onload=()=>{
+   const value=String(reader.result||''),base64=value.split(',')[1]||'';
+   if(!base64){consentWorking=false;return consentStatus_('PDF格式無法解析。',true);}
+   google.script.run.withSuccessHandler(result=>{
+    consentWorking=false;consentRender_(result);$('consentPdfFile').value='';
+    consentStatus_('已保存不可覆寫的版本。請查看下方 SHA 與選用狀態。');
+   }).withFailureHandler(e=>{
+    consentWorking=false;consentStatus_('上傳失敗：'+String(e.message||e),true);
+   }).study1ConsentVersionUpload({experiment,version,title,base64,
+    expectedRevision:consentIndex.revision});
+  };
+  reader.readAsDataURL(file);
+ });
+
 adminScopeInit_();$('refresh').addEventListener('click',load);load();
 })();
 </script></body></html>
