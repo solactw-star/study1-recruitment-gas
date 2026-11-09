@@ -99,6 +99,14 @@ function assertAdminSandbox(source){
   "mode:'SANDBOX_ONLY',open:false,consentReady:false"
  ];
  for(const token of required)if(!source.includes(token))throw Error('Unreviewed AdminSandbox change: '+token);
+ const ownerStart=source.indexOf('function study1AdminOwnerRequired_(){'),
+  ownerEnd=source.indexOf('function study1AdminDefault_(){',ownerStart);
+ const identityOwner=ownerStart>=0&&ownerEnd>ownerStart?source.slice(ownerStart,ownerEnd):'';
+ if(!identityOwner.includes('Session.getActiveUser().getEmail()')||
+  !identityOwner.includes('Session.getEffectiveUser().getEmail()')||
+  !identityOwner.includes('if(effective!==STUDY1_ADMIN_OWNER_||active!==STUDY1_ADMIN_OWNER_)'))
+  throw Error('Unreviewed AdminSandbox owner identity guard');
+
  const expected=new Set(['study1AdminOwnerRequired_','study1AdminDefault_','study1AdminValidate_','study1AdminPersisted_','study1AdminRequireRevision_','adminGetSandboxConfig','adminSaveSandboxConfig','adminValidateSandboxConfig','adminRunSandboxSelfTest','study1SandboxBookingMutation_','study1SandboxBookingState_','study1SandboxBookingFlags_','study1SandboxBookingIntegrity_','study1SandboxBookingView_','adminGetTestBookings','adminChangeTestBooking',
    'study1ConsentVersionRead_','study1ConsentVersionList',
    'study1ConsentVersionUpload','study1ConsentVersionSelect',
