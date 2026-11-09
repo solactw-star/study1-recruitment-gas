@@ -178,8 +178,10 @@ async function publish(api,env,probe=anonymousProbe){
  assertClosedPublicSources(remote);
  const remoteSha=core.digest(remote.files),all=await api.deployments();
  const {private:owner,publicExisting}=selectDeployments(all);
- const privateFull=await api.getDeployment(PRIVATE_ID);
- const privateBefore=await readVersion(api,privateFull);
+ const reviewedPrivate=await waitForReviewedPrivateVersion(api,remote);
+ const privateFull=reviewedPrivate.deployment;
+ const privateBefore=reviewedPrivate.immutable;
+ console.log('PRIVATE_OWNER_SOURCE_CONVERGED=true',privateFull.deploymentConfig.versionNumber);
  check(JSON.parse(one(privateBefore.files,'appsscript','JSON').source).webapp?.access==='MYSELF',
   'Original owner deployment is not private, STOP');
  const privateVersion=privateFull.deploymentConfig.versionNumber;
