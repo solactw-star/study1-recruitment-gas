@@ -129,10 +129,14 @@ function initConsentPortal_(){
 const consentEl=id=>document.getElementById(id);
 const consentCanvas=consentEl('consentSignature'),consentCtx=consentCanvas.getContext('2d');
 let consentEpoch=0,consentBlobUrl=null,consentUsable=false,penDown=false;
+ let consentDocumentMeta=null,consentRuntimeOn=false,consentActiveToken='',consentSessionState=null,consentInk=false,consentPending=false;
 consentCtx.lineCap='round';consentCtx.lineJoin='round';consentCtx.lineWidth=2.5;
 consentCtx.strokeStyle='#173944';
 function consentReset_(){
- consentUsable=false;penDown=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ consentUsable=false;penDown=false;consentDocumentMeta=null;consentActiveToken='';consentSessionState=null;consentInk=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ if(consentEl('consentAccessCode')){consentEl('consentAccessCode').value='';consentEl('consentAccessCode').disabled=true;}
+ consentEl('consentCheckSession').disabled=true;consentEl('consentCopy').disabled=true;
+ consentEl('consentWithdrawSubmit').disabled=true;consentEl('consentExplanation').hidden=true;
  for(const id of ['consentReadAck','consentAnsweredAck','consentAgreeAck']){
   const input=consentEl(id);input.checked=false;input.disabled=true;
  }
@@ -181,7 +185,9 @@ async function consentPresent_(documentData,epoch){
  consentEl('consentDocument').hidden=false;
  for(const id of ['consentReadAck','consentAnsweredAck','consentAgreeAck'])
   consentEl(id).disabled=false;
+ consentDocumentMeta={experiment:d.experiment,version:d.version,sha256:d.sha256};
  consentUsable=true;
+ if(consentRuntimeOn){consentEl('consentAccessCode').disabled=false;consentEl('consentCheckSession').disabled=false;}
  consentStatus_('已取得研究團隊提供的完整PDF並獨立核對SHA-256。請先完整閱讀全文；正式簽署與收件目前仍關閉。');
 }
 function consentLoad_(){
@@ -217,12 +223,12 @@ consentCanvas.addEventListener('pointerdown',event=>{
 });
 consentCanvas.addEventListener('pointermove',event=>{
  if(!penDown||!consentUsable)return;
- const p=consentPosition_(event);consentCtx.lineTo(p.x,p.y);consentCtx.stroke();
+ const p=consentPosition_(event);consentCtx.lineTo(p.x,p.y);consentCtx.stroke();consentInk=true;
 });
 for(const type of ['pointerup','pointercancel','pointerleave'])
  consentCanvas.addEventListener(type,()=>{penDown=false;});
 consentEl('consentClearSignature').addEventListener('click',()=>{
- penDown=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
+ penDown=false;consentInk=false;consentCtx.clearRect(0,0,consentCanvas.width,consentCanvas.height);
 });
 window.addEventListener('pagehide',()=>{consentReset_();});
 consentLoad_();
