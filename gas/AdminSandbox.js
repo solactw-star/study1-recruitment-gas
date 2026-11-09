@@ -753,11 +753,29 @@ function study1EConsentChange_(id,fn){
  try{
   const r=study1EConsentRegistry_(),index=r.records.findIndex(x=>x.id===id);
   if(index<0)throw Error('電子同意紀錄未找到');
-  const before=r.records[index],after=fn(before,r);
-  if(!after)return before;
-  const next={...r,revision:r.revision+1,records:r.records.map((x,j)=>j===index?after:x)};
-  study1EConsentWrite_(r,next);
-  return after;
+  const before=r.records[index];let after=null;
+  try{
+   after=fn(before,r);
+   if(!after)return before;
+   const next={...r,revision:r.revision+1,
+    records:r.records.map((x,j)=>j===index?after:x)};
+   study1EConsentWrite_(r,next);
+   return after;
+  }catch(error){
+   // If the registry CAS was refused before the new file was referenced,
+   // discard only that unreferenced PII artifact. Never trash a record that
+   // might already be committed or a previously confirmed version.
+   const stored=PropertiesService.getScriptProperties()
+    .getProperty(STUDY1_ECONSENT_REGISTRY_);
+   if(after&&stored===JSON.stringify(r)){
+    for(const kind of ['explanation','signature','confirmation','withdrawal']){
+     if(after[kind]&&!before[kind])try{
+      DriveApp.getFileById(after[kind].id).setTrashed(true);
+     }catch(_){}
+    }
+   }
+   throw error;
+  }
  }finally{lock.releaseLock();}
 }
 /** Authenticated OWNER creates a fixed-document one-person invitation. */
@@ -855,7 +873,8 @@ function study1EConsentConfirm(input){
   if(x.state!=='SIGNED')throw Error('只有已簽署紀錄能被研究人員確認');
   study1EConsentEvent_(x.signature,x,'SIGNATURE');
   const file=study1EConsentFile_('CONFIRMATION',x,{
-   researcher:'OWNER',identityVerified:true,notes:input.notes,
+   researcher:'OWNER',reviewerEmail:Session.getActiveUser().getEmail(),
+   identityVerified:true,notes:input.notes,
    signatureHash:x.signature.sha,explanationHash:x.explanation.sha});
   return {...x,state:'CONFIRMED',confirmation:file};
  });
@@ -873,7 +892,7 @@ function study1EConsentCopy(token){
   documentSha256:entry.documentSha,signatureEvidenceSha256:entry.signature.sha,
   confirmationEvidenceSha256:entry.confirmation.sha,participant:signed.data.name,
   signaturePngBase64:signed.data.signaturePngBase64,signedAt:signed.recordedAt,
-  reviewer:'OWNER',confirmedAt:confirmed.recordedAt,
+  reviewer:confirmed.data.reviewerEmail,confirmedAt:confirmed.recordedAt,
   withdrawalAt:withdrawn?.recordedAt||null,withdrawalEvidenceSha256:entry.withdrawal?.sha||null};
 }
 /** Withdrawal is a new private event, never deletion/edit of original consent. */
