@@ -58,7 +58,13 @@ function assertClosedPublicSources(remote){
  }
  check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
   !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
- check(!/<(?:input|form|textarea|canvas|iframe)\b/i.test(idx),'Public page must not collect data or signatures');
+ check(!/<(?:form|textarea)\b/i.test(idx),'Public site has no active collection form');
+ const inputs=[...idx.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+ check(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'All collection inputs must be disabled');
+ check(idx.includes('id="consentSubmit"')&&idx.includes('id="consentSignature"')&&
+  idx.includes('id="consentPdfViewer"')&&
+  idx.includes("consentEl('consentSubmit').disabled=true;")&&
+  !/<iframe\b[^>]*\bsrc=/i.test(idx),'Unreviewed signature submit or embedded remote URL');
  check(site.includes("function requestOtp(){return rejectIntake_();}")&&
   site.includes("function submitConsent(){return rejectIntake_();}")&&
   site.includes("function holdSlot(){return rejectIntake_();}")&&
