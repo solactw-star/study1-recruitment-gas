@@ -36,7 +36,11 @@ function runClosedChecks_(){
  assert(listSlots().length===0,'no public slots');
  const html=HtmlService.createHtmlOutputFromFile('Index').getContent();
  assert(html.startsWith('<!doctype html>'),'complete HTML document');
- assert(!/<(?:input|canvas|form|iframe)\b/i.test(html),'no data or signature collection');
+ assert(!/<(?:form|textarea)\b/i.test(html),'no live collection form');
+ const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
+ assert(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'identity and consent inputs disabled');
+ assert(html.includes('id="consentSignature"')&&html.includes('id="consentSubmit"')&&
+  html.includes("consentEl('consentSubmit').disabled=true;"),'signature UI cannot submit');
  assert(!/<script[^>]+src=/i.test(html),'no external script');
  assert(html.includes('id="apply"')&&html.includes('id="contact"'),'required navigation destinations');
  assert(html.includes('disabled type="button"'),'intake button disabled');
