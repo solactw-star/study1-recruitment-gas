@@ -898,7 +898,7 @@ const $=id=>document.getElementById(id);
    b.setAttribute('aria-selected',String(b.dataset.b02Tab===teamB02Sub));
   const heading=document.getElementById(page).querySelector('h2,h3');
   if(heading)document.title='Study 1｜'+heading.textContent.trim();
-  if(page==='consentVersionsModule')consentLoad_();
+  if(page==='consentVersionsModule'){consentLoad_();eConsentStaffLoad_();}
   return true;
  }
  document.querySelectorAll('[data-team-target]').forEach(b=>b.addEventListener('click',()=>teamNavigate_(b.dataset.teamTarget,b.dataset.b02Target)));
@@ -5272,6 +5272,83 @@ $('b12Search').addEventListener('input',b12Reset);
   };
   reader.readAsDataURL(file);
  });
+
+
+ // Researcher e-consent operations stay in the existing OWNER-only sidebar.
+ let eConsentStaffRows=[],eConsentStaffBusy=false;
+ const eConsentStaffStatus_=text=>{$('eConsentStaffStatus').textContent=text;};
+ function eConsentStaffRender_(list){
+  if(!list||!Array.isArray(list.records)||list.records.length>12){
+   eConsentStaffRows=[];return eConsentStaffStatus_('電子同意狀態來源無法核對，停止操作。');
+  }
+  eConsentStaffRows=list.records;
+  const select=$('eConsentStaffId'),prior=select.value;
+  select.replaceChildren();
+  const empty=document.createElement('option');empty.value='';empty.textContent='請選擇一筆邀請';select.append(empty);
+  const view=$('eConsentStaffList');view.replaceChildren();
+  for(const x of list.records.slice().reverse()){
+   const option=document.createElement('option');option.value=x.id;
+   option.textContent=x.experiment+'｜'+x.version+'｜'+x.state+'｜'+x.id.slice(0,8);
+   select.append(option);
+   const box=document.createElement('div');box.className='consentVersionCard';
+   const heading=document.createElement('strong');heading.textContent=x.experiment+'｜'+x.version+'｜'+x.state;
+   const meta=document.createElement('p');
+   meta.textContent='紀錄ID：'+x.id+'｜固定原PDF SHA-256：'+x.sha256;
+   box.append(heading,meta);view.append(box);
+  }
+  select.value=list.records.some(x=>x.id===prior)?prior:'';
+ }
+ function eConsentStaffLoad_(){
+  if(eConsentStaffBusy)return;
+  eConsentStaffStatus_('正在核對私人簽署索引與研究人員權限…');
+  google.script.run.withSuccessHandler(data=>{
+   eConsentStaffRender_(data);eConsentStaffStatus_('已核對研究人員私人同意紀錄。');
+  }).withFailureHandler(e=>{
+   eConsentStaffRows=[];$('eConsentStaffList').replaceChildren();
+   eConsentStaffStatus_('同意紀錄尚不能使用：'+String(e.message||e));
+  }).study1EConsentOwnerList();
+ }
+ function eConsentStaffCommand_(label,method,payload){
+  if(eConsentStaffBusy)return;
+  eConsentStaffBusy=true;eConsentStaffStatus_('正在獨立執行 '+label+' 並核對伺服器存證…');
+  google.script.run.withSuccessHandler(result=>{
+   eConsentStaffBusy=false;
+   if(method==='study1EConsentIssue'){
+    $('eConsentIssuedToken').textContent='請只交給已核對身分的本人（只顯示一次）：'+result.token+
+     '｜文件版號 '+result.version+'｜SHA '+result.sha256;
+   }
+   eConsentStaffStatus_(label+'已由原GAS完成。請重新核對來源；不得以訊息取代真正存證。');
+   eConsentStaffLoad_();
+  }).withFailureHandler(e=>{
+   eConsentStaffBusy=false;
+   eConsentStaffStatus_(label+'未完成或狀態未知：'+String(e.message||e)+'。請先唯讀核對，勿盲目重送。');
+  })[method](payload);
+ }
+ $('eConsentIssue').addEventListener('click',()=>{
+  if(!confirm('已核對同意書版號、研究參與者身分及當次適用條件，建立一個24小時內有效的專屬邀請碼？'))return;
+  $('eConsentIssuedToken').textContent='正在建立；不可傳送至未經核實的第三人。';
+  eConsentStaffCommand_('專屬邀請','study1EConsentIssue',{experiment:$('eConsentIssueExperiment').value});
+ });
+ $('eConsentExplain').addEventListener('click',()=>{
+  const id=$('eConsentStaffId').value;
+  if(!id||!confirm('確定已向本人說明研究並回答所有疑問，將獨立封存本次內容？'))return;
+  eConsentStaffCommand_('研究人員說明','study1EConsentExplain',{
+   id,question:$('eConsentStaffQuestion').value,
+   answer:$('eConsentStaffAnswer').value,resolved:true});
+ });
+ $('eConsentConfirm').addEventListener('click',()=>{
+  const id=$('eConsentStaffId').value,notes=$('eConsentStaffReviewNote').value.trim();
+  if(!id||!notes||!confirm('再次核實本人身分及當次簽名，並將研究人員確認封存成獨立證據？'))return;
+  eConsentStaffCommand_('研究人員簽署確認','study1EConsentConfirm',{
+   id,identityVerified:true,notes});
+ });
+ $('eConsentOwnerWithdraw').addEventListener('click',()=>{
+  const id=$('eConsentStaffId').value,reason=$('eConsentStaffWithdrawal').value.trim();
+  if(!id||reason.length<4||!confirm('已核實當事人本人撤回要求；保留原簽署，另新增不可覆寫的撤回事件？'))return;
+  eConsentStaffCommand_('人工撤回','study1EConsentOwnerWithdraw',{
+   id,identityVerified:true,reason});
+ });
+ $('eConsentStaffRefresh').addEventListener('click',eConsentStaffLoad_);
 
 adminScopeInit_();$('refresh').addEventListener('click',load);load();
 })();
