@@ -14,7 +14,7 @@ const closedEnv={GITHUB_REPOSITORY:'solactw-star/study1-recruitment-gas',
 const publicManifest=JSON.stringify({timeZone:'Asia/Taipei',runtimeVersion:'V8',
  webapp:{access:'ANYONE_ANONYMOUS',executeAs:'USER_DEPLOYING'}});
 const privateManifest=JSON.stringify({timeZone:'Asia/Taipei',runtimeVersion:'V8',
- webapp:{access:'MYSELF',executeAs:'USER_DEPLOYING'}});
+ webapp:{access:'MYSELF',executeAs:'USER_ACCESSING'}});
 const entries=[
  ['appsscript','JSON',null],
  ['Index','HTML','gas/Index.html'],
@@ -226,4 +226,33 @@ test('The public-release gate rejects a changed consent signer, missing approved
   const candidate=remote();mutate(candidate);
   assert.throws(()=>release.assertClosedPublicSources(candidate));
  }
+});
+test('Private owner source must converge before public deployment starts; delayed GAS versions are not concurrent writes',async()=>{
+ const remoteLatest=remote();
+ let calls=0,delays=0;
+ const old=structuredClone(remoteLatest);
+ old.files.find(x=>x.name==='Index').source='<html>old private page</html>';
+ old.files.find(x=>x.name==='appsscript').source=privateManifest;
+ const latest=structuredClone(remoteLatest);
+ latest.files.find(x=>x.name==='appsscript').source=privateManifest;
+ const deployment=version=>({deploymentId:privateId,deploymentConfig:{
+   scriptId:'1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z',
+   versionNumber:version,manifestFileName:'appsscript'},
+   entryPoints:[{webApp:{url:'https://script.google.com/macros/s/'+privateId+'/exec'}}]});
+ const api={
+  getDeployment:async()=>deployment(++calls<=2?117:119),
+  getVersion:async v=>structuredClone(v===117?old:latest)
+ };
+ const result=await release.waitForReviewedPrivateVersion(api,remoteLatest,5,async()=>{delays++});
+ assert.equal(result.deployment.deploymentConfig.versionNumber,119);
+ assert.equal(calls,3);
+ assert.equal(delays,2);
+ assert.equal(result.immutable.files.find(x=>x.name==='Index').source,
+   remoteLatest.files.find(x=>x.name==='Index').source);
+ const stale={
+  getDeployment:async()=>deployment(117),
+  getVersion:async()=>structuredClone(old)
+ };
+ await assert.rejects(release.waitForReviewedPrivateVersion(stale,remoteLatest,2,async()=>{}),
+  /has not converged/);
 });
