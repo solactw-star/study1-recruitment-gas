@@ -94,6 +94,8 @@ async function authorizedApi(){
     createVersion:description=>request('POST','/versions',{description}),
     getDeployment:id=>request('GET','/deployments/'+encodeURIComponent(id)),
     putDeployment:(id,c)=>request('PUT','/deployments/'+encodeURIComponent(id),{deploymentConfig:c}),
+    createDeployment:config=>request('POST','/deployments',{deploymentConfig:config}),
+    deleteDeployment:id=>request('DELETE','/deployments/'+encodeURIComponent(id)),
     deployments:async()=>{let all=[],next='';for(let i=0;i<20;i++){const p=await request('GET','/deployments?pageSize=50'+(next?'&pageToken='+encodeURIComponent(next):''));all.push(...(p.deployments||[]));if(!p.nextPageToken)return all;next=p.nextPageToken;}throw Error('Too many deployments to audit safely');}
   };
 }
