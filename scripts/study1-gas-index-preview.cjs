@@ -82,7 +82,16 @@ async function authorizedApi(){
   const base='https://script.googleapis.com/v1/projects/'+encodeURIComponent(SCRIPT_ID);
   async function request(method,p,body){
     const res=await fetch(base+p,{method,headers:{Authorization:'Bearer '+token,...(body?{'Content-Type':'application/json'}:{})},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
-    check(res.ok,'GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+'; do not assume write or deploy success');
+    if(!res.ok){
+      let errorCode='NO_DETAILS',reason='unspecified';
+      try{
+        const response=await res.json();
+        errorCode=String(response?.error?.status||'UNKNOWN').slice(0,50);
+        reason=String(response?.error?.message||'unspecified').replace(/https?:\\/\\/[^\\s]+/g,'[URL]').slice(0,400);
+      }catch(_e){}
+      throw Error('GAS '+method+' '+p.split('?')[0]+' failed HTTP '+res.status+
+       ' ('+errorCode+'): '+reason+'; no successful mutation assumed');
+    }
     return res.status===204?{}:res.json();
   }
   return {
