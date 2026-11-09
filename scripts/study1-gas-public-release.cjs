@@ -113,6 +113,37 @@ async function anonymousProbe(url,fetcher=fetch){
  }
  return {status:res.status,privateViewStatuses:blocked,contentLength:text.length};
 }
+async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new Promise(done=>setTimeout(done,ms))){
+ let last;
+ for(let i=0;i<attempts;i++){
+  try{
+   const deployed=await api.getDeployment(id);
+   const info=core.deploymentCheck(deployed,id,version);
+   return {deployment:deployed,info};
+  }catch(e){
+   last=e;
+   // Newly created GAS deployment metadata is sometimes temporarily 404.
+   // Never retry permission errors, stale version mismatches or any other failure.
+   if(!/HTTP 404|NOT_FOUND|Requested entity was not found|Expected one existing \/exec entry point/.test(String(e)))throw e;
+   if(i<attempts-1)await pause(Math.min(2000,600+100*i));
+  }
+ }
+ throw Error('New public deployment was never independently readable: '+String(last?.message||last));
+}
+async function waitForAnonymousAccess(url,probe,attempts=14,pause=ms=>new Promise(done=>setTimeout(done,ms))){
+ let last;
+ for(let i=0;i<attempts;i++){
+  try{return await probe(url);}
+  catch(e){
+   last=e;
+   // Private route exposure is a permanent safety failure, never retried.
+   const message=String(e?.message||e);
+   if(!/Anonymous public information GET is not actually available|fetch failed|HTTP 404/.test(message))throw e;
+   if(i<attempts-1)await pause(Math.min(2000,700+150*i));
+  }
+ }
+ throw Error('Public anonymous information never became available: '+String(last?.message||last));
+}
 async function publish(api,env,probe=anonymousProbe){
  assertEnvironment(env);
  const remote=await api.getContent();
@@ -165,8 +196,7 @@ async function publish(api,env,probe=anonymousProbe){
   }
   const depId=oldPublic?oldPublic.deploymentId:created?.deploymentId;
   check(depId&&depId!==PRIVATE_ID,'Missing separate official public deployment ID');
-  const updated=await api.getDeployment(depId);
-  const info=core.deploymentCheck(updated,depId,ver.versionNumber);
+  const {info}=await waitForPublicDeployment(api,depId,ver.versionNumber);
   const final=await api.getContent();
   check(core.digest(final.files)===remoteSha,'Original GAS HEAD changed after public deployment');
   const ownerAfter=await api.getDeployment(PRIVATE_ID);
@@ -174,7 +204,7 @@ async function publish(api,env,probe=anonymousProbe){
   const privateAfter=await readVersion(api,ownerAfter);
   check(JSON.parse(one(privateAfter.files,'appsscript','JSON').source).webapp?.access==='MYSELF',
    'Owner audience changed unexpectedly after public release');
-  const anonymous=await probe(info.url);
+  const anonymous=await waitForAnonymousAccess(info.url,probe);
   console.log('PUBLIC_INFO_URL:',info.url);
   console.log('PUBLIC_INFO_VERSION:',ver.versionNumber);
   console.log('PUBLIC_INFO_SHA256:',remoteSha);
@@ -192,4 +222,4 @@ async function publish(api,env,probe=anonymousProbe){
  }
 }
 if(require.main===module)core.authorizedApi().then(api=>publish(api,process.env)).catch(e=>{console.error('PUBLIC_DEPLOYMENT_BLOCKED:',e.message);process.exitCode=1;});
-module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,anonymousProbe,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};
+module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,anonymousProbe,waitForPublicDeployment,waitForAnonymousAccess,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};

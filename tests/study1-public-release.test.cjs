@@ -157,3 +157,32 @@ test('Public release GitHub workflow never edits existing private /exec, keeps s
  assert.match(code,/anonymousProbe/);
  assert.match(code,/backupToDrive/);
 });
+
+test('New GAS /exec metadata may briefly 404 but must eventually match exact version and script',async()=>{
+ let called=0,waited=0;
+ const id='AKfycbPublicReadOnlyUniqueId123';
+ const deployment={deploymentId:id,deploymentConfig:{
+  scriptId:'1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z',
+  versionNumber:114,manifestFileName:'appsscript'},
+  entryPoints:[{webApp:{url:'https://script.google.com/macros/s/'+id+'/exec'}}]};
+ const api={getDeployment:async()=>{
+  called++;if(called<3)throw Error('GAS GET /deployments/id failed HTTP 404 (NOT_FOUND)');
+  return deployment;
+ }};
+ const r=await release.waitForPublicDeployment(api,id,114,4,async()=>{waited++;});
+ assert.equal(r.info.url,'https://script.google.com/macros/s/'+id+'/exec');
+ assert.equal(called,3);assert.equal(waited,2);
+ await assert.rejects(release.waitForPublicDeployment(
+  {getDeployment:async()=>({...deployment,deploymentConfig:{...deployment.deploymentConfig,versionNumber:115}})},
+  id,114,2,async()=>{}),/version changed/);
+});
+test('Anonymous info may propagate but private-view exposure fails closed immediately',async()=>{
+ let attempt=0,waited=0;
+ const result=await release.waitForAnonymousAccess('https://script.google.com/macros/s/AKfycbPublicReadOnlyUniqueId123/exec',
+  async()=>{attempt++;if(attempt<3)throw Error('Anonymous public information GET is not actually available');
+   return {status:200,privateViewStatuses:{team:403,admin:403,demo:403,preview:403}};},
+  4,async()=>{waited++;});
+ assert.equal(result.status,200);assert.equal(waited,2);
+ await assert.rejects(release.waitForAnonymousAccess('https://script.google.com/macros/s/AKfycbPublicReadOnlyUniqueId123/exec',
+  async()=>{throw Error('Anonymous request exposed private team HTML');},4,async()=>{}),/exposed private team/);
+});
