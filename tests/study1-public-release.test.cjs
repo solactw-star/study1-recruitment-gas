@@ -144,7 +144,7 @@ test('Public release GitHub workflow never edits existing private /exec, keeps s
  assert.match(yaml,/group: study1-gas-source-sync/);
  assert.match(yaml,/cancel-in-progress: false/);
  assert.match(yaml,/secrets.CLASPRC_JSON/);
- assert.match(yaml,/persist-credentials: false/);
+ assert.match(yaml,/persist-credentials: true/);
  assert.match(yaml,/rm -f "\$RUNNER_TEMP\/.clasprc.json"/);
  assert.doesNotMatch(yaml,/clasp push|publicPortals|makeAnyoneOwner/);
  const code=source('scripts/study1-gas-public-release.cjs');
