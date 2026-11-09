@@ -631,3 +631,268 @@ function study1ConsentPublicRead_(experiment){
   sha256:entry.sha256,bytes:bytes.length,mime:'application/pdf',
   base64:Utilities.base64Encode(bytes)};
 }
+
+/**
+ * P0 formal e-consent secure transaction core, staged CLOSED by default.
+ * A research team member verifies the participant in person, then privately
+ * gives them a high-entropy one-use code. Public anonymous requests cannot
+ * create codes, select another document, or browse participant records.
+ * No emails, public Drive URLs, Sheets writes or automatic consent enabling.
+ * Each event is a separate private file. SHA checks detect mutation, but
+ * Google Drive is NOT a legally immutable/WORM evidence store.
+ */
+const STUDY1_ECONSENT_REGISTRY_='STUDY1_ECONSENT_PRIVATE_V1';
+const STUDY1_ECONSENT_MAX_RECORDS_=12;
+function study1EConsentHash_(value){
+ return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,value)
+ .map(b=>(b&255).toString(16).padStart(2,'0')).join('');
+}
+function study1EConsentEnabled_(){
+ const p=PropertiesService.getScriptProperties();
+ return p.getProperty('OPEN')==='true'&&p.getProperty('CONSENT_READY')==='true'&&
+  p.getProperty('STUDY1_ECONSENT_PROVIDER_VERIFIED')==='true';
+}
+function study1EConsentRegistry_(){
+ const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_ECONSENT_REGISTRY_);
+ if(!raw)return {schemaVersion:1,revision:0,records:[]};
+ const r=JSON.parse(raw);
+ if(!r||r.schemaVersion!==1||!Number.isSafeInteger(r.revision)||
+  r.revision<1||!Array.isArray(r.records)||r.records.length>STUDY1_ECONSENT_MAX_RECORDS_||
+  new Set(r.records.map(x=>x.id)).size!==r.records.length)
+  throw Error('電子同意紀錄索引不一致，已停止操作');
+ for(const x of r.records){
+  if(!x||typeof x.id!=='string'||!/^[-a-f0-9]{30,40}$/i.test(x.id)||
+   !['E1','E2'].includes(x.experiment)||!/^[-a-f0-9]{64}$/.test(x.tokenHash)||
+   !/^[-a-f0-9]{64}$/.test(x.documentSha)||!Number.isSafeInteger(x.expires)||
+   !['ISSUED','EXPLAINED','SIGNED','CONFIRMED','WITHDRAWN'].includes(x.state))
+   throw Error('電子同意紀錄來源不合法');
+  for(const kind of ['explanation','signature','confirmation','withdrawal']){
+   const event=x[kind];
+   if(event!==null&&event!==undefined&&
+    (typeof event.id!=='string'||!/^[A-Za-z0-9_-]{15,100}$/.test(event.id)||
+     !/^[a-f0-9]{64}$/.test(event.sha)))throw Error('電子同意證據來源不合法');
+  }
+ }
+ return r;
+}
+function study1EConsentWrite_(old,next){
+ if(next.revision!==old.revision+1)throw Error('電子同意索引競寫');
+ const p=PropertiesService.getScriptProperties();
+ const payload=JSON.stringify(next);
+ if(payload.length>7500)throw Error('電子同意索引容量不足，停止收件');
+ if(p.getProperty(STUDY1_ECONSENT_REGISTRY_)!==
+  (old.revision?JSON.stringify(old):null))throw Error('電子同意索引遭其他作業變動');
+ p.setProperty(STUDY1_ECONSENT_REGISTRY_,payload);
+ if(p.getProperty(STUDY1_ECONSENT_REGISTRY_)!==payload)
+  throw Error('電子同意索引寫後回讀失敗');
+ return next;
+}
+function study1EConsentFolder_(){
+ const folder=DriveApp.getFolderById(STUDY1_CONSENT_DOC_FOLDER_);
+ if(folder.getSharingAccess()!==DriveApp.Access.PRIVATE)
+  throw Error('電子同意證據儲存資料夾非私人，停止收件');
+ return folder;
+}
+function study1EConsentFile_(kind,entry,data){
+ const body=JSON.stringify({schemaVersion:1,kind,recordId:entry.id,
+  experiment:entry.experiment,documentSha:entry.documentSha,
+  recordedAt:new Date().toISOString(),data});
+ if(body.length>130000)throw Error('電子同意證據超過容量限制');
+ const folder=study1EConsentFolder_();
+ const sha=study1EConsentHash_(body);
+ const name='Study1_EConsent_'+kind+'_'+entry.id+'_'+sha.slice(0,16)+'.json';
+ const file=folder.createFile(Utilities.newBlob(body,'application/json',name));
+ try{
+  file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.VIEW);
+  if(file.getSharingAccess()!==DriveApp.Access.PRIVATE||
+   file.getSize()!==Utilities.newBlob(body).getBytes().length)
+   throw Error('電子同意證據寫入或權限驗證失敗');
+  const readback=file.getBlob().getDataAsString();
+  if(study1EConsentHash_(readback)!==sha)
+   throw Error('電子同意證據原檔回讀SHA不一致');
+  return {id:file.getId(),sha};
+ }catch(e){try{file.setTrashed(true);}catch(_){}throw e;}
+}
+function study1EConsentEvent_(ref,entry,kind){
+ if(!ref)throw Error('缺少電子同意存證');
+ const f=DriveApp.getFileById(ref.id);
+ if(f.getSharingAccess()!==DriveApp.Access.PRIVATE||f.getMimeType()!=='application/json')
+  throw Error('同意存證檔案權限或格式已改變');
+ const raw=f.getBlob().getDataAsString();
+ if(study1EConsentHash_(raw)!==ref.sha)throw Error('同意證據已被更動');
+ const data=JSON.parse(raw);
+ if(data.kind!==kind||data.recordId!==entry.id||data.documentSha!==entry.documentSha)
+  throw Error('存證與固定文件版本不一致');
+ return data;
+}
+function study1EConsentReadyDocument_(experiment){
+ if(!study1EConsentEnabled_())throw Error('目前尚未開放有效電子知情同意');
+ if(experiment!=='E1'&&experiment!=='E2')throw Error('實驗不合法');
+ if(experiment==='E2'&&new Date().getUTCFullYear()<2027)
+  throw Error('實驗二尚未開放');
+ const index=study1ConsentVersionRead_(),id=index.published[experiment];
+ const entry=index.documents.find(x=>x.id===id&&x.experiment===experiment);
+ if(!entry||index.current[experiment]!==id)throw Error('尚無正式選用及發布的文件版本');
+ // Source bytes, ACL and SHA are checked against the original uploaded PDF.
+ study1ConsentDocumentBytes_(entry);
+ return entry;
+}
+function study1EConsentEntry_(token,r){
+ if(typeof token!=='string'||!/^[-a-f0-9]{70,90}$/i.test(token))
+  throw Error('無效的知情同意存取憑證');
+ const sha=study1EConsentHash_(token);
+ const item=r.records.find(x=>x.tokenHash===sha);
+ if(!item||item.expires<Date.now())throw Error('知情同意憑證無效或已過期');
+ return item;
+}
+function study1EConsentChange_(id,fn){
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(10000))throw Error('電子同意作業忙碌，請重試');
+ try{
+  const r=study1EConsentRegistry_(),index=r.records.findIndex(x=>x.id===id);
+  if(index<0)throw Error('電子同意紀錄未找到');
+  const before=r.records[index],after=fn(before,r);
+  if(!after)return before;
+  const next={...r,revision:r.revision+1,records:r.records.map((x,j)=>j===index?after:x)};
+  study1EConsentWrite_(r,next);
+  return after;
+ }finally{lock.releaseLock();}
+}
+/** Authenticated OWNER creates a fixed-document one-person invitation. */
+function study1EConsentIssue(input){
+ study1AdminOwnerRequired_();
+ if(!input||Object.keys(input).join(',')!=='experiment'||
+  !['E1','E2'].includes(input.experiment))throw Error('實驗選擇不合法');
+ const doc=study1EConsentReadyDocument_(input.experiment);
+ const lock=LockService.getScriptLock();
+ if(!lock.tryLock(10000))throw Error('電子同意作業忙碌');
+ try{
+  study1AdminOwnerRequired_();study1EConsentReadyDocument_(input.experiment);
+  const r=study1EConsentRegistry_();
+  if(r.records.length>=STUDY1_ECONSENT_MAX_RECORDS_)throw Error('正式同意收件容量不足，禁止發出新憑證');
+  const token=Utilities.getUuid()+'-'+Utilities.getUuid();
+  const entry={id:Utilities.getUuid(),tokenHash:study1EConsentHash_(token),
+   experiment:input.experiment,documentSha:doc.sha256,documentVersion:doc.version,
+   expires:Date.now()+86400000,state:'ISSUED',
+   explanation:null,signature:null,confirmation:null,withdrawal:null};
+  if(r.records.some(x=>x.id===entry.id||x.tokenHash===entry.tokenHash))
+   throw Error('電子同意憑證重複，拒絕發出');
+  study1EConsentWrite_(r,{...r,revision:r.revision+1,records:r.records.concat([entry])});
+  return {id:entry.id,token,experiment:entry.experiment,
+   version:entry.documentVersion,sha256:entry.documentSha,expires:entry.expires};
+ }finally{lock.releaseLock();}
+}
+/** OWNER documents researcher explanation and specific questions before signing. */
+function study1EConsentExplain(input){
+ study1AdminOwnerRequired_();
+ if(!input||Object.keys(input).sort().join(',')!=='answer,id,question,resolved'||
+  typeof input.id!=='string'||typeof input.question!=='string'||
+  typeof input.answer!=='string'||input.question.length>1600||
+  !input.answer.trim()||input.answer.length>2400||/[<>]/.test(input.question+input.answer)||
+  input.resolved!==true)throw Error('必須完整記錄說明、疑問與研究人員答覆');
+ return study1EConsentChange_(input.id,x=>{
+  study1AdminOwnerRequired_();
+  if(x.state!=='ISSUED'||x.expires<Date.now())throw Error('不能修改已處理或過期邀請');
+  const proof=study1EConsentFile_('EXPLANATION',x,{
+   question:input.question,answer:input.answer,staff:'OWNER',
+   questionsResolved:true});
+  return {...x,state:'EXPLAINED',explanation:proof};
+ });
+}
+/** Bearer proof is required even to read the attested explanation. */
+function study1EConsentSession(token){
+ const r=study1EConsentRegistry_(),entry=study1EConsentEntry_(token,r);
+ if(!study1EConsentEnabled_()&&entry.state!=='CONFIRMED'&&entry.state!=='WITHDRAWN')
+  throw Error('電子同意目前不開放');
+ const explanation=entry.explanation?
+  study1EConsentEvent_(entry.explanation,entry,'EXPLANATION').data:null;
+ return {experiment:entry.experiment,version:entry.documentVersion,
+  sha256:entry.documentSha,state:entry.state,expires:entry.expires,
+  explanation:explanation&&{question:explanation.question,answer:explanation.answer}};
+}
+/** Browser supplied signature is accepted once, bound to owner-verified invite. */
+function study1EConsentSign(input){
+ if(!study1EConsentEnabled_())throw Error('尚未開放有效電子簽署');
+ if(!input||Object.keys(input).sort().join(',')!=='agree,answerAcknowledged,documentSha,name,read,signature,token'||
+  input.agree!==true||input.answerAcknowledged!==true||input.read!==true||
+  typeof input.name!=='string'||!input.name.trim()||input.name.length>80||
+  /[<>\u0000-\u001f]/.test(input.name)||
+  typeof input.documentSha!=='string'||!/^[a-f0-9]{64}$/.test(input.documentSha)||
+  typeof input.signature!=='string'||input.signature.length>125000||
+  !/^[A-Za-z0-9+/]+={0,2}$/.test(input.signature))
+  throw Error('必須完成全文閱讀、說明確認、姓名與本人簽名');
+ const bytes=Utilities.base64Decode(input.signature);
+ if(bytes.length<100||bytes.length>90000||
+  bytes.slice(0,8).map(b=>b&255).join(',')!=='137,80,78,71,13,10,26,10')
+  throw Error('電子簽名必須是完整PNG筆跡');
+ const token=input.token,r=study1EConsentRegistry_(),entry=study1EConsentEntry_(token,r);
+ return study1EConsentChange_(entry.id,x=>{
+  if(!study1EConsentEnabled_()||x.state!=='EXPLAINED'||x.expires<Date.now()||
+   x.documentSha!==input.documentSha)throw Error('同意書邀請、版本或說明已失效');
+  study1EConsentEvent_(x.explanation,x,'EXPLANATION');
+  const original=study1ConsentVersionRead_().documents.find(d=>
+   d.experiment===x.experiment&&d.sha256===x.documentSha&&d.version===x.documentVersion);
+  if(!original)throw Error('原版同意書已不存在');
+  study1ConsentDocumentBytes_(original);
+  const file=study1EConsentFile_('SIGNATURE',x,{name:input.name.trim(),
+   signaturePngBase64:input.signature,read:true,answerAcknowledged:true,
+   agreed:true,explanationHash:x.explanation.sha});
+  return {...x,state:'SIGNED',signature:file};
+ }).state==='SIGNED'?{state:'SIGNED',message:'已記錄固定版本的本人簽名，待研究人員確認'}:
+ {state:'UNVERIFIED'};
+}
+/** Staff confirmation is another independently stored event, not an overwrite. */
+function study1EConsentConfirm(input){
+ study1AdminOwnerRequired_();
+ if(!input||Object.keys(input).sort().join(',')!=='id,identityVerified,notes'||
+  input.identityVerified!==true||typeof input.id!=='string'||
+  typeof input.notes!=='string'||!input.notes.trim()||input.notes.length>1000||
+  /[<>]/.test(input.notes))throw Error('請記錄身分核對與研究人員確認');
+ return study1EConsentChange_(input.id,x=>{
+  study1AdminOwnerRequired_();
+  if(x.state!=='SIGNED')throw Error('只有已簽署紀錄能被研究人員確認');
+  study1EConsentEvent_(x.signature,x,'SIGNATURE');
+  const file=study1EConsentFile_('CONFIRMATION',x,{
+   researcher:'OWNER',identityVerified:true,notes:input.notes,
+   signatureHash:x.signature.sha,explanationHash:x.explanation.sha});
+  return {...x,state:'CONFIRMED',confirmation:file};
+ });
+}
+/** Participant can retrieve their own document-bound evidence with bearer code. */
+function study1EConsentCopy(token){
+ const entry=study1EConsentEntry_(token,study1EConsentRegistry_());
+ if(!['CONFIRMED','WITHDRAWN'].includes(entry.state))
+  throw Error('尚未完成雙方確認，不提供有效簽署副本');
+ const signed=study1EConsentEvent_(entry.signature,entry,'SIGNATURE');
+ const confirmed=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION');
+ const withdrawn=entry.withdrawal?
+  study1EConsentEvent_(entry.withdrawal,entry,'WITHDRAWAL'):null;
+ return {state:entry.state,experiment:entry.experiment,version:entry.documentVersion,
+  documentSha256:entry.documentSha,signatureEvidenceSha256:entry.signature.sha,
+  confirmationEvidenceSha256:entry.confirmation.sha,participant:signed.data.name,
+  signaturePngBase64:signed.data.signaturePngBase64,signedAt:signed.recordedAt,
+  reviewer:'OWNER',confirmedAt:confirmed.recordedAt,
+  withdrawalAt:withdrawn?.recordedAt||null,withdrawalEvidenceSha256:entry.withdrawal?.sha||null};
+}
+/** Withdrawal is a new private event, never deletion/edit of original consent. */
+function study1EConsentWithdraw(input){
+ if(!input||Object.keys(input).sort().join(',')!=='reason,token'||
+  typeof input.reason!=='string'||input.reason.trim().length<4||
+  input.reason.length>600||/[<>]/.test(input.reason))throw Error('請填寫撤回理由');
+ const entry=study1EConsentEntry_(input.token,study1EConsentRegistry_());
+ const next=study1EConsentChange_(entry.id,x=>{
+  if(x.state!=='CONFIRMED')throw Error('此同意紀錄不可重複撤回');
+  const f=study1EConsentFile_('WITHDRAWAL',x,{
+   reason:input.reason.trim(),signatureHash:x.signature.sha,
+   confirmationHash:x.confirmation.sha});
+  return {...x,state:'WITHDRAWN',withdrawal:f};
+ });
+ return {state:next.state,recorded:true};
+}
+function study1EConsentOwnerList(){
+ study1AdminOwnerRequired_();
+ const r=study1EConsentRegistry_();
+ return {revision:r.revision,records:r.records.map(x=>({id:x.id,
+  experiment:x.experiment,version:x.documentVersion,sha256:x.documentSha,
+  state:x.state,expires:x.expires}))};
+}
