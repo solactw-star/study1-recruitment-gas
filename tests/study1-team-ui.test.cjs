@@ -45,13 +45,15 @@ test('Only the authenticated owner can open the visual research-team management 
  assert.match(sync,/teamHtmlSha256/);
  assert.match(gate.APPROVED_BACKEND.map(x=>x.name).join(' '),/Study1Team/);
 });
-test('Homepage and visitor demo use one research visual language and homepage links to demo',()=>{
- assert.match(index,/\/exec\?view=demo/);
+test('Formal homepage no longer sends participants to private Demo but preserves original owner-only visitor route',()=>{
+ assert.doesNotMatch(index,/\/exec\?view=demo/);
+ assert.match(index,/id="consent"/);
+ assert.match(index,/研究報名及線上知情同意尚未開放/);
  assert.match(html,/\/exec\?view=demo/);
  assert.match(visitor,/\/exec" target="_top"/);
  assert.match(visitor,/--ink:#163341;--sea:#1b7d80/);
  assert.match(visitor,/linear-gradient\(115deg,#f0f9f7,#e4f1ed\)/);
- assert.match(index,/2027 年進行，2026 年不招募/);
+ assert.match(index,/實驗二預計於2027年進行/);
  assert.match(visitor,/id="stateE2"/);
 });
 test('Team UI rejects network/unsafe scripts or a missing editor',()=>{

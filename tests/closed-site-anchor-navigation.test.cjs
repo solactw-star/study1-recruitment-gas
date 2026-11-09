@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'..','gas','Index.html'),'utf8');
-const expected=['main','home','about','apply','contact','apply','about'];
+const expected=['main','home','about','consent','apply','contact','apply','about','consent'];
 const source=html.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(source,'closed info page should have one inline script');
 function harness(reduceMotion=false){
@@ -40,13 +40,13 @@ function harness(reduceMotion=false){
  }
  return {anchors,targets,click,status};
 }
-test('Seven anchor href targets exist in their expected order',()=>{
+test('Nine anchor href targets include the consent page in the correct order',()=>{
  const all=[...html.matchAll(/<a\b[^>]*href="#([^"]+)"[^>]*>/g)].map(m=>m[1]);
  assert.deepEqual(all,expected);
  for(const id of new Set(expected)) assert.match(html,new RegExp('\\bid="'+id+'"'));
  assert.match(html,/<base target="_top">/);
 });
-test('All seven links remain in the iframe, focus the destination and scroll locally',()=>{
+test('All nine navigation links remain in the iframe, focus the destination and scroll locally',()=>{
  const h=harness();
  for(const a of h.anchors){
   const event=h.click(a);

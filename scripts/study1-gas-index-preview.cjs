@@ -26,7 +26,7 @@ function file(files,name,type){
 function assertIndex(s){
   for(const token of ['<base target="_top">','event.preventDefault()','scrollIntoView({','target.focus({preventScroll:true})','研究計畫聯絡人：賴詩潔','03-256-3414','tel:+88632563414','mailto:lily4318@cycu.edu.tw','研究計畫主持人：葉理豪','03-265-3413','tel:+88632653413','mailto:lhyeh@cycu.edu.tw','<button class="btn" disabled type="button">']) check(s.includes(token),'Missing approved site content: '+token);
   const anchors=[...s.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]);
-  check(anchors.join(',')==='main,home,about,apply,contact,apply,about','Seven site links changed');
+  check(anchors.join(',')==='main,home,about,consent,apply,contact,apply,about,consent','Formal consent navigation links changed');
   for(const id of new Set(anchors))check(s.includes('id="'+id+'"'),'Missing anchor target');
   for(const token of ['03-264-3413','03-264-3414','psy.shihchieh@gmail.com','葉理豪副教授'])check(!s.includes(token),'Obsolete contact in Index');
   check(!/<(?:form|input|textarea|canvas|iframe)\b/i.test(s),'Unexpected intake or signature form');
