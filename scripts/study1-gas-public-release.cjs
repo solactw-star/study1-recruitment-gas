@@ -98,7 +98,7 @@ async function anonymousProbe(url,fetcher=fetch){
  }
  return {status:res.status,privateViewStatuses:blocked,contentLength:text.length};
 }
-async function publish(api,env){
+async function publish(api,env,probe=anonymousProbe){
  assertEnvironment(env);
  const remote=await api.getContent();
  assertClosedPublicSources(remote);
@@ -159,7 +159,7 @@ async function publish(api,env){
   const privateAfter=await readVersion(api,ownerAfter);
   check(JSON.parse(one(privateAfter.files,'appsscript','JSON').source).webapp?.access==='MYSELF',
    'Owner audience changed unexpectedly after public release');
-  const anonymous=await anonymousProbe(info.url);
+  const anonymous=await probe(info.url);
   console.log('PUBLIC_INFO_URL:',info.url);
   console.log('PUBLIC_INFO_VERSION:',ver.versionNumber);
   console.log('PUBLIC_INFO_SHA256:',remoteSha);
