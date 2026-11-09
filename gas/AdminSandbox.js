@@ -729,8 +729,9 @@ function study1EConsentEvent_(ref,entry,kind){
 function study1EConsentReadyDocument_(experiment){
  if(!study1EConsentEnabled_())throw Error('目前尚未開放有效電子知情同意');
  if(experiment!=='E1'&&experiment!=='E2')throw Error('實驗不合法');
- if(experiment==='E2'&&new Date().getUTCFullYear()<2027)
-  throw Error('實驗二尚未開放');
+ if(experiment==='E2'&&(new Date().getUTCFullYear()<2027||
+  PropertiesService.getScriptProperties().getProperty('STUDY1_E2_CONSENT_EXPLICIT')!=='true'))
+  throw Error('實驗二尚未取得獨立開放授權');
  const index=study1ConsentVersionRead_(),id=index.published[experiment];
  const entry=index.documents.find(x=>x.id===id&&x.experiment===experiment);
  if(!entry||index.current[experiment]!==id)throw Error('尚無正式選用及發布的文件版本');
@@ -896,4 +897,24 @@ function study1EConsentOwnerList(){
  return {revision:r.revision,records:r.records.map(x=>({id:x.id,
   experiment:x.experiment,version:x.documentVersion,sha256:x.documentSha,
   state:x.state,expires:x.expires}))};
+}
+
+/** Staff-managed withdrawal handles requests after bearer links expire. */
+function study1EConsentOwnerWithdraw(input){
+ study1AdminOwnerRequired_();
+ if(!input||Object.keys(input).sort().join(',')!=='id,identityVerified,reason'||
+  input.identityVerified!==true||typeof input.id!=='string'||
+  typeof input.reason!=='string'||input.reason.trim().length<4||
+  input.reason.length>600||/[<>]/.test(input.reason))
+  throw Error('研究人員須核對當事人身分與正式撤回要求');
+ return study1EConsentChange_(input.id,x=>{
+  study1AdminOwnerRequired_();
+  if(x.state!=='CONFIRMED')throw Error('只有已確認且未撤回的紀錄可以撤回');
+  study1EConsentEvent_(x.signature,x,'SIGNATURE');
+  study1EConsentEvent_(x.confirmation,x,'CONFIRMATION');
+  const f=study1EConsentFile_('WITHDRAWAL',x,{
+   reason:input.reason.trim(),staff:'OWNER',identityVerified:true,
+   signatureHash:x.signature.sha,confirmationHash:x.confirmation.sha});
+  return {...x,state:'WITHDRAWN',withdrawal:f};
+ });
 }
