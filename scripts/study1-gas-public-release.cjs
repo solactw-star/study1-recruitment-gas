@@ -107,6 +107,21 @@ async function readVersion(api,deployment){
  check(Number.isInteger(v)&&v>0,'Missing effective deployment version');
  return api.getVersion(v);
 }
+async function waitForReviewedPrivateVersion(api,reviewed,attempts=15,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))){
+ const digest=core.digest(reviewed.files.filter(x=>x.name!=='appsscript'));
+ for(let attempt=0;attempt<attempts;attempt++){
+  const deployment=await api.getDeployment(PRIVATE_ID);
+  core.deploymentCheck(deployment,PRIVATE_ID);
+  const immutable=await readVersion(api,deployment);
+  const manifest=JSON.parse(one(immutable.files,'appsscript','JSON').source);
+  const bytesMatch=core.digest(immutable.files.filter(x=>x.name!=='appsscript'))===digest;
+  if(manifest.webapp?.access==='MYSELF'&&manifest.webapp?.executeAs==='USER_ACCESSING'&&bytesMatch)
+   return {deployment,immutable};
+  if(attempt<attempts-1)await pause(1000);
+ }
+ throw Error('Private owner source has not converged with reviewed main; public release blocked');
+}
+
 async function anonymousProbe(url,fetcher=fetch){
  check(/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url),
   'Public URL is not the expected GAS /exec');
@@ -163,8 +178,10 @@ async function publish(api,env,probe=anonymousProbe){
  assertClosedPublicSources(remote);
  const remoteSha=core.digest(remote.files),all=await api.deployments();
  const {private:owner,publicExisting}=selectDeployments(all);
- const privateFull=await api.getDeployment(PRIVATE_ID);
- const privateBefore=await readVersion(api,privateFull);
+ const reviewedPrivate=await waitForReviewedPrivateVersion(api,remote);
+ const privateFull=reviewedPrivate.deployment;
+ const privateBefore=reviewedPrivate.immutable;
+ console.log('PRIVATE_OWNER_SOURCE_CONVERGED=true',privateFull.deploymentConfig.versionNumber);
  check(JSON.parse(one(privateBefore.files,'appsscript','JSON').source).webapp?.access==='MYSELF',
   'Original owner deployment is not private, STOP');
  const privateVersion=privateFull.deploymentConfig.versionNumber;
@@ -235,4 +252,4 @@ async function publish(api,env,probe=anonymousProbe){
  }
 }
 if(require.main===module)core.authorizedApi().then(api=>publish(api,process.env)).catch(e=>{console.error('PUBLIC_DEPLOYMENT_BLOCKED:',e.message);process.exitCode=1;});
-module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,anonymousProbe,waitForPublicDeployment,waitForAnonymousAccess,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};
+module.exports={assertEnvironment,assertClosedPublicSources,selectDeployments,waitForReviewedPrivateVersion,anonymousProbe,waitForPublicDeployment,waitForAnonymousAccess,publish,PUBLIC_DESCRIPTION,PRIVATE_ID};
