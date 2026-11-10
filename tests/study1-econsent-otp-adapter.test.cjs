@@ -41,7 +41,8 @@ function setup({enabled=true,identityApproved=true,duplicate=false}={}){
  const tab={
   getLastRow:()=>records.length+1,getLastColumn:()=>headers.length,
   getRange:(row,col,height,width)=>{
-   assert.equal(height,1,'only row-level read/write');
+   assert.ok(Number.isSafeInteger(height)&&height>=1&&height<=records.length,
+    'only bounded header, targeted search, individual row or F:G ranges');
    reads.push({row,col,width});
    if(row===1&&col===1&&width===9)return {getValues:()=>[headers.slice()]};
    if(row===2&&[1,2,8].includes(col)&&width===1)return {
@@ -67,10 +68,10 @@ function setup({enabled=true,identityApproved=true,duplicate=false}={}){
     return {
      getValues:()=>[records[row-2].slice(5,7)],
      setValues:values=>{
-      if(beforeWrite)beforeWrite();
       assert.equal(locked.on,true,'OTP write under shared lock');
       writes.push({row,values});
       [records[row-2][5],records[row-2][6]]=values[0];
+      if(beforeWrite)beforeWrite(); // out-of-band change after attempted write
      }
     };
    throw Error('Unexpected GAS range: '+row+'/'+col+'/'+height+'/'+width);
