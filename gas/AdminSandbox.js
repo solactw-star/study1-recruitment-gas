@@ -924,7 +924,11 @@ function study1EConsentCopy(token){
 }
 /** Withdrawal is a new private event, never deletion/edit of original consent. */
 function study1EConsentWithdraw(input){
- if(!input||Object.keys(input).sort().join(',')!=='reason,token'||
+ const keys=input&&typeof input==='object'&&!Array.isArray(input)?
+  Object.keys(input).sort().join(','):'';
+ if(!['reason,token','dataChoice,reason,token'].includes(keys)||
+  (keys==='dataChoice,reason,token'&&
+   !['DESTROY','DEIDENTIFY','CONTACT_STAFF'].includes(input.dataChoice))||
   typeof input.reason!=='string'||input.reason.trim().length<4||
   input.reason.length>600||/[<>]/.test(input.reason))throw Error('請填寫撤回理由');
  const entry=study1EConsentEntry_(input.token,study1EConsentRegistry_());
@@ -932,11 +936,13 @@ function study1EConsentWithdraw(input){
   if(x.state!=='CONFIRMED')throw Error('此同意紀錄不可重複撤回');
   const f=study1EConsentFile_('WITHDRAWAL',x,{
    reason:input.reason.trim(),signatureHash:x.signature.sha,
-   confirmationHash:x.confirmation.sha});
+   confirmationHash:x.confirmation.sha,
+   dataChoice:input.dataChoice||'CONTACT_STAFF'});
   return {...x,state:'WITHDRAWN',withdrawal:f};
  });
  return {state:next.state,recorded:true,
-  requiresResearcherDataDisposition:true};
+  requiresResearcherDataDisposition:true,
+  dataDispositionState:'PENDING_RESEARCH_TEAM_ACTION'};
 }
 function study1EConsentOwnerList(){
  study1AdminOwnerRequired_();
@@ -944,6 +950,23 @@ function study1EConsentOwnerList(){
  return {revision:r.revision,records:r.records.map(x=>({id:x.id,
   experiment:x.experiment,version:x.documentVersion,sha256:x.documentSha,
   state:x.state,expires:x.expires}))};
+}
+
+
+/** No names, health answers or reasons in this owner-only action queue. */
+function study1EConsentOwnerWithdrawalCases(){
+ study1AdminOwnerRequired_();
+ const r=study1EConsentRegistry_();
+ return {readOnly:true,records:r.records.filter(x=>
+   x.channel==='FORMAL_E1'&&x.experiment==='E1'&&x.state==='WITHDRAWN')
+  .map(x=>{
+   const event=study1EConsentEvent_(x.withdrawal,x,'WITHDRAWAL');
+   return {id:x.id,withdrawalSha256:x.withdrawal.sha,
+    dataChoice:event.data.dataChoice||'CONTACT_STAFF',
+    dispositionState:x.disposition?'OWNER_EVIDENCE_RECORDED_PI_REVIEW':
+     'PENDING_RESEARCH_TEAM_ACTION',
+    requiresResearcherDataDisposition:true};
+  })};
 }
 
 /** Staff-managed withdrawal handles requests after bearer links expire. */
@@ -961,7 +984,8 @@ function study1EConsentOwnerWithdraw(input){
   study1EConsentEvent_(x.confirmation,x,'CONFIRMATION');
   const f=study1EConsentFile_('WITHDRAWAL',x,{
    reason:input.reason.trim(),staff:'OWNER',identityVerified:true,
-   signatureHash:x.signature.sha,confirmationHash:x.confirmation.sha});
+   signatureHash:x.signature.sha,confirmationHash:x.confirmation.sha,
+   dataChoice:'CONTACT_STAFF'});
   return {...x,state:'WITHDRAWN',withdrawal:f};
  });
 }
