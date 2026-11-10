@@ -30,11 +30,14 @@ function assertIndex(s){
   for(const id of new Set(anchors))check(s.includes('id="'+id+'"'),'Missing anchor target');
   for(const token of ['03-264-3413','03-264-3414','psy.shihchieh@gmail.com','葉理豪副教授'])check(!s.includes(token),'Obsolete contact in Index');
   check(!/<(?:form|textarea)\b/i.test(s),'No unauthenticated collection form');
-  const inputs=[...s.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
-  check(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'All identity and consent controls must remain disabled');
-  check(s.includes('id="consentSignature"')&&s.includes('id="consentPdfViewer"')&&
-   s.includes('id="consentSubmit"')&&s.includes('consentEl(\'consentSubmit\').disabled=true;')&&
-   !/<iframe\b[^>]*\bsrc=/i.test(s),'Signature and PDF UI must not collect or embed unreviewed URLs');
+  const inputs=[...s.matchAll(/<input\\b[^>]*>/gi)].map(x=>x[0]);
+  check(inputs.length===0,'Public introduction must not render identity or signature inputs');
+  check(s.includes('id="consent"')&&s.includes('知情同意是報名最後的步驟')&&
+    s.includes('目前尚未開放線上簽署')&&
+    !/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/.test(s)&&
+    !/<(?:canvas|iframe)\\b/i.test(s)&&!s.includes('initConsentPortal_')&&
+    !/<(?:form|textarea)\\b/i.test(s),
+    'Formal consent cannot be signed on the public information homepage');
 }
 function assertRemote(head){
   check(head&&Array.isArray(head.files),'Missing GAS HEAD');canonical(head.files);
