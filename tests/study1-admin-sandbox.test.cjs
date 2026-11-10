@@ -1,7 +1,6 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'../gas/AdminSandbox.js'),'utf8');
-const recSource=fs.readFileSync(path.join(__dirname,'../gas/Study1EConsentBinding.js'),'utf8');
 function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDelete=null,defaultClosed=true){
  const values=new Map();let writes=0,locks=0;
  const p={getProperty:k=>values.has(k)?values.get(k):(defaultClosed&&['OPEN','CONSENT_READY'].includes(k)?'false':null),setProperty:(k,v)=>{if(!['STUDY1_SANDBOX_ADMIN_CONFIG_V1','STUDY1_SANDBOX_SELFTEST_V1','STUDY1_CONSENT_DOCUMENT_INDEX_V1','STUDY1_ECONSENT_PRIVATE_V1'].includes(k))throw Error('Bad property namespace');writes++;values.set(k,v);},deleteProperty:k=>{if(k!=='STUDY1_SANDBOX_SELFTEST_V1')throw Error('Cannot delete real sandbox config');values.delete(k);if(onDelete)onDelete(values);}};
@@ -11,7 +10,7 @@ function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDe
  LockService:{getScriptLock:()=>({tryLock:()=>{locks++;return true},releaseLock:()=>{locks--}})},
  JSON,Number,Object,String,Array,Set,Error
  };
- vm.createContext(scope);vm.runInContext(src+'\n'+recSource,scope);
+ vm.createContext(scope);vm.runInContext(src,scope);
  return {scope,values,reads:()=>writes,locks:()=>locks};
 }
 test('Mismatched active identities cannot read or write even if deployer is owner',()=>{
@@ -503,7 +502,6 @@ test('P0 formal e-consent owner-verified one-time private invitation, Q&A, signa
  h.values.set('STUDY1_ECONSENT_PROVIDER_VERIFIED','true');
  // Synthetic-only compatibility path; never available to production participants.
  h.values.set('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY','true');
- h.scope.study1RecRequireElectronicConsentApproval_=()=>true; // isolated offline-only synthetic fixture
  assert.equal(h.scope.study1EConsentAvailability().enabled,true);
  assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E2'}),/實驗二尚未/);
  const issued=h.scope.study1EConsentIssue({experiment:'E1'});
