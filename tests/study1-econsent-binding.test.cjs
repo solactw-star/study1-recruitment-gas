@@ -169,3 +169,38 @@ test('No fake TEST applicant, identity attestation or expired identity is accept
  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req));
  assert.equal(h.writes,0);
 });
+
+test('E2 requires separate authoritative proof of never joining E1, and binds it into invite HMAC',()=>{
+ const now=new Date(),snap=snapshot(now),h=harness(snap,now);
+ const e2={...req,experiment:'E2'};
+ const doc2={...doc,experiment:'E2'};
+ snap.identity.experiment='E2';
+ assert.throws(()=>h.sandbox.study1BindingVerify_(snap,e2,doc2,now.toISOString()),
+  /實驗二必須獨立確認未參加過實驗一/);
+ const invalid=[
+  {priorE1ParticipationVerified:true,priorE1Participation:true,
+   priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'d'.repeat(64)},
+  {priorE1ParticipationVerified:false,priorE1Participation:false,
+   priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'d'.repeat(64)},
+  {priorE1ParticipationVerified:true,priorE1Participation:false,
+   priorE1Source:'BROWSER_SELF_REPORT',priorE1EvidenceSha256:'d'.repeat(64)},
+  {priorE1ParticipationVerified:true,priorE1Participation:false,
+   priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'NOT_A_HASH'}
+ ];
+ for(const changes of invalid){
+  Object.assign(snap.identity,changes);
+  assert.throws(()=>h.sandbox.study1BindingVerify_(snap,e2,doc2,now.toISOString()),
+   /實驗二必須獨立確認未參加過實驗一/);
+ }
+ Object.assign(snap.identity,{
+  priorE1ParticipationVerified:true,priorE1Participation:false,
+  priorE1Source:'REC_APPROVED_STUDY_HISTORY',
+  priorE1EvidenceSha256:'d'.repeat(64)});
+ const bound=h.sandbox.study1BindingVerify_(snap,e2,doc2,now.toISOString());
+ bound.digest=h.sandbox.study1BindingDigest_({...bound,digest:''});
+ assert.equal(bound.priorE1EvidenceSha,'d'.repeat(64));
+ assert.equal(h.sandbox.study1BindingRecheck_(bound,doc2,h.adapter,now.toISOString()).experiment,'E2');
+ snap.identity.priorE1EvidenceSha256='f'.repeat(64);
+ assert.throws(()=>h.sandbox.study1BindingRecheck_(bound,doc2,h.adapter,now.toISOString()),
+  /已更新/);
+});
