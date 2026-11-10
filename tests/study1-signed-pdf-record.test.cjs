@@ -113,7 +113,6 @@ function buildHarness(original){
  });
  for(const p of ['gas/AdminSandbox.js','gas/Study1PdfStampCore.js','gas/Study1EConsentBinding.js'])
   vm.runInContext(fs.readFileSync(path.join(__dirname,'..',p),'utf8'),scope);
- scope.study1RecRequireElectronicConsentApproval_=()=>true; // ONLY synthetic VM
  const doc={experiment:'E1',id:originalId,title:'Synthetic study consent',
   version:'Version02',sha256:sha(original),bytes:original.length,
   url:'https://drive.google.com/file/d/'+originalId+'/view'};
