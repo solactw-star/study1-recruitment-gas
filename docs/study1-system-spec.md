@@ -1226,3 +1226,20 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **安全與限制：** 原Website.js對公開requestOtp/verifyOtp/holdSlot/submitConsent仍無條件拒絕；原Study1Visitor保留TEST `00000000`與`SIMULATED_SIGN_ONLY`，正式OTP寄送/申請建立僅私有介接與合成CI，缺可信真人身份及E1/E2時段歸屬，尚不能在網頁操作真人OTP端到端。原REC核准研究不等於網站任何遠端同意實作已逐項適用。原OPEN/CONSENT_READY設計仍維持關閉、未變更ScriptProperties（本次未直接讀取其實際值）；E2未獨立核准且2027年前不招募。程式798 PASS/0 FAIL不代替UI測試，`UI_VERIFIED=false`、`FORMAL_READY=false`。
 
 **接續點：** `TASK_DOMAIN=Study1 website / owner preview UAT`; `SOURCE_ID=original GAS Script ID`；`SOURCE_VERSION=private V125 / SHA256 6c13c7b1d71ffcee337ed62b26a4948f5a48ba5ff4d8fcc070f2b7f2ea895520`；`LAST_VERIFIED_STEP=GAS read-only immutable/source/permission audit`；`COMPLETED=OWNER_PREVIEW_DEPLOY_VERIFIED`；`NEXT_ACTION=OWNER manual browser UAT, then fix observed UI issues on isolated branch`；`BLOCKERS=TRUSTED_IDENTITY_SOURCE_NOT_CONFIGURED, TRUSTED_SLOT_E1E2_SOURCE_NOT_CONFIGURED, REAL_WIZARD_OTP_NOT_CONNECTED, UI_VERIFIED_NOT_DONE`；`WRITE_OWNER=PR #133 isolated branch`；`SYNC_STATUS=GAS_OWNER_PREVIEW_SYNC_VERIFIED=true, MAIN_SYNC_VERIFIED=false, UI_VERIFIED=false, FORMAL_READY=false`。
+
+
+### 70-S.15｜2026-11-10 正式報名P0修正：pending intake、REC來源與交付門檻
+
+**使用者當次最新授權：** 停止以OWNER虛構展示與合成測試當作已完成的正式網站，持續一次性推進原系統全部報名端到端功能；只有符合正式啟用的工程安全與REC適用性前置、真正可供驗收時，再通知使用者集中人工UAT。不建平行網站，不把未取得核准的電子同意或資格來源臆造為已核准。保留原七步、V05/V08、原B02/B03/B04及原資料表。
+
+**原因盤點（讀取原PR 7d6781a7與main）：** 私人GAS V125雖已部署與回讀，`gas/Study1Visitor.html`仍依`runnableOwnerPreview_()`要求TEST fixture，`gas/Website.js`的`requestOtp/verifyOtp/holdSlot/submitConsent`公開端點仍無條件拒絕。`study1BindingGate_`會呼叫`study1AdminOwnerRequired_()`，所以現行Applicant/OTP正式後端仍是OWNER-only，且`study1WizardIntakeAuthority_()`及`study1EConsentOtpApplicantAuthorization_()`因可信本人來源缺失而throw；原Slots無experiment欄。這些是正式收件無法運作的程式斷點，不可僅用CI或ScriptProperties解除。REC研究程序本身已核可，但電子郵件身份／遠端簽署／正式保存之具體適用範圍仍應核對有效版本。
+
+**本輪實質程式：** 新增`gas/Study1ParticipantIntake.js`，用適合未核身參與者的原Applicants七欄、Screenings六欄作申請的**PENDING**建立內核（非新Sheet、不為真人開啟RPC）。E1起始、從正式核實REC資料利用政策取得版本/原證據SHA及獨立反濫用保護，未核准先阻擋；5項自陳篩檢布林值僅在記憶體評估，沒有逐題健康資料持久保存；不合格不寫表。申請ID／screening ID由原HMAC及冪等requestId產生；原共用ScriptLock、表頭、唯一Email、原欄數追加、flush和完整逐列回讀；重送同鍵冪等、不同鍵同信箱拒絕、部分跨表失敗需人工核對。新紀錄只有`PENDING_EMAIL`及`PENDING_REVIEW`/`SELF_REPORT_NOT_VERIFIED`，不自動標VERIFIED/ELIGIBLE，不寄信、預約或簽署。真正身分與OTP驗證、確認預約仍需後續分開串接。
+
+**測試及正式版本：** 新增`tests/study1-participant-intake.test.cjs`十項，包括關閉預設、不寫健康逐題資料、不合格不存、E2禁止、證據來源未配置拒絕、重送/重複Email、身分交換、部分寫入及競寫。原GAS精確白名單與來源同步測試跟進加入`Study1ParticipantIntake`；程式HEAD `c5ad7cb0685ab96d20d97c76b8139ff76cd8312b`，GitHub CI Run `42775757940`成功，至少先前同組`42775682829`已回讀808 tests PASS、0 FAIL。程式只在原PR隔離分支，未合併main、未修改GAS V125、未讀寫正式Sheets、未發真人Email或簽名。
+
+**REC當次新發現：** Drive原倫理審查資料夾的「變更申請」子夾含`REC-P-06-計畫變更申請書-20261022.docx`及E1/E2 `20261027.odt`修正草稿；目前查到的是**申請文件**，不能因修改日期、文件名稱或存在而推論REC已核准及生效。仍應透過核准通知/審查決議/生效版本查對。原證書`202604EM033`核可研究不代表網站寄信、收件及遠端簽署皆已核可。
+
+**P0緊接實作**：先把pending→email OTP核發/驗證→本人/資格來源核對→E1/E2經人工核定的原Slots對應→同鎖Reservations時段確定→最後核准PDF簽署/研究人員確認/副本交付串起來，在原`Study1Visitor.html`提供正式外觀與可啟用RPC；新增防Email地址探測/反機器人、錯誤/超量/跨表修復及真實瀏覽器UAT。全套功能可測完成之前不請使用者驗Demo。正式遠端收件開關維持`OPEN=false`、`CONSENT_READY=false`、原私人管理`MYSELF`；E2不自動開放。
+
+**接續**：`TASK_DOMAIN=Study1 website`；`SOURCE_PATH=solactw-star/study1-recruitment-gas PR#133`；`SOURCE_VERSION=c5ad7cb0685ab96d20d97c76b8139ff76cd8312b（此後必重讀最新）`；`LAST_VERIFIED_STEP=pending Applicant/Screening kernel + synthetic CI`；`COMPLETED=10 new pending-intake tests`；`NEXT_ACTION=email OTP for prospective PENDING applications and formal participant RPC/owner review`；`BLOCKERS=REC_VERSION_APPROVAL_NOT_VERIFIED, PUBLIC_INTAKE_ABUSE_PROVIDER_NOT_CONFIGURED, TRUSTED_IDENTITY_NOT_CONFIGURED, E1_E2_SLOT_ASSOCIATION_NOT_CONFIGURED, FORMAL_WIZARD_NOT_INTEGRATED`；`WRITE_OWNER=PR#133 isolated branch`；`SYNC_STATUS=BRANCH_ONLY, MAIN_SYNC_VERIFIED=false, GAS_V125_UNCHANGED, UI_VERIFIED=false, FORMAL_READY=false`。
