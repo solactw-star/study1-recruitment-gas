@@ -23,6 +23,7 @@ test('Formal controller runs only for explicit FORMAL body tag and aborts old de
  assert.match(visitor,/rpc\('study1ParticipantBegin'/);
  assert.match(visitor,/rpc\('study1ParticipantSendOtp'/);
  assert.match(visitor,/rpc\('study1ParticipantVerifyOtp'/);
+ assert.match(visitor,/rpc\('study1ParticipantEmailStatus',result.emailProof/);
  assert.match(visitor,/if\(!state\.ready\|\|state\.busy\)return/);
  assert.match(visitor,/state\.ready=!!\(result&&result\.ready===true&&result\.experiment==='E1'&&/);
  assert.match(visitor,/state\.humanToken/);
@@ -50,7 +51,7 @@ test('Real OTP never invokes test command or demo code; email is not student ver
  assert.match(visitor,/document\.body\.dataset\.siteMode==='FORMAL'\)return;/);
  assert.match(visitor,/if\(sampleCode\)sampleCode\.hidden=true/);
  assert.match(visitor,/if\(el\('otpPaste'\)\)el\('otpPaste'\)\.hidden=true/);
- assert.match(visitor,/status\('電子郵件已驗證。此階段尚不代表研究資格已核定或時段預約成立。'\)/);
+ assert.match(visitor,/研究資格仍待研究團隊核實；目前尚未核准占用時段或簽署同意/);
  assert.match(intake,/phase:'PENDING_EMAIL'/);
  assert.match(intake,/s\[3\]!=='PENDING_REVIEW'/);
  assert.match(intake,/return \{verified:result\.verified===true,\s*reason:result\.verified\?'EMAIL_CONTROL_ONLY':'REJECTED'\}/);

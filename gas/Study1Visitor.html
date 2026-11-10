@@ -355,8 +355,15 @@ el('otpVerify').addEventListener('click',()=>{
  rpc('study1ParticipantVerifyOtp',{...state.app,challengeId:state.mail,
   code:el('otpInput').value},result=>{
   if(!result||result.verified!==true){status('驗證碼無效、已使用或逾期，請確認後再操作。');return;}
-  show('slots');
-  status('電子郵件已驗證。此階段尚不代表研究資格已核定或時段預約成立。');
+  if(!result.emailProof){status('郵件證據回讀未完成，請聯絡研究團隊。');return;}
+  rpc('study1ParticipantEmailStatus',result.emailProof,statusResult=>{
+   if(!statusResult||statusResult.emailVerified!==true||
+      statusResult.applicationState!=='PENDING_STAFF_ELIGIBILITY_REVIEW'){
+    status('原申請與驗證紀錄尚未一致，請聯絡研究團隊。');return;
+   }
+   show('slots');
+   status('電子郵件證據已重新核對。研究資格仍待研究團隊核實；目前尚未核准占用時段或簽署同意。');
+  });
  });
 });
 if(typeof google!=='undefined'&&google.script&&google.script.run){

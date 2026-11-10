@@ -21,7 +21,7 @@ const approvedPublicFunctions = [
   'cancelHold', 'doGet', 'getPublicConfig', 'getPublicConsentDocument', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
   'requestOtp', 'submitConsent', 'verifyOtp',
-  'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp'
+  'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp','study1ParticipantEmailStatus'
 ].sort();
 
 test('all GAS source files expose only the reviewed closed-site global functions', () => {
