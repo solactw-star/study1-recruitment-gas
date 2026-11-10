@@ -1236,11 +1236,25 @@ async function study1EConsentConfirmPdf(input){
   });
   if(changed.state!=='CONFIRMED'||changed.signedPdf.sha!==stamped.signedSha256)
    throw Error('RESEARCHER_PDF_COMMIT_UNKNOWN');
+  // The consent event and original Reservations are separate data stores.
+  // NEVER move a booking before the dual PDF is fully committed. The second
+  // OWNER-only transaction is independently locked, source-verified and CAS
+  // read back; if it fails, preserve the genuine PDF and report PENDING.
+  let originalBookingConfirmed=false;
+  try{
+   if(typeof study1FormalFinalizeSignedE1Booking_==='function'){
+    const booking=study1FormalFinalizeSignedE1Booking_(before.id);
+    originalBookingConfirmed=booking.bookingConfirmed===true&&
+      booking.bookingStatus==='CONFIRMED';
+   }
+  }catch(_){/* No claim of booking success or automatic unsafe replay. */}
   return {state:'CONFIRMED',experiment:'E1',
    participantSignedPdfSha256:before.signedPdf.sha,
    signedPdfSha256:stamped.signedSha256,
    researcherSignedAt:stamped.researcherSignedAt,
-   researcherTaipeiDate:stamped.researcherTaipeiDate,participantCopyAvailable:true};
+   researcherTaipeiDate:stamped.researcherTaipeiDate,participantCopyAvailable:true,
+   originalBookingConfirmed,
+   originalBookingStatus:originalBookingConfirmed?'CONFIRMED':'OWNER_RECONCILIATION_REQUIRED'};
  }catch(error){
   if(saved){
    let referenced=true;
