@@ -26,7 +26,7 @@ const approvedPublicFunctions = [
   'study1FormalV05Slots','study1FormalQuoteHold','study1FormalHoldSlot','study1FormalStatus','study1FormalWaitlistJoin','study1FormalWaitlistClaim','study1FormalCancel','study1FormalMove',
   'study1FormalConsentBegin','study1FormalConsentStatus',
   // OWNER only: direct original Slots read-only audit, no personal data or writes
-  'study1OwnerE1SlotAudit'
+  'study1OwnerE1SlotAudit','study1OwnerE1SlotRegistryProposal'
 ].sort();
 
 test('all GAS source files expose only the reviewed closed-site global functions', () => {
