@@ -275,7 +275,41 @@ function study1WizardOtpVerifyBound_(r){
     Object.keys(r).sort().join(',')!==
     'applicantId,challengeId,code,experiment,screeningId')
   throw Error('原七步OTP請求格式不正確');
- return study1EConsentVerifyContactOtp_(r);
+ // E1 eligibility is self-declared; OTP only verifies email access.
+ if(r.experiment!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
+ const lock=LockService.getScriptLock();
+ if(!lock||lock.tryLock(5000)!==true)
+  throw Error('OTP本人申請共用鎖遭占用');
+ let email;
+ try{
+  if(!lock.hasLock())throw Error('OTP本人申請共用鎖失效');
+  study1WizardP0Gate_();
+  const book=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
+  const applicant=study1BindingSheetRow_(book,'Applicants',
+   STUDY1_BINDING_SCHEMA_.applicants,r.applicantId).rows[0];
+  const screening=study1BindingSheetRow_(book,'Screenings',
+   STUDY1_BINDING_SCHEMA_.screenings,r.screeningId).rows[0];
+  const policy=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
+  if(applicant[6]!=='PENDING_EMAIL'||
+     screening[1]!==r.applicantId||
+     screening[2]!==policy.screeningVersion||
+     screening[3]!=='ELIGIBLE'||
+     screening[5]!=='PARTICIPANT_SELF_REPORT')
+   throw Error('EMAIL_OTP_SELF_REPORT_SOURCE_INVALID');
+  email=study1BindingEmail_(applicant[2]);
+ }finally{lock.releaseLock();}
+ // Both operations independently lock and recheck F:G+original rows.
+ const verified=study1ParticipantOtpVerify_({
+  applicantId:r.applicantId,screeningId:r.screeningId,
+  challengeId:r.challengeId,experiment:'E1',email,code:r.code});
+ if(verified.verified!==true)return verified;
+ if(!verified.emailProof)throw Error('EMAIL_PROOF_MISSING');
+ const status=study1ParticipantEmailStatus_(verified.emailProof);
+ if(!status.emailVerified||
+    status.eligibilitySource!=='PARTICIPANT_SELF_REPORT'||
+    status.applicationState!=='SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED')
+  throw Error('EMAIL_PROOF_RECHECK_FAILED');
+ return verified;
 }
 
 /** Stage 05: server-verified booking summary, not client-authorized consent.
