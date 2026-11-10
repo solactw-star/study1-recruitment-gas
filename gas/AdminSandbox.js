@@ -1046,7 +1046,8 @@ async function study1EConsentSignPdf(input){
  // A bearer token and staff manual invitation are never sufficient proof.
  // This must be re-read from approved server-only sources, not from the browser.
  if(!prior.binding)throw Error('BINDING_REQUIRED：此邀請未綁定身分／OTP／預約');
- const bindingAdapter=study1EConsentBindingAdapter_();
+ if(prior.channel==='FORMAL_E1')study1FormalConsentGate_();
+ const bindingAdapter=study1EConsentBindingAdapter_(prior.channel==='FORMAL_E1'?'PUBLIC_E1':undefined);
  if(prior.state!=='EXPLAINED'||prior.documentSha!==input.documentSha||
    prior.expires<=Date.now())
   throw Error('此固定文件已失效，無法簽署');
