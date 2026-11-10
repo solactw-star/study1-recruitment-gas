@@ -231,3 +231,17 @@ test('Expired prospective email OTP never validates, no Applicant status escalat
  assert.equal(result.verified,false);
  assert.equal(x.records.Applicants[0][6],'PENDING_EMAIL');
 });
+
+test('Formula injection in applicant-controlled Sheet cells is rejected before any write',()=>{
+ const x=env();
+ for(const bad of [
+  {...x.input,name:'=IMPORTXML("https://example.org","//x")'},
+  {...x.input,name:' +HYPERLINK("https://example.org","x")'},
+  {...x.input,phone:'=1+2'},
+  {...x.input,email:'=SUM(1)@example.org'}
+ ]){
+  assert.throws(()=>x.begin(bad),/申請欄位包含禁止的試算表公式前綴/);
+  assert.equal(x.open.length,0);
+  assert.equal(x.records.Applicants.length,0);
+ }
+});
