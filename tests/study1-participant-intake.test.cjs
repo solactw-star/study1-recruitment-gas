@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),crypto=require('node:crypto');
-const src=['OtpCore.js','OtpThrottle.js','OtpTransaction.js','Study1EConsentBinding.js','Study1EConsentOtpAdapter.js','Study1WizardEnrollment.js','Study1ParticipantIntake.js']
+const src=['OtpCore.js','OtpThrottle.js','OtpTransaction.js','Study1EConsentBinding.js','Study1EConsentOtpAdapter.js','Study1WizardEnrollment.js','Study1ParticipantTrust.js','Study1ParticipantIntake.js']
  .map(f=>fs.readFileSync(path.join(__dirname,'../gas',f),'utf8')).join('\n');
 const columns={
  Applicants:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],
@@ -74,11 +74,20 @@ function env({enabled=true,policy=true,abuse=true}={}){
   allowsProspectiveIntake:true,allowsPrivateSheetsStorage:true
  };
  if(policy)scope.study1ParticipantRecPolicy_=()=>source;
- if(abuse)scope.study1ParticipantAbuseProtection_=r=>({
-  allowed:true,provenance:'SERVER_APPROVED_RATE_AND_BOT_PROTECTION',requestId:r.requestId});
+ if(abuse){
+  scope.study1ParticipantAbuseProtection_=r=>({
+   allowed:true,provenance:'SERVER_APPROVED_RATE_AND_BOT_PROTECTION',
+   requestId:r.requestId,validatedAtUtc:new Date().toISOString(),
+   verificationHmac:'a'.repeat(64)});
+  scope.study1ParticipantAbuseRecheck_=(grant,r)=>{
+   assert.equal(grant.requestId,r.requestId);
+   assert.equal(grant.allowed,true);
+   return true;
+  };
+ }
  const input={experiment:'E1',name:'合成申請者',email:'synthetic.person@example.org',
   phone:'',adult:true,cycu:true,noDx:true,noTreatment:true,noPractice:true,
-  requestId:'REQ_SYNTH_PERSON_000001'};
+  requestId:'REQ_SYNTH_PERSON_000001',humanToken:'SYNTHETIC_HUMAN_TOKEN_ABC123456789'};
  return {scope,flags,open,writes,records,lock,source,input,mail,time,
   begin:x=>scope.study1ParticipantBegin_(x||input)};
 }

@@ -26,7 +26,7 @@ function remote(){
 }
 test('Current reviewed CLOSED Website source passes strict server gate',()=>{
  assert.doesNotThrow(()=>backend.assertClosedWebsite(website));
- assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','Study1PdfLib','Study1PdfStampCore','Study1EConsentBinding','Study1EConsentOtpAdapter','Study1WizardP0Bridge','Study1WizardEnrollment','Study1ParticipantIntake','Study1Visitor','Study1Team','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
+ assert.deepEqual(backend.APPROVED_BACKEND.map(f=>f.name),['Website','AdminSandbox','AdminConsole','Study1Flow','Study1Unified','Study1PdfLib','Study1PdfStampCore','Study1EConsentBinding','Study1EConsentOtpAdapter','Study1WizardP0Bridge','Study1WizardEnrollment','Study1ParticipantIntake','Study1ParticipantTrust','Study1Visitor','Study1Team','OtpCore','BookingCore','OtpThrottle','OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter']);
  assert.doesNotThrow(()=>backend.assertAdminSandbox(adminSource));
  assert.doesNotThrow(()=>backend.assertAdminHtml(adminHtml));
  assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
