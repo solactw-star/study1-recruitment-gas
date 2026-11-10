@@ -94,7 +94,7 @@ function study1EConsentVerifyContactOtp_(request){
  study1BindingId_(request.challengeId);
  study1BindingId_(request.screeningId);
  if(!['E1','E2'].includes(request.experiment)||
-    typeof request.code!=='string'||!/^\\d{8}$/.test(request.code))
+    typeof request.code!=='string'||!/^\d{8}$/.test(request.code))
   throw Error('OTP挑戰或實驗別不合法');
  const auth=study1EConsentOtpApplicantAuthorization_(request);
  if(!auth||auth.applicantId!==request.applicantId||
