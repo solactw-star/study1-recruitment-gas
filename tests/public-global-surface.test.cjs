@@ -25,7 +25,7 @@ const approvedPublicFunctions = [
   'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp','study1ParticipantEmailStatus',
   // E1 booking ports: all re-check REC, self-report, original OTP, slots and ScriptLock
   'study1FormalV05Slots','study1FormalQuoteHold','study1FormalHoldSlot','study1FormalStatus','study1FormalWaitlistJoin','study1FormalWaitlistClaim','study1FormalCancel','study1FormalMove',
-  'study1FormalConsentBegin','study1FormalConsentStatus',
+  'study1FormalConsentBegin','study1FormalConsentStatus','study1FormalConsentOriginalPdf',
   // OWNER only: direct original Slots read-only audit, no personal data or writes
   'study1OwnerE1SlotAudit','study1OwnerE1SlotRegistryProposal'
 ].sort();
