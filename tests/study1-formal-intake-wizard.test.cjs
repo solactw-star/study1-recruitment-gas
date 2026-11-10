@@ -56,7 +56,7 @@ test('Real OTP never invokes test command or demo code; email is not student ver
  assert.match(visitor,/study1FormalWaitlistJoin/);
  assert.match(visitor,/study1FormalMove/);
  assert.match(visitor,/study1FormalCancel/);
- assert.match(visitor,/不需查驗身分證或學生證/);
+ assert.match(visitor,/不查驗身分證或學生證/);
  assert.match(intake,/phase:'PENDING_EMAIL'/);
  assert.match(intake,/s\[3\]!=='ELIGIBLE'/);
  assert.match(intake,/s\[5\]!=='PARTICIPANT_SELF_REPORT'/);

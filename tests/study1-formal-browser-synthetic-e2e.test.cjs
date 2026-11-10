@@ -8,7 +8,7 @@ const end=html.indexOf("\n})();\n\n(function(){",start);
 assert.ok(start>0&&end>start,'original single visitor formal branch missing');
 const script=html.slice(start,end+5);
 function simulate(readiness){
- const nodes=new Map(),queries=new Map(),calls=[],rendered=[];
+ const nodes=new Map(),queries=new Map(),calls=[],rendered=[],errors=[];
  function node(id){
   if(!nodes.has(id))nodes.set(id,{
    id,hidden:id==='formalHumanCheck',disabled:false,textContent:'',value:'',
@@ -57,7 +57,7 @@ function simulate(readiness){
  for(const [method,fn] of Object.entries(server)){
   runner[method]=request=>{
    calls.push({method,request});
-   try{runner.success(fn(request))}catch(error){runner.failure?.(error)}
+   try{runner.success(fn(request))}catch(error){errors.push(String(error?.stack||error));runner.failure?.(error)}
   };
  }
  const turnstile={
@@ -79,7 +79,7 @@ function simulate(readiness){
   if(!f)return false;
   f();return true;
  }
- return {node,queries,click,calls,rendered,script};
+ return {node,queries,click,calls,rendered,errors,script};
 }
 test('Synthetic browser: closed gate prevents any applicant PII or CAPTCHA request',()=>{
  const s=simulate({ready:false,reason:'REGISTRATION_NOT_OPEN'});
@@ -123,7 +123,7 @@ test('Synthetic browser: gated seven-stage E1 intake -> human token -> email pro
  assert.equal(s.click('otpVerify'),true);
  assert.equal(s.calls.some(x=>x.method==='study1ParticipantVerifyOtp'),true);
  assert.equal(s.calls.some(x=>x.method==='study1ParticipantEmailStatus'),true);
- assert.equal(s.calls.some(x=>x.method==='study1FormalV05Slots'),true);
+ assert.equal(s.calls.some(x=>x.method==='study1FormalV05Slots'),true,JSON.stringify({calls:s.calls.map(x=>x.method),errors:s.errors}));
  assert.equal(s.node('step-slots').hidden,false);
  assert.equal(s.node('hold').disabled,true,'no verified formal slot to book');
  assert.equal(s.node('step-consent').hidden,true,'no remote PDF signature ahead of independent identity');
