@@ -156,7 +156,7 @@ function assertOtpCore(source){
     !source.includes('function otpHmacHex_('))throw Error('OtpCore pure methods missing');
 }
 function assertBookingCore(source){
- assertPinnedCore(source,'496fa02b896f71682bf2dead373b2a146cfe0f7e','BookingCore');
+ assertPinnedCore(source,'7c7bd7836cf2f868d04f2d35eb317efb0c9c8ec8','BookingCore');
  if(!source.includes('function bookingComputeAvailability_(')||
     !source.includes('function bookingVerifySheetHeaders_('))
    throw Error('BookingCore expected pure method or read-only preflight missing');
@@ -429,7 +429,7 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);assertOtpCore(otpCore);assertBookingCore(bookingCore);
  assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle');
  assertTransactionKernel(otpTransaction,'85e554cab2c6767fd80545b8c6e573c99e750a9e','OtpTransaction');
- assertTransactionKernel(bookingHoldTransaction,'1f12a687625ceb72414227451853a900e3dab692','BookingHoldTransaction');
+ assertTransactionKernel(bookingHoldTransaction,'d15375bb4ea6825231cca60cd2ab9cbb28a4f024','BookingHoldTransaction');
  assertFixtureAdapter(fixtureAdapter);
  const visitorHtml=require('node:fs').readFileSync(require('node:path').join(__dirname,'../gas/Study1Visitor.html'),'utf8');
  assertVisitorHtml(visitorHtml);

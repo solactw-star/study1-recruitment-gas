@@ -218,7 +218,7 @@ test('Step 05 never reports a canceled, expired or moved reservation as confirme
 });
 test('Step 05 cannot read original participant record if technical gate is closed after holding',()=>{
  const h=fixture(),held=h.context.study1WizardHoldBound_(h.req);
- h.context.study1BindingGate_=()=>{throw Error('BACKEND_NOT_READY');};
+ h.context.study1ParticipantGate_=()=>{throw Error('BACKEND_NOT_READY');};
  assert.throws(()=>h.context.study1WizardReviewBound_({...h.req,
   reservationId:held.reservationId,receipt:held.receipt}),/BACKEND_NOT_READY/);
  assert.equal(h.writes.length,1);
