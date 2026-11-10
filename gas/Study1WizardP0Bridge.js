@@ -283,3 +283,76 @@ function study1WizardOtpVerifyBound_(r){
   throw Error('原七步OTP請求格式不正確');
  return study1EConsentVerifyContactOtp_(r);
 }
+
+/** Stage 05: server-verified booking summary, not client-authorized consent.
+ * Validate original HELD row AND original document, identity and slot mapping
+ * against the receipt generated at stage 04. This is read-only. No assumption
+ * about a research participant's real identity can be derived from OTP alone.
+ */
+function study1WizardReviewBound_(untrusted){
+ study1WizardP0Gate_();
+ if(!untrusted||Array.isArray(untrusted)||typeof untrusted!=='object'||
+    Object.keys(untrusted).sort().join(',')!==
+    'applicantId,challengeId,documentSha,documentVersion,experiment,holdUntilUtc,receipt,requestId,reservationId,screeningId,slotId')
+  throw Error('簽署前預約核對欄位不合格');
+ const base={
+  applicantId:untrusted.applicantId,challengeId:untrusted.challengeId,
+  screeningId:untrusted.screeningId,slotId:untrusted.slotId,
+  experiment:untrusted.experiment,documentSha:untrusted.documentSha,
+  documentVersion:untrusted.documentVersion,
+  holdUntilUtc:untrusted.holdUntilUtc,requestId:untrusted.requestId
+ };
+ const r=study1WizardRequest_(base);
+ const reservationId=study1BindingId_(untrusted.reservationId);
+ if(typeof untrusted.receipt!=='string'||!/^[a-f0-9]{64}$/.test(untrusted.receipt))
+  throw Error('預約憑證格式不合法');
+ study1WizardDocument_(r);
+ const lock=LockService.getScriptLock();
+ if(!lock||typeof lock.tryLock!=='function'||typeof lock.hasLock!=='function'||
+    typeof lock.releaseLock!=='function'||lock.tryLock(5000)!==true)
+  throw Error('無法取得簽署前預約核對共用鎖');
+ try{
+  if(lock.hasLock()!==true)throw Error('共用鎖失效');
+  study1WizardP0Gate_();study1WizardDocument_(r);
+  const identity=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r));
+  const proof=study1WizardReadPerson_(r,identity);
+  if(lock.hasLock()!==true)throw Error('核身期間共用鎖失效');
+  const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
+  const b=study1BindingSheetRow_(operations,'Reservations',
+    BOOKING_RESERVATION_HEADERS_,reservationId).rows[0];
+  const slot=study1BindingSheetRow_(operations,'Slots',
+    BOOKING_SLOT_HEADERS_,r.slotId).rows[0];
+  const slotEvidenceSha=study1WizardSlotCheck_(r,slot);
+  const idempotencyKey='WZ_'+study1BindingHmac_([
+   'STUDY1_WIZARD_BOOKING_V1',r.applicantId,r.challengeId,
+   r.screeningId,r.experiment,r.slotId,r.documentSha,
+   r.documentVersion,r.requestId
+  ]);
+  if(b[0]!==reservationId||b[1]!==r.applicantId||
+     b[2]!==r.slotId||b[3]!=='HELD'||
+     b[4]!==r.holdUntilUtc||b[5]!==idempotencyKey||
+     study1BindingUtc_(b[4])<=Date.now()||
+     study1BindingUtc_(slot[1])<=Date.now()||
+     study1BindingUtc_(b[4])>study1BindingUtc_(slot[1]))
+   throw Error('預約已失效、被取消、申請者不一致或重送識別碼已更改');
+  const expected=study1BindingHmac_([
+   'STUDY1_WIZARD_HOLD_RECEIPT_V1',
+   r.applicantId,r.challengeId,r.screeningId,r.experiment,
+   r.slotId,reservationId,r.holdUntilUtc,r.documentSha,
+   r.documentVersion,proof.identityEvidenceSha,
+   proof.eligibilityEvidenceSha,proof.e1HistorySha,
+   slotEvidenceSha,idempotencyKey
+  ]);
+  // Fixed length, compare all bytes to avoid early mismatch disclosure.
+  let diff=0;
+  for(let i=0;i<64;i++)
+   diff|=expected.charCodeAt(i)^untrusted.receipt.charCodeAt(i);
+  if(diff!==0)throw Error('預約憑證HMAC與最新正式來源不符');
+  if(lock.hasLock()!==true)throw Error('核對期間共用鎖失效');
+  return {verified:true,stage:'CONFIRM',experiment:r.experiment,
+   applicantId:r.applicantId,reservationId,slotId:r.slotId,
+   startAtUtc:slot[1],endAtUtc:slot[2],locationCode:slot[4],
+   holdUntilUtc:b[4],documentVersion:r.documentVersion,
+   documentSha:r.documentSha};
+ }finally{lock.releaseLock();}
+}
