@@ -25,7 +25,18 @@ function env({enabled=true,policy=true,abuse=true}={}){
   return {getLastRow:()=>rows.length+1,getLastColumn:()=>headers.length,
    appendRow:v=>{assert.equal(lock.held,true);rows.push(v.slice());writes.push('append '+n);},
    getRange:(start,col,count,width)=>({
-    setValues:values=>{assert.equal(lock.held,true);assert.equal(n,'Verification');assert.equal(col,6);assert.equal(width,2);records.Verification[start-2][5]=values[0][0];records.Verification[start-2][6]=values[0][1];writes.push('F:G');},
+    setValues:values=>{
+     assert.equal(lock.held,true);assert.equal(col,6);assert.equal(width,2);
+     if(n==='Verification'){
+      records.Verification[start-2][5]=values[0][0];
+      records.Verification[start-2][6]=values[0][1];
+      writes.push('F:G');
+     }else if(n==='Applicants'){
+      records.Applicants[start-2][5]=values[0][0];
+      records.Applicants[start-2][6]=values[0][1];
+      writes.push('Applicant-email-status');
+     }else throw Error('unexpected Sheet mutation');
+    },
     getValues:()=>Array.from({length:count},(_,i)=>{
      const row=start+i===1?headers:rows[start+i-2];
      assert.ok(row,'no row '+n+':'+(start+i));
@@ -103,8 +114,8 @@ test('Valid self-reported E1 request creates PENDING only, never VERIFIED',()=>{
  assert.match(created.screeningId,/^SCR_[a-f0-9]{28}$/);
  assert.equal(created.phase,'PENDING_EMAIL');
  assert.equal(x.records.Applicants[0][6],'PENDING_EMAIL');
- assert.equal(x.records.Screenings[0][3],'PENDING_REVIEW');
- assert.equal(x.records.Screenings[0][5],'SELF_REPORT_NOT_VERIFIED');
+ assert.equal(x.records.Screenings[0][3],'ELIGIBLE');
+ assert.equal(x.records.Screenings[0][5],'PARTICIPANT_SELF_REPORT');
  assert.equal(x.records.Applicants[0].length,7);
  assert.equal(x.records.Screenings[0].length,6);
  assert.equal(x.writes.filter(x=>x==='flush').length,2);
@@ -181,7 +192,7 @@ test('Pending applicant can issue a real shaped email OTP with MailApp fake only
  assert.equal(verified.verified,true);
  assert.equal(verified.reason,'EMAIL_CONTROL_ONLY');
  assert.equal(x.records.Applicants[0][6],'PENDING_EMAIL');
- assert.equal(x.records.Screenings[0][3],'PENDING_REVIEW');
+ assert.equal(x.records.Screenings[0][3],'ELIGIBLE');
  assert.equal(x.records.Verification[0][5],1);
  assert.match(x.records.Verification[0][6],/^20\d{2}/);
  assert.equal(x.writes.filter(y=>y==='F:G').length,1);
@@ -272,7 +283,15 @@ test('OTP email-control proof binds verified original F:G under lock; forged tic
  assert.equal(JSON.stringify(done.emailProof).includes(x.input.email),false);
  const status=x.scope.study1ParticipantEmailStatus_(done.emailProof);
  assert.equal(status.emailVerified,true);
- assert.equal(status.applicationState,'PENDING_STAFF_ELIGIBILITY_REVIEW');
+ assert.equal(status.applicationState,'SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED');
+ assert.equal(status.eligibilitySource,'PARTICIPANT_SELF_REPORT');
+ assert.equal(x.records.Applicants[0][6],'EMAIL_VERIFIED');
+ assert.equal(x.records.Screenings[0][3],'ELIGIBLE');
+ assert.equal(x.records.Screenings[0][5],'PARTICIPANT_SELF_REPORT');
+ assert.equal(x.writes.filter(y=>y==='Applicant-email-status').length,1);
+ const again=x.scope.study1ParticipantEmailStatus_(done.emailProof);
+ assert.equal(again.applicationState,status.applicationState);
+ assert.equal(x.writes.filter(y=>y==='Applicant-email-status').length,1);
  assert.equal(status.reservationState,'NOT_AUTHORIZED');
  assert.equal(status.consentState,'NOT_SIGNED');
  const before=x.open.length;
@@ -341,4 +360,15 @@ test('Corrupt original Applicants timestamp aborts before writing real participa
  x.records.Applicants[0][4]='not-a-utc-date';
  assert.throws(()=>x.begin(),/時間來源必須是 UTC ISO 毫秒/);
  assert.equal(x.records.Applicants.length,1);
+});
+
+test('Self-declared eligibility is not a documentary identity verification',()=>{
+ const x=env(),app=x.begin();
+ assert.equal(x.records.Screenings[0][3],'ELIGIBLE');
+ assert.equal(x.records.Screenings[0][5],'PARTICIPANT_SELF_REPORT');
+ assert.equal(x.records.Applicants[0][6],'PENDING_EMAIL');
+ assert.equal(JSON.stringify(x.records).includes('studentId'),false);
+ assert.equal(JSON.stringify(x.records).includes('identityCard'),false);
+ assert.equal(JSON.stringify(x.records).includes('noDx'),false);
+ assert.equal(x.scope.study1ParticipantReadiness().ready,false);
 });

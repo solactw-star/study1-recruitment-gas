@@ -305,7 +305,7 @@ if(el('otpInputWrap'))el('otpInputWrap').hidden=true;
 const otpLead=document.querySelector('#step-otp .lead');
 if(otpLead)otpLead.textContent='系統將寄送八位數電子郵件驗證碼至您剛提供的電子郵件地址，10分鐘內有效。';
 const slotLead=document.querySelector('#step-slots .lead');
-if(slotLead)slotLead.textContent='已完成信箱控制權核對。研究資格、有效名額、本人身分與適用研究仍須由系統及研究團隊核實；目前尚不可直接成立預約。';
+if(slotLead)slotLead.textContent='研究資格依參與者自行勾選聲明，Email OTP僅確認信箱控制權。確認正式時段與同意程序後才能成立預約，不查驗身分證或學生證。';
 for(const id of ['v05Dates','v05Choices','v05Status','v05Month','v05Prev','v05Next','slot','hold','v08WaitBox']){
  const node=el(id);if(node)node.hidden=true;
 }
@@ -358,11 +358,12 @@ el('otpVerify').addEventListener('click',()=>{
   if(!result.emailProof){status('郵件證據回讀未完成，請聯絡研究團隊。');return;}
   rpc('study1ParticipantEmailStatus',result.emailProof,statusResult=>{
    if(!statusResult||statusResult.emailVerified!==true||
-      statusResult.applicationState!=='PENDING_STAFF_ELIGIBILITY_REVIEW'){
+      statusResult.applicationState!=='SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED'||
+      statusResult.eligibilitySource!=='PARTICIPANT_SELF_REPORT'){
     status('原申請與驗證紀錄尚未一致，請聯絡研究團隊。');return;
    }
    show('slots');
-   status('電子郵件證據已重新核對。研究資格仍待研究團隊核實；目前尚未核准占用時段或簽署同意。');
+   status('資格勾選已依本人自陳紀錄，電子郵件控制權也已核對。尚待正式時段與同意程序開放；不需查驗身分證或學生證。');
   });
  });
 });

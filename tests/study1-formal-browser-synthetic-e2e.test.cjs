@@ -39,7 +39,7 @@ function simulate(readiness){
     version:1,signature:'a'.repeat(64),applicantId:req.applicantId,
     challengeId:req.challengeId,screeningId:req.screeningId}}),
   study1ParticipantEmailStatus:req=>({
-   emailVerified:true,applicationState:'PENDING_STAFF_ELIGIBILITY_REVIEW',
+   emailVerified:true,eligibilitySource:'PARTICIPANT_SELF_REPORT',applicationState:'SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED',
    reservationState:'NOT_AUTHORIZED',consentState:'NOT_SIGNED'})
  };
  const runner={
@@ -125,7 +125,7 @@ test('Synthetic browser: gated seven-stage E1 intake -> human token -> email pro
  assert.equal(s.node('step-slots').hidden,false);
  assert.equal(s.node('hold').hidden,true,'no unapproved formal slot to book');
  assert.equal(s.node('step-consent').hidden,true,'no remote PDF signature ahead of independent identity');
- assert.match(s.node('status').textContent,/研究資格仍待研究團隊核實/);
+ assert.match(s.node('status').textContent,/資格勾選已依本人自陳紀錄/);
  assert.equal(s.calls.some(x=>/UnifiedPreview|SIMULATED/.test(x.method)),false);
 });
 test('Synthetic browser: Turnstile token expires and cannot be implicitly reused',()=>{
