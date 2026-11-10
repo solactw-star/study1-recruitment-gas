@@ -755,7 +755,7 @@ function study1EConsentChange_(id,fn){
   if(index<0)throw Error('電子同意紀錄未找到');
   const before=r.records[index];let after=null;
   try{
-   after=fn(before,r);
+   after=fn(before,r,lock);
    if(!after)return before;
    const next={...r,revision:r.revision+1,
     records:r.records.map((x,j)=>j===index?after:x)};
@@ -1064,7 +1064,7 @@ async function study1EConsentSignPdf(input){
    version:prior.documentVersion},signedAt);
  let savedPdf=null;
  try{
-  const changed=study1EConsentChange_(prior.id,x=>{
+  const changed=study1EConsentChange_(prior.id,(x,r,heldLock)=>{
    if(!study1EConsentEnabled_()||
       p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
       p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true'||
@@ -1080,7 +1080,9 @@ async function study1EConsentSignPdf(input){
    // holding the very script lock protecting the signature event CAS.
    if(!x.binding||x.binding.digest!==prior.binding.digest)
     throw Error('簽署邀請的本人身分連結發生變動');
-   study1BindingRecheck_(x.binding,reloaded,bindingAdapter,new Date().toISOString());
+   if(!heldLock||heldLock.hasLock()!==true)
+    throw Error('PDF_SIGN_FINAL_CAS_LOCK_REQUIRED');
+   study1BindingRecheck_(x.binding,reloaded,bindingAdapter,new Date().toISOString(),heldLock);
    savedPdf=study1EConsentSignedPdfStore_(stamped,x);
    const event=study1EConsentFile_('SIGNATURE',x,{
     name:input.name.trim(),signaturePngBase64:input.signature,
