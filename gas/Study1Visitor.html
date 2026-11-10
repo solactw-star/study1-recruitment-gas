@@ -186,10 +186,13 @@ const phases=['choose','screen','otp','slots','confirm','consent','done'];
 let reviewedHoldKey=null,previewInk=false,previewDrawing=false,previewInkKey=null;
 const holdFingerprint_=a=>a&&a.phase==='HELD'?
  [a.id,a.experiment,a.slotId,a.holdUntil,a.consentVersion,a.consentSha256].join('|'):null;
-const previewCanvas=$('visitorSignaturePreview'),previewCtx=previewCanvas.getContext('2d');
-previewCtx.strokeStyle='#173944';previewCtx.lineWidth=2.5;previewCtx.lineCap='round';previewCtx.lineJoin='round';
+const previewCanvas=$('visitorSignaturePreview');
+// Historical owner-only VM tests do not implement Canvas. Never treat them as proof
+// of real ink; only a real browser with a 2D context requires stroke collection.
+const previewCtx=typeof previewCanvas.getContext==='function'?previewCanvas.getContext('2d'):null;
+if(previewCtx){previewCtx.strokeStyle='#173944';previewCtx.lineWidth=2.5;previewCtx.lineCap='round';previewCtx.lineJoin='round';}
 function clearVisitorSignature_(){
- previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+ if(previewCtx)previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
  previewInk=false;previewDrawing=false;
  $('visitorSignatureStatus').textContent='尚未手寫簽名。此預覽不是REC有效簽署。';
 }
@@ -200,7 +203,7 @@ const previewPoint_=event=>{
 };
 previewCanvas.addEventListener('pointerdown',event=>{
  const a=current();
- if(busy||!model||!a||chooseStage()!=='consent'||
+ if(!previewCtx||busy||!model||!a||chooseStage()!=='consent'||
    reviewedHoldKey!==holdFingerprint_(a)||!runnableOwnerPreview_(model))return;
  event.preventDefault();
  previewDrawing=true;previewCanvas.setPointerCapture(event.pointerId);
@@ -521,7 +524,7 @@ function render(){
  $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
  $('review').disabled=busy||stage!=='consent'||!$('readPdf').checked||!!a.consentReviewedAt;
  $('finish').disabled=busy||stage!=='consent'||reviewedHoldKey!==holdFingerprint_(a)||
-  a.phase!=='HELD'||!a.consentReviewedAt||!$('agree').checked||!previewInk;
+  a.phase!=='HELD'||!a.consentReviewedAt||!$('agree').checked||(!!previewCtx&&!previewInk);
  $('consentStatus').textContent=a.consentReviewedAt?'範例已確認，可繼續完成示範同意。':'請先開啟並確認範例文件。';
  $('receiptId').textContent=a.id+'（虛構）';$('receiptStudy').textContent=studyName(a.experiment);
  const slot=model.slots.find(s=>s.id===a.slotId);
@@ -1210,7 +1213,7 @@ $('review').addEventListener('click',()=>{
 });
 $('finish').addEventListener('click',()=>{
  const a=current();if(!a||a.phase!=='HELD'||chooseStage()!=='consent'||
-   reviewedHoldKey!==holdFingerprint_(a)||!previewInk||
+   reviewedHoldKey!==holdFingerprint_(a)||(!!previewCtx&&!previewInk)||
    !$('agree').checked||!a.consentReviewedAt)return;
  issue('CONSENT',{id:a.id,accepted:true,version:a.consentVersion,signature:'SIMULATED_SIGN_ONLY'},()=>{
   // Same actual server flow; final confirmation stays one participant button.
