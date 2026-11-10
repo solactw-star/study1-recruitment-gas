@@ -103,8 +103,8 @@ function simulate(available,withConsent=false){
    return {state:'ISSUED',experiment:'E1',reservationId:r.reservationId,
     token,documentVersion:'V1',documentSha256:pdfSha};
   },
-  getPublicConsentDocument:exp=>{
-   assert.equal(exp,'E1');
+  study1FormalConsentOriginalPdf:sessionToken=>{
+   assert.equal(sessionToken,token);
    return {available:true,experiment:'E1',version:'V1',sha256:pdfSha,
     title:'SYNTHETIC E1 approved fixture',mime:'application/pdf',
     bytes:sourcePdf.length,base64:sourcePdf.toString('base64')};
