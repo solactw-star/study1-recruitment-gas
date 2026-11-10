@@ -26,9 +26,12 @@ function study1BindingUniqueRow_(source,fields,id){
   throw Error('來源欄位、資料列數或正式 schema 不符');
  const found=[];
  for(const row of source.rows){
-  if(!Array.isArray(row)||row.length!==fields.length||
-    row.some((_,i)=>!Object.prototype.hasOwnProperty.call(row,i)))
+  if(!Array.isArray(row)||row.length!==fields.length)
    throw Error('正式來源列不完整');
+  for(let i=0;i<fields.length;i++){
+   if(!Object.prototype.hasOwnProperty.call(row,i))
+    throw Error('正式來源存在稀疏資料欄位');
+  }
   if(row[0]===id)found.push(row);
  }
  if(found.length!==1)throw Error('資料筆數不唯一或無法找到正式身分／憑證／預約');
