@@ -16,6 +16,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'Study1WizardEnrollment',type:'SERVER_JS',path:'gas/Study1WizardEnrollment.js'},
  {name:'Study1ParticipantIntake',type:'SERVER_JS',path:'gas/Study1ParticipantIntake.js'},
  {name:'Study1ParticipantTrust',type:'SERVER_JS',path:'gas/Study1ParticipantTrust.js'},
+ {name:'Study1SelfReportAuthority',type:'SERVER_JS',path:'gas/Study1SelfReportAuthority.js'},
  {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
  {name:'Study1Team',type:'HTML',path:'gas/Study1Team.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
