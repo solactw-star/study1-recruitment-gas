@@ -348,7 +348,7 @@ function signedConsentFixture(h,person,held){
   if(kind==='CONFIRMATION')return {data:{
    signatureHash:x.signature.sha,
    participantSignedPdfSha256:x.participantSignedPdf.sha,
-   researcherSignedPdfSha256:x.signedPdf.sha}};
+   researcherSignedPdfSha256:'e'.repeat(64)}};
   throw Error('UNEXPECTED_PDF_EVENT');
  };
  h.ctx.study1EConsentSignedPdfRead_=(ref,entry)=>{
@@ -379,7 +379,7 @@ test('§70-S.23 original reservation finalization requires valid online dual-PDF
  assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
   /FORMAL_BOOKING_DUAL_PDF_NOT_CONFIRMED/);
  c.x.state='CONFIRMED';
- c.x.confirmation.sha='0'.repeat(64);
+ c.x.signedPdf.sha='0'.repeat(64);
  assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
   /FORMAL_BOOKING_DUAL_PDF_HASH_MISMATCH|FORMAL_BOOKING_DUAL_PDF_NOT_CONFIRMED/);
  assert.equal(h.tables.Reservations.rows[0][3],'HELD');
