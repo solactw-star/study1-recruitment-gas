@@ -254,3 +254,71 @@ test('Formula injection in applicant-controlled Sheet cells is rejected before a
   assert.equal(x.records.Applicants.length,0);
  }
 });
+
+test('OTP email-control proof binds verified original F:G under lock; forged tickets fail',()=>{
+ const x=env(),app=x.begin();
+ const send=x.scope.study1ParticipantOtpSend_({
+  applicantId:app.applicantId,screeningId:app.screeningId,
+  experiment:'E1',email:x.input.email,requestId:'REQ_EMAIL_PROOF_TEST_00001'});
+ const code=x.mail[0].body.match(/驗證碼：(\d{8})/)[1];
+ const done=x.scope.study1ParticipantOtpVerify_({
+  applicantId:app.applicantId,screeningId:app.screeningId,
+  experiment:'E1',email:x.input.email,challengeId:send.challengeId,code});
+ assert.equal(done.verified,true);
+ assert.equal(done.reason,'EMAIL_CONTROL_ONLY');
+ assert.equal(done.emailProof.experiment,'E1');
+ assert.match(done.emailProof.signature,/^[a-f0-9]{64}$/);
+ assert.equal(done.emailProof.emailHash.length,64);
+ assert.equal(JSON.stringify(done.emailProof).includes(x.input.email),false);
+ const status=x.scope.study1ParticipantEmailStatus_(done.emailProof);
+ assert.equal(status.emailVerified,true);
+ assert.equal(status.applicationState,'PENDING_STAFF_ELIGIBILITY_REVIEW');
+ assert.equal(status.reservationState,'NOT_AUTHORIZED');
+ assert.equal(status.consentState,'NOT_SIGNED');
+ const before=x.open.length;
+ assert.throws(()=>x.scope.study1ParticipantEmailStatus_({
+  ...done.emailProof,signature:'0'.repeat(64)
+ }),/EMAIL_PROOF_SIGNATURE_INVALID/);
+ assert.equal(x.open.length,before,'signature failure must precede any Sheet I/O');
+ assert.throws(()=>x.scope.study1ParticipantEmailStatus_({
+  ...done.emailProof,experiment:'E2'
+ }),/EMAIL_PROOF_NOT_VALID/);
+ x.records.Verification[0][6]='';
+ assert.throws(()=>x.scope.study1ParticipantEmailStatus_(done.emailProof),
+  /時間來源必須是|EMAIL_CONTROL_EVIDENCE_CHANGED/);
+});
+test('Expired mail possession proof and newer challenge cannot recover booking authority',()=>{
+ const x=env(),app=x.begin();
+ const params={applicantId:app.applicantId,screeningId:app.screeningId,
+  experiment:'E1',email:x.input.email,requestId:'REQ_MAIL_BOUND_00000001'};
+ const issued=x.scope.study1ParticipantOtpSend_(params);
+ const code=x.mail[0].body.match(/驗證碼：(\d{8})/)[1];
+ const receipt=x.scope.study1ParticipantOtpVerify_({
+  applicantId:app.applicantId,screeningId:app.screeningId,
+  experiment:'E1',email:x.input.email,challengeId:issued.challengeId,code
+ }).emailProof;
+ x.time.now+=61000;
+ x.scope.study1ParticipantOtpSend_({
+  ...params,requestId:'REQ_MAIL_BOUND_00000002'});
+ assert.throws(()=>x.scope.study1ParticipantEmailStatus_(receipt),
+  /EMAIL_CONTROL_EVIDENCE_CHANGED/);
+ x.time.now+=31*60000;
+ assert.throws(()=>x.scope.study1ParticipantEmailStatus_(receipt),
+  /EMAIL_PROOF_EXPIRED/);
+});
+test('Readiness uses configured Turnstile sitekey without redeeming any single-use token',()=>{
+ const x=env(),called=[];
+ x.scope.study1ParticipantTurnstileConfig_=()=>{
+  called.push('config');return {siteKey:'OFFLINE_TEST_SITEKEY_123456789'};
+ };
+ x.scope.study1ParticipantAbuseProtection_=()=>{
+  called.push('verify');throw Error('must not redeem a token on readiness');
+ };
+ const ready=x.scope.study1ParticipantReadiness();
+ assert.equal(ready.ready,true);assert.equal(ready.experiment,'E1');
+ assert.equal(ready.siteKey,'OFFLINE_TEST_SITEKEY_123456789');
+ assert.deepEqual(called,['config']);
+ const y=env({enabled:false});
+ assert.equal(y.scope.study1ParticipantReadiness().ready,false);
+ assert.equal(y.open.length,0);
+});
