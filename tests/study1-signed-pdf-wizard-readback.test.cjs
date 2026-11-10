@@ -77,3 +77,43 @@ test('Original seven-step visitor wizard, calendar and booking management remain
  const end=html.slice(html.indexOf("$('finish').addEventListener("));
  assert.doesNotMatch(end,/study1EConsentSignPdf\(|study1EConsentSignedPdfCopy\(/);
 });
+
+test('Verified signed PDF is exposed as a complete downloadable blob only for the same reviewed wizard hold',async()=>{
+ const first=html.indexOf('const officialSignedPdf={url:null,status:');
+ const last=html.indexOf('const officialPdf={key:null',first);
+ assert.ok(first>=0&&last>first,'Signature delivery routines exist');
+ const key='SIM-001|E1|SIM-SLOT-E1-A|source';
+ const nodes=new Map(['officialSignedPdfResult','officialSignedPdfDownload',
+  'officialSignedPdfSha','officialSignedPdfDate','officialSignedPdfStatus']
+  .map(id=>[id,{hidden:true,textContent:'',href:'',download:'',
+   removeAttribute(name){delete this[name];}}]));
+ const active={id:'SIM-001',experiment:'E1',phase:'HELD'};
+ const created=[],revoked=[];
+ const local=vm.createContext({Uint8Array,Number,Object,String,Array,Date,Intl,Error,
+  Blob,atob:x=>Buffer.from(x,'base64').toString('binary'),
+  window:{crypto:{subtle:crypto.webcrypto.subtle}},
+  URL:{createObjectURL:b=>{created.push(b);return 'blob:isolated-signed-'+created.length;},
+   revokeObjectURL:url=>revoked.push(url)},
+  document:{getElementById:id=>{assert.ok(nodes.has(id),id);return nodes.get(id);}},
+  current:()=>active,holdFingerprint_:()=>key,reviewedHoldKey:key,
+  officialPdf:{key,state:'ready',meta:syntheticCopy('E1').original}});
+ vm.runInContext("const $=id=>document.getElementById(id);\n"+html.slice(first,last),local);
+ const {copy}=syntheticCopy('E1');
+ const done=await local.officialSignedPdfDisplay_(copy,key);
+ assert.equal(done.date,'2026/11/11');
+ assert.equal(nodes.get('officialSignedPdfResult').hidden,false);
+ assert.equal(nodes.get('officialSignedPdfDownload').hidden,false);
+ assert.equal(nodes.get('officialSignedPdfDownload').href,'blob:isolated-signed-1');
+ assert.equal(nodes.get('officialSignedPdfSha').textContent,copy.signedPdfSha256);
+ assert.equal(nodes.get('officialSignedPdfDate').textContent,copy.taipeiDate);
+ assert.equal(created.length,1);
+ local.officialSignedPdfReset_();
+ assert.deepEqual(revoked,['blob:isolated-signed-1']);
+ assert.equal(nodes.get('officialSignedPdfResult').hidden,true);
+ assert.equal(nodes.get('officialSignedPdfDownload').hidden,true);
+ assert.equal(nodes.get('officialSignedPdfDownload').href,undefined);
+ // A changed hold or wrong experiment must fail closed with no new blob.
+ local.reviewedHoldKey='OTHER';
+ await assert.rejects(local.officialSignedPdfDisplay_(copy,key));
+ assert.equal(created.length,1);
+});
