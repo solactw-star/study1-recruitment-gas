@@ -667,7 +667,7 @@ function study1EConsentRegistry_(){
    !/^[-a-f0-9]{64}$/.test(x.documentSha)||!Number.isSafeInteger(x.expires)||
    !['ISSUED','EXPLAINED','SIGNED','CONFIRMED','WITHDRAWN'].includes(x.state))
    throw Error('電子同意紀錄來源不合法');
-  for(const kind of ['explanation','signature','confirmation','withdrawal']){
+  for(const kind of ['explanation','signature','confirmation','withdrawal','disposition']){
    const event=x[kind];
    if(event!==null&&event!==undefined&&
     (typeof event.id!=='string'||!/^[A-Za-z0-9_-]{15,100}$/.test(event.id)||
@@ -967,6 +967,79 @@ function study1EConsentOwnerWithdrawalCases(){
      'PENDING_RESEARCH_TEAM_ACTION',
     requiresResearcherDataDisposition:true};
   })};
+}
+
+
+/** Records private researcher-reviewed evidence of the participant's chosen
+ * disposition. Does NOT itself delete, anonymize, or certify the lab dataset.
+ * Independent REC/PI-approved method and source SHA are non-negotiable.
+ */
+function study1EConsentOwnerRecordDispositionEvidence(input){
+ study1AdminOwnerRequired_();
+ if(!input||Array.isArray(input)||typeof input!=='object'||
+  Object.keys(input).sort().join(',')!==
+    'evidenceFileId,evidenceSha256,id,method,notes'||
+  !/^[-a-f0-9]{30,40}$/i.test(input.id||'')||
+  !['DESTROY','DEIDENTIFY'].includes(input.method)||
+  typeof input.notes!=='string'||!input.notes.trim()||
+  input.notes.length>1000||/[<>]/.test(input.notes)||
+  typeof input.evidenceFileId!=='string'||
+  !/^[A-Za-z0-9_-]{15,100}$/.test(input.evidenceFileId)||
+  !/^[a-f0-9]{64}$/.test(input.evidenceSha256||''))
+  throw Error('WITHDRAWAL_DISPOSITION_REVIEW_REQUEST_INVALID');
+ const p=PropertiesService.getScriptProperties();
+ if(p.getProperty('STUDY1_E1_REC_WITHDRAWAL_DISPOSITION_VERIFIED')!=='true')
+  throw Error('REC_WITHDRAWAL_DISPOSITION_SCOPE_NOT_APPROVED');
+ const raw=p.getProperty('STUDY1_E1_REC_WITHDRAWAL_POLICY_V1');
+ if(typeof raw!=='string'||raw.length<40||raw.length>4000)
+  throw Error('REC_WITHDRAWAL_DISPOSITION_POLICY_MISSING');
+ let policy;try{policy=JSON.parse(raw);}catch(_){throw Error('REC_WITHDRAWAL_POLICY_INVALID');}
+ const effective=study1FormalConsentRecScope_();
+ if(!policy||Object.keys(policy).sort().join(',')!==
+  'approvalDocumentId,approvalDocumentSha256,approved,reviewedBy,scope,validThroughUtc'||
+  policy.approved!==true||policy.scope!=='202604EM033_E1_WITHDRAWAL_EVIDENCE'||
+  policy.approvalDocumentId!==effective.approvalDocumentId||
+  policy.approvalDocumentSha256!==effective.approvalDocumentSha256||
+  typeof policy.reviewedBy!=='string'||policy.reviewedBy.trim().length<5||
+  study1BindingUtc_(policy.validThroughUtc)<=Date.now())
+  throw Error('REC_WITHDRAWAL_DISPOSITION_POLICY_INVALID');
+ const inspect=()=>{
+  const f=DriveApp.getFileById(input.evidenceFileId);
+  if(!f||f.getSharingAccess()!==DriveApp.Access.PRIVATE||
+     !['application/pdf','application/json'].includes(f.getMimeType())||
+     f.getSize()<100||f.getSize()>6000000)
+   throw Error('WITHDRAWAL_DISPOSITION_EVIDENCE_NOT_PRIVATE');
+  const parents=f.getParents();let inFolder=false;
+  while(parents.hasNext())if(parents.next().getId()===STUDY1_CONSENT_DOC_FOLDER_)
+   inFolder=true;
+  if(!inFolder)throw Error('WITHDRAWAL_DISPOSITION_EVIDENCE_WRONG_FOLDER');
+  const bytes=f.getBlob().getBytes();
+  if(bytes.length!==f.getSize()||study1PdfDigest_(bytes)!==input.evidenceSha256)
+   throw Error('WITHDRAWAL_DISPOSITION_EVIDENCE_SHA_MISMATCH');
+  return true;
+ };
+ inspect();
+ return study1EConsentChange_(input.id,(x,_,lock)=>{
+  study1AdminOwnerRequired_();
+  if(!lock||lock.hasLock()!==true||x.channel!=='FORMAL_E1'||
+   x.state!=='WITHDRAWN'||x.disposition)
+   throw Error('WITHDRAWAL_DISPOSITION_NOT_PENDING');
+  const w=study1EConsentEvent_(x.withdrawal,x,'WITHDRAWAL');
+  if(w.data.dataChoice!==input.method)
+   throw Error('WITHDRAWAL_DISPOSITION_PARTICIPANT_CHOICE_MISMATCH');
+  inspect(); // private ACL and byte-SHA readback while under CAS lock
+  const proof=study1EConsentFile_('DATA_DISPOSITION_REVIEW',x,{
+   method:input.method,participantChoice:w.data.dataChoice,
+   privateEvidenceFileId:input.evidenceFileId,
+   privateEvidenceSha256:input.evidenceSha256,
+   policySourceId:policy.approvalDocumentId,
+   policySourceSha256:policy.approvalDocumentSha256,
+   staff:Session.getActiveUser().getEmail(),notes:input.notes,
+   reportedAtUtc:new Date().toISOString(),
+   requiresIndependentPiReview:true});
+  return {...x,disposition:proof};
+ })&&{state:'WITHDRAWN',dispositionState:'OWNER_EVIDENCE_RECORDED_PI_REVIEW',
+  piReviewed:false,automaticDeletionPerformed:false};
 }
 
 /** Staff-managed withdrawal handles requests after bearer links expire. */
