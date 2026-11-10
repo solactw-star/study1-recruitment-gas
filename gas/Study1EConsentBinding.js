@@ -1,10 +1,9 @@
 /**
  * Study1 one-applicant/one-OTP/one-reservation/one-REC-document consent binding.
  * PRIVATE GAS kernel ONLY. No direct participant RPC and NO live adapter.
- * The current production Applicants / Screenings / Verification /
- * Reservations / Slots schemas do not include verified human identity plus
- * experiment authorization; an authentic, REC-approved identity provenance
- * adapter is required BEFORE any live invite or signature can proceed.
+ * E1 qualification comes from a participant's affirmative self-declaration;
+ * original OTP and applicant IDs are server HMAC-bound. No ID/student card
+ * verification is required. Slot mapping and REC e-consent scope stay gated.
  * No applicant names, email, OTP codes or HMAC secrets are returned or logged.
  */
 /**
@@ -92,14 +91,13 @@ function study1BindingHmac_(items){
   throw Error('身分連結簽章計算失敗');
  return raw.map(x=>(x&255).toString(16).padStart(2,'0')).join('');
 }
-/** REC identity attestation is a separate, authoritative private source.
- * The current approved Applicants/Screenings sheets do NOT contain identity
- * provenance or E1/E2 authorization. No browser, OTP or admin checkbox can
- * provide that missing evidence. Wire the REC-approved source only after
- * its document, purpose, retention, identity policy and owner are verified.
+/** Identity/eligibility is declared by the E1 participant. All three original
+ * personal tables are read by the server under one shared ScriptLock; the
+ * email OTP proves only mailbox control, not documentary identity.
+ * No independent ID card, student card, or staff identity check is required.
  */
 function study1EConsentIdentityAttestation_(request){
- throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：本人核身與實驗別缺乏可信伺服器端來源');
+ return study1SelfReportedAuthority_(request);
 }
 function study1BindingGate_(){
  study1AdminOwnerRequired_();
@@ -108,7 +106,7 @@ function study1BindingGate_(){
   'OPEN','CONSENT_READY','STUDY1_ECONSENT_PROVIDER_VERIFIED',
   'STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED',
   'STUDY1_ECONSENT_WIZARD_LINK_VERIFIED',
-  'STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED',
+  'STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED',
   'STUDY1_ECONSENT_LIVE_SHEETS_APPROVED'
  ];
  if(expected.some(k=>p.getProperty(k)!=='true'))
@@ -127,8 +125,8 @@ function study1BindingSheetId_(kind){
  throw Error('未核准的正式資料來源');
 }
 /** Targeted, unique col-A lookup, never read the entire PII table.
- * Preconditions: the ONE shared ScriptLock is held, independent REC identity
- * attestation succeeded, and all gates have been rechecked before I/O.
+ * Preconditions: one shared ScriptLock is held and the original self-report
+ * plus consumed OTP source has been checked before any data read.
  * No write, append, flush, sheet creation, format/permission mutation.
  */
 function study1BindingSheetRow_(book,tabName,headers,requestedId){
@@ -189,18 +187,19 @@ function study1EConsentBindingAdapter_(){
       'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
    throw Error('本人／文件／預約綁定索引不合法');
   const id=study1EConsentIdentityAttestation_(input);
-  // This independent attestation must match the requested binding before
-  // any real applicant rows or other PII are read.
-  if(!id||id.provenance!=='REC_APPROVED_IDENTITY_ATTESTATION'||
+  // Server-certified E1 self-declaration and consumed original OTP, not an
+  // independent documentary identity or a client-supplied eligibility flag.
+  if(!id||id.provenance!=='STUDY1_E1_SELF_REPORT_OTP_HMAC'||
      id.verified!==true||id.consentProcedureApproved!==true||
-     id.age18OrOlderVerified!==true||id.cycuStudentVerified!==true||
-     id.eligibilityEvidenceSource!=='REC_APPROVED_ELIGIBILITY_VERIFICATION'||
+     id.eligibilityEvidenceSource!=='PARTICIPANT_SELF_REPORT'||
+     id.emailControlSource!=='ORIGINAL_VERIFICATION_FG'||
      !/^[a-f0-9]{64}$/.test(id.eligibilityEvidenceSha256||'')||
-     id.applicantId!==input.applicantId||id.experiment!==input.experiment||
-     id.reservationId!==input.reservationId||id.slotId!==input.slotId||
-     id.challengeId!==input.challengeId||id.screeningId!==input.screeningId||
+     id.applicantId!==input.applicantId||id.experiment!=='E1'||
+     input.experiment!=='E1'||id.reservationId!==input.reservationId||
+     id.slotId!==input.slotId||id.challengeId!==input.challengeId||
+     id.screeningId!==input.screeningId||
      !/^[a-f0-9]{64}$/.test(id.evidenceSha256||''))
-   throw Error('IDENTITY_EVIDENCE_INVALID：身分核定證據或研究實驗別不符');
+   throw Error('SELF_REPORT_EMAIL_OTP_EVIDENCE_INVALID');
   study1BindingGate_();
   const personal=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
   const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
@@ -234,37 +233,25 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
     doc.version!==request.documentVersion||!/^[a-f0-9]{64}$/.test(doc.sha256))
   throw Error('實驗與正式PDF原始SHA／版本不符');
  const now=study1BindingUtc_(nowUtc);
- // The identity attestation is an INDEPENDENT trusted owner/REC data source;
- // email OTP proves account access, not biological/legal personal identity.
+ // "verified" denotes server-checked PROCESS evidence, not a legal identity.
+ // E2 is separately prohibited, never inferred from E1 self-declaration.
+ if(experiment!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
  const identity=snapshot.identity;
  if(!identity||identity.verified!==true||
-    identity.provenance!=='REC_APPROVED_IDENTITY_ATTESTATION'||
-    identity.applicantId!==applicantId||identity.experiment!==experiment||
-    identity.verifierId===''||typeof identity.verifierId!=='string'||
+    identity.provenance!=='STUDY1_E1_SELF_REPORT_OTP_HMAC'||
+    identity.applicantId!==applicantId||identity.experiment!=='E1'||
     identity.consentProcedureApproved!==true||
-    identity.age18OrOlderVerified!==true||
-    identity.cycuStudentVerified!==true||
-    identity.eligibilityEvidenceSource!=='REC_APPROVED_ELIGIBILITY_VERIFICATION'||
+    identity.eligibilityEvidenceSource!=='PARTICIPANT_SELF_REPORT'||
+    identity.emailControlSource!=='ORIGINAL_VERIFICATION_FG'||
     !/^[a-f0-9]{64}$/.test(identity.eligibilityEvidenceSha256||'')||
-    typeof identity.approvalReference!=='string'||identity.approvalReference.length<8||
-    typeof identity.evidenceSha256!=='string'||!/^[a-f0-9]{64}$/.test(identity.evidenceSha256))
-  throw Error('IDENTITY_EVIDENCE_INVALID：缺少有效本人身分及實驗別查核證據');
- const idWhen=study1BindingUtc_(identity.verifiedAtUtc);
- if(idWhen>now||idWhen<now-86400000)
-  throw Error('身分核對已過期或時間異常');
- // Explicit E2 exclusion appears in the 2026-05-11 REC consent.
- // No existing approved Study1 Sheet has a verified cross-study history
- // source, so missing, browser-claimed or positive E1 history MUST fail.
- if(experiment==='E2'&&
-    !(identity.priorE1ParticipationVerified===true&&
-      identity.priorE1Participation===false&&
-      identity.priorE1Source==='REC_APPROVED_STUDY_HISTORY'&&
-      typeof identity.priorE1EvidenceSha256==='string'&&
-      /^[a-f0-9]{64}$/.test(identity.priorE1EvidenceSha256)))
-  throw Error('ELIGIBILITY_EVIDENCE_MISSING：實驗二必須獨立確認未參加過實驗一');
+    !/^[a-f0-9]{64}$/.test(identity.evidenceSha256||''))
+  throw Error('SELF_REPORT_EMAIL_OTP_EVIDENCE_INVALID');
+ const checked=study1BindingUtc_(identity.verifiedAtUtc);
+ if(checked>now||now-checked>30*60000)
+  throw Error('EMAIL_CONTROL_PROOF_EXPIRED');
  const person=study1BindingUniqueRow_(snapshot.applicants,
     STUDY1_BINDING_SCHEMA_.applicants,applicantId);
- if(person[0]!==applicantId||person[6]!=='VERIFIED')
+ if(person[0]!==applicantId||person[6]!=='EMAIL_VERIFIED')
   throw Error('申請者尚未達正式驗證狀態');
  const email=study1BindingEmail_(person[2]);
  if(study1BindingEmail_(identity.email)!==email)
@@ -273,8 +260,8 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
     STUDY1_BINDING_SCHEMA_.screenings,request.screeningId);
  if(screened[1]!==applicantId||screened[3]!=='ELIGIBLE'||
     screened[2]!==identity.screeningVersion||
-    !screened[5]||typeof screened[5]!=='string')
-  throw Error('資格審核結果、規則版號或核對人不一致');
+    screened[5]!=='PARTICIPANT_SELF_REPORT')
+  throw Error('資格自陳、規則版本或證據來源不一致');
  const screenAt=study1BindingUtc_(screened[4]);
  if(screenAt>now||screenAt<study1BindingUtc_(person[4]))
   throw Error('資格檢查時間與申請狀態不符');
@@ -309,7 +296,8 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
  // Cross-source race check: the time source & document must be bound to the
  // attested experiment, never derived from a filename or the browser.
  if(identity.slotId!==slotId||identity.reservationId!==reservationId||
-    identity.challengeId!==challengeId||identity.screeningId!==request.screeningId)
+    identity.challengeId!==challengeId||identity.screeningId!==request.screeningId||
+    identity.verifiedAtUtc!==challenge[6])
   throw Error('身分核對與實驗／OTP／時段未關聯同一交易');
  return {schemaVersion:1,applicantId,reservationId,slotId,challengeId,
   screeningId:request.screeningId,experiment,documentSha:doc.sha256,
