@@ -84,8 +84,18 @@ function study1BindingOtpSnapshot_(tab,request,email){
  * Existing OTP transaction kernel obtains the single ScriptLock, verifies
  * cross-challenge rate limits and writes ONLY the F:G pair atomically.
  */
-function study1EConsentVerifyContactOtp_(request){
+/** Independent permission for the OTP F:G writer, separate from merely
+ * approving read-only Sheets, consent PDFs or closed-site publication.
+ */
+function study1BindingOtpGate_(){
  study1BindingGate_();
+ if(PropertiesService.getScriptProperties()
+    .getProperty('STUDY1_ECONSENT_OTP_VERIFY_APPROVED')!=='true')
+  throw Error('REC_REVIEW_REQUIRED：尚未授權正式OTP寫入及本人驗證');
+ return true;
+}
+function study1EConsentVerifyContactOtp_(request){
+ study1BindingOtpGate_();
  if(!request||Array.isArray(request)||typeof request!=='object'||
     Object.keys(request).sort().join(',')!==
      'applicantId,challengeId,code,experiment,screeningId')
@@ -103,7 +113,7 @@ function study1EConsentVerifyContactOtp_(request){
     auth.provenance!=='REC_APPROVED_APPLICANT_SCREENING'||
     auth.approved!==true)
   throw Error('REC_REVIEW_REQUIRED：OTP申請者／資格／實驗別來源未核准');
- study1BindingGate_();
+ study1BindingOtpGate_();
  const sourceEmail=study1BindingEmail_(auth.email);
  const p=PropertiesService.getScriptProperties();
  const otpSecret=p.getProperty('STUDY1_OTP_HMAC_SECRET');
@@ -118,7 +128,7 @@ function study1EConsentVerifyContactOtp_(request){
   getLock:()=>LockService.getScriptLock(),
   getSecret:()=>{study1BindingGate_();return otpSecret;},
   readSnapshot:()=>{
-   study1BindingGate_();
+   study1BindingOtpGate_();
    // Active locked call only, the target and account/email index are re-read
    // after every write to detect changes or late overwritten values.
    const snap=study1BindingOtpSnapshot_(tab,request,sourceEmail);
@@ -126,7 +136,7 @@ function study1EConsentVerifyContactOtp_(request){
    return snap;
   },
   writeAttemptAndUse:(rowNumber,attempts,usedAt)=>{
-   study1BindingGate_();
+   study1BindingOtpGate_();
    if(!lastRead||!Number.isSafeInteger(rowNumber)||rowNumber<2||
       rowNumber>lastRead.rows.length+1||!Number.isSafeInteger(attempts)||
       attempts<1||attempts>5)
