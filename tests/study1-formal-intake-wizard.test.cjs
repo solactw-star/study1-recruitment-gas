@@ -24,7 +24,12 @@ test('Formal controller runs only for explicit FORMAL body tag and aborts old de
  assert.match(visitor,/rpc\('study1ParticipantSendOtp'/);
  assert.match(visitor,/rpc\('study1ParticipantVerifyOtp'/);
  assert.match(visitor,/if\(!state\.ready\|\|state\.busy\)return/);
- assert.match(visitor,/state\.ready=!!\(result&&result\.ready===true&&result\.experiment==='E1'\)/);
+ assert.match(visitor,/state\.ready=!!\(result&&result\.ready===true&&result\.experiment==='E1'&&/);
+ assert.match(visitor,/state\.humanToken/);
+ assert.match(visitor,/humanToken:state\.humanToken/);
+ assert.match(visitor,/study1_e1_apply/);
+ assert.match(visitor,/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js/);
+ assert.match(visitor,/typeof result\.siteKey==='string'/);
  assert.match(visitor,/el\('chooseE2'\)\.disabled=true/);
 });
 test('No email or PII entry until independently approved public gate',()=>{
