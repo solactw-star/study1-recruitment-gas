@@ -33,8 +33,8 @@ test('No email or PII entry until independently approved public gate',()=>{
    'STUDY1_ECONSENT_LIVE_SHEETS_APPROVED','STUDY1_PARTICIPANT_DATA_USE_APPROVED',
    'STUDY1_PARTICIPANT_ABUSE_PROTECTION_VERIFIED'])
   assert.ok(intake.includes("'"+f+"'"));
- assert.match(intake,/function study1ParticipantRecPolicy_\(\)\{\s*throw Error/);
- assert.match(intake,/function study1ParticipantAbuseProtection_\(\w+\)\{\s*throw Error/);
+ assert.match(intake,/function study1ParticipantRecPolicy_\(\)\{\s*return study1ParticipantRecSource_\(\)/);
+ assert.match(intake,/function study1ParticipantAbuseProtection_\(\w+\)\{\s*return study1ParticipantTurnstileCheck_\(/);
  assert.match(intake,/function study1ParticipantReadiness\(\)/);
  assert.match(intake,/return \{ready:false,experiment:'E1',reason:'REGISTRATION_NOT_OPEN'\}/);
  for(const id of ['formalName','formalEmail','formalPhone'])

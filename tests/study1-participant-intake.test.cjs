@@ -144,7 +144,7 @@ test('No approved REC policy or anti-abuse provider means no personal data write
  assert.throws(()=>p.begin(),/REC_INTAKE_POLICY_NOT_CONFIGURED/);
  assert.equal(p.open.length,0);
  const q=env({abuse:false});
- assert.throws(()=>q.begin(),/ABUSE_PROTECTION_NOT_CONFIGURED/);
+ assert.throws(()=>q.begin(),/BOT_PROTECTION_PROVIDER_NOT_READY/);
  assert.equal(q.open.length,0);
 });
 test('Shared script lock contention forbids opening the formal data source',()=>{
