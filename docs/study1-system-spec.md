@@ -1385,7 +1385,7 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 
 **不可忽略的 REC 設計缺口：** 現有 PDF 合成引擎只將參與者 PNG 筆跡及可信臺灣日期寫入原 PDF，研究人員確認作為私有另一個事件存證，**尚未將研究人員本人簽名與日期嵌入同一完整PDF的原始研究人員欄位**。不得將「研究員確認事件」等同原紙本兩個獨立簽章欄的完整履行。待核實最新有效REC遠端簽署及電子儲存方式、研究員簽章、原版頁碼和欄位座標後，才可增量補全並實際PDF視覺驗證；10/27修訂稿仍不能直接推定生效。此處狀態 REC_REVIEW_REQUIRED、RESEARCHER_PDF_SIGNATURE_LAYOUT_PENDING、REC_DATA_STORAGE_AND_WITHDRAWAL_DISPOSITION_REVIEW_REQUIRED。
 
-**暫留政策相容風險：** 原同意書預估研究員說明約15分鐘，但目前 V05 HELD 工作暫設值只有10分鐘，實際真人可能尚未說明完畢時預約就失效。2分鐘quote、10分鐘HELD與FIFO政策未獲PI正式核定，不能擅自延長或當作有效核准程序。
+**暫留政策相容風險：** 原同意書預估研究員說明約15分鐘，但目前 V05 HELD 工作暫設值只有10分鐘，實際真人可能尚未說明完畢時預約就失效。（此為歷史判斷；最新操作決策見§70-S.23，15分鐘不再是網站計時門檻。）2分鐘quote、10分鐘HELD與FIFO政策未獲PI正式核定，不能擅自延長或當作有效核准程序。
 
 **本次正式隔離分支寫入：** 撤回狀態 commit 315b1a9d4596874556288a19211fb7f803288358；前端提示 commit 4c0e065bdc346dacf7882a3ab86b49922a540965；回歸 commit 694437cdd7b83bfcb56cec3d6a7389bf1877c475。以上均未寫正式 REC、原資料 Sheet、GAS、main，也沒有開啟真人收件或E2。
 
@@ -1416,3 +1416,20 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **合成負測：** 原 tests/study1-signed-pdf-record.test.cjs 在真正合成雙簽PDF成功取得副本後，替換本人簽署事件可信時間為晚於研究員的另一個完整ISO UTC時間，且讓臺灣日期格式與該偽造時間一致；副本須拒絕FORMAL_DUAL_PDF_CHRONOLOGY_INVALID，還原後才恢復SHA相符副本。commit 73d8852523da54426b60921b83750b7d49248949。CI及本規格commit仍待當次最新HEAD完整回讀。
 
 **不變門檻：** 這只是額外防篡改，不代表REC已核准遠端程序／研究員欄位座標，也不代表本人與研究員已完成真實UI驗收。原E1正式Slots仍無核定真列；10分鐘HELD與約15分鐘研究員說明仍需PI政策核定；無PI正式核准不得開放。維持OPEN=false、CONSENT_READY=false、GAS MYSELF、E2禁招、PR Draft未合併、原GAS未部署、不發真信、不收真人。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false。NEXT_ACTION=CI回讀、REC獨立適用核准及研究員座標核定、正式E1 Slots/PI政策、實際UI/後台權限與部署前稽核。
+
+
+### 70-S.23｜2026-11-10 使用者最新決策：E1 全線上知情同意與報名／雙簽 PDF 優先
+
+**決策來源及優先序**：使用者最新明確決策：「所有的知情同意書簽署在線上完成，不需要考慮原始知情同意書的15分鐘說明程序設定；優先完成正式上線最重要的報名與同意書簽署流程。」本節為網站需求與開發優先序的**最新有效決策**，取代本主檔 §70-S.21.1、§70-S.22、§70-S.22.1 將「原件約15分鐘說明」和「工作暫設10分鐘HELD」視為必須同長、須先延長HELD才能開發線上簽署的舊*時間衝突推論*；舊節保留歷史與原始REC證據，不再用作新網站時數硬門檻。
+
+**實作業務規則（線上優先）**：
+1. E1知情同意書由參與者在網站閱讀完整**當次有效REC核准原PDF**，在網頁電子筆跡簽名；研究人員使用具OWNER驗證的**線上後台**在同一原PDF核准的獨立研究人員欄位簽名、各自使用可信Asia/Taipei日期並保留兩階段SHA。本人只能取得雙簽均完成且經SHA及私人ACL回讀通過的**完整原PDF簽署副本**；不得用HTML勾選、紙本或研究員確認事件代替第二次實際PDF簽章。
+2. **網站不設定15分鐘倒數、15分鐘最低說明長度，亦不以原文「約15分鐘」推導quote、HELD或簽名計時器。** 說明／答疑的實際形式、時長及適用程序**仍依最新生效REC**；不得將「免除固定15分鐘計時」偷換成「免除研究人員告知、答疑及記錄」，也不可將使用者網站決策冒稱REC修正已核准。遠端解說與雙方線上簽名在REC獨立核准文書尚未核實時，維持`REC_REVIEW_REQUIRED`、fail closed；不得真人執行。
+3. 當前V05 quote **2分鐘**、HELD **10分鐘**僅是現行程式暫設值，與15分鐘無強制關聯；是否調整暫留、到期、重新啟動及FIFO須PI另行核定並依正式程序驗收。不得因本次取消15分鐘時間假設而自動延長或停用HELD、放寬過期核對、修改ScriptProperties。
+4. P0完成定義：本人E1自陳篩檢與真人個資用途核准→受保護的真正Turnstile Siteverify→原系統Email OTP一次性HMAC→PI逐場核定原Slots/E1原列HMAC→V05 quote與原Reservations HELD/FIFO→完整原PDF及研究人員線上解說/答疑證據→參與者在PDF簽署→OWNER線上獨立PDF簽署→雙SHA/兩日期/私人ACL回讀→本人可取得副本，並且**獨立核實原Reservations是否完成正式預約成立**。只有雙簽PDF `CONFIRMED` 不得推定原 `Reservations` 已轉 `CONFIRMED`；這是不可忽略的P0跨儲存一致性缺口，不能用沒有交易回讀的UI顯示補救。
+5. 研究團隊線上答疑可以透過核准方式進行，但研究員的說明事件必須在本人簽名前已核實，保留問題及答覆紀錄；不推定所有線上訊息都獲REC核可。
+6. 已簽署者可依核准權限與期限取得副本及提出撤回/資料銷毀或去識別化意願；撤回通知不等於完成實際資料處置。E2依原REC與日期禁令持續關閉。
+
+**本輪正式來源查核**：GitHub唯一PR#133來源HEAD `0ba59d3fdb0e2b354881cbe1a85f94daff5c8733`（更新前）；正式原E1同意書ID `1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m` 第三節確實記載「約15分鐘」口頭與書面說明，第十一至十三節記載說明、雙方簽章與副本。原變更申請資料夾 `1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR` 中有2026-10-22變更申請與2026-10-27修訂稿，未在該夾核實可讓遠端程序生效的獨立REC核准決議。原營運Sheet ID `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 的`Slots!A1:H1000`雙次回讀僅表頭、零場次，`OPEN=false`／`CONSENT_READY=false`。不臆造PI場次、不從slotId推定E1。
+
+**工程及驗證原則**：優先補足線上同意引導、參與者與研究人員兩側狀態分離、正式`Reservations`與雙簽PDF跨儲存一致性／異常恢復、對應虛構合成負測；實際GitHub程式commit／測試Run／驗證另行回填或依當次PR HEAD查核。保留原PR Draft、不合併main、不觸發GAS同步部署、不修改原REC、原Sheets、FAST、任何正式真人資料或正式ScriptProperties；`MYSELF`／`OPEN=false`／`CONSENT_READY=false`／E2禁止不變。`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`、`UI_VERIFIED=false`、`FORMAL_READY=false`，直到各自獨立驗收。
