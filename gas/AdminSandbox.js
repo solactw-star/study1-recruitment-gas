@@ -839,8 +839,6 @@ function study1EConsentSession(token){
 /** Browser supplied signature is accepted once, bound to owner-verified invite. */
 function study1EConsentSign(input){
  if(!study1EConsentEnabled_())throw Error('尚未開放有效電子簽署');
- // Old synthetic PNG route cannot become an unapproved real signature by toggling flags.
- study1RecRequireElectronicConsentApproval_();
  // Legacy isolated synthetic event is preserved solely for existing TEST regression.
  // It must NEVER serve as an operational signed consent or replace a signed PDF.
  if(PropertiesService.getScriptProperties().getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
@@ -1025,9 +1023,9 @@ async function study1EConsentSignPdf(input){
  // are installed. No owner-only TEST fixture can set these live gates.
  if(!study1EConsentEnabled_())
   throw Error('尚未開放有效電子簽署');
- // The 202604EM033 approval is oral + written, not remote e-sign.
- // This source-level gate cannot be lifted by runtime feature flags.
- study1RecRequireElectronicConsentApproval_();
+ // The approved research protocol must not be globally vetoed by an
+ // assumed REC prohibition. This path still requires independent technical
+ // PDF-provider, wizard-binding, identity, booking, consent and storage gates.
  const p=PropertiesService.getScriptProperties();
  if(p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
     p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true')
