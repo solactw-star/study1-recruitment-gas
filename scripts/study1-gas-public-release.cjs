@@ -59,12 +59,13 @@ function assertClosedPublicSources(remote){
  check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
   !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
  check(!/<(?:form|textarea)\b/i.test(idx),'Public site has no active collection form');
- const inputs=[...idx.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
- check(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'All collection inputs must be disabled');
- check(idx.includes('id="consentSubmit"')&&idx.includes('id="consentSignature"')&&
-  idx.includes('id="consentPdfViewer"')&&
-  idx.includes("consentEl('consentSubmit').disabled=true;")&&
-  !/<iframe\b[^>]*\bsrc=/i.test(idx),'Unreviewed signature submit or embedded remote URL');
+ const inputs=[...idx.matchAll(/<input\\b[^>]*>/gi)].map(x=>x[0]);
+ check(inputs.length===0,'Public homepage must not accept identity/signature inputs');
+ check(idx.includes('知情同意是報名最後的步驟')&&
+  idx.includes('目前尚未開放線上簽署')&&
+  !/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/.test(idx)&&
+  !/<(?:canvas|iframe)\\b/i.test(idx)&&!idx.includes('initConsentPortal_'),
+  'Signing interface may not be exposed on public information homepage');
  check(site.includes("function getPublicConsentDocument(experiment){return study1ConsentPublicRead_(experiment);}")&&
   admin.includes("function study1ConsentPublicRead_(experiment){")&&
   admin.includes("function study1ConsentVersionPublication(input){")&&
