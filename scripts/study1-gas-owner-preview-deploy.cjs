@@ -196,7 +196,10 @@ async function apply(api,sources){
    JSON.stringify(s.deployments),'deployment inventory altered concurrently');
   await api.putDeployment(PRIVATE_ID,{
     ...privateBefore.deploymentConfig,versionNumber:version.versionNumber});
-  const after=await api.getDeployment(PRIVATE_ID);
+  // GAS deployment API can be eventually consistent. The immediate GET may
+  // still show the old version after a successful update; poll before judging.
+  const autoIndex=require('./study1-gas-auto-index.cjs');
+  const after=await autoIndex.waitForVersion(api,PRIVATE_ID,version.versionNumber);
   core.deploymentCheck(after,PRIVATE_ID,version.versionNumber);
   must(core.deploymentCheck(after,PRIVATE_ID).url===s.oldUrl,
    'private original /exec URL altered');
@@ -223,8 +226,14 @@ async function apply(api,sources){
    try{
     const live=await api.getContent();
     const hash=core.digest(live.files);
-    if(hash===s.desiredSha||hash===s.stageSha){
-     await api.putContent(filesOf(s.original));
+    const observed=await api.getDeployment(PRIVATE_ID);
+    const activeVersion=observed.deploymentConfig?.versionNumber;
+    if(activeVersion===version?.versionNumber){
+     // Private immutable release may already be live, even if the first
+     // readback was stale. Do not undo HEAD after successful deployment.
+     console.error('OWNER_PREVIEW_PARTIAL_VERIFY: owner version is live; run read-only audit before retrying');
+    }else if(activeVersion===s.oldVersion&&(hash===s.desiredSha||hash===s.stageSha)){
+     await api.putContent(filesOf(s.original.files));
      must(core.digest((await api.getContent()).files)===s.originalSha,
       'rollback readback mismatch');
      console.error('OWNER_PREVIEW_FAIL_CLOSED: original GAS HEAD rolled back');
