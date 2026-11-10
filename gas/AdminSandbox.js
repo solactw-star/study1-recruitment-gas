@@ -956,7 +956,43 @@ function study1EConsentOwnerList(){
  const r=study1EConsentRegistry_();
  return {revision:r.revision,records:r.records.map(x=>({id:x.id,
   experiment:x.experiment,version:x.documentVersion,sha256:x.documentSha,
-  state:x.state,expires:x.expires}))};
+  state:x.state,expires:x.expires,
+  researcherPresigned:x.researcherPresigned===true,
+  signedPdfSha256:x.researcherPresigned===true&&x.state==='CONFIRMED'&&x.signedPdf?
+   x.signedPdf.sha:null}))};
+}
+
+
+/**
+ * MVP OWNER-only prior review and download of an immutable completed PDF.
+ * No public URL/Drive ID, questionnaire answers or bearer signing token is
+ * leaked. Bytes are returned only after the original PRIVATE SHA readback.
+ */
+function study1EConsentOwnerSignedPdfDownload(consentId){
+ study1AdminOwnerRequired_();
+ if(typeof consentId!=='string'||!/^[-a-f0-9]{30,40}$/i.test(consentId))
+  throw Error('OWNER_SIGNED_PDF_RECORD_ID_INVALID');
+ const matches=study1EConsentRegistry_().records.filter(x=>x.id===consentId);
+ if(matches.length!==1)throw Error('OWNER_SIGNED_PDF_RECORD_NOT_UNIQUE');
+ const x=matches[0];
+ if(x.channel!=='FORMAL_E1'||x.experiment!=='E1'||
+    x.researcherPresigned!==true||
+    !['CONFIRMED','WITHDRAWN'].includes(x.state)||
+    !x.signedPdf||!x.signature||!x.confirmation)
+  throw Error('OWNER_SIGNED_PDF_NOT_READY');
+ const signature=study1EConsentEvent_(x.signature,x,'SIGNATURE');
+ const confirmed=study1EConsentEvent_(x.confirmation,x,'CONFIRMATION');
+ if(signature.data.signedPdfSha256!==x.signedPdf.sha||
+    confirmed.data.mode!=='RESEARCHER_PRESIGNED_SOURCE'||
+    confirmed.data.researcherSignedSourceSha256!==x.documentSha||
+    confirmed.data.signatureHash!==x.signature.sha||
+    confirmed.data.researcherSignedPdfSha256!==x.signedPdf.sha)
+  throw Error('OWNER_SIGNED_PDF_EVIDENCE_CHANGED');
+ const bytes=study1EConsentSignedPdfRead_(x.signedPdf,x);
+ return {experiment:'E1',recordId:x.id,version:x.documentVersion,
+  researcherPreSigned:true,sourceSha256:x.documentSha,
+  signedPdfSha256:x.signedPdf.sha,bytes:bytes.length,
+  mime:'application/pdf',base64:Utilities.base64Encode(bytes)};
 }
 
 
