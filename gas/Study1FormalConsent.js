@@ -89,8 +89,11 @@ function study1FormalConsentDocument_(ctx,reservationId){
     document.sha256!==scope.consentDocumentSha256||
     document.experiment!=='E1')
   throw Error('FORMAL_CONSENT_REC_PDF_VERSION_MISMATCH');
+ if(document.researcherPresigned!==true)
+  throw Error('E1_RESEARCHER_PRESIGNED_PDF_NOT_UPLOADED');
+ // Researcher's signature is already present in the immutable source PDF.
+ // Only the approved participant rectangle is stamped after enrollment.
  study1PdfLayoutRead_('E1',document);
- study1PdfResearcherLayoutRead_('E1',document);
  return {r,document};
 }
 /** The public caller supplies only a consumed Email-OTP proof and a personal
@@ -129,7 +132,8 @@ function study1FormalConsentBegin(input){
   const entry={id:Utilities.getUuid(),tokenHash:study1EConsentHash_(token),
    experiment:'E1',documentSha:document.sha256,
    documentVersion:document.version,expires,state:'ISSUED',
-   binding,channel:'FORMAL_E1',explanation:null,signature:null,
+   binding,channel:'FORMAL_E1',researcherPresigned:true,
+   explanation:null,signature:null,
    confirmation:null,withdrawal:null};
   if(registry.records.some(x=>x.id===entry.id||x.tokenHash===entry.tokenHash))
    throw Error('FORMAL_CONSENT_TOKEN_COLLISION');
@@ -140,7 +144,8 @@ function study1FormalConsentBegin(input){
   return {state:'ISSUED',experiment:'E1',reservationId:r[0],
    documentVersion:document.version,documentSha256:document.sha256,
    token,expiresAtUtc:new Date(expires).toISOString(),
-   needsResearcherExplanation:true,signatureAccepted:false};
+   researcherPresigned:true,needsResearcherExplanation:false,
+   signatureAccepted:false};
  });
 }
 
@@ -168,8 +173,9 @@ function study1FormalConsentOriginalPdf(token){
      doc.sha256!==entry.documentSha||
      doc.version!==entry.documentVersion)
    throw Error('FORMAL_ORIGINAL_PDF_REC_VERSION_CHANGED');
+  if(doc.researcherPresigned!==true||latest.researcherPresigned!==true)
+   throw Error('FORMAL_RESEARCHER_PRESIGNED_PDF_NOT_VERIFIED');
   study1PdfLayoutRead_('E1',doc);
-  study1PdfResearcherLayoutRead_('E1',doc);
   const adapter=study1EConsentBindingAdapter_('PUBLIC_E1');
   study1BindingRecheck_(latest.binding,doc,adapter,
    new Date().toISOString(),lock);
@@ -196,8 +202,10 @@ function study1FormalConsentStatus(token){
  const info=study1EConsentSession(token);
  const dualConfirmed=['CONFIRMED','WITHDRAWN'].includes(entry.state)&&
   !!entry.signedPdf&&!!entry.participantSignedPdf&&!!entry.confirmation;
+ const isPresigned=entry.researcherPresigned===true;
  return {experiment:'E1',state:entry.state,version:entry.documentVersion,
   sourceSha256:entry.documentSha,expiresAtUtc:new Date(entry.expires).toISOString(),
+  researcherPreSigned:isPresigned,
   researcherExplanationCompleted:!!(entry.explanation&&
    ['EXPLAINED','SIGNED','CONFIRMED','WITHDRAWN'].includes(entry.state)),
   signatureAccepted:!!entry.signature,
