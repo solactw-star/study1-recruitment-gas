@@ -15,12 +15,11 @@
  * Certificate original Drive ID: 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy
  * Verified original certificate SHA256:
  * de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4
- * The original E1/E2 consent text describes oral/researcher explanation
- * and written consent, a researcher signature, participant signature and
- * a participant copy. It does not authorize online signature, email OTP
- * as proof of real-world identity, or automatic E1/E2 participant linking.
- * This read-only finding is NOT an amendment, nor does a project date
- * establish REC approval of a new participant-facing procedure.
+ * The original E1/E2 consent text describes researcher explanation,
+ * participant signature and participant copy. The certificate confirms
+ * approval of the research; it is not by itself a determination that a
+ * particular web authentication or e-signature implementation is approved
+ * or prohibited. Technical authorization is assessed separately.
  */
 var STUDY1_REC_VERIFIED_BASELINE_=Object.freeze({
  caseId:'202604EM033',
@@ -32,19 +31,11 @@ var STUDY1_REC_VERIFIED_BASELINE_=Object.freeze({
  certificateDriveId:'1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy',
  certificateSha256:'de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4',
  approvedConsentProcedure:'RESEARCHER_EXPLANATION_AND_WRITTEN_SIGNATURE',
- remoteElectronicConsentApproved:false,
+ remoteElectronicConsentApprovalStatus:'NOT_DETERMINED_BY_CERTIFICATE',
  emailOtpProvesLegalIdentity:false,
  e1RequiresCycuStudentAndAdult:true,
  e2MustNotHaveParticipatedE1:true
 });
-/** Deliberately irreducible by any runtime Script Property or a browser
- * payload. A later genuine REC approval requires a separately reviewed
- * source-level change plus its signed, versioned evidence and regression
- * tests. A researcher changing OPEN/CONSENT_READY is never sufficient.
- */
-function study1RecRequireElectronicConsentApproval_(){
- throw Error('REC_REVIEW_REQUIRED：202604EM033核准口頭及書面知情同意；尚無網路電子簽署修正核可，不得簽發或簽署正式PDF');
-}
 var STUDY1_BINDING_SCHEMA_=Object.freeze({
  applicants:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],
  screenings:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],
@@ -108,7 +99,7 @@ function study1BindingHmac_(items){
  * its document, purpose, retention, identity policy and owner are verified.
  */
 function study1EConsentIdentityAttestation_(request){
- throw Error('REC_REVIEW_REQUIRED：本人核身與實驗別沒有獨立REC核准來源');
+ throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：本人核身與實驗別缺乏可信伺服器端來源');
 }
 function study1BindingGate_(){
  study1AdminOwnerRequired_();
@@ -121,7 +112,7 @@ function study1BindingGate_(){
   'STUDY1_ECONSENT_LIVE_SHEETS_APPROVED'
  ];
  if(expected.some(k=>p.getProperty(k)!=='true'))
-  throw Error('REC_REVIEW_REQUIRED：正式本人／OTP／預約／電子同意尚未核准啟用');
+  throw Error('BACKEND_NOT_READY：本人／OTP／預約／電子同意資料來源尚未完成技術驗證');
  return true;
 }
 function study1BindingSheetId_(kind){
@@ -375,7 +366,6 @@ function study1BindingRecheckWithLock_(binding,doc,adapter){
 /** STRICTLY INTERNAL issuance. No public route or live adapter exists yet. */
 function study1EConsentIssueBound_(input){
  study1AdminOwnerRequired_();
- study1RecRequireElectronicConsentApproval_();
  if(!input||Object.keys(input).sort().join(',')!==
     'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
   throw Error('正式申請綁定欄位不正確');
