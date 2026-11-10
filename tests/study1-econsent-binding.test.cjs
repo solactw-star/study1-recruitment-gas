@@ -49,6 +49,8 @@ function harness(snap,now=new Date()){
  });
  vm.runInContext(source,sandbox,{timeout:2000});
  sandbox.STUDY1_ECONSENT_MAX_RECORDS_=12;
+ const originalRecGate=sandbox.study1RecRequireElectronicConsentApproval_;
+ sandbox.study1RecRequireElectronicConsentApproval_=()=>true; // ONLY synthetic VM
  const originalFactory=sandbox.study1EConsentBindingAdapter_;
  // Inject synthetic source ONLY in the offline VM; production code has no adapter argument.
  sandbox.study1EConsentBindingAdapter_=()=>({readTrustedSnapshot:()=>snap});
