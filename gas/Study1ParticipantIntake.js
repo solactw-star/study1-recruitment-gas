@@ -5,10 +5,10 @@
  * Its only future write is to the original Applicants/Screenings tables.
  */
 function study1ParticipantRecPolicy_(){
- throw Error('REC_INTAKE_POLICY_NOT_CONFIGURED：尚無核實之正式招募／個資處理適用來源');
+ return study1ParticipantRecSource_();
 }
 function study1ParticipantAbuseProtection_(request){
- throw Error('ABUSE_PROTECTION_NOT_CONFIGURED：缺少正式公開申請反濫用證據');
+ return study1ParticipantTurnstileCheck_(request);
 }
 function study1ParticipantGate_(){
  // Unlike the OWNER-only consent signing gate, this pre-enrollment boundary
@@ -26,7 +26,7 @@ function study1ParticipantGate_(){
  return true;
 }
 function study1ParticipantInput_(input){
- const keys='adult,cycu,email,experiment,name,noDx,noPractice,noTreatment,phone,requestId';
+ const keys='adult,cycu,email,experiment,humanToken,name,noDx,noPractice,noTreatment,phone,requestId';
  if(!input||typeof input!=='object'||Array.isArray(input)||
     Object.keys(input).sort().join(',')!==keys)
   throw Error('申請欄位不合法');
@@ -54,7 +54,7 @@ function study1ParticipantInput_(input){
   throw Error('個資欄位或重送鍵不合法');
  return {accepted:true,experiment:'E1',
   name:input.name.trim(),phone:input.phone.trim(),email,
-  requestId:input.requestId};
+  requestId:input.requestId,humanToken:input.humanToken};
 }
 function study1ParticipantVerifiedPolicy_(policy){
  if(!policy||policy.approved!==true||
@@ -92,11 +92,7 @@ function study1ParticipantBegin_(input){
   const refreshed=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
   if(JSON.stringify(refreshed)!==JSON.stringify(policy))
    throw Error('REC正式來源在申請期間變動');
-  const abuseAgain=study1ParticipantAbuseProtection_(r);
-  if(!abuseAgain||abuseAgain.allowed!==true||
-     abuseAgain.provenance!==abuse.provenance||
-     abuseAgain.requestId!==r.requestId)
-   throw Error('反濫用授權在申請期間變動');
+  study1ParticipantAbuseRecheck_(abuse,r);
   const book=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
   const apps=study1WizardTable_(book,'Applicants',STUDY1_BINDING_SCHEMA_.applicants);
   const screens=study1WizardTable_(book,'Screenings',STUDY1_BINDING_SCHEMA_.screenings);
@@ -307,11 +303,11 @@ function study1ParticipantReadiness(){
  try{
   study1ParticipantGate_();
   const policy=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
-  // No active front-end until independently verified abuse controls exist.
-  study1ParticipantAbuseProtection_({requestId:'READINESS_PROBE_ONLY',
-   experiment:'E1',email:'not-supplied'});
+  // Readiness checks configuration only: a one-time Turnstile token is
+  // validated exactly once with Siteverify in the actual intake operation.
+  const antiBot=study1ParticipantTurnstileConfig_();
   if(policy.approved!==true)throw Error('REC_POLICY_NOT_APPROVED');
-  return {ready:true,experiment:'E1'};
+  return {ready:true,experiment:'E1',siteKey:antiBot.siteKey};
  }catch(_){
   // Do not expose the presence or kind of private record / missing permission.
   return {ready:false,experiment:'E1',reason:'REGISTRATION_NOT_OPEN'};
