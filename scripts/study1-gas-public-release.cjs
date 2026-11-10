@@ -141,11 +141,23 @@ async function anonymousProbe(url,fetcher=fetch){
  }
  return {status:res.status,privateViewStatuses:blocked,contentLength:text.length};
 }
-async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new Promise(done=>setTimeout(done,ms))){
+async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new Promise(done=>setTimeout(done,ms)),previousVersion=null){
  let last;
  for(let i=0;i<attempts;i++){
   try{
    const deployed=await api.getDeployment(id);
+   // Only the exact pre-write version may be briefly stale. A different
+   // version means another writer: never retry or treat it as convergence.
+   const observed=deployed?.deploymentConfig?.versionNumber;
+   if(observed!==version){
+    check(Number.isInteger(observed)&&observed>0,'Invalid public deployment version metadata');
+    core.deploymentCheck(deployed,id,observed);
+    check(Number.isInteger(previousVersion)&&observed===previousVersion,
+     'Public deployment version changed by another writer: expected '+version+', observed '+observed);
+    last=Error('Public deployment not yet converged: expected '+version+', still '+previousVersion);
+    if(i<attempts-1){await pause(Math.min(2000,600+100*i));continue;}
+    throw last;
+   }
    const info=core.deploymentCheck(deployed,id,version);
    return {deployment:deployed,info};
   }catch(e){
@@ -226,7 +238,8 @@ async function publish(api,env,probe=anonymousProbe){
   }
   const depId=oldPublic?oldPublic.deploymentId:created?.deploymentId;
   check(depId&&depId!==PRIVATE_ID,'Missing separate official public deployment ID');
-  const {info}=await waitForPublicDeployment(api,depId,ver.versionNumber);
+  const {info}=await waitForPublicDeployment(api,depId,ver.versionNumber,24,undefined,
+    oldPublic?.deploymentConfig?.versionNumber||null);
   const final=await api.getContent();
   check(core.digest(final.files)===remoteSha,'Original GAS HEAD changed after public deployment');
   const ownerAfter=await api.getDeployment(PRIVATE_ID);
@@ -244,9 +257,17 @@ async function publish(api,env,probe=anonymousProbe){
   return {url:info.url,version:ver.versionNumber,sha:remoteSha,backupId:backup.id};
  }catch(error){
   if(changed)try{
-   if(oldPublic)await api.putDeployment(oldPublic.deploymentId,oldPublic.deploymentConfig);
-   else if(created?.deploymentId)await api.deleteDeployment(created.deploymentId);
-   console.log('PUBLIC_RELEASE_ROLLBACK_ATTEMPTED=true; refusal:',String(error.message));
+   // Do not roll back an independently updated deployment.
+   const targetId=oldPublic?.deploymentId||created?.deploymentId;
+   const currentDeployment=await api.getDeployment(targetId);
+   if(currentDeployment?.deploymentConfig?.versionNumber!==ver.versionNumber){
+    console.log('PUBLIC_RELEASE_ROLLBACK_BLOCKED_COMPETING_WRITE=true');
+   }else{
+    core.deploymentCheck(currentDeployment,targetId,ver.versionNumber);
+    if(oldPublic)await api.putDeployment(oldPublic.deploymentId,oldPublic.deploymentConfig);
+    else if(created?.deploymentId)await api.deleteDeployment(created.deploymentId);
+    console.log('PUBLIC_RELEASE_ROLLBACK_ATTEMPTED=true; refusal:',String(error.message));
+   }
   }catch(rollbackError){console.log('PUBLIC_RELEASE_ROLLBACK_FAILED:',String(rollbackError.message));}
   throw error;
  }
