@@ -11,7 +11,7 @@ function simulate(readiness){
  const nodes=new Map(),queries=new Map(),calls=[],rendered=[];
  function node(id){
   if(!nodes.has(id))nodes.set(id,{
-   id,hidden:false,disabled:false,textContent:'',value:'',
+   id,hidden:id==='formalHumanCheck',disabled:false,textContent:'',value:'',
    checked:false,onclick:null,handlers:new Map(),
    addEventListener(type,fn){this.handlers.set(type,fn)}
   });
