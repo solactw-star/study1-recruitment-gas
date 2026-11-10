@@ -44,8 +44,13 @@ function buildHarness(original){
    setTrashed:()=>{data.trashed=true;},
    getBlob:()=>({getBytes:()=>[...data.bytes],
     getDataAsString:()=>data.bytes.toString('utf8')}),
-   getParents:()=>{let pending=true;return {hasNext:()=>pending,next:()=>{
-    pending=false;return {getId:()=>folderId};}}};
+   getParents:()=>{
+    let pending=true;
+    return {
+     hasNext:()=>pending,
+     next:()=>{pending=false;return {getId:()=>folderId};}
+    };
+   }
   };
  }
  file(originalId,original,'application/pdf','Synthetic.pdf');
@@ -68,8 +73,13 @@ function buildHarness(original){
    setTrashed:()=>{data.trashed=true},
    getBlob:()=>({getBytes:()=>[...data.bytes],
     getDataAsString:()=>data.bytes.toString('utf8')}),
-   getParents:()=>{let more=true;return {hasNext:()=>more,next:()=>{
-    more=false;return {getId:()=>folderId};}}}
+   getParents:()=>{
+    let more=true;
+    return {
+     hasNext:()=>more,
+     next:()=>{more=false;return {getId:()=>folderId};}
+    };
+   }
   };
  }
  let serial=0;
