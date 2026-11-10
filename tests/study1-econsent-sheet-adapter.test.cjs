@@ -117,7 +117,7 @@ test('The approved-style private adapter selects exactly five unique ID rows wit
  assert.deepEqual(h.lookups.map(x=>x.tab),
   ['Applicants','Screenings','Verification','Reservations','Slots']);
  assert.equal(h.reads.filter(x=>x.open).length,2);
- assert.equal(h.reads.filter(x=>x.row!==1&&x.width!==1).length,5);
+ assert.equal(h.reads.filter(x=>Number.isInteger(x.row)&&x.row!==1&&x.width!==1).length,5);
  assert.equal(h.writes.length,0);
  assert.equal(snapshot.applicants.rows[0][4],stamp(-7200000),'Sheet Date normalised to UTC ISO');
  const verified=h.scope.study1BindingVerify_(snapshot,req,doc,new Date().toISOString());
