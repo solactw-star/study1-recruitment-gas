@@ -49,6 +49,9 @@ function harness(snap,now=new Date()){
  });
  vm.runInContext(source,sandbox,{timeout:2000});
  sandbox.STUDY1_ECONSENT_MAX_RECORDS_=12;
+ const originalFactory=sandbox.study1EConsentBindingAdapter_;
+ // Inject synthetic source ONLY in the offline VM; production code has no adapter argument.
+ sandbox.study1EConsentBindingAdapter_=()=>({readTrustedSnapshot:()=>snap});
  sandbox.study1AdminOwnerRequired_=()=>true;
  sandbox.study1EConsentReadyDocument_=exp=>{
   assert.equal(exp,'E1');return doc;
@@ -59,12 +62,12 @@ function harness(snap,now=new Date()){
   if(registry!==old||next.revision!==old.revision+1)throw Error('CAS refusal');
   writes++;registry=next;
  };
- return {sandbox,snap,now,adapter:{readTrustedSnapshot:()=>snap},
+ return {sandbox,snap,now,originalFactory,adapter:{readTrustedSnapshot:()=>snap},
   get registry(){return registry},get writes(){return writes},get locked(){return locked}};
 }
 test('Real adapter is deliberately absent; no browser-provided proof can activate production',()=>{
  const h=harness(snapshot(new Date()));
- assert.throws(()=>h.sandbox.study1EConsentBindingAdapter_(),/REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.originalFactory(),/REC_REVIEW_REQUIRED/);
  assert.equal(h.registry.records.length,0);
 });
 test('One trusted identity + consumed OTP + screened applicant + HELD booking + exact E1 PDF issue one short-lived invite',()=>{
@@ -73,14 +76,14 @@ test('One trusted identity + consumed OTP + screened applicant + HELD booking + 
  binding.digest=h.sandbox.study1BindingDigest_({...binding,digest:''});
  assert.match(binding.digest,/^[0-9a-f]{64}$/);
  assert.equal(h.sandbox.study1BindingRecheck_(binding,doc,h.adapter,now.toISOString()).applicantId,req.applicantId);
- const issued=h.sandbox.study1EConsentIssueBound_(req,h.adapter);
+ const issued=h.sandbox.study1EConsentIssueBound_(req);
  assert.equal(issued.experiment,'E1');
  assert.equal(h.writes,1);
  assert.equal(h.registry.records.length,1);
  assert.equal(h.registry.records[0].binding.applicantId,req.applicantId);
  assert.ok(h.registry.records[0].expires<=Date.parse(snap.reservations.rows[0][4]));
  assert.equal(h.locked,false);
- assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req,h.adapter),/重複/);
+ assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req),/重複/);
  assert.equal(h.writes,1);
 });
 test('Identity/OTP/slot/current source mutations all fail closed with no new issued invite',()=>{
@@ -113,7 +116,7 @@ test('Identity/OTP/slot/current source mutations all fail closed with no new iss
  for(const mutate of cases){
   const now=new Date(),s=snapshot(now),h=harness(s,now);
   mutate(s);
-  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req,h.adapter));
+  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req));
   assert.equal(h.writes,0,'no registry writes on an untrusted read');
   assert.equal(h.locked,false,'lock released on error');
  }
@@ -123,7 +126,7 @@ test('Cross-experiment and source document SHA, version or applicant ID cannot b
  for(const wrong of [{...req,experiment:'E2'}, {...req,documentSha:'f'.repeat(64)},
   {...req,documentVersion:'Version03'}, {...req,applicantId:'APP_00000002'},
   {...req,slotId:'SLOT_00000002'}, {...req,reservationId:'RSV_00000002'}])
-  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(wrong,h.adapter));
+  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(wrong));
  assert.equal(h.writes,0);
 });
 test('At sign time, fresh source re-read invalidates changed identity evidence or reserved slot',()=>{
@@ -146,20 +149,21 @@ test('One script lock protects source validation and invitation CAS from concurr
  const racingAdapter={readTrustedSnapshot:()=>{
   if(!injected){
    injected=true;
-   assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req,racingAdapter),/鎖/);
+   assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req),/鎖/);
   }
   return snap;
  }};
- h.sandbox.study1EConsentIssueBound_(req,racingAdapter);
+ h.sandbox.study1EConsentBindingAdapter_=()=>racingAdapter;
+ h.sandbox.study1EConsentIssueBound_(req);
  assert.equal(h.writes,1);
  assert.equal(h.locked,false);
 });
 test('No fake TEST applicant, identity attestation or expired identity is acceptable',()=>{
  const now=new Date(),snap=snapshot(now),h=harness(snap,now);
  for(const bad of [{...req,applicantId:'SIM-001'}, {...req,challengeId:'SIMOTP_001'}]){
-  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(bad,h.adapter));
+  assert.throws(()=>h.sandbox.study1EConsentIssueBound_(bad));
  }
  snap.identity.verifiedAtUtc='2020-01-01T00:00:00.000Z';
- assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req,h.adapter));
+ assert.throws(()=>h.sandbox.study1EConsentIssueBound_(req));
  assert.equal(h.writes,0);
 });
