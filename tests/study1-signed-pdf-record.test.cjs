@@ -213,13 +213,13 @@ test('E2 e-sign never opens before 2027, even if synthetic document and other fl
 test('full signing is fail-closed when the independent PDF or wizard binding gate is missing',async()=>{
  const h=buildHarness(await createBlank()),before=h.files.size;
  h.values.set('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED','false');
- await assert.rejects(h.scope.study1EConsentSignPdf({}),/REC_REVIEW_REQUIRED|目前尚未/);
+ await assert.rejects(h.scope.study1EConsentSignPdf({}),/PDF_LINK_NOT_READY|目前尚未/);
  assert.equal(h.files.size,before);
 });
 
 test('unbound legacy invitation cannot create a signed PDF even if nominal feature flags are enabled',async()=>{
  const h=buildHarness(await createBlank());
- assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E1'}),/REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E1'}),/BINDING_REQUIRED/);
  h.values.set('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY','true');
  const issued=h.scope.study1EConsentIssue({experiment:'E1'});
  h.scope.study1EConsentExplain({id:issued.id,question:'synthetic Q&A',answer:'synthetic answer',resolved:true});
