@@ -176,6 +176,42 @@ test('New GAS /exec metadata may briefly 404 but must eventually match exact ver
   {getDeployment:async()=>({...deployment,deploymentConfig:{...deployment.deploymentConfig,versionNumber:115}})},
   id,114,2,async()=>{}),/version changed/);
 });
+test('PUBLIC-CAS stale exact prewrite deployment eventually converges without accepting another version',async()=>{
+ const id='AKfycbPublicReadOnlyUniqueId123',scriptId='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z';
+ const mk=v=>({deploymentId:id,deploymentConfig:{scriptId,versionNumber:v,manifestFileName:'appsscript'},
+  entryPoints:[{webApp:{url:'https://script.google.com/macros/s/'+id+'/exec'}}]});
+ let calls=0,pauses=0;
+ const api={getDeployment:async()=>mk(++calls<=2?114:118)};
+ const ok=await release.waitForPublicDeployment(api,id,118,4,async()=>{pauses++;},114);
+ assert.equal(ok.deployment.deploymentConfig.versionNumber,118);
+ assert.equal(calls,3);assert.equal(pauses,2);
+ await assert.rejects(release.waitForPublicDeployment({getDeployment:async()=>mk(115)},
+  id,118,4,async()=>{},114),/another writer/,'a third-party version must never be retried');
+ await assert.rejects(release.waitForPublicDeployment({getDeployment:async()=>mk(114)},
+  id,118,2,async()=>{},114),/not yet converged/,'old version is never accepted as current');
+});
+test('PUBLIC-CAS competing writer prevents unsafe rollback of someone else\'s deployment',async()=>{
+ const x=fixture(),description=release.PUBLIC_DESCRIPTION;
+ await x.api.createDeployment({versionNumber:114,manifestFileName:'appsscript',description});
+ const originalVersion=x.api.getVersion;
+ x.api.getVersion=async v=>v===113?originalVersion(v):remote();
+ x.api.createVersion=async()=>({versionNumber:115});
+ const originalPut=x.api.putDeployment;
+ x.api.putDeployment=async(id,body)=>{
+  if(body.versionNumber===115){
+   await originalPut(id,body);
+   // Another actor changes the effective version after this job's own update.
+   return originalPut(id,{...body,versionNumber:116});
+  }
+  return originalPut(id,body);
+ };
+ await assert.rejects(release.publish(x.api,closedEnv,async()=>({status:200})),
+  /another writer/);
+ assert.equal(x.metrics().backup,1,'a private full backup precedes both updates');
+ assert.equal(x.metrics().publicDeploy.deploymentConfig.versionNumber,116,
+  'must not revert competitor version back to old 114');
+ assert.equal(x.metrics().mutation,3,'pre-existing create, our update, competing update only');
+});
 test('Anonymous info may propagate but private-view exposure fails closed immediately',async()=>{
  let attempt=0,waited=0;
  const result=await release.waitForAnonymousAccess('https://script.google.com/macros/s/AKfycbPublicReadOnlyUniqueId123/exec',
