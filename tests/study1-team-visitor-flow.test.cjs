@@ -3192,6 +3192,7 @@ function v08ConfirmedVisitor_(srv,options){
  const v=v07VerifiedVisitor_(srv,options);
  v.click('hold');
  assert.equal(srv.read().applications[0].phase,'HELD');
+ v.click('confirm'); // §70-S: independent pre-signature booking review
  v.get('readPdf').checked=true;v.change('readPdf');
  v.click('review');
  v.get('agree').checked=true;v.change('agree');
@@ -3500,7 +3501,7 @@ test('P1-08 owner manual expiry advances to next ranked offer, then V08 accepts 
  assert.equal(after.applications.find(a=>a.id===second.id).signatureDemo,false);
  assert.equal(after.notifications.length,notices+1,'accept creates no mail or invented confirmation');
  assert.equal(after.slots.find(x=>x.id==='SIM-SLOT-E1-A').remaining,0);
- assert.equal(second.v.get('step-consent').hidden,false,'still requires original synthetic consent');
+ assert.equal(second.v.get('step-confirm').hidden,false,'§70-S: must review booking before synthetic consent');
  closed(srv);
 });
 test('P1-08 queue CAS, duplicate joining, cross-E1/E2 attempt, auto-promotion and manual withdrawal all guarded',()=>{
@@ -4527,6 +4528,7 @@ function p108ConfirmedInVisitor_(srv,options){
  srv.command('CANCEL',{id:'SIM-001'});
  srv.command('WAITLIST_ADVANCE',{slotId:'SIM-SLOT-E1-A'});
  person.v.click('v08WaitRefresh');person.v.click('v08WaitAccept');
+ person.v.click('confirm'); // §70-S: pre-signature reservation summary
  person.v.get('readPdf').checked=true;person.v.change('readPdf');
  person.v.click('review');
  person.v.get('agree').checked=true;person.v.change('agree');
