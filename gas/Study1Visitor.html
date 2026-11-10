@@ -745,7 +745,7 @@ function formalInkInit_(){
 function formalConsentWire_(){
  el('pdf').hidden=true;
  const warn=document.querySelector('#step-consent .warn');
- if(warn)warn.textContent='正式E1：只有最新有效REC適用性、原PDF版號及研究人員解說全部驗證後才能本人簽署；目前未開放真人收件。';
+ if(warn)warn.textContent='正式E1全線上同意：必須由伺服器獨立核實有效REC遠端簽署適用性、原PDF版號、研究人員線上解說及本人預約後才可簽署；任何條件未通過即禁止收件，不依前端字樣判定是否已開放。';
  const sample=document.querySelector('#step-consent > .lead');
  if(sample)sample.textContent='知情同意全程線上完成：請閱讀核准版完整PDF，研究人員在線上完成說明與疑問回覆後，您於網站手寫簽名，後續由研究人員於線上後台在原PDF獨立簽署；不設定15分鐘倒數。';
  const readLabel=el('readPdf').parentNode;
