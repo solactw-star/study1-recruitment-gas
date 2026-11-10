@@ -68,3 +68,12 @@ test('OTP and email/phone are contact checks, not a REC-sanctioned real-world id
  }),/REC_REVIEW_REQUIRED/);
  assert.equal(h.externalIO,0);
 });
+
+test('legacy PNG e-sign remains blocked by REC even if owner enables synthetic legacy flag',()=>{
+ const h=isolated();
+ assert.throws(()=>h.scope.study1EConsentSign({
+  name:'TEST PERSON',token:'TEST',signature:'AAAAAAAAAAAAAAAA',
+  documentSha:'a'.repeat(64),agree:true,read:true,answerAcknowledged:true
+ }),/REC_REVIEW_REQUIRED.*網路電子簽署/);
+ assert.equal(h.externalIO,0);
+});
