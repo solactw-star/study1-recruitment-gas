@@ -1106,3 +1106,21 @@ NEXT_ACTION=人工核實現行REC的E1/E2原PDF、頁數和簽名/日期框並�
 **不得冒稱已完成的獨立阻塞**：真人版身份及實驗別權責來源仍未核准，study1EConsentBindingAdapter_ 特意throw REC_REVIEW_REQUIRED；原網站Visitor仍為OWNER TEST、SIMULATED_SIGN_ONLY，未把真人登入核身/正式OTP/預約/文件綁定到實際可供參與者使用的簽署RPC。現有Sheet缺獨立REC核身證據欄、缺經核准E1/E2連結；必須核對REC目前有效程序後，才可決定唯一正式來源/實驗別/身分核對方法，不得直接建新欄或把測試資料充作真人。REC_REVIEW_REQUIRED=true；LIVE_REC_IDENTITY_ADAPTER=BLOCKED；BINDING_CORE_SYNTHETIC_CI_VERIFIED=true；REAL_WIZARD_IDENTITY_LINK_VERIFIED=false；REAL_WIZARD_SIGNING_NOT_INTEGRATED=true；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false。本輪僅修改原PR Draft安全隔離分支，未合併main、未修改GAS、REC、正式Sheet、真人資料或開放E2。維持OPEN=false、CONSENT_READY=false、MYSELF。
 
 NEXT_ACTION=取得最新有效REC批准之本人核身/電子同意形式及E1/E2實驗別授權來源；核定適用真人身分憑證的唯一正式寫入與保存權責，實作真實OTP與預約共鎖持久化readback及完整後端接線；在原七步最後一階段完成研究人員確認、已簽PDF本人副本、實際瀏覽器UI與REC原件欄位視覺驗收。程式CI和測試fixture不可取代安全門檻。
+
+
+### 70-S.9｜2026-11-10 原正式Sheets限縮讀取、OTP實際交易介接與報名／預約／PDF來源核驗（隔離分支）
+
+TASK_DOMAIN=Study1 招募網站P0：本人OTP、申請ID、時段與E1/E2 PDF安全綁定。WRITE_OWNER=原GitHub Draft PR #133；唯一正式主規格仍為docs/study1-system-spec.md。BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；程式CI基準HEAD=04e768cc9d0f68e84cf196e73f9b400cbfcee949。
+
+**正式資料表重新回讀（僅metadata/表頭，無個資資料列）**：原Sheet personal=1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI／operations=1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ，最新存在原Applicants/Screenings/Verification/ConsentRecords/Reservations/Slots及既有已核實表頭；並未找到額外可證實「本人真實核身與E1/E2實驗別授權」的正式欄位或來源。嚴禁僅以郵件OTP或本人輸入姓名推定REC已核准的真人身份及實驗資格。
+
+**已寫入原GAS程式路徑（PR Draft，並非GAS部署）**：
+- gas/Study1EConsentBinding.js：新增原ID定位的正式Google Sheets只讀介接。先要求原OWNER與 OPEN、CONSENT_READY、簽署引擎／PDF／Wizard、REC身分來源及正式Sheets各獨立批准旗標，再從獨立study1EConsentIdentityAttestation_取得不可由瀏覽器提供的核身／實驗別證據；該權責來源尚不存在，因此原函式明確拒絕並且**在未核准時不會開啟正式Sheets**。批准後才依原SITE_RESOURCES_唯一Sheet ID，逐表頭及A欄精確ID定位，只讀同一applicant/screening/challenge/reservation/slot五筆必要資料、不全表掃個資；UTC、實驗別、OTP已使用、HELD、PDF原SHA與版號使用原study1BindingVerify_；原HMAC仍綁定同一組證據，核發時持原ScriptLock，簽署PDF組裝前及實際私人Drive/CAS存證前以同一交易鎖重新核驗。
+- 新增 gas/Study1EConsentOtpAdapter.js（僅私有函式，沒有公開RPC），使用原OtpCore、OtpThrottle與OtpTransaction一次性OTP/HMAC及每帳號跨challenge節流：其 REC核准申請者／實驗別來源 study1EConsentOtpApplicantAuthorization_ 未授權時直接拒絕。需原身分/Sheet守門全部通過及額外獨立的 STUDY1_ECONSENT_OTP_VERIFY_APPROVED=true 才可執行；原Verification按challenge ID、applicant ID、email做受限索引及精確表頭驗證，保留真實row number供原OTP kernel使用，不讀其他人完整資料列。受原全域LockService鎖保護，正確OTP只准原Verification F:G相鄰二欄原地更新，寫前讀回、SpreadsheetApp.flush後讀回，鎖、次數、已使用/逾期、帳戶節流、寫入或回讀任一失敗不得標記驗證成功。**目前兩個REC權責來源均刻意維持未接線，且原OPEN/CONSENT_READY=false；本輪沒有實際讀寫真人報名資料。**
+- gas/AdminSandbox.js已要求正式同意PDF簽署的原OTP／申請／時段／文件重新核對在共同鎖下執行；原 scripts/study1-gas-backend-allowlist.cjs 與既有GAS部署安全測試均增列兩個原目錄私有程式檔，不放寬原Website.js公開入口及原七步Study1Visitor.html、V05/V08、B02/B03/B04模型。
+
+**完整合成負面／競寫／重送測試**：新增 tests/study1-econsent-sheet-adapter.test.cjs，驗證正式表頭、來源ID限縮讀取、真人身份權責阻塞、唯一ID、跨實驗、不符來源、稀疏欄、重複列、核准中途撤銷及共鎖重複邀請；新增 tests/study1-econsent-otp-adapter.test.cjs，驗證原八碼OTP HMAC、跨challenge帳號節流、成功只能使用一次、同一F:G寫入與flush/回讀、重播拒絕、錯誤代碼與帳號冒用、跨E1/E2、重複challenge、鎖競爭、來源突變與寫後狀態不明、OTP寫入權限獨立限制。使用100%合成私人Node VM模擬；無真人資料或GAS網路作業。最新CI：https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42752218442，HEAD=04e768cc9d0f68e84cf196e73f9b400cbfcee949，**768 PASS／0 FAIL／0 SKIP**；該次CI不代表正式REC／UI驗收。
+
+**不可冒稱已正式完成**：目前既無可核實的REC核准身份/實驗別attestation provider，也無核准真人OTP申請來源，因此實際對正式Sheets/真人的讀取與寫入被預設拒絕；前述「實際後端資料介接」是與原資料表ID、結構、欄位及原OTP核⼼相容的**受保護實作**，不是現場啟用的真人服務。原Visitor七步仍OWNER TEST，尚未有經REC核定可用的本人身份及實驗別映射、正式OTP發送/寄送憑證、真正時段佔位持久化、正式PDF逐欄定位與研究人員/本人簽署流程UI驗收。REC_REVIEW_REQUIRED=true；LIVE_IDENTITY_ATTESTATION=BLOCKED；OTP_AUTHORITY=BLOCKED；OTP_TRANSACTION_LIVE=false；REAL_WIZARD_SIGNING_NOT_INTEGRATED=true；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false；MAIN_SYNC_VERIFIED=false；GAS_SYNC_VERIFIED=false。維持OPEN=false、CONSENT_READY=false、MYSELF及E2獨立禁招募，無正式Sheet/REC/GAS修改或部署。
+
+NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一來源、同意書實際核准原PDF版號/SHA/簽名欄位；完成身份/申請 authority adapter、可安全保存及實際核實的真人OTP與預約流程，將原七步最後的手寫簽名與study1EConsentSignPdf合法串接；先在隔離環境做實際瀏覽器、原PDF及權限UAT，另外取得合併與同ID GAS同步/部署授權，禁止僅因CI通過自動啟用。
