@@ -40,6 +40,11 @@ function study1ParticipantInput_(input){
      .some(x=>x!==true))
   return {accepted:false,experiment:'E1'};
  const email=study1BindingEmail_(input.email);
+ // Google Sheets appendRow interprets leading '=' as a formula; reject
+ // spreadsheet-active leading characters in every caller-controlled field.
+ if(/^[=+\-@]/.test(email)||(/^[=+\-@]/.test(String(input.name||'').trim()))||
+    (/^[=+\-@]/.test(String(input.phone||'').trim())))
+  throw Error('申請欄位包含禁止的試算表公式前綴');
  if(typeof input.name!=='string'||input.name.trim().length<2||
     input.name.length>80||/[<>\r\n\x00-\x1f]/.test(input.name)||
     typeof input.phone!=='string'||input.phone.length>30||
