@@ -1328,3 +1328,25 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **仍須核實的獨立實營門檻／不得誤報：** (A) 原正式Slots實際資料尚未由PI審查並寫入核定E1 slot registry（HMAC機制已完成，但`STUDY1_E1_SLOT_REGISTRY_APPROVED`不得虛構已配置）；(B) V05 quote 2分鐘、暫留10分鐘、FIFO啟用條件及其它營運政策仍應依適用核准文件／PI定案後配置；(C) 最新有效REC對網頁蒐集個資、真人電子同意與遠端簽署的適用範圍未能以舊核准證書直接推定，正式Turnstile provider及Consent PDF仍需實際服務核對；(D) V07最後研究同意及簽署PDF/研究員解說/副本尚未連接FORMAL完整真人路徑；(E) 尚無真實瀏覽器UI驗收、真郵件或原資料Sheet交易測試、GAS新版部署、main合併與正式營運授權。因此只標`BRANCH_SYNTHETIC_CI_VERIFIED=true`，`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`、`UI_VERIFIED=false`、`FORMAL_READY=false`。修正後的FORMAL模式也不得在上述安全門檻未通過時自行擅自開放。
 
 **跨對話接續：** `TASK_DOMAIN=Study1 recruitment website / formal E1 Slots V05 Reservations V08`；`SOURCE_PATH=solactw-star/study1-recruitment-gas PR #133 / docs/study1-system-spec.md`；`SOURCE_VERSION=f3f7a13bb7b93d2d522083c88bea9799ccf66ed7`（為當次核實程式SHA，新輪應讀遠端最新）; `LAST_VERIFIED_STEP=real FORMAL V05/V08 controller scope repair + 852 CI and synthetic browser E2E`；`COMPLETED=E1 slot-registry code, formal V05 quote/hold, original Reservations CAS and FIFO, V08 waitlist/move/cancel, FORMAL browser callback and synthetic tests`；`NEXT_ACTION=PI-reviewed exact original E1 slot registry + effective REC website/consent provider readiness + FORMAL last PDF step and real owner browser UAT`；`BLOCKERS=E1_SLOT_REGISTRY_NOT_PROVISIONED,PROVISIONAL_HOLD_WAITLIST_POLICY_UNAPPROVED,REC_WEB_CONSENT_SCOPE_REVIEW_REQUIRED,TURNSTILE_REAL_PROVIDER_NOT_VERIFIED,FORMAL_LAST_PDF_NOT_LINKED,REAL_UI_NOT_VERIFIED`；`WRITE_OWNER=PR#133 isolated branch`；`SYNC_STATUS=BRANCH_CI_VERIFIED,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false`。
+
+### 70-S.20｜2026-11-10 E1原Slots OWNER唯讀核定前稽核與部署安全清單
+
+**本輪授權與來源：** 接續同一原PR #133 §70-S.19（FORMAL E1自陳資格／Email OTP、V05／V08和原Reservations 852項合成核心）；不重做既有核心、Demo或證件／學籍查核。只在原Draft隔離分支增量寫入，不合併main、不部署新版GAS、不修改正式REC／Sheet／原時段／真人資料，維持OPEN=false、CONSENT_READY=false、MYSELF、E2不開放。
+
+**完成程式：** 原gas/Study1WizardP0Bridge.js新增study1OwnerE1SlotAudit()，以study1AdminOwnerRequired_雙身分OWNER驗證＋共用ScriptLock只讀原營運Sheet的Slots八欄（不讀或回傳Applicants／Reservations個資），原表頭／禁止公式／兩次原列回讀一致才對照既有STUDY1_E1_SLOT_REGISTRY_V1及其HMAC。無登錄、缺簽章、原列遭改、來源競寫、重複ID、登錄缺失等不能推定E1；絕不以slotId／地點字樣或訪客傳入欄位推定E1。它不建立、分類、核定或修改任何場次、ScriptProperties與核定清單，僅回傳OWNER_ONLY_READ_ONLY檢查及每場pinStatus，固定formalReady=false及recRemoteConsentScopeVerified=false。
+
+原gas/AdminConsole.html增加「E1正式場次｜唯讀核定前查核」入口，後台研究室OWNER可檢視原Slots的場次、登錄實驗及原列簽章比對，所有動態內容以textContent渲染，沒有開放按鈕／自動核定。新增tests/study1-owner-e1-slot-audit.test.cjs七項來源、權限、HMAC竄改、原場次變更、重複／缺失與共鎖釋放測試；tests/public-global-surface.test.cjs僅把新owner-gated讀取端點加入精確清單並另檢查無寫入。舊AdminConsole VM無此選配按鈕時不影響原測試功能。
+
+**REC資料當次讀取：** 原有效REC證書ID 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy仍存在02_倫理審查；變更申請資料夾ID 1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR目前僅有2026-10-22變更申請與2026-10-27 E1/E2同意書修訂稿，未見對應的核准決議，不能逕認修訂稿已生效。研究程序已有REC核可不代表網頁個資／遠端電子同意的特定實作已核可；仍須核對最新有效核准紀錄及適用範圍。證書Drive權限metadata回傳anyone/writer，屬應優先人工核查的證據完整性風險，本輪不擅改任何正式權限。
+
+**真實剩餘P0與部署前硬門檻：** 
+1. PI根據原正式Slots逐筆決定E1場次、時間、地點、名額並核定後，才由授權者配置／回讀原Registry HMAC；目前只完成唯讀核定前介面，不聲稱已有任何正式E1時段核定。
+2. 核定V05 quote有效時間、HELD期限、V08 FIFO及部分失敗人工處置營運政策；現行數值仍是未核准的工作暫設。
+3. 核實適用REC對網站個資、電子同意、研究員說明與簽章、同意書版本／頁碼／簽署框／日期／保存／副本交付的範圍；修訂稿不是核准證據。
+4. 實測真Cloudflare Turnstile Siteverify／secret、MailApp OTP、原Sheet權限、HMAC金鑰、原PDF與簽署PDF逐位元組SHA、私有檔案ACL、保存期限／撤回和失敗重送處置，不寄真信或讀寫真人資料來替代合成CI。
+5. FORMAL最後V07須將原HELD預約、原申請及OTP證據、本人簽署PDF、研究員確認及本人完整PDF副本連成不可偽造的序列；本輪仍未接通，不得把現有owner PDF示範解讀成正式真人電子同意。
+6. 原GAS Script ID、遠端原始碼與manifest、既有部署版本、完整備份、原私有MYSELF執行權限、來源SHA和部署後回讀均須獨立驗證；需另行明確授權同步／部署。CI通過不等於UI_VERIFIED，不在安全門檻通過前通知集中人工UAT。
+
+**寫入紀錄：** 原backend commit 8e0811330c772339ee2d4e27c2447f3363b9a4ed；新增7測試 5ab49b557e7731134da23a6e53586c47d8eb34bf；原後台 df80fb9e4b66cbca1f05cb48dec23b9ece23b925；既有VM與公開函式白名單相容性修正 bd0ff64afeb91c456ddb0b3c25371a4145f13e3b、fd97f035b7096a45056af0e6c8f0401959f2e68b。首輪GitHub Actions 42814342488因舊AdminConsole VM選配DOM不存在（41項）及新OWNER RPC未在精確白名單（1項）而失敗，已逐項修正；必須以修正後最新CI重新驗證，不隱藏失敗或冒稱已正式通過。
+
+**接續點：** TASK_DOMAIN=Study1 website / E1 operating readiness; SOURCE_PATH=PR#133 / gas/Study1WizardP0Bridge.js + gas/AdminConsole.html + tests + docs/study1-system-spec.md; LAST_VERIFIED_STEP=OWNER_SLOT_AUDIT_CODE_AND_TESTS_COMMITTED_CI_RECHECK; NEXT_ACTION=verify latest CI and SHA, PI review actual E1 slot registry, effective REC web/consent scope, real external providers, FORMAL final PDF linking and independent predeploy owner audit; BLOCKERS=PI_E1_SLOT_APPROVAL_PENDING,REC_WEB_CONSENT_SCOPE_REVIEW_REQUIRED,REC_EVIDENCE_ACL_REVIEW_REQUIRED,TURNSTILE_REAL_NOT_VERIFIED,FORMAL_FINAL_PDF_UNLINKED,UI_NOT_VERIFIED; WRITE_OWNER=original PR#133 isolated branch; SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false.
