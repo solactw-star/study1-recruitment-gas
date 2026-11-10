@@ -50,6 +50,13 @@ function harness(){
   study1FormalSlot_:(ctx,slotId)=>{seen.slot++;if(slotId!==id||slots[0][0]!==slotId)throw Error('untrusted slot');return slots[0];},
   study1EConsentReadyDocument_:(experiment)=>{if(experiment!=='E1')throw Error('E2 blocked');return doc;},
   study1PdfLayoutRead_:()=>({verified:true}),
+  study1PdfResearcherLayoutRead_:()=>({verified:true}),
+  study1ConsentDocumentBytes_:()=>[...Buffer.from('%PDF-'+('SYNTHETIC REC ORIGINAL '.repeat(10)))],
+  study1BindingRecheck_:(_binding,_doc,_adapter,_now,lockObj)=>{
+   if(lockObj!==lock||!held||rows[0][3]!=='HELD'||Date.parse(rows[0][4])<=Date.now())
+    throw Error('FORMAL_ORIGINAL_PDF_BOOKING_CHANGED');
+   return true;
+  },
   study1EConsentBindingAdapter_:(audience)=>{
    seen.adapter.push(audience);
    if(audience!=='PUBLIC_E1')throw Error('WRONG_AUDIENCE');
@@ -74,7 +81,8 @@ function harness(){
   study1EConsentSession_:()=>({state:'ISSUED'}),
   study1EConsentSession:()=>({explanation:null}),
   LockService:{getScriptLock:()=>lock},
-  Utilities:{getUuid:(()=>{let i=0;return ()=>('aaaaaa'+String(++i).padStart(2,'0')+'-bbbb-4ccc-8ddd-000000000001');})()},
+  Utilities:{getUuid:(()=>{let i=0;return ()=>('aaaaaa'+String(++i).padStart(2,'0')+'-bbbb-4ccc-8ddd-000000000001');})(),
+   base64Encode:bytes=>Buffer.from(bytes).toString('base64')},
   Date,Number,String,Array,Object,JSON,Error,Set,Math,
  };
  vm.createContext(scope);vm.runInContext(src,scope);
@@ -163,4 +171,27 @@ test('a confirmed consent may read its existing status after intake closes, but 
  assert.equal(result.staffConfirmed,true);
  assert.equal(result.state,'CONFIRMED');
  assert.equal(result.copyAvailable,false,'copy still requires the original signed PDF');
+});
+
+test('original FORMAL REC PDF is token, OTP and HELD-bound; never calls CLOSED demo read',()=>{
+ const h=harness(),issued=h.scope.study1FormalConsentBegin({
+  emailProof:'MAIL_PROOF',reservationId:rid});
+ const doc=h.scope.study1FormalConsentOriginalPdf(issued.token);
+ assert.equal(doc.experiment,'E1');assert.equal(doc.version,h.doc.version);
+ assert.equal(doc.sha256,h.doc.sha256);assert.equal(doc.mime,'application/pdf');
+ assert.ok(Buffer.from(doc.base64,'base64').toString().startsWith('%PDF-'));
+ assert.equal(h.seen.writes,1,'read must not write new participant data');
+ h.rows[0][3]='CANCELLED';
+ assert.throws(()=>h.scope.study1FormalConsentOriginalPdf(issued.token),
+  /FORMAL_ORIGINAL_PDF_BOOKING_CHANGED/);
+ h.rows[0][3]='HELD';h.registry.records[0].state='SIGNED';
+ assert.throws(()=>h.scope.study1FormalConsentOriginalPdf(issued.token),
+  /FORMAL_ORIGINAL_PDF_NOT_AUTHORIZED/);
+});
+test('FORMAL original PDF requires the REC gate and cannot be read across experiments',()=>{
+ const h=harness();
+ assert.throws(()=>h.scope.study1FormalConsentOriginalPdf('FORGED'),/TOKEN_INVALID/);
+ h.scope.study1FormalConsentBegin({emailProof:'MAIL_PROOF',reservationId:rid});
+ h.props.set('OPEN','false');
+ assert.throws(()=>h.scope.study1FormalConsentOriginalPdf('TOKEN'),/CLOSED/);
 });
