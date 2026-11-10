@@ -152,7 +152,7 @@ test('Identity swap, experiment swap and source permission errors fail before op
  ]){
   const id=evidence();mutation(id);
   const h=harness({enabled:true,approveIdentity:true,identity:id});
-  assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/REC_REVIEW_REQUIRED/);
+  assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/IDENTITY_EVIDENCE_INVALID/);
   assert.equal(h.reads.length,0);
  }
 });
