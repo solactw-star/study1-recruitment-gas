@@ -126,6 +126,14 @@ select{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px soli
 </div>
 <div id="status" role="status" aria-live="polite">確認研究室權限中……</div>
 </section>
+<section id="e1OwnerSlotAudit" aria-labelledby="e1OwnerSlotAuditTitle">
+<h2 id="e1OwnerSlotAuditTitle">E1 正式場次｜唯讀核定前查核</h2>
+<p>這裡讀取原營運工作簿 Slots 的實際場次並檢查既有簽章登錄，不會建立、分類、核定、移動或刪除正式場次。任何場次是否屬於 E1，仍須由研究主持人依正式時段與適用研究文件逐筆確認；本頁不會開放正式招募或簽署。</p>
+<button type="button" class="secondary" id="e1SlotAuditLoad">查核原 Slots 與 E1 登錄簽章（唯讀）</button>
+<p id="e1SlotAuditStatus" role="status" aria-live="polite">尚未核對原正式場次。合成 Demo 時段不能作為 E1 核定來源。</p>
+<div id="e1SlotAuditResults" class="booking-table-wrap" role="region" aria-label="E1原始時段唯讀查核結果" tabindex="0"></div>
+<p><small>即使全部列比對一致，也不等於 REC 網站適用、電子同意已核准、實際 GAS 部署或 UI 驗收。未完成正式安全條件，系統必須維持 OPEN=false、CONSENT_READY=false、MYSELF。</small></p>
+</section>
 <p><a href="?">返回公開研究資訊</a></p>
 </main>
 <script>
@@ -643,6 +651,53 @@ $('bookingMove').addEventListener('click',()=>changeBooking('MOVE'));
 $('bookingCancel').addEventListener('click',()=>changeBooking('CANCEL'));
 $('questionLoad').addEventListener('click',()=>loadQuestion());$('questionApply').addEventListener('click',applyQuestion);$('questionAdd').addEventListener('click',addQuestion);$('questionRemove').addEventListener('click',removeQuestion);
 $('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
+
+function e1SlotOwnerAudit_(){
+ const btn=$('e1SlotAuditLoad'),result=$('e1SlotAuditResults');
+ btn.disabled=true;
+ $('e1SlotAuditStatus').textContent='正在以研究室 OWNER 權限唯讀核對原 Slots、表頭及場次 HMAC…';
+ result.replaceChildren();
+ const fail=e=>{
+  btn.disabled=false;
+  $('e1SlotAuditStatus').textContent='正式場次未能完整核實：'+String(e&&e.message||e);
+ };
+ google.script.run.withFailureHandler(fail).withSuccessHandler(data=>{
+  btn.disabled=false;
+  if(!data||data.mode!=='OWNER_ONLY_READ_ONLY'||
+     data.source!=='ORIGINAL_OPERATIONS_SLOTS'||!Array.isArray(data.rows)||
+     data.slotCount!==data.rows.length||data.formalReady!==false){
+   fail('未取得可信的唯讀核對結構');return;
+  }
+  $('e1SlotAuditStatus').textContent=
+   '原 Slots：'+data.slotCount+' 筆；既有登錄 E1 有效匹配：'+data.matchedE1Count+
+   ' 筆；登錄開關：'+(data.ownerRegistryApprovedFlag?'已設定':'未設定')+
+   '；原列／HMAC：'+(data.mappingVerified?'現有登錄一致（仍非正式啟用）':'尚未完整一致或未核定')+
+   '。遠端電子同意及整站正式啟用均尚未在本頁驗證。';
+  const table=document.createElement('table');
+  table.className='booking-table';
+  const head=document.createElement('thead'),hr=document.createElement('tr');
+  const columns=[['slotId','原場次ID'],['startAtUtc','開始時間 UTC'],
+   ['endAtUtc','結束時間 UTC'],['capacity','名額'],
+   ['locationCode','地點代碼'],['status','原狀態'],
+   ['registryExperiment','已登錄實驗'],['pinStatus','原列簽章']];
+  for(const [,name] of columns){
+   const th=document.createElement('th');th.textContent=name;hr.appendChild(th);
+  }
+  head.appendChild(hr);table.appendChild(head);
+  const body=document.createElement('tbody');
+  for(const row of data.rows){
+   const tr=document.createElement('tr');
+   for(const [key] of columns){
+    const td=document.createElement('td');td.textContent=String(row[key]??'');
+    tr.appendChild(td);
+   }
+   body.appendChild(tr);
+  }
+  table.appendChild(body);result.appendChild(table);
+ }).study1OwnerE1SlotAudit();
+}
+$('e1SlotAuditLoad').addEventListener('click',e1SlotOwnerAudit_);
+
 reload();
 })();
 </script></body></html>
