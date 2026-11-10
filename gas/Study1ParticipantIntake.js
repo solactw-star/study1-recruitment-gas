@@ -136,7 +136,7 @@ function study1ParticipantBegin_(input){
       s[5]!=='PARTICIPANT_SELF_REPORT')
     throw Error('APPLICATION_REPLAY_MISMATCH');
    return {accepted:true,created:false,applicantId,screeningId,
-    phase:'PENDING_EMAIL'};
+    phase:a[6]==='EMAIL_VERIFIED'?'EMAIL_VERIFIED':'PENDING_EMAIL'};
   }
   // An email cannot be enrolled under multiple different request IDs.
   // Eligibility is declared by the participant's affirmative selections.
