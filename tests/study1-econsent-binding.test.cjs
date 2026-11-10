@@ -48,6 +48,7 @@ function harness(snap,now=new Date()){
    computeHmacSha256Signature:(str,secret)=>[...crypto.createHmac('sha256',secret).update(str).digest()]}
  });
  vm.runInContext(source,sandbox,{timeout:2000});
+ sandbox.STUDY1_ECONSENT_MAX_RECORDS_=12;
  sandbox.study1AdminOwnerRequired_=()=>true;
  sandbox.study1EConsentReadyDocument_=exp=>{
   assert.equal(exp,'E1');return doc;
