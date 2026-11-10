@@ -789,7 +789,7 @@ function study1EConsentIssue(input){
  // Retain solely for synthetic legacy TEST fixtures; not a live path.
  if(PropertiesService.getScriptProperties()
     .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
-  throw Error('REC_REVIEW_REQUIRED：正式邀請必須綁定本人身分、OTP及預約');
+  throw Error('BINDING_REQUIRED：正式邀請必須綁定本人身分、OTP及預約');
  const lock=LockService.getScriptLock();
  if(!lock.tryLock(10000))throw Error('電子同意作業忙碌');
  try{
@@ -1029,7 +1029,7 @@ async function study1EConsentSignPdf(input){
  const p=PropertiesService.getScriptProperties();
  if(p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
     p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true')
-  throw Error('REC_REVIEW_REQUIRED：正式PDF保存與本人報名身分連結尚未驗證');
+  throw Error('PDF_LINK_NOT_READY：正式PDF保存與本人報名身分連結尚未驗證');
  if(!input||Object.keys(input).sort().join(',')!=='agree,answerAcknowledged,documentSha,name,read,signature,token'||
   input.agree!==true||input.answerAcknowledged!==true||input.read!==true||
   typeof input.name!=='string'||!input.name.trim()||input.name.length>80||
@@ -1045,7 +1045,7 @@ async function study1EConsentSignPdf(input){
  const prior=study1EConsentEntry_(input.token,study1EConsentRegistry_());
  // A bearer token and staff manual invitation are never sufficient proof.
  // This must be re-read from approved server-only sources, not from the browser.
- if(!prior.binding)throw Error('REC_REVIEW_REQUIRED：此邀請未綁定身分／OTP／預約');
+ if(!prior.binding)throw Error('BINDING_REQUIRED：此邀請未綁定身分／OTP／預約');
  const bindingAdapter=study1EConsentBindingAdapter_();
  if(prior.state!=='EXPLAINED'||prior.documentSha!==input.documentSha||
    prior.expires<=Date.now())
