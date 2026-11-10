@@ -29,6 +29,8 @@ const entries=[
  ['OtpTransaction','SERVER_JS','gas/OtpTransaction.js'],
  ['BookingHoldTransaction','SERVER_JS','gas/BookingHoldTransaction.js'],
  ['Study1FixtureAdapter','SERVER_JS','gas/Study1FixtureAdapter.js'],
+ ['Study1PdfLib','SERVER_JS','gas/Study1PdfLib.js'],
+ ['Study1PdfStampCore','SERVER_JS','gas/Study1PdfStampCore.js'],
  ['Study1Visitor','HTML','gas/Study1Visitor.html'],
  ['Study1Team','HTML','gas/Study1Team.html']
 ];
