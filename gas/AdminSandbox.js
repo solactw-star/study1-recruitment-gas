@@ -875,6 +875,10 @@ function study1EConsentConfirm(input){
  return study1EConsentChange_(input.id,x=>{
   study1AdminOwnerRequired_();
   if(x.state!=='SIGNED')throw Error('只有已簽署紀錄能被研究人員確認');
+  if(!x.signedPdf&&PropertiesService.getScriptProperties()
+     .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
+   throw Error('沒有完整已簽署PDF，不得標記研究人員確認');
+  if(x.signedPdf)study1EConsentSignedPdfRead_(x.signedPdf,x);
   study1EConsentEvent_(x.signature,x,'SIGNATURE');
   const file=study1EConsentFile_('CONFIRMATION',x,{
    researcher:'OWNER',reviewerEmail:Session.getActiveUser().getEmail(),
@@ -888,6 +892,9 @@ function study1EConsentCopy(token){
  const entry=study1EConsentEntry_(token,study1EConsentRegistry_());
  if(!['CONFIRMED','WITHDRAWN'].includes(entry.state))
   throw Error('尚未完成雙方確認，不提供有效簽署副本');
+ if(!entry.signedPdf&&PropertiesService.getScriptProperties()
+   .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
+  throw Error('正式電子同意必須提供完整已簽署PDF，不能只提供PNG和收據');
  const signed=study1EConsentEvent_(entry.signature,entry,'SIGNATURE');
  const confirmed=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION');
  const withdrawn=entry.withdrawal?
