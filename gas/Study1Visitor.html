@@ -86,6 +86,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
  <label for="formalName" class="field">姓名</label><input id="formalName" type="text" autocomplete="name" maxlength="80" disabled>
  <label for="formalEmail" class="field">電子郵件</label><input id="formalEmail" type="email" autocomplete="email" maxlength="254" disabled>
  <label for="formalPhone" class="field">電話（非必填）</label><input id="formalPhone" type="tel" autocomplete="tel" maxlength="30" disabled>
+ <div id="formalHumanCheck" hidden aria-label="真人報名的人機安全驗證"><p class="help">請完成必要的人機驗證；該程序不會把醫療初篩答案提供給驗證服務。</p><div id="formalTurnstile"></div></div>
 </div>
 <div id="screenQuestions">
 <label class="check"><input id="adult" type="checkbox" checked><span id="qAdult">已滿十八歲</span></label>
@@ -212,7 +213,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 if(typeof document==='undefined'||!document.body||
    document.body.dataset.siteMode!=='FORMAL')return;
 const el=id=>document.getElementById(id);
-const state={ready:false,app:null,mail:null,busy:false,requestId:null};
+const state={ready:false,app:null,mail:null,busy:false,requestId:null,humanToken:'',captchaWidget:null};
 const genRequest=()=>{
  if(!globalThis.crypto||typeof crypto.getRandomValues!=='function')
   throw Error('瀏覽器無法安全建立申請識別碼');
@@ -236,6 +237,31 @@ const rpc=(name,payload,onSuccess)=>{
   state.busy=false;onSuccess(result);
  })[name](payload);
 };
+function mountHumanCheck_(siteKey){
+ if(typeof siteKey!=='string'||!/^[A-Za-z0-9_-]{20,100}$/.test(siteKey)){
+  status('人機驗證設定未完成，暫不接受申請。');return;
+ }
+ const area=el('formalHumanCheck');if(!area)return;
+ area.hidden=false;
+ // External script is loaded only in the reviewed FORMAL branch. The OWNER
+ // demo stays local-only, with no CAPTCHA and no real applicant input.
+ const loader=document.createElement('script');
+ loader.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+ loader.async=true;
+ loader.onload=()=>{
+  if(!window.turnstile||typeof window.turnstile.render!=='function'){
+   state.ready=false;status('人機驗證服務暫時無法載入。');return;
+  }
+  state.captchaWidget=window.turnstile.render('#formalTurnstile',{
+   sitekey:siteKey,action:'study1_e1_apply',
+   callback:token=>{state.humanToken=token;},
+   'expired-callback':()=>{state.humanToken='';},
+   'error-callback':()=>{state.humanToken='';}
+  });
+ };
+ loader.onerror=()=>{state.ready=false;status('人機驗證服務暫時無法使用。');};
+ document.head.appendChild(loader);
+}
 const note=document.querySelector('.noticebar');
 if(note)note.textContent='Study1 研究報名｜依目前研究開放狀態提供服務';
 const hero=document.querySelector('header .hero p');
@@ -295,12 +321,16 @@ el('chooseE1').addEventListener('click',()=>{
 el('screenBack').addEventListener('click',()=>show('choose'));
 el('screenNext').addEventListener('click',()=>{
  if(!state.ready||state.busy)return;
+ if(!state.humanToken){status('請先完成人機驗證再送出申請。');return;}
  const payload={experiment:'E1',adult:el('adult').checked,cycu:el('cycu').checked,
   noDx:el('noDx').checked,noTreatment:el('noTreatment').checked,
   noPractice:el('noPractice').checked,name:el('formalName').value,
   email:el('formalEmail').value,phone:el('formalPhone').value,
-  requestId:state.requestId||genRequest()};
+  requestId:state.requestId||genRequest(),humanToken:state.humanToken};
  state.requestId=payload.requestId;
+ state.humanToken='';
+ if(window.turnstile&&state.captchaWidget!==null)
+  window.turnstile.reset(state.captchaWidget);
  rpc('study1ParticipantBegin',payload,result=>{
   if(!result||result.accepted!==true){
    show('ineligible');status('目前不符合此研究的報名條件。');return;
@@ -332,7 +362,9 @@ el('otpVerify').addEventListener('click',()=>{
 if(typeof google!=='undefined'&&google.script&&google.script.run){
  google.script.run.withFailureHandler(()=>status('目前尚未開放線上報名。'))
   .withSuccessHandler(result=>{
-   state.ready=!!(result&&result.ready===true&&result.experiment==='E1');
+   state.ready=!!(result&&result.ready===true&&result.experiment==='E1'&&
+    typeof result.siteKey==='string');
+   if(state.ready)mountHumanCheck_(result.siteKey);
    el('chooseE1').disabled=!state.ready;
    el('chooseE2').disabled=true;
    if(el('noAvailable'))el('noAvailable').textContent=
