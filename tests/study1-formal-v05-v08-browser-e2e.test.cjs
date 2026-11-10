@@ -129,7 +129,9 @@ function simulate(available,withConsent=false){
    assert.equal(sessionToken,token);
    if(!staffConfirmed)throw Error('STAFF_CONFIRM_REQUIRED');
    return {experiment:'E1',version:'V1',sourceSha256:pdfSha,
-    signedPdfSha256:signedSha,signedAt,taipeiDate,
+    signedPdfSha256:signedSha,signedAt,taipeiDate,dualSigned:true,
+    participantSignedPdfSha256:'f'.repeat(64),
+    researcherSignedAt:signedAt,researcherTaipeiDate:taipeiDate,
     mime:'application/pdf',bytes:signedPdf.length,
     base64:signedPdf.toString('base64')};
   },
