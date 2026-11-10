@@ -51,7 +51,7 @@ function fixture({approved=true,identity=true,slotProof=true,experiment='E1',cap
    hasLock:()=>locked,releaseLock:()=>{locked=false}
   })},
   SpreadsheetApp:{
-   openById:id=>{readCount++;if(id!==O)throw Error('Wrong official Sheet');return {getSheetByName:name=>tab(name)}},
+   openById:id=>{readCount++;if(id===P)return {getSheetByName:name=>tab(name)};if(id!==O)throw Error('Wrong official Sheet');return {getSheetByName:name=>tab(name)}},
    flush:()=>{}
   }
  });
