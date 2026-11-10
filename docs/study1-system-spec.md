@@ -1176,3 +1176,25 @@ NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一
 - `OPEN=false`、`CONSENT_READY=false`、`MYSELF`及E2不自動開放；`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`。本次不更動正式研究收件、REC或個資表；先保留安全隔離分支，待另行授權及實際系統驗收。
 
 **接續點：** TASK_DOMAIN=Study1招募網站P0；SOURCE_PATH=原GitHub `solactw-star/study1-recruitment-gas/docs/study1-system-spec.md`；WRITE_OWNER=PR #133隔離分支；LAST_VERIFIED_STEP=移除錯誤REC一律封鎖，復原及重驗原共鎖OTP/HMAC、電子PDF的技術保護；NEXT_ACTION=補完可信真人資料來源及封閉端到端UAT，獨立核對原REC對本系統具體電子同意與儲存方式的適用範圍，但不得因此宣稱整體研究未核可；BLOCKERS=技術來源、正式部署授權；SYNC_STATUS=GitHub branch only。
+
+
+### 70-S.12｜2026-11-10 P0 原七步身分／OTP／預約後端共鎖橋接（僅PR #133安全分支）
+
+**最新任務決策：** 已核可 Study1 REC 202604EM033，依最新§70-S.11，不恢復先前錯誤的REC無條件拒絕。優先把原七步`Study1Visitor.html`的聯絡OTP、本人申請ID、篩檢ID、時段預約及E1/E2正式PDF版號/SHA串入一致安全後端；維持V05原月曆、V08候補／改期／取消與原B02/B03/B04模型，不能把TEST身分偽裝為真人。工作僅修改原GitHub PR #133 Draft安全隔離分支，沒有正式Sheets/REC/GAS/main寫入。
+
+**原正式來源差異：**
+- 個資Sheet `1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI` 現有 `Applicants(applicant_id,name,email,phone,created_at_utc,updated_at_utc,status)`、`Screenings(screening_id,applicant_id,rules_version,eligibility_result,screened_at_utc,verified_by)`、`Verification(challenge_id,applicant_id,purpose,otp_hmac,expires_at_utc,attempts,used_at_utc,email,created_at_utc)`；原 `Study1EConsentOtpAdapter.js` 已提供正式Verification的原F:G一次性寫入/讀回和HMAC/跨challenge節流。
+- 時段營運Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 現有 `Slots(slot_id,start_at_utc,end_at_utc,capacity,location_code,status,created_by,updated_at_utc)`、`Reservations(reservation_id,applicant_id,slot_id,status,hold_until_utc,idempotency_key,created_at_utc,confirmed_at_utc,cancelled_at_utc,updated_at_utc)`。**正式Slots沒有實驗別欄位；不可從client E1/E2選擇、slotId字面或location_code推定場次實驗歸屬。**
+- 正式Applicants/Screenings沒有唯一且驗證過的E1/E2實驗別及本人真實身分證據欄，故現階段沒有經核實可直接啟用的`study1WizardApplicantAuthority_`或`study1WizardSlotAuthority_`來源。這是技術來源與資料保存權責待接線，**不是研究計畫未獲REC核可**。
+
+**已提交原隔離分支增量實作：**
+1. 新原檔`gas/Study1WizardP0Bridge.js`只含私有底線結尾GAS函式，不發布正式public RPC、不替換`gas/Study1Visitor.html`七步或`gas/Study1Unified.js`既有純TEST模型。其stage 03 `study1WizardOtpVerifyBound_`在全域技術門檻下委派既有 `study1EConsentVerifyContactOtp_`，沿用`OtpCore/OtpThrottle/OtpTransaction`及原`Verification`的F:G單次使用、失敗次數、寫後回讀。
+2. stage 04 `study1WizardHoldBound_`以正式 `Applicants/Screenings/Verification` 的原ID定位列核實本人、資格、已在時間窗消耗的OTP、相同電子郵件與E1/E2；E2另檢查未參加E1的可信證據。先於同一ScriptLock核身，之後才能打開原營運Sheet；再由可信 `study1WizardSlotAuthority_`核對原slotId屬於對應E1/E2、與原正式PDF版號/SHA一致，才委派原`bookingHoldOnceLocked_`做原10欄Reservations的HELD單筆append、全場次容量/唯一申請、按時段/hold上限、HMAC綁定idempotencyKey、完整快照/寫前比較/寫後獨立快照回讀。任何源變動、重複/競寫/逾時不得宣稱成功；回傳booking ID和無個資HMAC receipt，非登入身分的替代品。
+3. stage 05 `study1WizardReviewBound_`以原共鎖重新讀取相同申請、OTP、篩檢、時段實驗別證據與原Reservations HELD列、文件版號/SHA；固定長度比對階段04的HMAC receipt。取消/過期、錯E1/E2、錯申請者/文件/booking ID、HMAC竄改均不得顯示確認成功。這是**簽名之前的唯讀正式資料核對契約**，還不是正式PDF簽署提交。
+4. 已增列`scripts/study1-gas-backend-allowlist.cjs`及`tests/study1-gas-backend-sync.test.cjs`對應唯一新私有檔案。原`Study1Visitor.html`的`choose→screen→otp→slots→confirm→consent→done`七步、V05/V08及`SIMULATED_SIGN_ONLY`完全未修改，避免把真實驗證錯接到TEST端或觸發未授權收件。**尚未完成原瀏覽器公開Wizard與正式後端實際RPC端到端接線**。
+
+**測試（合成源，非真人操作）：** 新`tests/study1-wizard-p0-bridge.test.cjs`覆蓋原BookingHold與OTP橋接、合法一筆HELD、原位HMAC/idempotency重送、第二筆不同requestId/同人拒絕、雙請求同ScriptLock並發搶位、滿額、跨E1/E2錯誤時段、未核實本人、無有效OTP、來源資料變更、文件SHA偽造、實驗二已參加實驗一、step05 HMAC與正式來源回讀、取消/過期/交換booking等。最新完整CI=https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42768567032 **789 PASS、0 FAIL、0 SKIP**。測試中可信identity/slot adapter均為Node VM合成且原GAS對應函式維持明確`IDENTITY_SOURCE_NOT_CONFIGURED`及`SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED`，不能藉CI宣稱真人/瀏覽器UAT成功。
+
+**獨立狀態／接續點：** `STUDY1_FORMAL_REC_APPROVAL=VERIFIED`；`BRIDGE_STEP_03_04_05_SYNTHETIC_CI_VERIFIED=true`；`ORIGINAL_SEVEN_STAGE_UI_PRESERVED=true`；`LIVE_IDENTITY_AUTHORITY=NOT_CONFIGURED`；`TRUSTED_SLOT_EXPERIMENT_REGISTRY=NOT_CONFIGURED`；`FORMAL_APPLICANT_CREATE_OTP_SEND=NOT_CONNECTED`；`FORMAL_WIZARD_PUBLIC_RPC=NOT_CONNECTED`；`REAL_WIZARD_SIGNING=NOT_CONNECTED`；`UI_VERIFIED=NOT_VERIFIED`；`MAIN_SYNC_VERIFIED=false`；`GAS_SYNC_VERIFIED=false`；`FORMAL_WEBSITE_READY=false`。正式收件仍`OPEN=false`、`CONSENT_READY=false`、`MYSELF`，E2不得自動開放。
+
+`TASK_DOMAIN=Study1_P0_RECRUITMENT_BACKEND`；`SOURCE_PATH=gas/Study1WizardP0Bridge.js + docs/study1-system-spec.md`；`WRITE_OWNER=PR_133_DRAFT_BRANCH`；`LAST_VERIFIED_STEP=stage03_04_05_OFFLINE_CI`；`NEXT_ACTION=核定既有唯一正式本人/實驗別與場次歸屬證據存取角色、以真實來源完成Applicant創建與OTP寄送及可驗證持久化，將正式模式映射到原Study1Visitor七步，再做實際瀏覽器及權限UAT`；`BLOCKERS=missing_trusted_identity_and_slot_experiment_authorities + unlinked_public_wizard + deployment_unapproved`；`SYNC_STATUS=GITHUB_PR_ONLY`。
