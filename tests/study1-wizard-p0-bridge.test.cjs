@@ -162,3 +162,56 @@ test('Step 03 OTP verifies via existing adapter, not TEST 00000000 state',()=>{
  assert.equal(a.verified,true);assert.equal(h.otpCalls,1);
  assert.throws(()=>h.context.study1WizardOtpVerifyBound_({wrong:'payload'}),/格式/);
 });
+
+test('Step 05 readback validates original held reservation, OTP, E1/E2 and PDF before last consent stage',()=>{
+ const h=fixture(),held=h.context.study1WizardHoldBound_(h.req);
+ const review=h.context.study1WizardReviewBound_({...h.req,reservationId:held.reservationId,receipt:held.receipt});
+ assert.equal(review.verified,true);
+ assert.equal(review.stage,'CONFIRM');
+ assert.equal(review.reservationId,held.reservationId);
+ assert.equal(review.documentSha,h.req.documentSha);
+ assert.equal(review.experiment,'E1');
+ assert.ok(review.startAtUtc>new Date().toISOString());
+ assert.equal(h.writes.length,1,'summary is read-only');
+ assert.equal(h.locked,false);
+});
+test('Step 05 rejects tampered HMAC, exchanged applicant, cross E1/E2 and changed document',()=>{
+ const mutations=[
+  (h,x)=>{x.receipt='0'.repeat(64)},
+  (h,x)=>{x.experiment='E2'},
+  (h,x)=>{x.applicantId='APP_ATTACKER'},
+  (h,x)=>{x.documentSha='f'.repeat(64)},
+  (h,x)=>{x.reservationId='RSV_00000000000000000000000000000000'},
+  (h,x)=>{h.person.evidenceSha256='3'.repeat(64)},
+  (h,x)=>{h.slot.evidenceSha256='4'.repeat(64)}
+ ];
+ for(const mutate of mutations){
+  const h=fixture(),held=h.context.study1WizardHoldBound_(h.req);
+  const x={...h.req,reservationId:held.reservationId,receipt:held.receipt};
+  mutate(h,x);
+  assert.throws(()=>h.context.study1WizardReviewBound_(x));
+  assert.equal(h.writes.length,1,'failed review never writes or duplicates a booking');
+  assert.equal(h.locked,false);
+ }
+});
+test('Step 05 never reports a canceled, expired or moved reservation as confirmed',()=>{
+ const cases=[
+  b=>{b[3]='CANCELLED'},
+  b=>{b[4]='2020-01-01T00:00:00.000Z'},
+  b=>{b[2]='SLOT_EXCHANGED'}
+ ];
+ for(const mutate of cases){
+  const h=fixture(),held=h.context.study1WizardHoldBound_(h.req);
+  mutate(h.tables.Reservations.rows[0]);
+  assert.throws(()=>h.context.study1WizardReviewBound_({...h.req,
+   reservationId:held.reservationId,receipt:held.receipt}));
+  assert.equal(h.locked,false);
+ }
+});
+test('Step 05 cannot read original participant record if technical gate is closed after holding',()=>{
+ const h=fixture(),held=h.context.study1WizardHoldBound_(h.req);
+ h.context.study1BindingGate_=()=>{throw Error('BACKEND_NOT_READY');};
+ assert.throws(()=>h.context.study1WizardReviewBound_({...h.req,
+  reservationId:held.reservationId,receipt:held.receipt}),/BACKEND_NOT_READY/);
+ assert.equal(h.writes.length,1);
+});
