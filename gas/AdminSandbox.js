@@ -454,7 +454,9 @@ function study1ConsentVersionRead_(){
    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(x.version)||
    typeof x.title!=='string'||x.title.length>100||
    !/^[a-f0-9]{64}$/.test(x.sha256)||!Number.isSafeInteger(x.bytes)||
-   x.bytes<100||x.bytes>3000000||typeof x.url!=='string'||
+   x.bytes<100||x.bytes>3000000||
+   (x.researcherPresigned!==undefined&&typeof x.researcherPresigned!=='boolean')||
+   typeof x.url!=='string'||
    !/^https:\/\/drive\.google\.com\//.test(x.url))
    throw Error('同意書來源、版號或雜湊紀錄不合法，拒絕使用');
  }
@@ -479,7 +481,10 @@ function study1ConsentVersionList(){
 function study1ConsentVersionUpload(input){
  study1AdminOwnerRequired_();study1SandboxBookingFlags_();
  if(!input||Array.isArray(input)||typeof input!=='object'||
-  Object.keys(input).sort().join(',')!=='base64,expectedRevision,experiment,title,version'||
+  !['base64,expectedRevision,experiment,title,version',
+    'base64,expectedRevision,experiment,researcherPresigned,title,version']
+    .includes(Object.keys(input).sort().join(','))||
+  (input.researcherPresigned!==undefined&&typeof input.researcherPresigned!=='boolean')||
   !['E1','E2'].includes(input.experiment)||
   typeof input.title!=='string'||!input.title.trim()||
   input.title.trim().length>100||/[<>]/.test(input.title)||
@@ -514,7 +519,9 @@ function study1ConsentVersionUpload(input){
   if(file.getSharingAccess()!==DriveApp.Access.PRIVATE||file.getSize()!==bytes.length)
    throw Error('同意書檔案權限或完整性核對失敗');
   const entry={experiment:input.experiment,id:file.getId(),title:input.title.trim(),
-   version:input.version,sha256,bytes:bytes.length,url:file.getUrl(),at:new Date().toISOString()};
+   version:input.version,sha256,bytes:bytes.length,url:file.getUrl(),
+   researcherPresigned:input.experiment==='E1'&&input.researcherPresigned===true,
+   at:new Date().toISOString()};
   const next={schemaVersion:1,revision:current.revision+1,
    documents:current.documents.concat([entry]),current:{...current.current},published:{...current.published}};
   const payload=JSON.stringify(next);
