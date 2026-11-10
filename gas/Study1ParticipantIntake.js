@@ -290,10 +290,96 @@ function study1ParticipantOtpVerify_(input){
   challengeId:input.challengeId,applicantId:r.applicantId,
   email:r.email,code:input.code,nowUtc:new Date().toISOString()
  },adapters);
- // Only Verification F:G is mutated; pending applicant is NOT marked
- // VERIFIED or ELIGIBLE by mailbox control alone.
- return {verified:result.verified===true,
-  reason:result.verified?'EMAIL_CONTROL_ONLY':'REJECTED'};
+ // Verification F:G was read back inside the same transaction lock.
+ // Never promote Applicants to VERIFIED or Screenings to ELIGIBLE.
+ if(result.verified!==true)return {verified:false,reason:'REJECTED'};
+ const rows=lastRead?.rows?.filter(row=>row[0]===input.challengeId)||[];
+ if(rows.length!==1||typeof rows[0][6]!=='string'||!rows[0][6])
+  throw Error('OTP_POST_WRITE_PROOF_UNKNOWN');
+ const proof=study1ParticipantEmailProof_(r,input.challengeId,rows[0][6]);
+ return {verified:true,reason:'EMAIL_CONTROL_ONLY',emailProof:proof};
+}
+
+
+/**
+ * One-time OTP -> time-bounded HMAC possession proof. This proves only that
+ * this applicant controlled the pending email address at challenge use time;
+ * it is never evidence of age, CYCU enrollment, REC eligibility, or consent.
+ */
+function study1ParticipantEmailProof_(r,challengeId,usedAtUtc){
+ study1BindingId_(r.applicantId);study1BindingId_(r.screeningId);
+ study1BindingId_(challengeId);
+ const used=study1BindingUtc_(usedAtUtc),now=Date.now();
+ if(used>now||now-used>30000)throw Error('OTP_EMAIL_PROOF_NOT_FRESH');
+ const expiresAtUtc=new Date(used+30*60000).toISOString();
+ const emailHash=study1BindingHmac_(['MAIL_HASH_V1',r.email]);
+ const fields=[r.applicantId,r.screeningId,challengeId,'E1',
+  emailHash,usedAtUtc,expiresAtUtc];
+ return {version:1,applicantId:r.applicantId,screeningId:r.screeningId,
+  challengeId,experiment:'E1',emailHash,usedAtUtc,expiresAtUtc,
+  signature:study1BindingHmac_(['MAIL_CONTROL_ONLY_V1'].concat(fields))};
+}
+function study1ParticipantEmailProofRequest_(proof){
+ const keys='applicantId,challengeId,emailHash,experiment,expiresAtUtc,screeningId,signature,usedAtUtc,version';
+ if(!proof||Array.isArray(proof)||typeof proof!=='object'||
+    Object.keys(proof).sort().join(',')!==keys||
+    proof.version!==1||proof.experiment!=='E1'||
+    typeof proof.signature!=='string'||!/^[a-f0-9]{64}$/.test(proof.signature)||
+    typeof proof.emailHash!=='string'||!/^[a-f0-9]{64}$/.test(proof.emailHash))
+  throw Error('EMAIL_PROOF_NOT_VALID');
+ study1BindingId_(proof.applicantId);
+ study1BindingId_(proof.screeningId);
+ study1BindingId_(proof.challengeId);
+ const used=study1BindingUtc_(proof.usedAtUtc),
+  expires=study1BindingUtc_(proof.expiresAtUtc),now=Date.now();
+ if(used>now||expires<=now||expires-used!==30*60000)
+  throw Error('EMAIL_PROOF_EXPIRED');
+ const expected=study1BindingHmac_(['MAIL_CONTROL_ONLY_V1',
+  proof.applicantId,proof.screeningId,proof.challengeId,
+  proof.experiment,proof.emailHash,proof.usedAtUtc,proof.expiresAtUtc]);
+ let diff=0;
+ for(let i=0;i<64;i++)diff|=expected.charCodeAt(i)^proof.signature.charCodeAt(i);
+ if(diff!==0)throw Error('EMAIL_PROOF_SIGNATURE_INVALID');
+ return proof;
+}
+function study1ParticipantEmailStatus_(untrusted){
+ study1ParticipantMailGate_();
+ const p=study1ParticipantEmailProofRequest_(untrusted);
+ const lock=LockService.getScriptLock();
+ if(!lock||lock.tryLock(5000)!==true)throw Error('EMAIL_STATUS_LOCK_BUSY');
+ try{
+  if(lock.hasLock()!==true)throw Error('EMAIL_STATUS_LOCK_LOST');
+  study1ParticipantMailGate_();
+  // A successful mail token still must match the ORIGINAL persisted
+  // Applicants/Screenings and Verification F:G under the same lock.
+  const book=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
+  const a=study1BindingSheetRow_(book,'Applicants',
+   STUDY1_BINDING_SCHEMA_.applicants,p.applicantId).rows[0];
+  const s=study1BindingSheetRow_(book,'Screenings',
+   STUDY1_BINDING_SCHEMA_.screenings,p.screeningId).rows[0];
+  const v=study1BindingSheetRow_(book,'Verification',
+   STUDY1_BINDING_SCHEMA_.verification,p.challengeId).rows[0];
+  const email=study1BindingEmail_(a[2]);
+  const hashed=study1BindingHmac_(['MAIL_HASH_V1',email]);
+  const created=study1BindingUtc_(v[8]),expiry=study1BindingUtc_(v[4]),
+   used=study1BindingUtc_(v[6]);
+  const all=study1WizardIssueRows_(book,p.applicantId,email).snapshot.rows;
+  if(a[6]!=='PENDING_EMAIL'||s[1]!==p.applicantId||
+     s[3]!=='PENDING_REVIEW'||s[5]!=='SELF_REPORT_NOT_VERIFIED'||
+     p.emailHash!==hashed||v[1]!==p.applicantId||
+     v[2]!=='EMAIL_VERIFICATION'||study1BindingEmail_(v[7])!==email||
+     v[6]!==p.usedAtUtc||used<created||used>=expiry||
+     expiry-created>600000||Number(v[5])<1||Number(v[5])>5||
+     all.some(row=>row[0]!==''&&row[0]!==p.challengeId&&
+       (row[1]===p.applicantId||
+        study1BindingEmail_(row[7])===email)&&
+       study1BindingUtc_(row[8])>=created))
+   throw Error('EMAIL_CONTROL_EVIDENCE_CHANGED');
+  if(lock.hasLock()!==true)throw Error('EMAIL_STATUS_LOCK_LOST');
+  return {emailVerified:true,experiment:'E1',
+   applicationState:'PENDING_STAFF_ELIGIBILITY_REVIEW',
+   reservationState:'NOT_AUTHORIZED',consentState:'NOT_SIGNED'};
+ }finally{lock.releaseLock();}
 }
 
 /** Explicit reviewed public HTML Service RPCs, always fail-closed.
@@ -321,4 +407,7 @@ function study1ParticipantSendOtp(request){
 }
 function study1ParticipantVerifyOtp(request){
  return study1ParticipantOtpVerify_(request);
+}
+function study1ParticipantEmailStatus(proof){
+ return study1ParticipantEmailStatus_(proof);
 }
