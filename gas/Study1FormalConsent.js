@@ -54,6 +54,23 @@ function study1FormalConsentGate_(){
  study1FormalConsentRecScope_();
  return true;
 }
+
+/** Explicit PI-reviewed post-sign access window. Never silently extend a
+ * short-lived HELD booking token into an indefinite bearer credential.
+ */
+function study1FormalConsentCopyExpiry_(){
+ const props=PropertiesService.getScriptProperties();
+ if(props.getProperty('STUDY1_E1_PDF_COPY_ACCESS_HOURS_APPROVED')!=='true')
+  throw Error('E1_PDF_COPY_WINDOW_NOT_APPROVED');
+ const raw=props.getProperty('STUDY1_E1_PDF_COPY_ACCESS_HOURS');
+ if(typeof raw!=='string'||!/^[0-9]{1,3}$/.test(raw))
+  throw Error('E1_PDF_COPY_WINDOW_INVALID');
+ const hours=Number(raw);
+ if(!Number.isSafeInteger(hours)||hours<1||hours>720)
+  throw Error('E1_PDF_COPY_WINDOW_INVALID');
+ return Date.now()+hours*3600000;
+}
+
 function study1FormalConsentDocument_(ctx,reservationId){
  if(!ctx||!ctx.lock||ctx.lock.hasLock()!==true||!ctx.identity||
     ctx.identity.experiment!=='E1')
@@ -129,8 +146,11 @@ function study1FormalConsentBegin(input){
  * raw signature or document bytes; participant needs possession of the token.
  */
 function study1FormalConsentStatus(token){
- study1FormalConsentGate_();
  const entry=study1EConsentEntry_(token,study1EConsentRegistry_());
+ // A confirmed participant must still obtain their existing signed copy or
+ // submit withdrawal if intake is closed later. Bearer TTL and private SHA
+ // remain enforced; unconfirmed invitations still need every live gate.
+ if(!['CONFIRMED','WITHDRAWN'].includes(entry.state))study1FormalConsentGate_();
  if(entry.channel!=='FORMAL_E1'||!entry.binding||
     entry.experiment!=='E1')
   throw Error('FORMAL_CONSENT_SESSION_NOT_BOUND');
