@@ -36,7 +36,8 @@
   <article><span class="number">03</span><strong>核對版本並親自簽署</strong><p>須先完成身分及有效文件版本核對，正式簽署才會成立。</p></article>
   <article><span class="number">04</span><strong>取得副本／撤回</strong><p>有效簽署後提供與原版本一致的副本，並可依文件約定提出撤回。</p></article>
  </div>
- <div class="consentWorkspace">
+ <p class="consentNotice" role="status"><strong>完整知情同意與簽署安排在報名最後階段。</strong>請先依序完成研究選擇、資格與身分核對、電子郵件驗證、時段選擇及報名資料確認，才會進入適用研究的完整PDF閱讀、研究人員答疑與本人簽署。目前尚未開放報名或簽署。</p>
+ <div class="consentWorkspace" hidden aria-hidden="true">
   <div class="consentPanel" aria-label="同意書全文與原始版本">
    <h3>研究參與者知情同意書｜完整 PDF</h3>
    <label for="consentExperiment">選擇適用研究
@@ -385,7 +386,8 @@ consentEl('consentClearSignature').addEventListener('click',()=>{
  window.addEventListener('pagehide',()=>{consentReset_();});
 consentLoad_();
 }
-if(document.getElementById('consentSignature'))initConsentPortal_();
+/* §70-S: retain existing portal code for migration, but never initialize the public-homepage signing surface. */
+if(document.getElementById('consentSignature') && !document.querySelector('.consentWorkspace[hidden]'))initConsentPortal_();
 
 
 const status=document.getElementById('health');if(!window.google||!google.script||!google.script.run){status.textContent='資訊預覽：未連線至正式系統，報名維持關閉。';return;}google.script.run.withSuccessHandler(c=>{status.textContent=c&&c.open===false&&c.consentReady===false?'已確認：正式報名與電子簽署均關閉。':'設定狀態需要研究團隊檢查；報名維持關閉。';}).withFailureHandler(()=>{status.textContent='暫時無法確認系統狀態；報名維持關閉。需要協助請聯絡研究團隊。';}).getPublicConfig();})();</script></body></html>
