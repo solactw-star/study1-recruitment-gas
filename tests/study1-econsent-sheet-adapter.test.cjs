@@ -102,15 +102,15 @@ function harness({enabled=false,approveIdentity=false,identity=evidence(),tables
 }
 test('A closed system does not even open real Sheets or request an identity attestation',()=>{
  const h=harness();
- assert.throws(()=>h.scope.study1EConsentBindingAdapter_(),/REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentBindingAdapter_(),/BACKEND_NOT_READY/);
  assert.equal(h.reads.length,0);
- assert.throws(()=>h.scope.study1EConsentIssueBound_(req),/REC_REVIEW_REQUIRED|尚未開放/);
+ assert.throws(()=>h.scope.study1EConsentIssueBound_(req),/BACKEND_NOT_READY|尚未開放/);
  assert.equal(h.reads.length,0);
  assert.equal(h.registry.records.length,0);
 });
 test('Even with all flags true, missing REC authority blocks all applicant/OTP/booking data reads',()=>{
  const h=harness({enabled:true});
- assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/IDENTITY_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.reads.length,0);
  assert.equal(h.lookups.length,0);
 });
@@ -179,7 +179,7 @@ test('Revoking approval between successful reads blocks source rechecks and no r
  const b=h.scope.study1BindingVerify_(a.readTrustedSnapshot(req),req,doc,new Date().toISOString());
  b.digest=h.scope.study1BindingDigest_({...b,digest:''});
  h.flags.set('STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED','false');
- assert.throws(()=>h.scope.study1BindingRecheckWithLock_(b,doc,a),/REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1BindingRecheckWithLock_(b,doc,a),/BACKEND_NOT_READY/);
  assert.equal(h.locked.state,false);
  assert.equal(h.registry.records.length,0);
 });
