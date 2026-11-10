@@ -6,7 +6,7 @@ const id='SLOT_OFFLINE_0001',rid='RSV_OFFLINE_0001',app='APP_OFFLINE_0001';
 const sha='a'.repeat(64),pin='b'.repeat(64);
 function harness(){
  const t=Date.now(),now=n=>new Date(t+n).toISOString();
- const doc={id:'PDF_APPROVED_OFFLINE',experiment:'E1',sha256:sha,version:'V1'};
+ const doc={id:'PDF_APPROVED_OFFLINE',experiment:'E1',sha256:sha,version:'V1',researcherPresigned:true};
  const rows=[[rid,app,id,'HELD',now(600000),'HOLD_KEY',now(-60000),'','',now(-60000)]];
  const slots=[[id,now(3600000),now(7200000),2,'TEST','OPEN','OWNER','']];
  const props=new Map([
@@ -105,7 +105,8 @@ test('single valid self-declared E1 applicant and HELD reservation generate an u
  const result=h.scope.study1FormalConsentBegin({emailProof:'MAIL_PROOF',reservationId:rid});
  assert.equal(result.state,'ISSUED');
  assert.equal(result.signatureAccepted,false);
- assert.equal(result.needsResearcherExplanation,true);
+ assert.equal(result.needsResearcherExplanation,false);
+ assert.equal(result.researcherPresigned,true);
  assert.equal(result.documentSha256,sha);
  assert.equal(h.registry.records.length,1);
  assert.equal(h.registry.records[0].channel,'FORMAL_E1');
@@ -194,4 +195,13 @@ test('FORMAL original PDF requires the REC gate and cannot be read across experi
  h.scope.study1FormalConsentBegin({emailProof:'MAIL_PROOF',reservationId:rid});
  h.props.set('OPEN','false');
  assert.throws(()=>h.scope.study1FormalConsentOriginalPdf('TOKEN'),/CLOSED/);
+});
+
+// §70-S.24: older uploaded blank E1 PDFs are never silently treated as a
+// researcher-signed source, even when REC and booking flags are synthetic-on.
+test('MVP never offers participant signature from an un-attested researcher-blank source',()=>{
+ const h=harness();h.doc.researcherPresigned=false;
+ assert.throws(()=>h.scope.study1FormalConsentBegin({emailProof:'MAIL_PROOF',reservationId:rid}),
+  /E1_RESEARCHER_PRESIGNED_PDF_NOT_UPLOADED/);
+ assert.equal(h.seen.writes,0);
 });
