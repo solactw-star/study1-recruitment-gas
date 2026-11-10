@@ -536,7 +536,7 @@ function formalConsentRender_(){
   !stateData?'尚未核對E1本人有效預約。':
   stateData.signed?'已提交完整PDF簽署事件，待研究人員確認及本人副本。':
   !stateData.originalVerified?'正在核對原版PDF完整位元組與SHA。':
-  !stateData.staffExplained?'原PDF已核對；須先由研究人員提供解說並完成疑問處理，才開放本人簽署。':
+  !stateData.staffExplained?'線上知情同意：須先由研究人員完成線上說明及疑問回覆，再開放本人手寫PDF簽署；不設定固定15分鐘計時門檻。':
   '研究人員已完成解說。請完整閱讀原文並以筆跡簽署。';
 }
 function formalConsentLoadPdf_(){
@@ -658,7 +658,34 @@ function formalConsentCopy_(){
    el('officialSignedPdfDate').textContent=copy.taipeiDate;
    el('officialSignedPdfStatus').textContent=
     '研究人員已在原核准PDF獨立欄位簽名（臺灣日期 '+copy.researcherTaipeiDate+'）；完整雙簽PDF、參與者臺灣日期與SHA回讀通過，可下載本人副本。';
-   status('正式完整簽署PDF已核對，請保存本人副本。');
+   status('完整線上雙簽PDF與本人副本已核對；原預約是否成立，仍須獨立核對Reservations。');
+   // §70-S.23: a dual-signed PDF is NOT a booking confirmation.
+   // Read only the authenticated applicant's original reservation status;
+   // never update Reservations here or infer CONFIRMED from consent.
+   if(state.emailProof){
+    const reservationId=formalConsent.reservationId,verifiedToken=token;
+    rpc('study1FormalStatus',state.emailProof,booking=>{
+     if(!formalConsent||formalConsent.token!==verifiedToken)return;
+     const same=booking&&booking.experiment==='E1'&&
+      Array.isArray(booking.reservations)?
+      booking.reservations.filter(r=>r.reservationId===reservationId):[];
+     if(same.length!==1){
+      status('雙方已在線上簽署PDF，但原預約成立狀態無法核實；請聯絡研究團隊，勿重複提交。');
+      return;
+     }
+     const current=same[0];
+     if(current.status==='CONFIRMED'){
+      status('雙方線上PDF簽署及原Reservations正式預約均已獨立核實。請保存PDF副本。');
+     }else if(current.status==='HELD'&&
+      Number.isFinite(Date.parse(current.holdUntilUtc))&&
+      Date.parse(current.holdUntilUtc)>Date.now()){
+      status('雙方線上PDF簽署已完成；原Reservations仍為HELD暫留，尚未正式預約確認，須由研究團隊核對。');
+     }else{
+      status('雙方線上PDF簽署已完成；原Reservations非已確認預約（'+
+       String(current.status||'UNKNOWN')+'），請研究團隊人工核對，不能宣稱報名完成。');
+     }
+    });
+   }
   }catch(e){
    status('已簽PDF完整性核對失敗，禁止提供副本：'+String(e.message||e));
   }
@@ -681,7 +708,7 @@ function formalConsentStart_(reservation){
    documentSha256:result.documentSha256,documentVersion:result.documentVersion,
    originalVerified:false,staffExplained:false,signed:false,confirmed:false};
   show('consent');formalConsentRender_();
-  formalConsentLoadPdf_();status('已綁定原E1預約與OTP，請先閱讀原版PDF並等候研究人員說明。');
+  formalConsentLoadPdf_();status('已綁定原E1暫留及Email OTP；請在線上閱讀完整原版PDF並完成研究人員說明／答疑，之後依序由本人與研究人員在線上雙簽。');
  });
 }
 function formalInkInit_(){
@@ -720,7 +747,7 @@ function formalConsentWire_(){
  const warn=document.querySelector('#step-consent .warn');
  if(warn)warn.textContent='正式E1：只有最新有效REC適用性、原PDF版號及研究人員解說全部驗證後才能本人簽署；目前未開放真人收件。';
  const sample=document.querySelector('#step-consent > .lead');
- if(sample)sample.textContent='最後閱讀核准版完整PDF，研究人員解說與答疑完成後再手寫本人簽名。';
+ if(sample)sample.textContent='知情同意全程線上完成：請閱讀核准版完整PDF，研究人員在線上完成說明與疑問回覆後，您於網站手寫簽名，後續由研究人員於線上後台在原PDF獨立簽署；不設定15分鐘倒數。';
  const readLabel=el('readPdf').parentNode;
  if(readLabel&&readLabel.querySelector('span'))
   readLabel.querySelector('span').textContent='我已開啟並完整閱讀經SHA核對的原始知情同意PDF';
