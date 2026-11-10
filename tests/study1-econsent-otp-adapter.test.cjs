@@ -88,13 +88,13 @@ function setup({enabled=true,identityApproved=true,duplicate=false}={}){
 }
 test('No approval blocks OTP verification before reading a single real Sheet cell',()=>{
  const h=setup({enabled:false});
- assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|IDENTITY_SOURCE_NOT_CONFIGURED|OTP_TRANSACTION_NOT_READY/);
  assert.equal(h.reads.length,0);
  assert.equal(h.writes.length,0);
 });
 test('All flags on but missing independently approved applicant/experiment source remains closed',()=>{
  const h=setup({identityApproved:false});
- assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|IDENTITY_SOURCE_NOT_CONFIGURED|OTP_TRANSACTION_NOT_READY/);
  assert.equal(h.reads.length,0);
 });
 test('One code is verified and consumed exactly once with F:G atomic write and reread',()=>{
@@ -157,13 +157,13 @@ test('Duplicate challenge IDs, stale writer state and concurrent lock contention
 });
 test('Read-only Sheets approval does not itself authorize OTP verification writes',()=>{
  const h=setup();h.flags.set('STUDY1_ECONSENT_OTP_VERIFY_APPROVED','false');
- assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|IDENTITY_SOURCE_NOT_CONFIGURED|OTP_TRANSACTION_NOT_READY/);
  assert.equal(h.reads.length,0);
  assert.equal(h.writes.length,0);
 });
 test('Revoking source approval or losing the HMAC key denies all live writes',()=>{
  const h=setup();h.flags.set('STUDY1_ECONSENT_LIVE_SHEETS_APPROVED','false');
- assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/BACKEND_NOT_READY|IDENTITY_SOURCE_NOT_CONFIGURED|OTP_TRANSACTION_NOT_READY/);
  assert.equal(h.reads.length,0);
  const k=setup();k.flags.delete('STUDY1_OTP_HMAC_SECRET');
  assert.throws(()=>k.scope.study1EConsentVerifyContactOtp_(k.request),/金鑰/);
