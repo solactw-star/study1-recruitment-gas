@@ -156,6 +156,7 @@ test('Original capacity calculator prevents second applicant entering full slot'
  h.tables.Applicants.rows.push([id,'OTHER_TEST','participant@example.org','',ts(now,-7200000),ts(now,-100000),'EMAIL_VERIFIED']);
  h.tables.Screenings.rows.push([screen,id,'SCREEN_V1','ELIGIBLE',ts(now,-350000),'PARTICIPANT_SELF_REPORT']);
  h.tables.Verification.rows.push([challenge,id,'EMAIL_VERIFICATION','b'.repeat(64),ts(now,300000),1,ts(now,-50000),'participant@example.org',ts(now,-200000)]);
+ h.person.verifiedAtUtc=ts(now,-50000);
  const result=h.context.study1WizardHoldBound_(h.req);
  assert.equal(result.held,false);assert.equal(result.reason,'REJECTED');assert.equal(h.writes.length,1);
 });
