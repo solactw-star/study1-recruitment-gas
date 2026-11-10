@@ -798,9 +798,13 @@ function staffPdfSetup_(){
      !/^[a-f0-9]{64}$/.test(result.signedPdfSha256||'')){
     fail('完整雙簽PDF未取得可信SHA；禁止宣稱雙方確認');return;
    }
-   statusBox.textContent='完整雙簽PDF已保存及回讀：'+result.signedPdfSha256+
+   const bookingOk=result.originalBookingConfirmed===true&&
+    result.originalBookingStatus==='CONFIRMED';
+   statusBox.textContent='完整線上雙簽PDF已保存及回讀：'+result.signedPdfSha256+
     '；研究員臺灣簽名日：'+result.researcherTaipeiDate+
-    '。請重新唯讀載入索引，不要重送簽章。';
+    (bookingOk?
+     '；原Reservations已獨立核實CONFIRMED，線上簽署與正式預約完成。':
+     '；原Reservations尚未獨立核實CONFIRMED。須研究團隊依原預約紀錄人工處置；不得宣稱報名已成立，不可重送研究員PDF簽章。');
    entries=[];choose.disabled=true;blank();
   }).study1EConsentConfirmPdf({
    id:selected.id,participantSignedSha256:selected.participantSignedPdfSha256,
