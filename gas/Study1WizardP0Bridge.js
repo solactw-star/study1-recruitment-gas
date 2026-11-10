@@ -5,9 +5,9 @@
  * PRIVATE GAS ONLY: all externally accessible site intake RPCs in Website.js
  * remain closed. This adapter DOES NOT replace Study1Unified TEST, V05/V08,
  * publish any endpoint, send mail, or write real Sheet data until a separate
- * deployment and identity/slot source is approved and verified.
+ * deployment and E1 slot source are approved and verified.
  *
- * The research is REC-approved (202604EM033). Missing identity or slot
+ * The research is REC-approved (202604EM033). Missing slot
  * mapping is a TECHNICAL readiness failure, never a blanket REC veto.
  *
  * OTP_VERIFY (step 3) delegates to existing one-time OTP adapter/kernel.
@@ -17,13 +17,12 @@
  * it must re-read this same applicant / OTP / reservation identity source.
  */
 
-/** Required trusted evidence originates on SERVER, never from visitor values.
- * Official Applicants/Screenings do not record the experiment or a verified
- * student identity. This is deliberately unavailable until mapped to a
- * documented, access-controlled personal identity evidence source.
+/** The original self-declaration+OTP source is server-only and HMAC-bound.
+ * No researcher checks identity cards, student cards or the CYCU registry.
+ * The authority cannot be read without the shared booking transaction lock.
  */
 function study1WizardApplicantAuthority_(request){
- throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：缺少經驗證的本人、資格及實驗別來源');
+ return study1SelfReportedAuthority_(request);
 }
 /** Official Slots tab has NO experiment column. Never infer E1/E2 from a
  * slotId string, client selection or free-text location_code.
@@ -68,29 +67,22 @@ function study1WizardDocument_(r){
   throw Error('DOC_VERSION_MISMATCH：E1/E2對應原版PDF及SHA不一致');
  return d;
 }
-/** Fail closed before querying/using any participant record. */
+/** Self-declaration+consumed OTP, never an identity-document attestation. */
 function study1WizardAuthorityCheck_(r,identity){
+ if(r.experiment!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
  if(!identity||identity.verified!==true||
-    identity.provenance!=='REC_APPROVED_IDENTITY_ATTESTATION'||
+    identity.provenance!=='STUDY1_E1_SELF_REPORT_OTP_HMAC'||
     identity.applicantId!==r.applicantId||
     identity.screeningId!==r.screeningId||
     identity.challengeId!==r.challengeId||
-    identity.experiment!==r.experiment||
-    identity.age18OrOlderVerified!==true||
-    identity.cycuStudentVerified!==true||
-    identity.eligibilityEvidenceSource!=='REC_APPROVED_ELIGIBILITY_VERIFICATION'||
-    typeof identity.eligibilityEvidenceSha256!=='string'||
-    !/^[a-f0-9]{64}$/.test(identity.eligibilityEvidenceSha256)||
-    typeof identity.evidenceSha256!=='string'||
-    !/^[a-f0-9]{64}$/.test(identity.evidenceSha256)||
-    typeof identity.email!=='string')
-  throw Error('IDENTITY_EVIDENCE_INVALID：不是同一已核身申請、OTP及實驗資格');
- if(r.experiment==='E2'&&
-    !(identity.priorE1ParticipationVerified===true&&
-      identity.priorE1Participation===false&&
-      identity.priorE1Source==='REC_APPROVED_STUDY_HISTORY'&&
-      /^[a-f0-9]{64}$/.test(identity.priorE1EvidenceSha256||'')))
-  throw Error('ELIGIBILITY_EVIDENCE_MISSING：實驗二缺少未參加實驗一的證據');
+    identity.experiment!=='E1'||
+    identity.eligibilityEvidenceSource!=='PARTICIPANT_SELF_REPORT'||
+    identity.emailControlSource!=='ORIGINAL_VERIFICATION_FG'||
+    !/^[a-f0-9]{64}$/.test(identity.eligibilityEvidenceSha256||'')||
+    !/^[a-f0-9]{64}$/.test(identity.evidenceSha256||'')||
+    typeof identity.email!=='string'||
+    typeof identity.screeningVersion!=='string')
+   throw Error('SELF_REPORT_EMAIL_OTP_EVIDENCE_INVALID');
  return identity;
 }
 function study1WizardReadPerson_(r,identity){
@@ -102,10 +94,11 @@ function study1WizardReadPerson_(r,identity){
  const v=study1BindingSheetRow_(personal,'Verification',
     STUDY1_BINDING_SCHEMA_.verification,r.challengeId).rows[0];
  const email=study1BindingEmail_(identity.email),now=Date.now();
- if(a[0]!==r.applicantId||a[6]!=='VERIFIED'||
+ if(a[0]!==r.applicantId||a[6]!=='EMAIL_VERIFIED'||
     study1BindingEmail_(a[2])!==email||
     s[1]!==r.applicantId||s[3]!=='ELIGIBLE'||
-    s[2]!==identity.screeningVersion||!s[5]||
+    s[2]!==identity.screeningVersion||
+    s[5]!=='PARTICIPANT_SELF_REPORT'||
     v[1]!==r.applicantId||v[2]!=='EMAIL_VERIFICATION'||
     study1BindingEmail_(v[7])!==email||
     !/^[a-f0-9]{64}$/.test(v[3])||
@@ -116,11 +109,12 @@ function study1WizardReadPerson_(r,identity){
  used=study1BindingUtc_(v[6]);
  if(expires<=created||expires-created>600000||
     used<created||used>=expires||used>now||
-    used<study1BindingUtc_(s[4]))
+    used<study1BindingUtc_(s[4])||
+    identity.verifiedAtUtc!==v[6]||now-used>30*60000)
   throw Error('WIZARD_PROOF_INVALID：OTP並非有效期間內已使用的一次性驗證');
  return {email,usedAtUtc:v[6],identityEvidenceSha:identity.evidenceSha256,
   eligibilityEvidenceSha:identity.eligibilityEvidenceSha256,
-  e1HistorySha:r.experiment==='E2'?identity.priorE1EvidenceSha256:null};
+  e1HistorySha:null};
 }
 function study1WizardSlotCheck_(r,slot){
  const grant=study1WizardSlotAuthority_(r);
@@ -187,7 +181,7 @@ function study1WizardHoldBound_(untrusted){
   const att=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r));
   const fresh=study1WizardReadPerson_(r,att);
   if(proof&&JSON.stringify(proof)!==JSON.stringify(fresh))
-   throw Error('WIZARD_PROOF_CHANGED：核身或OTP來源在同一交易中變動');
+   throw Error('WIZARD_PROOF_CHANGED：資格自陳或OTP來源在同一交易中變動');
   proof=fresh;return fresh;
  };
  const adapters={
@@ -316,7 +310,7 @@ function study1WizardReviewBound_(untrusted){
   study1WizardP0Gate_();study1WizardDocument_(r);
   const identity=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r));
   const proof=study1WizardReadPerson_(r,identity);
-  if(lock.hasLock()!==true)throw Error('核身期間共用鎖失效');
+  if(lock.hasLock()!==true)throw Error('自陳資格核對期間共用鎖失效');
   const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
   const b=study1BindingSheetRow_(operations,'Reservations',
     BOOKING_RESERVATION_HEADERS_,reservationId).rows[0];
