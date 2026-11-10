@@ -305,3 +305,110 @@ test('V08 partial move failure never claims success, never retries destructive s
  assert.equal(h.tables.Reservations.rows[0][3],'CANCELLED');
  assert.equal(h.tables.Reservations.rows.length,1);
 });
+
+
+/**
+ * Synthetic OWNER researcher's online second signature has already committed
+ * in a separate immutable PDF registry. Its consent state NEVER by itself
+ * grants a seat: only this second original Reservations CAS can do that.
+ */
+function signedConsentFixture(h,person,held){
+ const consentId='CONSENT_E1_ONLINE_12345678',docId='REC_SYNTH_DOC_12345678';
+ const row=h.tables.Reservations.rows.find(r=>r[0]===held.reservationId);
+ const binding={
+  schemaVersion:1,applicantId:person.applicantId,reservationId:row[0],
+  slotId:row[2],challengeId:person.challengeId,screeningId:person.screeningId,
+  experiment:'E1',documentSha:'a'.repeat(64),documentVersion:'REC_V02',
+  identityEvidenceSha:person.evidenceSha256,
+  eligibilityEvidenceSha:person.eligibilityEvidenceSha256,
+  priorE1EvidenceSha:'',verifiedAtUtc:person.verifiedAtUtc,
+  otpUsedAtUtc:person.verifiedAtUtc,holdUntilUtc:row[4],digest:''
+ };
+ binding.digest=h.ctx.study1BindingDigest_(binding);
+ const x={id:consentId,state:'CONFIRMED',channel:'FORMAL_E1',
+  experiment:'E1',documentSha:'a'.repeat(64),documentVersion:'REC_V02',
+  binding,signature:{id:'SIGNATURE_123456789',sha:'b'.repeat(64)},
+  confirmation:{id:'CONFIRM_123456789',sha:'c'.repeat(64)},
+  participantSignedPdf:{id:'PART_SIGNED_123456789',sha:'d'.repeat(64)},
+  signedPdf:{id:'DOUBLE_SIGNED_123456789',sha:'e'.repeat(64)}
+ };
+ let owner=true, pdfChecks=0,bindingChecks=0;
+ h.ctx.study1AdminOwnerRequired_=()=>{if(!owner)throw Error('OWNER_REQUIRED')};
+ h.ctx.study1FormalConsentGate_=()=>true;
+ h.ctx.study1FormalConsentRecScope_=()=>({
+  consentDocumentId:docId,consentDocumentSha256:'a'.repeat(64)});
+ h.ctx.study1EConsentReadyDocument_=exp=>{
+  if(exp!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
+  return {id:docId,experiment:'E1',version:'REC_V02',sha256:'a'.repeat(64)};
+ };
+ h.ctx.study1EConsentRegistry_=()=>({records:[x]});
+ h.ctx.study1EConsentEvent_=(ref,entry,kind)=>{
+  assert.equal(entry,x);
+  if(kind==='SIGNATURE')return {data:{signedPdfSha256:x.participantSignedPdf.sha}};
+  if(kind==='CONFIRMATION')return {data:{
+   signatureHash:x.signature.sha,
+   participantSignedPdfSha256:x.participantSignedPdf.sha,
+   researcherSignedPdfSha256:x.signedPdf.sha}};
+  throw Error('UNEXPECTED_PDF_EVENT');
+ };
+ h.ctx.study1EConsentSignedPdfRead_=(ref,entry)=>{
+  assert.equal(entry,x);assert.ok(ref===x.signedPdf||ref===x.participantSignedPdf);
+  pdfChecks++;return [];
+ };
+ h.ctx.study1EConsentBindingAdapter_=(audience)=>{
+  assert.equal(audience,'PUBLIC_E1');return {readTrustedSnapshot:()=>({})};
+ };
+ h.ctx.study1BindingRecheck_=(b,doc,adapter,utc,lock)=>{
+  assert.equal(lock.hasLock(),true);assert.equal(b,binding);
+  assert.equal(doc.sha256,'a'.repeat(64));assert.ok(adapter);
+  assert.equal(typeof utc,'string');bindingChecks++;return b;
+ };
+ return {x,consentId,setOwner:v=>{owner=v;},
+  get pdfChecks(){return pdfChecks},get bindingChecks(){return bindingChecks}};
+}
+test('§70-S.23 original reservation finalization requires valid online dual-PDF and OWNER',()=>{
+ const h=harness(),person=h.person('A'),proof=h.proof(person),
+  held=h.holdSlot(proof,h.S1),c=signedConsentFixture(h,person,held);
+ assert.equal(h.tables.Reservations.rows[0][3],'HELD');
+ c.setOwner(false);
+ assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
+  /OWNER_REQUIRED/);
+ assert.equal(h.tables.Reservations.rows[0][3],'HELD');
+ c.setOwner(true);
+ c.x.state='SIGNED';
+ assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
+  /FORMAL_BOOKING_DUAL_PDF_NOT_CONFIRMED/);
+ c.x.state='CONFIRMED';
+ c.x.confirmation.sha='0'.repeat(64);
+ assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
+  /FORMAL_BOOKING_DUAL_PDF_HASH_MISMATCH|FORMAL_BOOKING_DUAL_PDF_NOT_CONFIRMED/);
+ assert.equal(h.tables.Reservations.rows[0][3],'HELD');
+});
+test('§70-S.23 OWNER confirmed dual-PDF transitions only original HELD to CONFIRMED once',()=>{
+ const h=harness(),person=h.person('A'),proof=h.proof(person),
+  held=h.holdSlot(proof,h.S1),c=signedConsentFixture(h,person,held);
+ const before=h.mutations.filter(x=>x.name==='Reservations'&&x.method==='set').length;
+ const done=h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId);
+ assert.equal(done.bookingConfirmed,true);assert.equal(done.bookingStatus,'CONFIRMED');
+ assert.equal(done.reason,'CONFIRMED_AFTER_DUAL_PDF');
+ const row=h.tables.Reservations.rows[0];
+ assert.equal(row[3],'CONFIRMED');assert.equal(row[7],row[9]);
+ assert.ok(c.pdfChecks>=2);assert.equal(c.bindingChecks,1);
+ assert.equal(h.mutations.filter(x=>x.name==='Reservations'&&x.method==='set').length,before+1);
+ const replay=h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId);
+ assert.equal(replay.bookingConfirmed,true);assert.equal(replay.readOnlyReplay,true);
+ assert.equal(h.mutations.filter(x=>x.name==='Reservations'&&x.method==='set').length,before+1);
+});
+test('§70-S.23 no online signature can resurrect an expired HELD or stale original slot',()=>{
+ const h=harness(),person=h.person('A'),proof=h.proof(person),
+  held=h.holdSlot(proof,h.S1),c=signedConsentFixture(h,person,held);
+ h.tables.Slots.rows[0][3]=2;
+ assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
+  /SLOT_REGISTRY|SLOT.*HMAC|SLOT.*TAMPER|SLOT.*CHANGED/);
+ assert.equal(h.tables.Reservations.rows[0][3],'HELD');
+ h.tables.Slots.rows[0][3]=1;
+ h.clock.now+=11*60000;
+ assert.throws(()=>h.ctx.study1FormalFinalizeSignedE1Booking_(c.consentId),
+  /FORMAL_BOOKING_HELD_EXPIRED_OR_CHANGED/);
+ assert.equal(h.tables.Reservations.rows[0][3],'HELD');
+});
