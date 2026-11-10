@@ -391,3 +391,62 @@ test('two handwritten signatures preserve full PDF and independently trusted Asi
   {...expected,participantSignedSha256:'f'.repeat(64)},
   new Date('2026-11-10T16:05:00.000Z')),/RESEARCHER_PDF_PARTICIPANT_SHA_CHANGED/);
 });
+
+
+test('MVP actual PDF engine accepts only researcher presigned source, adds participant ink once and permits OWNER private download',async()=>{
+ const docPdf=await PDFLib.PDFDocument.load(await createBlank());
+ docPdf.getPage(4).drawText('SYNTHETIC RESEARCHER PRESIGNED BEFORE PARTICIPANT',
+  {x:60,y:260,size:10});
+ const original=Buffer.from(await docPdf.save()),h=buildHarness(original),png=syntheticInk();
+ const index=JSON.parse(h.values.get('STUDY1_CONSENT_DOCUMENT_INDEX_V1'));
+ index.documents[0].researcherPresigned=true;
+ h.doc.researcherPresigned=true;
+ h.values.set('STUDY1_CONSENT_DOCUMENT_INDEX_V1',JSON.stringify(index));
+ const {request,adapter}=syntheticBindingEvidence(h.doc);
+ h.scope.study1EConsentBindingAdapter_=()=>adapter;
+ const issued=h.scope.study1EConsentIssueBound_(request);
+ const registry=h.scope.study1EConsentRegistry_();
+ registry.records[0].channel='FORMAL_E1';
+ registry.records[0].researcherPresigned=true;
+ assert.equal(registry.records[0].state,'ISSUED');
+ assert.equal(registry.records[0].explanation,null);
+ h.values.set('STUDY1_ECONSENT_PRIVATE_V1',JSON.stringify(registry));
+ h.scope.study1FormalConsentGate_=()=>true;
+ h.scope.study1FormalConsentCopyExpiry_=()=>Date.now()+72*3600000;
+ let bookingChecks=0,mailCount=0;
+ h.scope.study1FormalFinalizeSignedE1Booking_=(id,token)=>{
+  bookingChecks++;assert.equal(id,issued.id);assert.equal(token,issued.token);
+  return {bookingConfirmed:true,bookingStatus:'CONFIRMED'};
+ };
+ h.scope.study1ParticipantBookingNotice_=email=>{
+  mailCount++;assert.equal(email,'participant@example.org');return {attempted:true};
+ };
+ const signed=await h.scope.study1EConsentSignPdf({
+  token:issued.token,name:'SYNTHETIC',signature:png.toString('base64'),
+  documentSha:h.doc.sha256,read:true,answerAcknowledged:true,agree:true
+ });
+ assert.equal(signed.state,'CONFIRMED');
+ assert.equal(signed.researcherPreSigned,true);
+ assert.equal(signed.originalBookingConfirmed,true);
+ assert.equal(signed.emailNotificationStatus,'SENT');
+ assert.equal(bookingChecks,1);assert.equal(mailCount,1);
+ const entry=h.scope.study1EConsentRegistry_().records[0];
+ assert.equal(entry.researcherPresigned,true);
+ assert.equal(entry.explanation,null,'must not forge researcher explanation event');
+ assert.equal(entry.signedPdf.sha,entry.participantSignedPdf.sha);
+ const copy=h.scope.study1EConsentSignedPdfCopy(issued.token);
+ assert.equal(copy.researcherPreSigned,true);
+ assert.equal(copy.researcherSignedAt,null,'pre-sign time must not be fabricated');
+ assert.equal(copy.participantSignedPdfSha256,copy.signedPdfSha256);
+ assert.equal(sha(Buffer.from(copy.base64,'base64')),copy.signedPdfSha256);
+ const owner=h.scope.study1EConsentOwnerSignedPdfDownload(issued.id);
+ assert.equal(owner.signedPdfSha256,copy.signedPdfSha256);
+ assert.equal(sha(Buffer.from(owner.base64,'base64')),copy.signedPdfSha256);
+ const viewed=await PDFLib.PDFDocument.load(Buffer.from(copy.base64,'base64'));
+ assert.equal(viewed.getPageCount(),5);
+ assert.equal(sha(original),h.doc.sha256);
+ await assert.rejects(h.scope.study1EConsentSignPdf({
+  token:issued.token,name:'SYNTHETIC',signature:png.toString('base64'),
+  documentSha:h.doc.sha256,read:true,answerAcknowledged:true,agree:true
+ }),/失效|狀態|BINDING|驗證|not|此固定文件/);
+});
