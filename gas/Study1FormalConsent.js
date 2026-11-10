@@ -194,13 +194,17 @@ function study1FormalConsentStatus(token){
     entry.experiment!=='E1')
   throw Error('FORMAL_CONSENT_SESSION_NOT_BOUND');
  const info=study1EConsentSession(token);
+ const dualConfirmed=['CONFIRMED','WITHDRAWN'].includes(entry.state)&&
+  !!entry.signedPdf&&!!entry.participantSignedPdf&&!!entry.confirmation;
  return {experiment:'E1',state:entry.state,version:entry.documentVersion,
   sourceSha256:entry.documentSha,expiresAtUtc:new Date(entry.expires).toISOString(),
   researcherExplanationCompleted:!!(entry.explanation&&
    ['EXPLAINED','SIGNED','CONFIRMED','WITHDRAWN'].includes(entry.state)),
   signatureAccepted:!!entry.signature,
-  staffConfirmed:['CONFIRMED','WITHDRAWN'].includes(entry.state),
-  copyAvailable:['CONFIRMED','WITHDRAWN'].includes(entry.state)&&!!entry.signedPdf,
+  staffConfirmed:dualConfirmed,
+  copyAvailable:dualConfirmed,
   withdrawn:entry.state==='WITHDRAWN',
+  dataDispositionState:entry.state==='WITHDRAWN'?
+   (entry.disposition?'OWNER_EVIDENCE_RECORDED_PI_REVIEW':'PENDING_RESEARCH_TEAM_ACTION'):null,
   explanation:info.explanation||null};
 }
