@@ -151,6 +151,12 @@ test('§70-S E1 full PDF writes a new private signed file, SHA-verifies readback
  assert.throws(()=>h.scope.study1EConsentSignedPdfCopy(issued.token),/尚未|未取得/);
  h.scope.study1EConsentConfirm({id:issued.id,identityVerified:true,notes:'測試環境中已核實合成當事人'});
  const copy=h.scope.study1EConsentSignedPdfCopy(issued.token);
+ const integratedCopy=h.scope.study1EConsentCopy(issued.token);
+ assert.equal(integratedCopy.signedPdfSha256,copy.signedPdfSha256);
+ assert.equal(integratedCopy.signedPdfMime,'application/pdf');
+ assert.equal(sha(Buffer.from(integratedCopy.signedPdfBase64,'base64')),
+  copy.signedPdfSha256);
+ assert.equal(integratedCopy.taipeiDate,copy.taipeiDate);
  assert.equal(copy.sourceSha256,sha(original));
  assert.equal(copy.signedPdfSha256,result.signedPdfSha256);
  assert.equal(copy.mime,'application/pdf');
