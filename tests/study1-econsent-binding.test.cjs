@@ -107,6 +107,7 @@ test('Identity/OTP/slot/current source mutations all fail closed with no new iss
   s=>{s.identity.slotId='SLOT_00000002'},
   s=>{s.identity.reservationId='RSV_00000002'},
   s=>{s.identity.challengeId='CHAL_00000002'},
+  s=>{delete s.applicants.rows[0][3]},
   s=>{s.screenings.headers[1]='wrong_applicant_id'}
  ];
  for(const mutate of cases){
