@@ -781,14 +781,15 @@ function study1EConsentChange_(id,fn){
 /** Authenticated OWNER creates a fixed-document one-person invitation. */
 function study1EConsentIssue(input){
  study1AdminOwnerRequired_();
- // Old experiment-only issuance has no applicant/OTP/reservation/identity proof.
- // Keep solely as a synthetic legacy fixture; it cannot sign a real PDF.
- if(PropertiesService.getScriptProperties()
-    .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
-  throw Error('REC_REVIEW_REQUIRED：正式簽署邀請必須由本人綁定的核身及預約來源核發');
+ if(!study1EConsentEnabled_())throw Error('尚未開放有效電子簽署');
  if(!input||Object.keys(input).join(',')!=='experiment'||
   !['E1','E2'].includes(input.experiment))throw Error('實驗選擇不合法');
  const doc=study1EConsentReadyDocument_(input.experiment);
+ // Owner-only experiment-only invitations lack all human and slot provenance.
+ // Retain solely for synthetic legacy TEST fixtures; not a live path.
+ if(PropertiesService.getScriptProperties()
+    .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
+  throw Error('REC_REVIEW_REQUIRED：正式邀請必須綁定本人身分、OTP及預約');
  const lock=LockService.getScriptLock();
  if(!lock.tryLock(10000))throw Error('電子同意作業忙碌');
  try{
