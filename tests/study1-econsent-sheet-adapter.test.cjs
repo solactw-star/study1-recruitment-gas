@@ -89,8 +89,6 @@ function harness({enabled=false,approveIdentity=false,identity=evidence(),tables
  });
  vm.runInContext(source,scope);
  scope.STUDY1_ECONSENT_MAX_RECORDS_=12;
- const actualRecGate=scope.study1RecRequireElectronicConsentApproval_;
- scope.study1RecRequireElectronicConsentApproval_=()=>true; // ONLY synthetic VM
  scope.study1AdminOwnerRequired_=()=>true;
  scope.study1EConsentReadyDocument_=exp=>{
   if(exp!=='E1')throw Error('Experiment gated');return doc;
