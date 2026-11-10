@@ -194,7 +194,9 @@ test('PUBLIC-CAS competing writer prevents unsafe rollback of someone else\'s de
  const x=fixture(),description=release.PUBLIC_DESCRIPTION;
  await x.api.createDeployment({versionNumber:114,manifestFileName:'appsscript',description});
  const originalVersion=x.api.getVersion;
- x.api.getVersion=async v=>v===113?originalVersion(v):remote();
+ const oldPublic=remote();
+ oldPublic.files.find(x=>x.name==='Index').source='<html>previous official public page</html>';
+ x.api.getVersion=async v=>v===113?originalVersion(v):v===114?structuredClone(oldPublic):remote();
  x.api.createVersion=async()=>({versionNumber:115});
  const originalPut=x.api.putDeployment;
  x.api.putDeployment=async(id,body)=>{
