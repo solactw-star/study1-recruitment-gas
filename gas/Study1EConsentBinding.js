@@ -202,6 +202,9 @@ function study1EConsentBindingAdapter_(){
   // any real applicant rows or other PII are read.
   if(!id||id.provenance!=='REC_APPROVED_IDENTITY_ATTESTATION'||
      id.verified!==true||id.consentProcedureApproved!==true||
+     id.age18OrOlderVerified!==true||id.cycuStudentVerified!==true||
+     id.eligibilityEvidenceSource!=='REC_APPROVED_ELIGIBILITY_VERIFICATION'||
+     !/^[a-f0-9]{64}$/.test(id.eligibilityEvidenceSha256||'')||
      id.applicantId!==input.applicantId||id.experiment!==input.experiment||
      id.reservationId!==input.reservationId||id.slotId!==input.slotId||
      id.challengeId!==input.challengeId||id.screeningId!==input.screeningId||
@@ -248,6 +251,10 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
     identity.applicantId!==applicantId||identity.experiment!==experiment||
     identity.verifierId===''||typeof identity.verifierId!=='string'||
     identity.consentProcedureApproved!==true||
+    identity.age18OrOlderVerified!==true||
+    identity.cycuStudentVerified!==true||
+    identity.eligibilityEvidenceSource!=='REC_APPROVED_ELIGIBILITY_VERIFICATION'||
+    !/^[a-f0-9]{64}$/.test(identity.eligibilityEvidenceSha256||'')||
     typeof identity.approvalReference!=='string'||identity.approvalReference.length<8||
     typeof identity.evidenceSha256!=='string'||!/^[a-f0-9]{64}$/.test(identity.evidenceSha256))
   throw Error('REC_REVIEW_REQUIRED：缺少獨立有效本人身分及實驗別核准證據');
@@ -316,6 +323,7 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
  return {schemaVersion:1,applicantId,reservationId,slotId,challengeId,
   screeningId:request.screeningId,experiment,documentSha:doc.sha256,
   documentVersion:doc.version,identityEvidenceSha:identity.evidenceSha256,
+  eligibilityEvidenceSha:identity.eligibilityEvidenceSha256,
   priorE1EvidenceSha:experiment==='E2'?identity.priorE1EvidenceSha256:null,
   verifiedAtUtc:identity.verifiedAtUtc,otpUsedAtUtc:challenge[6],
   holdUntilUtc:reservation[4]};
@@ -323,7 +331,7 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
 function study1BindingDigest_(binding){
  const keys=['schemaVersion','applicantId','reservationId','slotId','challengeId',
   'screeningId','experiment','documentSha','documentVersion',
-  'identityEvidenceSha','priorE1EvidenceSha','verifiedAtUtc','otpUsedAtUtc','holdUntilUtc'];
+  'identityEvidenceSha','eligibilityEvidenceSha','priorE1EvidenceSha','verifiedAtUtc','otpUsedAtUtc','holdUntilUtc'];
  if(!binding||Object.keys(binding).sort().join(',')!==
     keys.concat(['digest']).sort().join(','))
   throw Error('電子同意綁定結構遭更動');
