@@ -1,0 +1,64 @@
+name: Study1 PR133 isolated OWNER-only preview deployment
+on:
+  push:
+    branches: ['fix/consent-last-preserve-wizard-20261110']
+    paths: ['.github/workflows/study1-pr133-owner-preview.yml']
+permissions:
+  contents: read
+concurrency:
+  group: study1-gas-source-sync
+  cancel-in-progress: false
+jobs:
+  owner-preview:
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Reject wrong repository or ref
+        env:
+          REPO_PRIVATE: ${{ github.event.repository.private }}
+        run: |
+          test "$GITHUB_REPOSITORY" = 'solactw-star/study1-recruitment-gas'
+          test "$GITHUB_REF" = 'refs/heads/fix/consent-last-preserve-wizard-20261110'
+          test "$REPO_PRIVATE" = 'true'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Verify closed-site and original seven-step regression
+        run: |
+          npm test
+          node --check gas/Website.js
+          node --check gas/Study1WizardEnrollment.js
+          node --check scripts/study1-gas-owner-preview-deploy.cjs
+      - name: Load original 828 OAuth only in runner (never print)
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || { echo 'Owner OAuth secret unavailable; no GAS mutation'; exit 1; }
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$RUNNER_TEMP/.clasprc.json"
+          echo "CLASPRC_PATH=$RUNNER_TEMP/.clasprc.json" >> "$GITHUB_ENV"
+          echo "GITHUB_REPOSITORY_PRIVATE=true" >> "$GITHUB_ENV"
+      - name: Audit original GAS HEAD, existing private deployment and backup to Drive
+        run: node scripts/study1-gas-owner-preview-deploy.cjs prepare
+      - name: Preserve complete prewrite snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: study1-pr133-owner-preview-prewrite-${{ github.run_id }}
+          path: ${{ runner.temp }}/study1-pr133-owner-preview-prewrite.json
+          retention-days: 7
+          if-no-files-found: error
+      - name: Revalidate original isolated branch HEAD before GAS mutation
+        run: |
+          git fetch origin fix/consent-last-preserve-wizard-20261110 --depth=1
+          test "$(git rev-parse HEAD)" = "$(git rev-parse FETCH_HEAD)" || {
+            echo 'Concurrent PR branch mutation; refusing deploy'
+            exit 1
+          }
+      - name: Update ONLY original private /exec, verify immutable owner-only version and restore HEAD manifest
+        run: node scripts/study1-gas-owner-preview-deploy.cjs apply
+      - name: Destroy temporary token cache
+        if: always()
+        run: rm -f "$RUNNER_TEMP/.clasprc.json"
