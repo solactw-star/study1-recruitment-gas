@@ -1081,3 +1081,12 @@ TASK_DOMAIN=Study1 recruitment website / eConsent; WRITE_OWNER=original GitHub P
 - 本輪未合併main、未同步/部署GAS、未改REC、正式研究Sheets或真人個資。由於分支包含原GAS同步與public-release管控規則，PR合併main有可能觸發未授權發布，必須等獨立代碼/競寫/遠端備份/安全發布授權完成。OPEN=false，CONSENT_READY=false，原私人MYSELF，實驗二不自動開放。
 
 NEXT_ACTION=人工核實現行REC的E1/E2原PDF、頁數和簽名/日期框並綁定SHA；接續原Visitor的真人身分與驗證、後端申請/場次、完整PDF簽署RPC與研究人員簽章，完成私人瀏覽器UAT及下載後視覺/雜湊驗證。禁止以目前合成CI成果宣稱可正式收件。
+
+
+### 70-S.7｜2026-11-10 本輪接續：原七步最後階段的完整已簽署PDF本人副本驗證
+
+**增量程式**：在原 `gas/Study1Visitor.html` 的最後 `step-consent`，沿用前輪新增的E1/E2已發布原版PDF、版本與SHA-256驗證，以及原手寫Canvas。新增 `officialSignedPdfResult` 區及 `officialSignedPdfVerify_`／`officialSignedPdfDisplay_`／`officialSignedPdfReset_`：只接受與同一個已核對原PDF、實驗別、版本及來源SHA一致的完整簽署版 `application/pdf`；重新以瀏覽器SHA-256計算新檔位元組，確認不同於原SHA，檢查伺服器UTC ISO時間映射至 `Asia/Taipei` 的日期後，才生成可下載Blob；預約/文件/報名指紋變動或離開有效流程時撤銷舊Blob。原版PDF、原V05/V06/V07/V08、B02/B03/B04與7步架構保留，沒有新增對外開放的簽名RPC或假冒真人簽名。
+
+**可重現測試**：`tests/study1-signed-pdf-wizard-readback.test.cjs` 以E1/E2合成PDF回覆測試SHA與下載契約、跨實驗、錯誤版本、原始SHA不符、新SHA遭竄改、錯誤長度/PDF檔頭、伺服器時間與臺灣日期不一致，以及同一報名指紋篡改後拒絕交付。最新回讀原PR隔離分支 code SHA `6ad23b63a84354fa3fc464c53b5c3ec12ac404ed`，GitHub CI `42747827731` completed/success、**745 PASS／0 FAIL／0 SKIP**，與先前E1/E2五頁合成PDF的伺服器蓋章、私人Drive回讀測試相容。此為封閉測試證據，**不等於真實瀏覽器UI、實際REC PDF視覺核對或合法電子同意**。
+
+**仍未整合與不得冒稱**：目前 `officialSignedPdfDisplay_` 是已測試的**接收／校驗／交付元件**，尚未被具真實身分及本人申請綁定的簽署交易呼叫；原Visitor仍是 `SIMULATED_SIGN_ONLY` 的OWNER TEST，不能呼叫正式 `study1EConsentSignPdf`，不能用原TEST OTP作本人驗證，也不能把本機筆跡當成有效同意。實驗一／實驗二現行有效REC核准PDF、原始版號及簽名／日期實際座標仍待正式核實，OWNER必須以各PDF原SHA唯一綁定頁面定位；研究人員實際簽名、真人資料安全持久化與參與者副本身分權限尚未完成。**E_CONSENT_ENGINE_SYNTHETIC_TEST_VERIFIED=true、SIGNED_PDF_CLIENT_VALIDATOR_TEST_VERIFIED=true、WIZARD_REAL_IDENTITY_BINDING_VERIFIED=false、REAL_WIZARD_SIGNING_NOT_INTEGRATED=true、REC_REVIEW_REQUIRED=true、MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=NOT_VERIFIED、FORMAL_READY=false。** 本輪未更改原GAS或REC，亦未啟用收件。NEXT_ACTION=在原受保護報名後端建立實際身分/時段/版號/簽署邀請的可信連結與正式簽署交易及完整本人副本交付，經REC核准和獨立安全驗收後才能開啟。
