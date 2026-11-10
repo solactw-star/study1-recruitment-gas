@@ -265,6 +265,16 @@ test('FORMAL consent-last browser synthetic: HELD -> actual PDF SHA -> staff exp
  assert.equal(h.node('officialSignedPdfDownload').hidden,false);
  assert.equal(h.node('officialSignedPdfSha').textContent,h.signedSha);
  assert.equal(h.node('officialPdfSha').textContent,h.pdfSha);
+ // §70-S.23: independent read-only Reservations verification never
+ // converts an online dual-signed PDF into a fictitious booked seat.
+ assert.equal(h.reservations[0].status,'HELD');
+ assert.match(h.node('status').textContent,/仍為HELD暫留/);
+ assert.ok(h.calls.some(x=>x.name==='study1FormalStatus'));
+ // A distinct verified CONFIRMED reservation may be reported as booked.
+ h.reservations[0].status='CONFIRMED';
+ refresh.handlers.get('click')();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.match(h.node('status').textContent,/正式預約均已獨立核實/);
  const withdrawal=findIn('step-consent','撤回已確認');
  assert.ok(withdrawal);
  const area=withdrawal;
@@ -278,4 +288,14 @@ test('FORMAL consent-last browser synthetic: HELD -> actual PDF SHA -> staff exp
  assert.equal(h.isWithdrawn(),true);
  assert.equal(h.calls.some(x=>/UnifiedPreview|SIMULATED_SIGN_ONLY/.test(x.name)),false);
  assert.deepEqual(h.errors,[]);
+});
+
+// Latest operational decision does not eliminate staff Q&A evidence: it only
+// removes the old 15-minute duration as a hard timer for online e-consent.
+test('§70-S.23 consent is online-only without a 15-minute countdown or booking shortcut',()=>{
+ assert.match(html,/知情同意全程線上完成/);
+ assert.match(html,/不設定15分鐘倒數/);
+ assert.match(html,/須先由研究人員完成線上說明及疑問回覆/);
+ assert.match(formal,/a dual-signed PDF is NOT a booking confirmation/);
+ assert.match(formal,/rpc\('study1FormalStatus',state\.emailProof,booking/);
 });
