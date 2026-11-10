@@ -63,6 +63,7 @@ function harness({enabled=false,approveIdentity=false,identity=evidence(),tables
         }));
        }
       };
+      return finder;
      }};
      return {getValues:()=>[data.rows[row-2].slice()]};
     },
