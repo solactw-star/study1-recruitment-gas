@@ -61,7 +61,7 @@ test('V06 last confirmation lists only synthetic research, Taiwan time, owner de
  for(const id of ['v06Study','v06Date','v06Time','v06Place','v06Email','v06Consent','v06Status'])
   assert.match(html,new RegExp('id="'+id+'"'));
  assert.match(html,/資料正確，前往最後PDF與簽名步驟/);
- assert.match(html,/非REC正式電子簽署/);
+ assert.match(html,/尚未簽署；下一步才進入最後的知情同意/);
  assert.match(html,/demo\.study1@example\.invalid（不寄信）/);
  assert.match(html,/v06Preview_\(model,a\)/);
  assert.match(html,/v06Render_\(\)/);
