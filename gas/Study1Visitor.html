@@ -269,9 +269,19 @@ function officialSignedPdfVerify_(copy,original){
     !Number.isSafeInteger(copy.bytes)||copy.bytes<100||copy.bytes>6000000||
     typeof copy.base64!=='string'||copy.base64.length>8400000||
     typeof copy.taipeiDate!=='string'||
-    !/^20\\d{2}\\/(0[1-9]|1[0-2])\\/([0-2]\\d|3[01])$/.test(copy.taipeiDate)||
-    typeof copy.signedAt!=='string'||!/^20\\d{2}-/.test(copy.signedAt))
+    !/^20\d{2}\/(0[1-9]|1[0-2])\/([0-2]\d|3[01])$/.test(copy.taipeiDate)||
+    typeof copy.signedAt!=='string'||!/^20\d{2}-/.test(copy.signedAt))
   throw Error('已簽署PDF版本、核實來源或臺灣日期不一致');
+ const signedInstant=new Date(copy.signedAt);
+ if(!Number.isFinite(signedInstant.getTime())||signedInstant.toISOString()!==copy.signedAt)
+  throw Error('伺服器簽署時間戳不合法');
+ const dateParts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+  timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(signedInstant).filter(p=>p.type!=='literal')
+   .map(p=>[p.type,p.value]));
+ const expectedDate=dateParts.year+'/'+dateParts.month+'/'+dateParts.day;
+ if(expectedDate!==copy.taipeiDate)
+  throw Error('簽署日期不是可信時間戳對應的臺灣日期');
  const bin=atob(copy.base64),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
  if(bytes.length!==copy.bytes||
    String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
