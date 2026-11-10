@@ -203,7 +203,8 @@ test('§70-S E1 full PDF writes a new private signed file, SHA-verifies readback
  assert.equal(sha(h.files.get(h.originalId).bytes),sha(original),'original PDF immutable');
  assert.ok([...h.files.values()].filter(x=>x.mime==='application/pdf').length===2);
  assert.ok([...h.files.values()].every(x=>x.access==='PRIVATE'&&!x.trashed));
- h.scope.study1EConsentWithdraw({token:issued.token,reason:'合成當事人要求退出'});
+ const withdrawal=h.scope.study1EConsentWithdraw({token:issued.token,reason:'合成當事人要求退出'});
+ assert.equal(withdrawal.requiresResearcherDataDisposition,true,'撤回事件不能冒稱資料已依REC銷毀或去識別化');
  assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,copy.signedPdfSha256);
 });
 test('E2 e-sign never opens before 2027, even if synthetic document and other flags exist',async()=>{
