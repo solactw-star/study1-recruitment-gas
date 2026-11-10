@@ -1,0 +1,31 @@
+name: Study1 PR133 OWNER private deployment read-only audit
+on:
+  push:
+    branches: ['fix/consent-last-preserve-wizard-20261110']
+    paths: ['.github/workflows/study1-pr133-owner-preview-audit.yml']
+permissions:
+  contents: read
+concurrency:
+  group: study1-gas-source-sync
+  cancel-in-progress: false
+jobs:
+  inspect-owner:
+    if: github.event.repository.private
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Read-only audit of original OWNER private URL and full source SHA
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          GITHUB_REPOSITORY_PRIVATE: 'true'
+        run: |
+          test -n "$CLASPRC_JSON"
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > "$RUNNER_TEMP/.clasprc.json"
+          export CLASPRC_PATH="$RUNNER_TEMP/.clasprc.json"
+          node scripts/study1-gas-owner-preview-audit.cjs
+          rm -f "$RUNNER_TEMP/.clasprc.json"
