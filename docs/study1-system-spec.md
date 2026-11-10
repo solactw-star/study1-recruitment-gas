@@ -1376,3 +1376,15 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **正式仍未完成：** 真 Slots 無時段→PI核定資料與 HMAC 無法配置；REC 網頁遠端電子同意核准文書／正式 PDF 核定頁與研究員程序未核實；真 Turnstile/Email/原 Sheet/Drive/權限未實機驗證；私有 GAS V125 尚未同步新版本；真實 Chrome／研究員雙角色人工 UAT 未執行。OWNER GAS 部署沒有更動。狀態 MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false；不合併PR、不部署、不開 E1 真人收件或 E2。
 
 **跨對話接續點：** TASK_DOMAIN=Study1 website FORMAL E1 consent-last and ORIGINAL Slots source audit; SOURCE_PATH=solactw-star/study1-recruitment-gas PR#133 / docs/study1-system-spec.md §70-S.21; SOURCE_VERSION=code bd7db65b4634a0663f5150dea26eec5bd3fd1b2d（docs待回讀）；LAST_VERIFIED_STEP=871 synthetic CI passed + Slots A1:H1000 two independent passes header only; COMPLETED=FORMAL_CONSENT_BRIDGE,PDF_COPY_WITHDRAW_UI,CAS_LOCK_FIX,OWNER_HMAC_CANDIDATE_TOOL,REAL_SLOT_ZERO_ROW_AUDIT; NEXT_ACTION=PI reviewed original E1 slots and operating policy, effective REC remote consent evidence, real external service/owner UI and GAS predeploy audit; BLOCKERS=NO_OFFICIAL_SLOT_ROWS,PI_SLOT_MAPPING_PENDING,REC_WEB_REMOTE_CONSENT_SCOPE_REQUIRED,PDF_LAYOUT_NOT_REC_VERIFIED,LIVE_SECURITY_CONFIG_UNVERIFIED,REAL_UI_NOT_VERIFIED; WRITE_OWNER=original isolated PR#133; SYNC_STATUS=PR_BRANCH_ONLY.
+
+### 70-S.21.1｜正式 E1 同意書原文再核與研究員簽章／撤回未決事項
+
+**原始文件核對：** 已讀研究室 Drive 同意書「03.REC-S-01研究參與者同意書-實驗一_051108.docx」（ID 1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m）原文：研究開始前須由研究人員口頭與書面說明研究、答疑、確認後再由參與者簽署；實驗前說明預估約15分鐘。原文第十二節有獨立「研究計畫主持人／研究人員簽名＋日期」欄，第十三節有獨立「研究參與者簽名＋日期」欄；簽署同意書陳述一式兩份，參與者留存一份。撤回可採電話、電子郵件或現場口頭告知；原文要求研究團隊依參與者意願對已收集個資做銷毀或去識別化。儲存原文指定上鎖紙本或密碼保護研究用電腦，不能由私人 Google Drive ACL 推定雲端保存方案已經REC核准。
+
+**本輪修正：** gas/AdminSandbox.js 的 study1EConsentWithdraw 僅產生撤回事件，不可冒稱已完成後續資料處置；已加回傳 requiresResearcherDataDisposition=true。gas/Study1Visitor.html 現將撤回訊息描述為「撤回通知已登錄，研究團隊仍須依適用REC與參與者意願處理資料銷毀／去識別化」，不自動刪除既有研究證據。tests/study1-signed-pdf-record.test.cjs 已增加對應回歸測試。
+
+**不可忽略的 REC 設計缺口：** 現有 PDF 合成引擎只將參與者 PNG 筆跡及可信臺灣日期寫入原 PDF，研究人員確認作為私有另一個事件存證，**尚未將研究人員本人簽名與日期嵌入同一完整PDF的原始研究人員欄位**。不得將「研究員確認事件」等同原紙本兩個獨立簽章欄的完整履行。待核實最新有效REC遠端簽署及電子儲存方式、研究員簽章、原版頁碼和欄位座標後，才可增量補全並實際PDF視覺驗證；10/27修訂稿仍不能直接推定生效。此處狀態 REC_REVIEW_REQUIRED、RESEARCHER_PDF_SIGNATURE_LAYOUT_PENDING、REC_DATA_STORAGE_AND_WITHDRAWAL_DISPOSITION_REVIEW_REQUIRED。
+
+**暫留政策相容風險：** 原同意書預估研究員說明約15分鐘，但目前 V05 HELD 工作暫設值只有10分鐘，實際真人可能尚未說明完畢時預約就失效。2分鐘quote、10分鐘HELD與FIFO政策未獲PI正式核定，不能擅自延長或當作有效核准程序。
+
+**本次正式隔離分支寫入：** 撤回狀態 commit 315b1a9d4596874556288a19211fb7f803288358；前端提示 commit 4c0e065bdc346dacf7882a3ab86b49922a540965；回歸 commit 694437cdd7b83bfcb56cec3d6a7389bf1877c475。以上均未寫正式 REC、原資料 Sheet、GAS、main，也沒有開啟真人收件或E2。
