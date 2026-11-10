@@ -242,6 +242,11 @@ function study1WizardHoldBound_(untrusted){
    const row=study1BindingSheetRow_(operations,'Slots',
      BOOKING_SLOT_HEADERS_,r.slotId).rows[0];
    slotSha=study1WizardSlotCheck_(r,row);
+   // Direct holds must not jump over a prior E1 waitlist. A queue head
+   // must claim the seat using the separate reverified WAITLIST operation.
+   const pending=study1WizardReadBook_(reservations,BOOKING_RESERVATION_HEADERS_)
+     .rows.some(x=>x[2]===r.slotId&&x[3]==='WAITLISTED');
+   if(pending)return false;
    return true;
   },
   readSnapshot:()=>{
