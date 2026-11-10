@@ -1124,3 +1124,10 @@ TASK_DOMAIN=Study1 招募網站P0：本人OTP、申請ID、時段與E1/E2 PDF安
 **不可冒稱已正式完成**：目前既無可核實的REC核准身份/實驗別attestation provider，也無核准真人OTP申請來源，因此實際對正式Sheets/真人的讀取與寫入被預設拒絕；前述「實際後端資料介接」是與原資料表ID、結構、欄位及原OTP核⼼相容的**受保護實作**，不是現場啟用的真人服務。原Visitor七步仍OWNER TEST，尚未有經REC核定可用的本人身份及實驗別映射、正式OTP發送/寄送憑證、真正時段佔位持久化、正式PDF逐欄定位與研究人員/本人簽署流程UI驗收。REC_REVIEW_REQUIRED=true；LIVE_IDENTITY_ATTESTATION=BLOCKED；OTP_AUTHORITY=BLOCKED；OTP_TRANSACTION_LIVE=false；REAL_WIZARD_SIGNING_NOT_INTEGRATED=true；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false；MAIN_SYNC_VERIFIED=false；GAS_SYNC_VERIFIED=false。維持OPEN=false、CONSENT_READY=false、MYSELF及E2獨立禁招募，無正式Sheet/REC/GAS修改或部署。
 
 NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一來源、同意書實際核准原PDF版號/SHA/簽名欄位；完成身份/申請 authority adapter、可安全保存及實際核實的真人OTP與預約流程，將原七步最後的手寫簽名與study1EConsentSignPdf合法串接；先在隔離環境做實際瀏覽器、原PDF及權限UAT，另外取得合併與同ID GAS同步/部署授權，禁止僅因CI通過自動啟用。
+
+
+#### 70-S.9.1｜安全硬化與最終回歸（2026-11-10）
+
+- 原 gas/Study1EConsentBinding.js 的私有 `study1EConsentIssueBound_(input)` **已移除呼叫者自訂adapter參數**，一律使用原伺服器端 `study1EConsentBindingAdapter_()` 作為單一可信正式來源；以此阻斷內部錯誤傳入假身分、假OTP/時段的邊界。合成VM測試僅在沙盒覆寫工廠，不變更正式GAS權責。原七步/預約/PDF安全開關保持不變。
+- 最後獨立程式HEAD=`41322f6ca7d7913d9c81b7e450f098e74eca58bf`；原GitHub PR #133隔離工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42752519608，**768 PASS／0 FAIL／0 SKIP**。先前§70-S.9所記`04e768cc`為新增OTP核⼼回歸階段，請以本段後續版本為準。
+- 尚未完成且不可因CI取代：REC核准的真人身份/實驗E1/E2權責資料來源、真人OTP申請/信件寄送與收件、正式時段CAS持久化、最後PDF/手寫簽名與真人申請的可信瀏覽器連結、REC原版簽名欄位及日期視覺驗收、實際本人副本權限UAT；所有正式Sheet寫入、GAS同步與部署仍未執行。OPEN=false、CONSENT_READY=false、MYSELF、E2未獨立授權絕不啟用。
