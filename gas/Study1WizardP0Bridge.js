@@ -27,8 +27,54 @@ function study1WizardApplicantAuthority_(request){
 /** Official Slots tab has NO experiment column. Never infer E1/E2 from a
  * slotId string, client selection or free-text location_code.
  */
-function study1WizardSlotAuthority_(request){
- throw Error('SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED：尚無可信的時段與實驗別對應');
+function study1WizardSlotAuthority_(request, originalSlot){
+ // This registry is an OWNER-provisioned server-side source, NOT a field in
+ // the visitor request or a guess from slot_id/location_code. Provisioning
+ // remains disabled until the PI has verified the original Slots rows.
+ if(!LockService.getScriptLock().hasLock())
+  throw Error('SLOT_SHARED_LOCK_REQUIRED');
+ if(request.experiment!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
+ const p=PropertiesService.getScriptProperties();
+ if(p.getProperty('STUDY1_E1_SLOT_REGISTRY_APPROVED')!=='true')
+  throw Error('SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED');
+ const raw=p.getProperty('STUDY1_E1_SLOT_REGISTRY_V1');
+ const mac=p.getProperty('STUDY1_E1_SLOT_REGISTRY_HMAC');
+ if(typeof raw!=='string'||raw.length<2||raw.length>200000||
+    typeof mac!=='string'||!/^[a-f0-9]{64}$/.test(mac))
+  throw Error('SLOT_REGISTRY_INVALID');
+ if(study1BindingHmac_(['STUDY1_E1_SLOT_REGISTRY_V1',raw])!==mac)
+  throw Error('SLOT_REGISTRY_TAMPERED');
+ let entries;
+ try{entries=JSON.parse(raw);}catch(e){throw Error('SLOT_REGISTRY_INVALID');}
+ if(!Array.isArray(entries)||entries.length<1||entries.length>10000)
+  throw Error('SLOT_REGISTRY_INVALID');
+ const ids=new Set();let selected=null;
+ for(const entry of entries){
+  if(!entry||Array.isArray(entry)||typeof entry!=='object'||
+     Object.keys(entry).sort().join(',')!==
+       'experiment,slotId,slotRowSha256')
+   throw Error('SLOT_REGISTRY_INVALID');
+  study1BindingId_(entry.slotId);
+  if(ids.has(entry.slotId)||!['E1','E2'].includes(entry.experiment)||
+     !/^[a-f0-9]{64}$/.test(entry.slotRowSha256||''))
+   throw Error('SLOT_REGISTRY_INVALID');
+  ids.add(entry.slotId);
+  if(entry.slotId===request.slotId)selected=entry;
+ }
+ if(!selected||selected.experiment!=='E1'||
+    !Array.isArray(originalSlot)||originalSlot.length!==8||
+    originalSlot[0]!==request.slotId)
+  throw Error('SLOT_EXPERIMENT_MISMATCH');
+ // The registry pins the complete original row; any schedule/capacity/status
+ // edit requires a researcher-reviewed reissue, never a browser assertion.
+ const rowSha=study1BindingHmac_([
+  'STUDY1_E1_ORIGINAL_SLOT_ROW_V1',...originalSlot]);
+ if(rowSha!==selected.slotRowSha256)
+  throw Error('SLOT_REGISTRY_STALE');
+ return {verified:true,provenance:'TRUSTED_FORMAL_SLOT_EXPERIMENT_REGISTRY',
+  experiment:'E1',slotId:request.slotId,
+  evidenceSha256:study1BindingHmac_([
+   'STUDY1_E1_SLOT_AUTHORITY_V1',mac,request.slotId,rowSha])};
 }
 function study1WizardP0Gate_(){
  study1BindingGate_();
@@ -117,7 +163,7 @@ function study1WizardReadPerson_(r,identity){
   e1HistorySha:null};
 }
 function study1WizardSlotCheck_(r,slot){
- const grant=study1WizardSlotAuthority_(r);
+ const grant=study1WizardSlotAuthority_(r,slot);
  if(!grant||grant.verified!==true||
     grant.provenance!=='TRUSTED_FORMAL_SLOT_EXPERIMENT_REGISTRY'||
     grant.experiment!==r.experiment||grant.slotId!==r.slotId||
