@@ -11,17 +11,18 @@ function fixture({approved=true,identity=true,slotProof=true,experiment='E1',cap
   experiment,documentSha:'a'.repeat(64),documentVersion:'2026-05-11/Version02',
   requestId:'REQ_12345678_ABCDEFGH',holdUntilUtc:ts(t,600000)};
  const tables={
-  Applicants:{headers:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],rows:[[req.applicantId,'TEST','participant@example.org','',ts(t,-7200000),ts(t,-100000),'VERIFIED']]},
-  Screenings:{headers:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],rows:[[req.screeningId,req.applicantId,'SCREEN_V1','ELIGIBLE',ts(t,-350000),'STAFF_TEST']]},
+  Applicants:{headers:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],rows:[[req.applicantId,'TEST','participant@example.org','',ts(t,-7200000),ts(t,-100000),'EMAIL_VERIFIED']]},
+  Screenings:{headers:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],rows:[[req.screeningId,req.applicantId,'SCREEN_V1','ELIGIBLE',ts(t,-350000),'PARTICIPANT_SELF_REPORT']]},
   Verification:{headers:['challenge_id','applicant_id','purpose','otp_hmac','expires_at_utc','attempts','used_at_utc','email','created_at_utc'],rows:[[req.challengeId,req.applicantId,'EMAIL_VERIFICATION','b'.repeat(64),ts(t,300000),1,ts(t,-50000),'participant@example.org',ts(t,-200000)]]},
   Slots:{headers:['slot_id','start_at_utc','end_at_utc','capacity','location_code','status','created_by','updated_at_utc'],rows:[[req.slotId,ts(t,7200000),ts(t,10800000),capacity,'TEST','OPEN','STAFF_TEST','']]},
   Reservations:{headers:['reservation_id','applicant_id','slot_id','status','hold_until_utc','idempotency_key','created_at_utc','confirmed_at_utc','cancelled_at_utc','updated_at_utc'],rows:[]}
  };
  const person={applicantId:req.applicantId,screeningId:req.screeningId,challengeId:req.challengeId,experiment,verified:true,
-  provenance:'REC_APPROVED_IDENTITY_ATTESTATION',age18OrOlderVerified:true,cycuStudentVerified:true,
-  eligibilityEvidenceSource:'REC_APPROVED_ELIGIBILITY_VERIFICATION',eligibilityEvidenceSha256:'c'.repeat(64),
+  provenance:'STUDY1_E1_SELF_REPORT_OTP_HMAC',
+  emailControlSource:'ORIGINAL_VERIFICATION_FG',
+  eligibilityEvidenceSource:'PARTICIPANT_SELF_REPORT',eligibilityEvidenceSha256:'c'.repeat(64),
   evidenceSha256:'d'.repeat(64),screeningVersion:'SCREEN_V1',email:'participant@example.org',
-  priorE1ParticipationVerified:true,priorE1Participation:false,priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'e'.repeat(64)};
+  verifiedAtUtc:ts(t,-50000)};
  const slot={verified:true,provenance:'TRUSTED_FORMAL_SLOT_EXPERIMENT_REGISTRY',slotId:req.slotId,experiment,evidenceSha256:'f'.repeat(64)};
  let locked=false,readCount=0,writes=[],n=0,beforeAppend=null,otpCalls=0;
  function tab(name){return {
@@ -67,8 +68,14 @@ function fixture({approved=true,identity=true,slotProof=true,experiment='E1',cap
   return {headers:Array.from(headers),rows:[found[0].slice()]};
  };
  if(identity)context.study1WizardApplicantAuthority_=()=>person;
+ else context.study1SelfReportedAuthority_=()=>{throw Error('SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED')};
  if(slotProof)context.study1WizardSlotAuthority_=()=>slot;
- context.study1EConsentVerifyContactOtp_=()=>{otpCalls++;return {verified:true,reason:'VERIFIED'}};
+ context.study1ParticipantRecPolicy_=()=>({screeningVersion:'SCREEN_V1'});
+ context.study1ParticipantVerifiedPolicy_=p=>p;
+ context.study1ParticipantOtpVerify_=()=>{otpCalls++;return {verified:true,reason:'EMAIL_CONTROL_ONLY',emailProof:{signature:'a'.repeat(64)}}};
+ context.study1ParticipantEmailStatus_=()=>({
+  emailVerified:true,eligibilitySource:'PARTICIPANT_SELF_REPORT',
+  applicationState:'SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED'});
  return {context,req,tables,person,slot,writes,set beforeAppend(f){beforeAppend=f},
   get locked(){return locked},get readCount(){return readCount},get otpCalls(){return otpCalls}};
 }
@@ -79,7 +86,7 @@ test('CLOSED denies before touching official Sheets',()=>{
 });
 test('Missing trusted identity rejects before opening booking data',()=>{
  const h=fixture({identity:false});
- assert.throws(()=>h.context.study1WizardHoldBound_(h.req),/IDENTITY_SOURCE_NOT_CONFIGURED/);
+ assert.throws(()=>h.context.study1WizardHoldBound_(h.req),/SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.readCount,0);assert.equal(h.writes.length,0);
 });
 test('Official Slots has no experiment column: unverified E1/E2 mapping cannot create a hold',()=>{
@@ -121,9 +128,11 @@ test('Impersonation, document mismatch, wrong experiment, no OTP and invalid req
  const mutations=[
   h=>{h.person.applicantId='APP_ATTACKER'},
   h=>{h.person.email='attacker@example.org'},
+  h=>{h.person.provenance='BROWSER_ID_CARD_CLAIM'},
+  h=>{h.person.emailControlSource='BROWSER_ASSERTION'},
   h=>{h.tables.Verification.rows[0][6]=''},
   h=>{h.tables.Screenings.rows[0][3]='INELIGIBLE'},
-  h=>{h.tables.Applicants.rows[0][6]='PENDING'},
+  h=>{h.tables.Applicants.rows[0][6]='PENDING_EMAIL'},
   h=>{h.slot.experiment='E2'},
   h=>{h.req.documentSha='f'.repeat(64)},
   h=>{h.req.requestId='short'}
@@ -133,14 +142,10 @@ test('Impersonation, document mismatch, wrong experiment, no OTP and invalid req
   assert.equal(h.writes.length,0);assert.equal(h.locked,false);
  }
 });
-test('E2 without independent no-E1 history evidence is not allowed to hold',()=>{
- for(const patch of [p=>p.priorE1Participation=true,p=>p.priorE1ParticipationVerified=false,
-   p=>p.priorE1Source='SELF_REPORT']){
-  const h=fixture({experiment:'E2'});patch(h.person);
-  assert.throws(()=>h.context.study1WizardHoldBound_(h.req),/ELIGIBILITY_EVIDENCE_MISSING/);
-  assert.equal(h.writes.length,0);
- }
- const valid=fixture({experiment:'E2'});assert.equal(valid.context.study1WizardHoldBound_(valid.req).held,true);
+test('E2 cannot be booked even with a claimed prior E1 history',()=>{
+ const h=fixture({experiment:'E2'});
+ assert.throws(()=>h.context.study1WizardHoldBound_(h.req),/EXPERIMENT_NOT_OPEN/);
+ assert.equal(h.writes.length,0);
 });
 test('Original capacity calculator prevents second applicant entering full slot',()=>{
  const h=fixture({capacity:1});h.context.study1WizardHoldBound_(h.req);
@@ -148,14 +153,15 @@ test('Original capacity calculator prevents second applicant entering full slot'
  h.req.applicantId=id;h.req.screeningId=screen;h.req.challengeId=challenge;h.req.requestId='REQ_SECOND_PERSON_123456789';
  h.person.applicantId=id;h.person.screeningId=screen;h.person.challengeId=challenge;
  const now=Date.now();
- h.tables.Applicants.rows.push([id,'OTHER_TEST','participant@example.org','',ts(now,-7200000),ts(now,-100000),'VERIFIED']);
- h.tables.Screenings.rows.push([screen,id,'SCREEN_V1','ELIGIBLE',ts(now,-350000),'STAFF_TEST']);
+ h.tables.Applicants.rows.push([id,'OTHER_TEST','participant@example.org','',ts(now,-7200000),ts(now,-100000),'EMAIL_VERIFIED']);
+ h.tables.Screenings.rows.push([screen,id,'SCREEN_V1','ELIGIBLE',ts(now,-350000),'PARTICIPANT_SELF_REPORT']);
  h.tables.Verification.rows.push([challenge,id,'EMAIL_VERIFICATION','b'.repeat(64),ts(now,300000),1,ts(now,-50000),'participant@example.org',ts(now,-200000)]);
  const result=h.context.study1WizardHoldBound_(h.req);
  assert.equal(result.held,false);assert.equal(result.reason,'REJECTED');assert.equal(h.writes.length,1);
 });
 test('Step 03 OTP verifies via existing adapter, not TEST 00000000 state',()=>{
- const h=fixture(),a=h.context.study1WizardOtpVerifyBound_({
+ const h=fixture();h.tables.Applicants.rows[0][6]='PENDING_EMAIL';
+ const a=h.context.study1WizardOtpVerifyBound_({
   applicantId:h.req.applicantId,challengeId:h.req.challengeId,
   screeningId:h.req.screeningId,experiment:h.req.experiment,code:'12345678'
  });
