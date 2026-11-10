@@ -1132,6 +1132,109 @@ async function study1EConsentSignPdf(input){
   throw error;
  }
 }
+
+/** OWNER handwritten second signature in the REC-pinned researcher PDF box.
+ * Original PDF and participant-signed PDF remain immutable and traceable.
+ */
+async function study1EConsentConfirmPdf(input){
+ study1AdminOwnerRequired_();
+ if(!input||Array.isArray(input)||typeof input!=='object'||
+  Object.keys(input).sort().join(',')!=='id,notes,participantSignedSha256,researcherSignature'||
+  !/^[-a-f0-9]{30,40}$/i.test(input.id||'')||
+  typeof input.notes!=='string'||!input.notes.trim()||input.notes.length>1000||
+  /[<>]/.test(input.notes)||!/^[a-f0-9]{64}$/.test(input.participantSignedSha256||'')||
+  typeof input.researcherSignature!=='string'||input.researcherSignature.length>125000||
+  !/^[A-Za-z0-9+/]+={0,2}$/.test(input.researcherSignature))
+  throw Error('RESEARCHER_PDF_REQUEST_INVALID');
+ const png=Utilities.base64Decode(input.researcherSignature);
+ if(png.length<100||png.length>90000||
+  png.slice(0,8).map(b=>b&255).join(',')!=='137,80,78,71,13,10,26,10')
+  throw Error('RESEARCHER_PDF_PNG_INVALID');
+ study1FormalConsentGate_();
+ const active=Session.getActiveUser().getEmail(),
+   effective=Session.getEffectiveUser().getEmail();
+ if(!active||active!==effective)throw Error('RESEARCHER_SESSION_MISMATCH');
+ const registry=study1EConsentRegistry_(),
+  before=registry.records.find(x=>x.id===input.id);
+ if(!before||before.channel!=='FORMAL_E1'||before.experiment!=='E1'||
+  before.state!=='SIGNED'||!before.binding||!before.signedPdf||
+  before.signedPdf.sha!==input.participantSignedSha256)
+  throw Error('RESEARCHER_PDF_UNBOUND_OR_STALE');
+ const signedEvent=study1EConsentEvent_(before.signature,before,'SIGNATURE');
+ study1EConsentEvent_(before.explanation,before,'EXPLANATION');
+ if(signedEvent.data.signedPdfSha256!==before.signedPdf.sha)
+  throw Error('RESEARCHER_PDF_PARTICIPANT_HASH_MISMATCH');
+ const doc=study1EConsentReadyDocument_('E1');
+ if(doc.sha256!==before.documentSha||doc.version!==before.documentVersion)
+  throw Error('RESEARCHER_PDF_SOURCE_CHANGED');
+ const adapter=study1EConsentBindingAdapter_('PUBLIC_E1');
+ study1BindingRecheckWithLock_(before.binding,doc,adapter);
+ const layout=study1PdfResearcherLayoutRead_('E1',doc);
+ const bytes=study1EConsentSignedPdfRead_(before.signedPdf,before);
+ const expected={experiment:'E1',sha256:before.documentSha,
+  version:before.documentVersion,participantSignedSha256:before.signedPdf.sha};
+ const stamped=await study1PdfComposeResearcherSigned_(bytes,png,layout,expected,new Date());
+ let saved=null;
+ try{
+  const changed=study1EConsentChange_(before.id,(x,_,heldLock)=>{
+   study1AdminOwnerRequired_();study1FormalConsentGate_();
+   if(Session.getActiveUser().getEmail()!==active||
+    Session.getEffectiveUser().getEmail()!==effective)
+    throw Error('RESEARCHER_OWNER_CHANGED');
+   if(!heldLock||heldLock.hasLock()!==true||x.state!=='SIGNED'||
+    x.channel!=='FORMAL_E1'||!x.binding||x.binding.digest!==before.binding.digest||
+    !x.signedPdf||x.signedPdf.id!==before.signedPdf.id||
+    x.signedPdf.sha!==before.signedPdf.sha||
+    x.documentSha!==doc.sha256||x.documentVersion!==doc.version)
+    throw Error('RESEARCHER_PDF_CAS_CHANGED');
+   const current=study1EConsentReadyDocument_('E1');
+   if(current.sha256!==doc.sha256||
+     JSON.stringify(study1PdfResearcherLayoutRead_('E1',current))!==JSON.stringify(layout))
+    throw Error('RESEARCHER_PDF_LAYOUT_CHANGED');
+   study1BindingRecheck_(x.binding,current,adapter,new Date().toISOString(),heldLock);
+   study1EConsentEvent_(x.signature,x,'SIGNATURE');
+   study1EConsentEvent_(x.explanation,x,'EXPLANATION');
+   study1EConsentSignedPdfRead_(x.signedPdf,x);
+   saved=study1EConsentSignedPdfStore_(stamped,x);
+   const confirmation=study1EConsentFile_('CONFIRMATION',x,{
+    researcher:'OWNER',reviewerEmail:active,
+    identityEvidenceSource:'PARTICIPANT_SELF_REPORT_EMAIL_OTP',
+    notes:input.notes,signatureHash:x.signature.sha,
+    explanationHash:x.explanation.sha,
+    participantSignedPdfSha256:x.signedPdf.sha,
+    researcherSignedPdfSha256:saved.sha,
+    researcherSignedAt:stamped.researcherSignedAt,
+    researcherTaipeiDate:stamped.researcherTaipeiDate,
+    researcherSignaturePngSha256:study1PdfDigest_(png)});
+   return {...x,state:'CONFIRMED',confirmation,
+    participantSignedPdf:x.signedPdf,signedPdf:saved};
+  });
+  if(changed.state!=='CONFIRMED'||changed.signedPdf.sha!==stamped.signedSha256)
+   throw Error('RESEARCHER_PDF_COMMIT_UNKNOWN');
+  return {state:'CONFIRMED',experiment:'E1',
+   participantSignedPdfSha256:before.signedPdf.sha,
+   signedPdfSha256:stamped.signedSha256,
+   researcherSignedAt:stamped.researcherSignedAt,
+   researcherTaipeiDate:stamped.researcherTaipeiDate,participantCopyAvailable:true};
+ }catch(error){
+  if(saved){
+   let referenced=true;
+   try{referenced=study1EConsentRegistry_().records.some(x=>
+    x.id===before.id&&x.signedPdf&&x.signedPdf.id===saved.id);}
+   catch(_){referenced=true;}
+   if(!referenced)try{DriveApp.getFileById(saved.id).setTrashed(true);}catch(_){}
+  }
+  throw error;
+ }
+}
+function study1EConsentOwnerPendingPdfConfirmations(){
+ study1AdminOwnerRequired_();
+ return {readOnly:true,records:study1EConsentRegistry_().records
+  .filter(x=>x.channel==='FORMAL_E1'&&x.state==='SIGNED'&&x.signedPdf)
+  .map(x=>({id:x.id,experiment:'E1',version:x.documentVersion,
+   sourceSha256:x.documentSha,participantSignedPdfSha256:x.signedPdf.sha}))};
+}
+
 /** Only the one fixed document's signed-PDF bytes, after staff confirmation. */
 function study1EConsentSignedPdfCopy(token){
  const entry=study1EConsentEntry_(token,study1EConsentRegistry_());
