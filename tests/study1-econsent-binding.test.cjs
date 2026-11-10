@@ -11,26 +11,25 @@ function snapshot(now){
  const t=now.getTime(),ts=offset=>iso(t+offset);
  return {
   applicants:{headers:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],
-   rows:[[req.applicantId,'TEST PERSON','participant@example.org','',''+ts(-7200000),ts(-600000),'VERIFIED']]},
+   rows:[[req.applicantId,'TEST PERSON','participant@example.org','',''+ts(-7200000),ts(-600000),'EMAIL_VERIFIED']]},
   screenings:{headers:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],
-   rows:[[req.screeningId,req.applicantId,'REC_SCREEN_V1','ELIGIBLE',ts(-5400000),'STAFF-TEST']]},
+   rows:[[req.screeningId,req.applicantId,'REC_SCREEN_V1','ELIGIBLE',ts(-5400000),'PARTICIPANT_SELF_REPORT']]},
   verification:{headers:['challenge_id','applicant_id','purpose','otp_hmac','expires_at_utc','attempts','used_at_utc','email','created_at_utc'],
    rows:[[req.challengeId,req.applicantId,'EMAIL_VERIFICATION','b'.repeat(64),
-    ts(-4200000),1,ts(-4440000),'participant@example.org',ts(-4800000)]]},
+    ts(-1200000),1,ts(-1500000),'participant@example.org',ts(-1800000)]]},
   reservations:{headers:['reservation_id','applicant_id','slot_id','status','hold_until_utc',
    'idempotency_key','created_at_utc','confirmed_at_utc','cancelled_at_utc','updated_at_utc'],
    rows:[[req.reservationId,req.applicantId,req.slotId,'HELD',ts(600000),'HOLD-ONE',
-    ts(-3600000),'','',ts(-3600000)]]},
+    ts(-900000),'','',ts(-900000)]]},
   slots:{headers:['slot_id','start_at_utc','end_at_utc','capacity','location_code','status','created_by','updated_at_utc'],
    rows:[[req.slotId,ts(7200000),ts(10800000),5,'SYNTHETIC','OPEN','STAFF-TEST','']]},
-  identity:{verified:true,provenance:'REC_APPROVED_IDENTITY_ATTESTATION',
+  identity:{verified:true,provenance:'STUDY1_E1_SELF_REPORT_OTP_HMAC',
    consentProcedureApproved:true,
-   age18OrOlderVerified:true,cycuStudentVerified:true,
-   eligibilityEvidenceSource:'REC_APPROVED_ELIGIBILITY_VERIFICATION',
+   emailControlSource:'ORIGINAL_VERIFICATION_FG',
+   eligibilityEvidenceSource:'PARTICIPANT_SELF_REPORT',
    eligibilityEvidenceSha256:'e'.repeat(64),applicantId:req.applicantId,experiment:'E1',
-   email:'participant@example.org',verifierId:'STAFF-TEST',
-   approvalReference:'SYNTHETIC_EVIDENCE_IN_TEST_ONLY',evidenceSha256:'c'.repeat(64),
-   verifiedAtUtc:ts(-1800000),screeningVersion:'REC_SCREEN_V1',
+   email:'participant@example.org',evidenceSha256:'c'.repeat(64),
+   verifiedAtUtc:ts(-1500000),screeningVersion:'REC_SCREEN_V1',
    screeningId:req.screeningId,slotId:req.slotId,reservationId:req.reservationId,
    challengeId:req.challengeId}
  };
@@ -96,9 +95,8 @@ test('Identity/OTP/slot/current source mutations all fail closed with no new iss
   s=>{s.identity.experiment='E2'},
   s=>{s.identity.email='other@example.org'},
   s=>{s.identity.consentProcedureApproved=false},
-  s=>{s.identity.age18OrOlderVerified=false},
-  s=>{s.identity.cycuStudentVerified=false},
-  s=>{s.identity.eligibilityEvidenceSource='BROWSER_SELF_REPORT'},
+  s=>{s.identity.emailControlSource='BROWSER_SELF_REPORT'},
+  s=>{s.identity.eligibilityEvidenceSource='NOT_SELF_REPORTED'},
   s=>{s.identity.eligibilityEvidenceSha256='bad'},
   s=>{s.identity.evidenceSha256='a'},
   s=>{s.applicants.rows[0][6]='PENDING'},
@@ -175,37 +173,15 @@ test('No fake TEST applicant, identity attestation or expired identity is accept
  assert.equal(h.writes,0);
 });
 
-test('E2 requires separate authoritative proof of never joining E1, and binds it into invite HMAC',()=>{
+test('E2 remains closed regardless of prior E1-history claims',()=>{
  const now=new Date(),snap=snapshot(now),h=harness(snap,now);
  const e2={...req,experiment:'E2'};
- const doc2={...doc,experiment:'E2'};
  snap.identity.experiment='E2';
- assert.throws(()=>h.sandbox.study1BindingVerify_(snap,e2,doc2,now.toISOString()),
-  /實驗二必須獨立確認未參加過實驗一/);
- const invalid=[
-  {priorE1ParticipationVerified:true,priorE1Participation:true,
-   priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'d'.repeat(64)},
-  {priorE1ParticipationVerified:false,priorE1Participation:false,
-   priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'d'.repeat(64)},
-  {priorE1ParticipationVerified:true,priorE1Participation:false,
-   priorE1Source:'BROWSER_SELF_REPORT',priorE1EvidenceSha256:'d'.repeat(64)},
-  {priorE1ParticipationVerified:true,priorE1Participation:false,
-   priorE1Source:'REC_APPROVED_STUDY_HISTORY',priorE1EvidenceSha256:'NOT_A_HASH'}
- ];
- for(const changes of invalid){
-  Object.assign(snap.identity,changes);
-  assert.throws(()=>h.sandbox.study1BindingVerify_(snap,e2,doc2,now.toISOString()),
-   /實驗二必須獨立確認未參加過實驗一/);
- }
- Object.assign(snap.identity,{
-  priorE1ParticipationVerified:true,priorE1Participation:false,
-  priorE1Source:'REC_APPROVED_STUDY_HISTORY',
-  priorE1EvidenceSha256:'d'.repeat(64)});
- const bound=h.sandbox.study1BindingVerify_(snap,e2,doc2,now.toISOString());
- bound.digest=h.sandbox.study1BindingDigest_({...bound,digest:''});
- assert.equal(bound.priorE1EvidenceSha,'d'.repeat(64));
- assert.equal(h.sandbox.study1BindingRecheck_(bound,doc2,h.adapter,now.toISOString()).experiment,'E2');
- snap.identity.priorE1EvidenceSha256='f'.repeat(64);
- assert.throws(()=>h.sandbox.study1BindingRecheck_(bound,doc2,h.adapter,now.toISOString()),
-  /已更新/);
+ snap.identity.priorE1ParticipationVerified=true;
+ snap.identity.priorE1Participation=false;
+ snap.identity.priorE1Source='REC_APPROVED_STUDY_HISTORY';
+ snap.identity.priorE1EvidenceSha256='d'.repeat(64);
+ assert.throws(()=>h.sandbox.study1BindingVerify_(snap,e2,
+  {...doc,experiment:'E2'},now.toISOString()),/EXPERIMENT_NOT_OPEN/);
+ assert.equal(h.registry.records.length,0);
 });
