@@ -7,6 +7,44 @@
  * adapter is required BEFORE any live invite or signature can proceed.
  * No applicant names, email, OTP codes or HMAC secrets are returned or logged.
  */
+/**
+ * REC source is NOT the same thing as a technical PDF or OTP test.
+ * Approval certificate: NTU-REC 202604EM033, approved 2026-06-30,
+ * effective 2026-08-01 through 2027-07-31; protocol dated 2026-05-19;
+ * informed-consent version dated 2026-05-11.
+ * Certificate original Drive ID: 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy
+ * Verified original certificate SHA256:
+ * de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4
+ * The original E1/E2 consent text describes oral/researcher explanation
+ * and written consent, a researcher signature, participant signature and
+ * a participant copy. It does not authorize online signature, email OTP
+ * as proof of real-world identity, or automatic E1/E2 participant linking.
+ * This read-only finding is NOT an amendment, nor does a project date
+ * establish REC approval of a new participant-facing procedure.
+ */
+var STUDY1_REC_VERIFIED_BASELINE_=Object.freeze({
+ caseId:'202604EM033',
+ approvalDate:'2026-06-30',
+ validFrom:'2026-08-01',
+ validThrough:'2027-07-31',
+ protocolDate:'2026-05-19',
+ consentVersionDate:'2026-05-11',
+ certificateDriveId:'1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy',
+ certificateSha256:'de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4',
+ approvedConsentProcedure:'RESEARCHER_EXPLANATION_AND_WRITTEN_SIGNATURE',
+ remoteElectronicConsentApproved:false,
+ emailOtpProvesLegalIdentity:false,
+ e1RequiresCycuStudentAndAdult:true,
+ e2MustNotHaveParticipatedE1:true
+});
+/** Deliberately irreducible by any runtime Script Property or a browser
+ * payload. A later genuine REC approval requires a separately reviewed
+ * source-level change plus its signed, versioned evidence and regression
+ * tests. A researcher changing OPEN/CONSENT_READY is never sufficient.
+ */
+function study1RecRequireElectronicConsentApproval_(){
+ throw Error('REC_REVIEW_REQUIRED：202604EM033核准口頭及書面知情同意；尚無網路電子簽署修正核可，不得簽發或簽署正式PDF');
+}
 var STUDY1_BINDING_SCHEMA_=Object.freeze({
  applicants:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],
  screenings:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],
@@ -216,6 +254,16 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
  const idWhen=study1BindingUtc_(identity.verifiedAtUtc);
  if(idWhen>now||idWhen<now-86400000)
   throw Error('身分核對已過期或時間異常');
+ // Explicit E2 exclusion appears in the 2026-05-11 REC consent.
+ // No existing approved Study1 Sheet has a verified cross-study history
+ // source, so missing, browser-claimed or positive E1 history MUST fail.
+ if(experiment==='E2'&&
+    !(identity.priorE1ParticipationVerified===true&&
+      identity.priorE1Participation===false&&
+      identity.priorE1Source==='REC_APPROVED_STUDY_HISTORY'&&
+      typeof identity.priorE1EvidenceSha256==='string'&&
+      /^[a-f0-9]{64}$/.test(identity.priorE1EvidenceSha256)))
+  throw Error('REC_REVIEW_REQUIRED：實驗二必須獨立確認未參加過實驗一');
  const person=study1BindingUniqueRow_(snapshot.applicants,
     STUDY1_BINDING_SCHEMA_.applicants,applicantId);
  if(person[0]!==applicantId||person[6]!=='VERIFIED')
@@ -318,6 +366,7 @@ function study1BindingRecheckWithLock_(binding,doc,adapter){
 /** STRICTLY INTERNAL issuance. No public route or live adapter exists yet. */
 function study1EConsentIssueBound_(input){
  study1AdminOwnerRequired_();
+ study1RecRequireElectronicConsentApproval_();
  if(!input||Object.keys(input).sort().join(',')!==
     'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
   throw Error('正式申請綁定欄位不正確');
