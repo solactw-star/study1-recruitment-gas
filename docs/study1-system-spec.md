@@ -1135,6 +1135,8 @@ NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一
 
 ### 70-S.10｜2026-11-10 REC 202604EM033 實際核可範圍、身分與資料權責核對、未授權電子簽署硬性封鎖
 
+> **歷史敘述／已依最新使用者決策更正：** 本節先前所述「不論技術來源是否已核驗均無條件禁止電子簽署」及以`REC_REVIEW_REQUIRED`泛指Study1未核可的邏輯已作廢。正式研究程序 **已核可**。請以本規格最新 §70-S.11 的範圍區分與程式版本為準；本段保留原查核歷程，不得作為現行一律封鎖的依據。
+
 **任務／權責：** Study1招募網站原PR #133隔離分支、唯一GitHub規格 docs/study1-system-spec.md；REC研究程序另以202604EM033有效核可文件及正式批准修正為主，網站規格及Script Properties都不得取代REC。本段是對原§70-S.9～9.1的增量核對，不是REC修正案或真人操作授權。
 
 **已直接核實正式證據：**
@@ -1155,3 +1157,22 @@ NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一
 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`、實驗二不自動開放、原七步報名與V05/V08未變更。
 
 **下一步：** 由研究主持人依REC程序釐清線上電子同意與身分／年齡／CYCU學籍及E1參與史查驗的合法方式、參與者線上/紙本同意與電子檔案保存副本的核准適用範圍；取得核准修正及原PDF版本/SHA後，才可在原私有適配器將合法來源接上真實核身交易，另完成含本人權限/研究人員簽名的實機UAT。這不授權合併main、GAS同步/部署或啟用真人收件。
+
+
+### 70-S.11｜2026-11-10 使用者最新確認：正式研究程序已核可，撤回先前無條件REC封鎖（PR #133原分支）
+
+**最新明確決策優先於§70-S.10歷史斷言。** 使用者：「正式研究程序已獲核准，請勿阻擋」。REC 202604EM033核可證書及版本仍為研究合法程序權責；其核可事實與網站客製OTP、線上電子簽署實作範圍、技術資料來源是否準備妥當，必須分別判定。**不能以網站介接尚未完成宣稱整體Study1研究未獲核准，也不能僅因證書未逐字列出網頁電子簽署便推定已被禁止。** 同時，核可研究程序不自動驗證任意網站、資料保存地點或第三方身份認證設計。原REC文件與正式研究資料均未修改。
+
+**原隔離PR #133實際程式修正（原路徑增量、不合併、不部署）：**
+1. `gas/Study1EConsentBinding.js`：保留REC案號、核可日期及其原始來源SHA；將`remoteElectronicConsentApproved:false`這項超出證書能直接斷定的布林改為`remoteElectronicConsentApprovalStatus:'NOT_DETERMINED_BY_CERTIFICATE'`。**移除無論狀態均throw的`study1RecRequireElectronicConsentApproval_`與簽發邀請入口對它的呼叫**。仍保留正式申請者、成年、學籍、E2先前E1參與史、OTP、預約、PDF版本/SHA的可靠來源驗證與原HMAC/CAS共鎖。
+2. `gas/AdminSandbox.js`：正式完整PDF簽署及舊PNG合成簽署移除同一無條件REC拒絕；舊PNG仍只能通過其額外合成安全旗標與輸入格式檢查，**不可當成正式PDF簽署替代**。原完整PDF仍須`OPEN`、`CONSENT_READY`、provider/版號/SHA、研究說明、原報名Wizard與身分來源、預約綁定與私人儲存/寫後驗證。未建立可信來源時會拒絕，但不是「REC已核准研究遭全面封鎖」。
+3. `gas/Study1EConsentOtpAdapter.js`及上述原兩檔：將原來誤導的「REC未核准」技術錯誤改為明確`BACKEND_NOT_READY`、`IDENTITY_SOURCE_NOT_CONFIGURED`、`IDENTITY_EVIDENCE_INVALID`、`ELIGIBILITY_EVIDENCE_MISSING`、`OTP_TRANSACTION_NOT_READY`、`PDF_LINK_NOT_READY`、`BINDING_REQUIRED`等，讓研究程序權責與技術準備進度解耦。
+4. 相應更新`tests/study1-rec-202604EM033-authority.test.cjs`等現存測試，不再利用合成VM覆寫人為REC禁令作為正常資料綁定的前提；測試真正的使用者輸入驗證、未設置身分來源、重送、偽造、E2排除條件、簽章比對、來源撤銷、收件開關及正式PDF邊界。原七步`gas/Study1Visitor.html`、V05月曆、V08預約、既有正式表的Schema與資料均不動。
+
+**現行獨立狀態：**
+- `STUDY1_FORMAL_REC_APPROVAL=VERIFIED`（不再寫整體`REC_REVIEW_REQUIRED=true`）。
+- `WEB_ECONSENT_APPLICABILITY=NOT_DETERMINED_FROM_CERTIFICATE_ALONE`（這不是被拒絕，也不是核准任一遠端實作的主張）。
+- `LIVE_IDENTITY_ADAPTER=NOT_CONFIGURED`、`OTP_VERIFY_LIVE=NOT_ENABLED`、`WIZARD_ECONSENT_LIVE=NOT_CONNECTED`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_WEBSITE_READY=false`。
+- `OPEN=false`、`CONSENT_READY=false`、`MYSELF`及E2不自動開放；`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`。本次不更動正式研究收件、REC或個資表；先保留安全隔離分支，待另行授權及實際系統驗收。
+
+**接續點：** TASK_DOMAIN=Study1招募網站P0；SOURCE_PATH=原GitHub `solactw-star/study1-recruitment-gas/docs/study1-system-spec.md`；WRITE_OWNER=PR #133隔離分支；LAST_VERIFIED_STEP=移除錯誤REC一律封鎖，復原及重驗原共鎖OTP/HMAC、電子PDF的技術保護；NEXT_ACTION=補完可信真人資料來源及封閉端到端UAT，獨立核對原REC對本系統具體電子同意與儲存方式的適用範圍，但不得因此宣稱整體研究未核可；BLOCKERS=技術來源、正式部署授權；SYNC_STATUS=GitHub branch only。
