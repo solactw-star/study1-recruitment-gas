@@ -498,10 +498,11 @@ function formalConsentReset_(){
  formalRevoke_(formalPdfUrl);formalRevoke_(formalSignedUrl);
  formalPdfUrl=null;formalSignedUrl=null;formalInk=false;formalConsent=null;
  for(const id of ['officialPdfDownload','officialSignedPdfDownload']){
-  const n=el(id);if(n){n.hidden=true;n.removeAttribute('href');}
+  const n=el(id);if(n){n.hidden=true;if(typeof n.removeAttribute==='function')n.removeAttribute('href');}
  }
  if(el('officialPdfViewer')){
-  el('officialPdfViewer').hidden=true;el('officialPdfViewer').removeAttribute('data');
+  el('officialPdfViewer').hidden=true;
+  if(typeof el('officialPdfViewer').removeAttribute==='function')el('officialPdfViewer').removeAttribute('data');
  }
  if(el('officialSignedPdfResult'))el('officialSignedPdfResult').hidden=true;
  if(el('agree'))el('agree').checked=false;
@@ -672,7 +673,8 @@ function formalConsentStart_(reservation){
 }
 function formalInkInit_(){
  const box=el('visitorSignaturePreviewBox'),canvas=el('visitorSignaturePreview');
- if(box)box.querySelector('strong').textContent='本人手寫簽名｜正式E1，同意前請先完成研究人員說明';
+ if(box&&typeof box.querySelector==='function'&&box.querySelector('strong'))
+  box.querySelector('strong').textContent='本人手寫簽名｜正式E1，同意前請先完成研究人員說明';
  if(!canvas||typeof canvas.getContext!=='function')return;
  const ctx=canvas.getContext('2d');if(!ctx)return;
  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
