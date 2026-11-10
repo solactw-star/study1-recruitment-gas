@@ -269,12 +269,12 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  assert.ok(current.expires>Date.now()+71*3600000);
  assert.throws(()=>h.scope.study1EConsentConfirm({id:issued.id,identityVerified:true,
   notes:'禁止繞過研究員PDF本人簽名'}),/RESEARCHER_PDF_SIGNATURE_REQUIRED/);
- const request={id:issued.id,notes:'離線合成研究人員已完成獨立說明及本人簽章',
+ const staffRequest={id:issued.id,notes:'離線合成研究人員已完成獨立說明及本人簽章',
   participantSignedSha256:signed.signedPdfSha256,
   researcherSignature:png.toString('base64')};
  // No REC-approved independent researcher fields, even with all other
  // simulated safety flags enabled: no CONFIRMED and no double-signed file.
- await assert.rejects(h.scope.study1EConsentConfirmPdf(request),
+ await assert.rejects(h.scope.study1EConsentConfirmPdf(staffRequest),
   /RESEARCHER_PDF_LAYOUT_NOT_APPROVED|study1FormalConsentRecScope_/);
  assert.equal(h.scope.study1EConsentRegistry_().records[0].state,'SIGNED');
  h.scope.study1FormalConsentRecScope_=()=>({
@@ -288,8 +288,8 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  h.values.set('STUDY1_ECONSENT_APPROVED_RESEARCHER_LAYOUT_V1',
   JSON.stringify({schemaVersion:1,bindings:[staffLayout]}));
  await assert.rejects(h.scope.study1EConsentConfirmPdf({
-  ...request,participantSignedSha256:'f'.repeat(64)}),/RESEARCHER_PDF_UNBOUND_OR_STALE/);
- const result=await h.scope.study1EConsentConfirmPdf(request);
+  ...staffRequest,participantSignedSha256:'f'.repeat(64)}),/RESEARCHER_PDF_UNBOUND_OR_STALE/);
+ const result=await h.scope.study1EConsentConfirmPdf(staffRequest);
  assert.equal(result.state,'CONFIRMED');
  assert.notEqual(result.signedPdfSha256,signed.signedPdfSha256);
  assert.match(result.researcherTaipeiDate,/^20\d\d\/\d\d\/\d\d$/);
@@ -306,7 +306,7 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  const finalRef=h.scope.study1EConsentRegistry_().records[0];
  assert.equal(finalRef.participantSignedPdf.sha,signed.signedPdfSha256);
  assert.equal(finalRef.signedPdf.sha,result.signedPdfSha256);
- await assert.rejects(h.scope.study1EConsentConfirmPdf(request),
+ await assert.rejects(h.scope.study1EConsentConfirmPdf(staffRequest),
   /RESEARCHER_PDF_UNBOUND_OR_STALE/);
  const withdrawn=h.scope.study1EConsentWithdraw({
   token:issued.token,reason:'合成參與者要求退出'});
