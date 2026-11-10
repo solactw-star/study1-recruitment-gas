@@ -51,10 +51,10 @@ function harness({enabled=false,approveIdentity=false,identity=evidence(),tables
      reads.push({id,tab,row,height,width});
      if(row===1)return {getValues:()=>[data.headers.slice()]};
      if(width===1&&row===2)return {createTextFinder:term=>{
-      const opts={};return {
-       matchEntireCell:b=>{opts.full=b;return this;},
-       matchCase:b=>{opts.caseSensitive=b;return this;},
-       useRegularExpression:b=>{opts.regex=b;return this;},
+      const opts={};const finder={
+       matchEntireCell(b){opts.full=b;return finder;},
+       matchCase(b){opts.caseSensitive=b;return finder;},
+       useRegularExpression(b){opts.regex=b;return finder;},
        findAll(){
         assert.deepEqual(opts,{full:true,caseSensitive:true,regex:false});
         lookups.push({tab,term});
