@@ -146,6 +146,17 @@ async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new 
  for(let i=0;i<attempts;i++){
   try{
    const deployed=await api.getDeployment(id);
+   // A newly updated GAS deployment can briefly report the previous version.
+   // Retry only that exact, independently readable stale version; never accept it.
+   const observed=deployed?.deploymentConfig?.versionNumber;
+   if(observed!==version){
+    check(Number.isInteger(observed)&&observed>0,'Invalid public deployment version metadata');
+    // Any different audience, deployment identity or missing webapp is fatal.
+    core.deploymentCheck(deployed,id,observed);
+    last=Error('Public deployment has not converged: expected '+version+', observed '+observed);
+    if(i<attempts-1){await pause(Math.min(2000,600+100*i));continue;}
+    throw last;
+   }
    const info=core.deploymentCheck(deployed,id,version);
    return {deployment:deployed,info};
   }catch(e){
