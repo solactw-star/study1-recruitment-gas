@@ -96,6 +96,7 @@ test('Turnstile accepts one valid bounded token after independent provider Sitev
  const proof=x.scope.study1ParticipantTurnstileCheck_(x.request);
  assert.equal(proof.allowed,true);
  assert.equal(proof.requestId,x.request.requestId);
+ assert.match(proof.configHmac,/^[a-f0-9]{64}$/);
  assert.match(proof.verificationHmac,/^[a-f0-9]{64}$/);
  assert.equal(x.calls,1);
  assert.equal(x.scope.study1ParticipantAbuseRecheck_(proof,x.request),true);
@@ -125,4 +126,13 @@ test('Bogus, absent and overlength human tokens fail before Siteverify',()=>{
 test('Cloudflare published test keys are refused as a real enrollment provider',()=>{
  const x=harness();x.props.set('STUDY1_E1_TURNSTILE_SITEKEY','1x00000000000000000000AA');
  assert.throws(()=>x.scope.study1ParticipantTurnstileConfig_(),/BOT_PROTECTION_PROVIDER_NOT_READY/);
+});
+
+test('Turnstile configuration rotation inside intake invalidates earlier grant without network replay',()=>{
+ const x=harness();
+ const proof=x.scope.study1ParticipantTurnstileCheck_(x.request);
+ x.props.set('STUDY1_E1_TURNSTILE_SECRET','DIFFERENT_REVIEWED_SERVER_SECRET_ABCDEF12');
+ assert.throws(()=>x.scope.study1ParticipantAbuseRecheck_(proof,x.request),
+  /BOT_PROVIDER_CONFIG_CHANGED_DURING_INTAKE/);
+ assert.equal(x.calls,1);
 });

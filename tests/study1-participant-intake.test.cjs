@@ -322,3 +322,23 @@ test('Readiness uses configured Turnstile sitekey without redeeming any single-u
  assert.equal(y.scope.study1ParticipantReadiness().ready,false);
  assert.equal(y.open.length,0);
 });
+
+test('Global hourly guard counts original Applicants timestamps only under shared lock',()=>{
+ const x=env();
+ const now=new Date(x.time.now).toISOString();
+ for(let n=0;n<60;n++)x.records.Applicants.push([
+  'APP_OTHER_'+String(n).padStart(8,'0'),'ANOTHER_TEST',
+  'unrelated'+n+'@example.org','',now,now,'PENDING_EMAIL'
+ ]);
+ assert.throws(()=>x.begin(),/GLOBAL_INTAKE_RATE_LIMIT/);
+ assert.equal(x.records.Applicants.length,60);
+ assert.equal(x.records.Screenings.length,0);
+});
+test('Corrupt original Applicants timestamp aborts before writing real participant data',()=>{
+ const x=env(),date=new Date(x.time.now).toISOString();
+ x.records.Applicants.push(['APP_OTHERTIMESTAMP','OTHER_NAME',
+  'other@example.org','',date,date,'PENDING_EMAIL']);
+ x.records.Applicants[0][4]='not-a-utc-date';
+ assert.throws(()=>x.begin(),/時間來源必須是 UTC ISO 毫秒/);
+ assert.equal(x.records.Applicants.length,1);
+});
