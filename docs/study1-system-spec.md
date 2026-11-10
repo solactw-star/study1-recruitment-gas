@@ -1406,3 +1406,13 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **實際尚未完成：** 原正式營運Slots兩次唯讀只有表頭、沒有任何PI核定E1場次；真實REC網站遠端電子同意、雙方PDF核准欄位座標及Google Drive保存適用性尚無獨立核准證據；HELD暫設10分鐘與原研究人員說明約15分鐘可能衝突；真Turnstile、真Email、GAS部署、研究員與參與者實機雙角色UI均未驗證；撤回後實際資料銷毀／去識別化仍需研究團隊另執行。維持OPEN=false、CONSENT_READY=false、私人MYSELF、E2禁止、未合併main、未同步部署GAS、未碰正式REC或Sheets、不寄信/不收真人。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false。
 
 **接續：** TASK_DOMAIN=Study1 FORMAL E1 dual PDF / REC; SOURCE_PATH=PR#133 / docs/study1-system-spec.md §70-S.22; COMPLETED=researcher PDF second stamp + OWNER Canvas + OTP/HELD-bound original PDF + independent dual SHA copy verification + withdrawal preference/queue; NEXT_ACTION=核實最新CI/commit、PI有效REC遠端同意與雙欄坐標、PI原Slots核定、確認原HELD政策及私有GAS部署前安全驗證；BLOCKERS=REC_REVIEW_REQUIRED,NO_APPROVED_RESEARCHER_LAYOUT,NO_OFFICIAL_E1_SLOTS,REAL_SERVICES_NOT_VERIFIED,ACTUAL_WITHDRAWAL_DISPOSITION_PENDING,UI_NOT_VERIFIED; SYNC_STATUS=PR_BRANCH_ONLY。
+
+### 70-S.22.1｜2026-11-10 雙簽PDF副本時間鏈最後校驗
+
+**範圍及來源：** 接續原 PR #133 最新§70-S.22；原REC 202604EM033核准證書ID 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy、E1原同意書051108 Version02，以及當次Drive變更申請資料夾 1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR。變更申請夾仍可見2026-10-22計畫變更申請及2026-10-27 E1/E2同意書修訂稿，但在該夾未見證明「遠端雙方電子簽名、同意書版面座標、Google Drive保存」已生效的獨立REC核准決議；不得認定修訂稿有效，REC_REVIEW_REQUIRED。REC證書metadata仍顯示 anyone/writer 等疑慮，須由授權管理者核實實際ACL。正式Sheet、REC及GAS未修改。
+
+**本輪增量安全修復：** 原 gas/AdminSandbox.js 的 study1EConsentSignedPdfCopy 對FORMAL_E1雙簽副本，除了原已存在的原PDF／本人簽署版／研究員雙簽版SHA、研究員確認事件與PRIVATE ACL之外，新增對本人簽署和研究員簽署兩個伺服器UTC ISO時間戳與各自 Asia/Taipei 日期的完整重新計算，且研究員簽署時間不得早於參與者。任一時間格式、日期或簽署先後遭重新連結／竄改，fail closed，不能交付「雙方已簽」完整PDF。commit a42b5353f0d483f07a248a7416282e6805fc0e04。
+
+**合成負測：** 原 tests/study1-signed-pdf-record.test.cjs 在真正合成雙簽PDF成功取得副本後，替換本人簽署事件可信時間為晚於研究員的另一個完整ISO UTC時間，且讓臺灣日期格式與該偽造時間一致；副本須拒絕FORMAL_DUAL_PDF_CHRONOLOGY_INVALID，還原後才恢復SHA相符副本。commit 73d8852523da54426b60921b83750b7d49248949。CI及本規格commit仍待當次最新HEAD完整回讀。
+
+**不變門檻：** 這只是額外防篡改，不代表REC已核准遠端程序／研究員欄位座標，也不代表本人與研究員已完成真實UI驗收。原E1正式Slots仍無核定真列；10分鐘HELD與約15分鐘研究員說明仍需PI政策核定；無PI正式核准不得開放。維持OPEN=false、CONSENT_READY=false、GAS MYSELF、E2禁招、PR Draft未合併、原GAS未部署、不發真信、不收真人。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false。NEXT_ACTION=CI回讀、REC獨立適用核准及研究員座標核定、正式E1 Slots/PI政策、實際UI/後台權限與部署前稽核。
