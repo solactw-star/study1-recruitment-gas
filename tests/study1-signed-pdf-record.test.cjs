@@ -230,3 +230,46 @@ test('unbound legacy invitation cannot create a signed PDF even if nominal featu
  }),/未綁定身分|未綁定/);
  assert.equal(h.files.size,count,'no signed PDF or new evidence after a refused unbound token');
 });
+
+test('FORMAL_E1 real PDF engine rechecks original self-reported name under final lock and preserves post-sign copy TTL',async()=>{
+ const original=await createBlank(),h=buildHarness(original),png=syntheticInk();
+ const {request,adapter}=syntheticBindingEvidence(h.doc);
+ let reads=0;
+ h.scope.study1EConsentBindingAdapter_=audience=>{
+  assert.ok(audience===undefined||audience==='PUBLIC_E1');
+  return {readTrustedSnapshot:(req,heldLock)=>{
+   assert.ok(heldLock&&heldLock.hasLock()===true,
+    'Final signer must retain the original ScriptLock when reading applicant, OTP and booking');
+   reads++;return adapter.readTrustedSnapshot(req,heldLock);
+  }};
+ };
+ const issued=h.scope.study1EConsentIssueBound_(request);
+ h.scope.study1EConsentExplain({id:issued.id,question:'是否可以退出？',
+  answer:'研究人員已說明撤回及副本保存方式。',resolved:true});
+ const before=h.scope.study1EConsentRegistry_();
+ const invitation=before.records.find(x=>x.id===issued.id);
+ assert.ok(invitation);
+ invitation.channel='FORMAL_E1';
+ h.values.set('STUDY1_ECONSENT_PRIVATE_V1',JSON.stringify(before));
+ h.scope.study1FormalConsentGate_=()=>true;
+ h.scope.study1FormalConsentCopyExpiry_=()=>Date.now()+72*3600000;
+ const input={token:issued.token,name:'NOT_THE_ORIGINAL_NAME',
+  signature:png.toString('base64'),documentSha:h.doc.sha256,
+  read:true,answerAcknowledged:true,agree:true};
+ const priorPdfCount=[...h.files.values()].filter(x=>x.mime==='application/pdf').length;
+ await assert.rejects(h.scope.study1EConsentSignPdf(input),/NAME_NOT_SAME_APPLICATION/);
+ assert.equal([...h.files.values()].filter(x=>x.mime==='application/pdf'&&!x.trashed).length,
+  priorPdfCount);
+ const signed=await h.scope.study1EConsentSignPdf({...input,name:'SYNTHETIC'});
+ assert.equal(signed.state,'SIGNED');
+ assert.ok(reads>=5,'source reread before signing, in final CAS and name match');
+ const after=h.scope.study1EConsentRegistry_();
+ const current=after.records.find(x=>x.id===issued.id);
+ assert.ok(current.expires>Date.now()+71*3600000);
+ h.scope.study1EConsentConfirm({id:issued.id,identityVerified:true,
+  notes:'已核對合成參與者自陳、電子郵件與研究人員説明'});
+ const copy=h.scope.study1EConsentSignedPdfCopy(issued.token);
+ assert.equal(sha(Buffer.from(copy.base64,'base64')),signed.signedPdfSha256);
+ h.scope.study1EConsentWithdraw({token:issued.token,reason:'合成參與者要求退出'});
+ assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,signed.signedPdfSha256);
+});
