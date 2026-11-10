@@ -1014,3 +1014,41 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - **§70-R GitHub與原私人GAS完整驗證**。原電子同意程式main CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42560295839 completed/success，727 PASS／0 FAIL；原GAS同一Script ID=1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z，私人版本化deployment原ID=AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s保持，原自動受保護工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42560295809 completed/success，PRIVATE V119→V122、備份ID=1jE0dhzDVg6OLT3ljuAUm7dtwANUzdi1r，SOURCE SHA256=0b1043e8183ca7206b8b6e548af151acd65a410c7ed450495ec755d43a0401a0，MYSELF、USER_ACCESSING、SYNC_VERIFIED=true。真人報名及有效簽署均未啟用。
 - **§70-R 公開部署阻塞修復及完成**。舊公開更新workflow https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42560402251 因部署版號競寫遭拒，不得視為成功。本輪沿用已存在的 PR #132（https://github.com/solactw-star/study1-recruitment-gas/pull/132），只增量修改原 scripts/study1-gas-public-release.cjs 與 tests/study1-public-release.test.cjs，限制舊版資訊延遲重讀只能是**確切備份前的版本**，不能認可未知第三方版號；失敗回復只允許回復自己寫入的版本，不得覆蓋競爭者的更新。PR合併前main=22838f642a795f123803def333391d9f6e571db3、ahead=5／behind=0、只改兩個原檔；PR完整CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42735469690 729 PASS／0 FAIL；squash main RELEASE_COMMIT=106b740c1069e50ed20c276e9c5a04b04b59fb03；合併後main完整CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42735689135 completed/success、729 PASS／0 FAIL。原受保護公開GAS工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42735688987 completed/success：原同GAS Script之公開 /exec 部署ID=AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s，版本V124、SHA256=0b1043e8183ca7206b8b6e548af151acd65a410c7ed450495ec755d43a0401a0，PUBLIC_INFO_RELEASE_VERIFIED=true；匿名首頁HTTP 200且 team/admin/demo/preview 未暴露私人管理HTML，私人有效 /exec 維持MYSELF、OPEN=false、CONSENT_READY=false、REAL_CONSENT_DISABLED=true。公開寫前原GAS私人完整備份 Drive ID=19bByGYAD0pUepvi0uxPJi2NtRPXeqA3l，獨立研究室Drive metadata回讀application/json、828564 bytes、shared=false、僅OWNER權限、parent=1O6j7PQWMNUbb_a6cWHegy7lBZPMQ0Hiu。
 - **§70-R跨對話接續**：TASK_DOMAIN=Study1 正式網站電子同意 P0；SOURCE_PATH=原唯一 docs/study1-system-spec.md §70-O～R、gas/Index.html、gas/Study1Team.html、gas/AdminSandbox.js、scripts/study1-gas-public-release.cjs；SOURCE_CODE_COMMIT=22838f642a795f123803def333391d9f6e571db3；SOURCE_RELEASE_COMMIT=106b740c1069e50ed20c276e9c5a04b04b59fb03；LAST_VERIFIED_STEP=main 729/729、原私人V122和公開V124安全回讀、私人寫前備份及匿名負測；COMPLETED=正式產品同意介面及受閘門保護的簽署／答疑／確認／副本／撤回程式、原GAS部署；BLOCKERS=人工確認最新REC適用同意書、實際上傳/選用/提供正式完整版PDF、實際 OWNER/第三方瀏覽器UAT、正式個資簽名安全可擴充持久化、單一PDF及不可改寫存證；WRITE_OWNER=原GitHub main與同ID原GAS；SYNC_STATUS=MAIN_SYNC_VERIFIED、GAS_PRIVATE_SYNC_VERIFIED、GAS_PUBLIC_READ_VERIFIED，本原唯一規格寫後需獨立回讀。FORMAL_READY=false；E_CONSENT_LIVE=false；USER_UAT_PASSED=NOT_VERIFIED。NEXT_ACTION=真人操作前先核實完整核准PDF版本，進行OWNER/第三方實際UAT及資料保護／副本形式驗收；不以CI取代實際簽署可用性。
+
+
+## §70-S｜2026-11-10 使用者最新決策：恢復並正式化 Step-by-Step 報名，知情同意與PDF實際簽署移至報名最後（優先於§70-O～R任何相牴觸的介面配置）
+
+**使用者明確指出的錯誤**：目前原公開首頁 gas/Index.html 在「報名說明／知情同意」區直接展示PDF與手寫簽名區，原逐步報名流程反而成為不可使用的封閉區，這不是把先前測試版升級成正式版。不得因使用者說「不要測試版／Demo」就刪除、繞過或替換原有逐步報名產品設計、已完成可用功能與資料結構。原 gas/Study1Visitor.html 仍保有 choose→screen→otp→slots→consent→confirm→done 七步、月曆／時段／預約／V08改期取消等既有程式，是正式版改造的**先行版本與回歸基準**，不是要直接刪除的廢棄頁。此新決策覆蓋§70-O～R將可簽署工作區放在公開說明首頁的舊設計；既有REC、權限、個資、開放閘門與核實規則不受放寬。
+
+### 70-S.1 最終參與者使用流程（同一原網站，不建平行正式站）
+
+1. **公開研究資訊首頁／選擇實驗**：說明研究與預計流程；可有一般權利、REC聯絡資訊及「開始報名」入口，**不得直接呈現可填寫的本人簽署畫布、簽署邀請碼或有效同意提交按鈕**。正式開放前可以顯示「尚未開放」，不得冒稱可收件。
+2. **獨立逐步報名容器**：沿用舊 visitor 先行版本的多步式導覽、返回、保留已核對狀態、手機與桌面操作、錯誤恢復；依序選實驗／資格初篩／必要資料與本人身分核對／電子信箱限時驗證（必要時跨裝置接續）／適用日期時段與容量／最後報名資料確認。不得只在首頁列出流程文字而不保留可真正實作的表單階段。
+3. **報名的最後互動階段才提供正式PDF及手寫簽名**：完成身分核對、必要研究人員說明與前置報名資料核對後，載入該實驗**實際經核准且OWNER選用／公開**的完整原版PDF，逐字顯示與可下載，固定原文件 ID／版號／SHA-256／頁數及文件身分。E1/E2分開版控；不可用首頁的通用可簽署區、抽象同意勾選、測試樣本／虛構PDF或從另一實驗借用文件取代。研究人員說明與答疑、可拒絕、閱讀確認、本人自願同意必須按適用REC核准程序落實，不能把「完成核身」誤寫為同意。
+4. **簽名落在PDF內指定參與者區塊**：在最後階段顯示滑鼠／觸控／觸控筆可用、可清除重簽的手寫簽名窗格；使用者按最終簽署後，將其本次筆跡PNG/等效簽名影像**嵌入該實驗原文件既有「研究參與者簽名」欄位**（不是只產生一張另附的圖片或獨立HTML收據），「簽署日期」自動填入其簽名當天的臺灣當地日期，不要求本人自行輸入；後端事件時間須可信且不可由瀏覽器任意偽造，展示日期採 Asia/Taipei，保留原始時間戳、時區及簽署者與版本關聯。未按下確認簽署不生成有效簽署紀錄；不得讓已簽名影像跨實驗、跨文件版號、跨申請人或跨次報名誤用。
+5. **原始PDF及簽署PDF分別保存**：原核准PDF位元組與SHA必須保持不變；嵌入簽名後必然生成**新的**簽署版PDF和其獨立SHA、版本／事件鏈，不能宣稱簽署版與未改寫原版有相同SHA。簽署版必須可在正確欄位看見手寫簽名與當天日期、重新開啟／下載後內容一致；可核對單次簽名與提交時間。
+6. **研究人員說明及簽署／確認、個人副本、撤回**：依最新有效REC所核准的角色與時序，保留研究人員事前說明與研究人員簽章／確認、二次核對、個人簽署版**完整PDF**安全取得／寄送（僅獲准且開放後）、撤回與版本歷程；不能以「原PDF＋另一張HTML/PDF收據」宣稱已交付完成版雙方簽名文件。實際簽署與後台審核分別稽核，失敗不得冒稱報名或同意成功。
+7. **最後確認／申請結果與後續預約操作**：完成必要簽署及確認條件後進入原有 V06/V07 結果頁；V05月曆容量、V08改期／取消／候補、B02／B03／B04歷程與資料模型繼續沿用並正式化。不因電子同意重構而移除先前已完成互動或讓原有預約資料遺失。
+
+**流程與既有代號的相容性**：歷史 V01=研究資訊、V02=報名資格、V03=郵件驗證、V04=電子同意、V05=月曆、V06=預約摘要、V07=申請結果、V08=預約管理 **代號保持原義**，但畫面呈現次序依最新決策改為「V01→V02→V03/本人核對→V05→V06資料核對→V04完整PDF與手寫簽署（最後的必填互動）→V07結果→V08管理」；不得因舊文件列V04在V05前而恢復錯誤次序。原 visitor 的內部 step-confirm 須調整為簽名前摘要，簽名後的最終結果不再要求先建成預約才簽。
+
+### 70-S.2 保留既有測試頁及資料成果的正式化遷移規範
+
+- 保留 gas/Study1Visitor.html、舊七步的工作流與安全測試作為**改造來源及回歸測試**，勿刪除舊檔、清除既有TEST資料、摧毀未受影響功能，亦勿另建與原GAS不同的正式專案。
+- 對照每個舊步驟／欄位／API／資料表／狀態碼／歷程與新正式步驟，一項一項升級：將虛構OTP替換真正安全驗證、模擬PDF替換選用REC原件、虛構時段模型接入受保護的實際營運資料、筆跡落到正式PDF參與者欄位，且不得直接把原合成假資料轉成真人或已核准簽署紀錄。
+- 程式合併與正式資料遷移分開授權；要先有備份、schema/ID映射、回歸測試及可重入復原方案，不得逕行刪除或覆寫。原有測試用資料作為開發測試環境資產保留，正式資料以核准來源建立，不能「把TEST改名LIVE」就視為正式。
+- 本次範圍優先恢復原逐步 UX，改正首頁簽署位置與PDF輸出，然後核實完整身分／時段／資料持久化／報名結果；非授權的GAS同步、部署、真人個資收取、REC文件變更或招募啟用均不附帶授權。
+
+### 70-S.3 必過UAT與未開放狀態
+
+- UAT-01 進入公開首頁**看不到可直接簽署的窗格／簽署碼**；可看研究介紹與報名入口。
+- UAT-02 在同一正式網站進入真正**可逐步前進與返回**的報名流程；確認研究選擇、資格、核身、信箱驗證、月曆時段與報名摘要完整存在，且功能不被新電子同意頁取代。
+- UAT-03 未核實本人與實驗／文件版本，不得直接跳到PDF簽署；繞過步驟、過期／錯誤憑證均fail closed。
+- UAT-04 經適用核准的隔離安全驗收可見E1/E2各自完整原始PDF、原SHA、版本；本人最後步驟簽名後**新的簽署PDF在正確本人欄位出現原筆跡，日期為當日臺灣日期**。跨日、重簽、清除、跨實驗、跨裝置失效都需測試。
+- UAT-05 簽署PDF保存後重新下載仍保留筆跡、日期、原始PDF引用及獨立SHA；研究人員後續確認與本人副本、撤回按核准程序可核對。不能以HTML收據加原PDF冒充UAT通過。
+- UAT-06 既有原 TEST wizard 的預約、候補、改期、取消和 B02/B03/B04 不應因改造回歸退化；既有測試資料不得擅自刪除或混入真人。
+- UAT-07 正式未啟用仍為 OPEN=false、CONSENT_READY=false、MYSELF、E2 2027年前不招募且屆時不自動開放；**不允許把「按鈕停用」認定為功能通過**。CI、程式合併、部署、瀏覽器UAT及REC正式核准須分開判定。
+
+### 70-S.4 版本／接續狀態
+
+- TASK_DOMAIN=Study1 原正式招募網站與電子知情同意UX重構；當次決策基準=2026-11-10使用者指出公開說明頁錯放簽署以及要求保留/正式化舊Step-by-Step頁；BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；READ_SOURCE=gas/Index.html、gas/Study1Visitor.html、docs/study1-system-spec.md §70-O～R；LAST_VERIFIED_STEP=兩份程式來源存在且流程差異已比對；NEXT_ACTION=在原程式增量恢復wizard且移動簽署至報名最後、真正PDF欄位嵌入與日期、隔離測試後依權責部署驗證；BLOCKERS=現行正式PDF核准/發布、REC電子程序、可持久化私有資料與身分驗證、完整可操作UI及GAS部署；WRITE_OWNER=GitHub原main＋原同ID GAS；MAIN_SYNC_VERIFIED=不得因本次規格PR冒稱；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false。
