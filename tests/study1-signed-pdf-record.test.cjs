@@ -267,10 +267,50 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  const after=h.scope.study1EConsentRegistry_();
  const current=after.records.find(x=>x.id===issued.id);
  assert.ok(current.expires>Date.now()+71*3600000);
- h.scope.study1EConsentConfirm({id:issued.id,identityVerified:true,
-  notes:'已核對合成參與者自陳、電子郵件與研究人員説明'});
+ assert.throws(()=>h.scope.study1EConsentConfirm({id:issued.id,identityVerified:true,
+  notes:'禁止繞過研究員PDF本人簽名'}),/RESEARCHER_PDF_SIGNATURE_REQUIRED/);
+ const request={id:issued.id,notes:'離線合成研究人員已完成獨立說明及本人簽章',
+  participantSignedSha256:signed.signedPdfSha256,
+  researcherSignature:png.toString('base64')};
+ // No REC-approved independent researcher fields, even with all other
+ // simulated safety flags enabled: no CONFIRMED and no double-signed file.
+ await assert.rejects(h.scope.study1EConsentConfirmPdf(request),
+  /RESEARCHER_PDF_LAYOUT_NOT_APPROVED|study1FormalConsentRecScope_/);
+ assert.equal(h.scope.study1EConsentRegistry_().records[0].state,'SIGNED');
+ h.scope.study1FormalConsentRecScope_=()=>({
+  consentDocumentId:h.doc.id,consentDocumentSha256:h.doc.sha256});
+ const staffLayout={
+  experiment:'E1',documentSha:h.doc.sha256,version:h.doc.version,
+  pageCount:5,pageIndex:4,pageWidth:595,pageHeight:842,
+  signature:{x:100,y:160,width:190,height:50},
+  date:{x:350,y:180,fontSize:11}
+ };
+ h.values.set('STUDY1_ECONSENT_APPROVED_RESEARCHER_LAYOUT_V1',
+  JSON.stringify({schemaVersion:1,bindings:[staffLayout]}));
+ await assert.rejects(h.scope.study1EConsentConfirmPdf({
+  ...request,participantSignedSha256:'f'.repeat(64)}),/RESEARCHER_PDF_UNBOUND_OR_STALE/);
+ const result=await h.scope.study1EConsentConfirmPdf(request);
+ assert.equal(result.state,'CONFIRMED');
+ assert.notEqual(result.signedPdfSha256,signed.signedPdfSha256);
+ assert.match(result.researcherTaipeiDate,/^20\d\d\/\d\d\/\d\d$/);
  const copy=h.scope.study1EConsentSignedPdfCopy(issued.token);
- assert.equal(sha(Buffer.from(copy.base64,'base64')),signed.signedPdfSha256);
- h.scope.study1EConsentWithdraw({token:issued.token,reason:'合成參與者要求退出'});
- assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,signed.signedPdfSha256);
+ assert.equal(copy.dualSigned,true);
+ assert.equal(copy.participantSignedPdfSha256,signed.signedPdfSha256);
+ assert.equal(copy.signedPdfSha256,result.signedPdfSha256);
+ assert.equal(sha(Buffer.from(copy.base64,'base64')),result.signedPdfSha256);
+ assert.equal(copy.researcherTaipeiDate,result.researcherTaipeiDate);
+ assert.equal(copy.sourceSha256,h.doc.sha256);
+ const pdf=await PDFLib.PDFDocument.load(Buffer.from(copy.base64,'base64'));
+ assert.equal(pdf.getPageCount(),5,'all REC PDF pages must be preserved');
+ assert.equal(sha(h.files.get(h.originalId).bytes),h.doc.sha256);
+ const finalRef=h.scope.study1EConsentRegistry_().records[0];
+ assert.equal(finalRef.participantSignedPdf.sha,signed.signedPdfSha256);
+ assert.equal(finalRef.signedPdf.sha,result.signedPdfSha256);
+ await assert.rejects(h.scope.study1EConsentConfirmPdf(request),
+  /RESEARCHER_PDF_UNBOUND_OR_STALE/);
+ const withdrawn=h.scope.study1EConsentWithdraw({
+  token:issued.token,reason:'合成參與者要求退出'});
+ assert.equal(withdrawn.requiresResearcherDataDisposition,true);
+ assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,
+  result.signedPdfSha256);
 });
