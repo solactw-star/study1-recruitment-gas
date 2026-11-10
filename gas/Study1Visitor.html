@@ -716,6 +716,10 @@ function formalConsentWire_(){
   agreeLabel.querySelector('span').textContent='我已理解研究人員說明，自願依本版PDF內容簽署';
  el('review').textContent='重新確認研究人員說明';
  el('finish').textContent='本人簽署並提交完整PDF';
+ const capability=document.createElement('button');
+ if(!capability||typeof capability.addEventListener!=='function'){
+  el('finish').disabled=true;return; // degraded browser/VM: never sign
+ }
  const refresh=formalButton_('更新研究人員說明／簽署及副本狀態',formalConsentStatus_);
  el('step-consent').appendChild(refresh);
  const withdrawal=document.createElement('div');
