@@ -140,3 +140,27 @@ test('signed or confirmed status cannot bypass binding or proof gates',()=>{
  h.props.set('OPEN','false');
  assert.throws(()=>h.scope.study1FormalConsentStatus('TOKEN'),/CLOSED/);
 });
+
+test('copy TTL is never implicit: PI must approve a finite 1–720 hour window',()=>{
+ const h=harness();
+ assert.throws(()=>h.scope.study1FormalConsentCopyExpiry_(),/WINDOW_NOT_APPROVED/);
+ h.props.set('STUDY1_E1_PDF_COPY_ACCESS_HOURS_APPROVED','true');
+ for(const hours of ['0','721','-1','24.5','not-a-number']){
+  h.props.set('STUDY1_E1_PDF_COPY_ACCESS_HOURS',hours);
+  assert.throws(()=>h.scope.study1FormalConsentCopyExpiry_(),/WINDOW_INVALID/);
+ }
+ h.props.set('STUDY1_E1_PDF_COPY_ACCESS_HOURS','24');
+ const now=Date.now(),expires=h.scope.study1FormalConsentCopyExpiry_();
+ assert.ok(expires>=now+24*3600000&&expires<=Date.now()+24*3600000);
+});
+test('a confirmed consent may read its existing status after intake closes, but an unconfirmed invitation cannot',()=>{
+ const h=harness();
+ h.scope.study1FormalConsentBegin({emailProof:'MAIL_PROOF',reservationId:rid});
+ h.props.set('OPEN','false');
+ assert.throws(()=>h.scope.study1FormalConsentStatus('TOKEN'),/CLOSED/);
+ h.registry.records[0].state='CONFIRMED';
+ const result=h.scope.study1FormalConsentStatus('TOKEN');
+ assert.equal(result.staffConfirmed,true);
+ assert.equal(result.state,'CONFIRMED');
+ assert.equal(result.copyAvailable,false,'copy still requires the original signed PDF');
+});
