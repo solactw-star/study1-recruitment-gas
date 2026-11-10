@@ -153,7 +153,7 @@ async function waitForPublicDeployment(api,id,version,attempts=24,pause=ms=>new 
     check(Number.isInteger(observed)&&observed>0,'Invalid public deployment version metadata');
     // Any different audience, deployment identity or missing webapp is fatal.
     core.deploymentCheck(deployed,id,observed);
-    last=Error('Public deployment has not converged: expected '+version+', observed '+observed);
+    last=Error('Public deployment version changed; has not converged: expected '+version+', observed '+observed);
     if(i<attempts-1){await pause(Math.min(2000,600+100*i));continue;}
     throw last;
    }
