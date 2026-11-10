@@ -38,9 +38,11 @@ function runClosedChecks_(){
  assert(html.startsWith('<!doctype html>'),'complete HTML document');
  assert(!/<(?:form|textarea)\b/i.test(html),'no live collection form');
  const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
- assert(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'identity and consent inputs disabled');
- assert(html.includes('id="consentSignature"')&&html.includes('id="consentSubmit"')&&
-  html.includes("consentEl('consentSubmit').disabled=true;"),'signature UI cannot submit');
+ assert(inputs.length===0,'public introduction has no identity or signature fields');
+ assert(html.includes('知情同意是報名最後的步驟')&&
+  !html.includes('id="consentSignature"')&&!html.includes('id="consentSubmit"')&&
+  !html.includes('initConsentPortal_')&&!/<(?:canvas|iframe)\b/i.test(html),
+  'public introduction cannot request a signature');
  assert(!/<script[^>]+src=/i.test(html),'no external script');
  assert(html.includes('id="apply"')&&html.includes('id="contact"'),'required navigation destinations');
  assert(html.includes('disabled type="button"'),'intake button disabled');
