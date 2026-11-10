@@ -9,7 +9,7 @@
  * until REC, personal data purpose, identity source and UAT are verified.
  */
 function study1EConsentOtpApplicantAuthorization_(request){
- throw Error('REC_REVIEW_REQUIRED：尚無獲核准的本人資格與實驗別來源以執行正式OTP');
+ throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：尚無可信的本人資格與實驗別來源可執行OTP');
 }
 function study1BindingOtpFullHeaders_(tab){
  if(!tab||typeof tab.getLastRow!=='function')throw Error('OTP正式資料表不存在');
@@ -91,7 +91,7 @@ function study1BindingOtpGate_(){
  study1BindingGate_();
  if(PropertiesService.getScriptProperties()
     .getProperty('STUDY1_ECONSENT_OTP_VERIFY_APPROVED')!=='true')
-  throw Error('REC_REVIEW_REQUIRED：尚未授權正式OTP寫入及本人驗證');
+  throw Error('OTP_TRANSACTION_NOT_READY：尚未啟用正式OTP寫入及本人驗證');
  return true;
 }
 function study1EConsentVerifyContactOtp_(request){
@@ -112,7 +112,7 @@ function study1EConsentVerifyContactOtp_(request){
     auth.screeningId!==request.screeningId||
     auth.provenance!=='REC_APPROVED_APPLICANT_SCREENING'||
     auth.approved!==true)
-  throw Error('REC_REVIEW_REQUIRED：OTP申請者／資格／實驗別來源未核准');
+  throw Error('IDENTITY_EVIDENCE_INVALID：OTP申請者／資格／實驗別證據未核實');
  study1BindingOtpGate_();
  const sourceEmail=study1BindingEmail_(auth.email);
  const p=PropertiesService.getScriptProperties();
