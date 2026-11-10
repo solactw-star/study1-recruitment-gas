@@ -213,7 +213,8 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 if(typeof document==='undefined'||!document.body||
    document.body.dataset.siteMode!=='FORMAL')return;
 const el=id=>document.getElementById(id);
-const state={ready:false,app:null,mail:null,busy:false,requestId:null,humanToken:'',captchaWidget:null};
+const state={ready:false,app:null,mail:null,busy:false,requestId:null,humanToken:'',captchaWidget:null,
+ emailProof:null,slots:[],chosenDay:null,monthIndex:0,activeBooking:null};
 const genRequest=()=>{
  if(!globalThis.crypto||typeof crypto.getRandomValues!=='function')
   throw Error('瀏覽器無法安全建立申請識別碼');
@@ -362,8 +363,10 @@ el('otpVerify').addEventListener('click',()=>{
       statusResult.eligibilitySource!=='PARTICIPANT_SELF_REPORT'){
     status('原申請與驗證紀錄尚未一致，請聯絡研究團隊。');return;
    }
+   state.emailProof=result.emailProof;
    show('slots');
-   status('資格勾選已依本人自陳紀錄，電子郵件控制權也已核對。尚待正式時段與同意程序開放；不需查驗身分證或學生證。');
+   status('資格依本人勾選自陳，Email OTP已核對；以下場次由正式E1來源提供，暫留不等於完成研究同意。');
+   formalV05Read_();
   });
  });
 });
@@ -382,6 +385,218 @@ if(typeof google!=='undefined'&&google.script&&google.script.run){
    }
    status(state.ready?'系統可受理實驗一待核申請，須再完成信箱與研究資格程序。':'目前尚未開放正式報名與簽署。');
   }).study1ParticipantReadiness();
+
+// V05 + V08 formal UI uses the ORIGINAL seven-step elements in FORMAL mode.
+// TEST mode remains a separate owner-only controller below this IIFE.
+function formalDate_(utc){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(utc));
+ const values=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+ return values.year+'-'+values.month+'-'+values.day;
+}
+function formalTime_(utc){
+ return new Date(utc).toLocaleString('zh-TW',{
+  timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',
+  hour:'2-digit',minute:'2-digit',hour12:false});
+}
+function formalClear_(node){
+ if(!node)return;
+ while(node.firstChild)node.removeChild(node.firstChild);
+ node.textContent='';
+}
+function formalButton_(label,click){
+ const button=document.createElement('button');
+ button.type='button';button.textContent=label;
+ button.addEventListener('click',click);return button;
+}
+function formalSelected_(){
+ return state.slots.find(x=>x.slotId===el('slot').value);
+}
+function formalV05Draw_(){
+ const slots=state.slots.filter(x=>x&&x.startAtUtc&&x.slotId);
+ const days=[...new Set(slots.map(x=>formalDate_(x.startAtUtc)))].sort();
+ const months=[...new Set(days.map(x=>x.slice(0,7)))];
+ if(!days.includes(state.chosenDay))state.chosenDay=days[0]||null;
+ if(state.chosenDay)state.monthIndex=Math.max(0,months.indexOf(state.chosenDay.slice(0,7)));
+ state.monthIndex=Math.max(0,Math.min(state.monthIndex,months.length-1));
+ const month=months[state.monthIndex]||null;
+ if(el('v05Month'))el('v05Month').textContent=month?month+'｜E1正式場次':'目前沒有已核實場次';
+ const dates=el('v05Dates');formalClear_(dates);
+ if(dates){dates.hidden=false;
+  for(const date of days.filter(d=>d.startsWith(month||'!'))){
+   const button=formalButton_(date.slice(5).replace('-','/'),()=>{
+    state.chosenDay=date;formalV05Draw_();});
+   button.setAttribute('aria-pressed',String(date===state.chosenDay));
+   dates.appendChild(button);
+  }}
+ for(const [key,delta] of [['v05Prev',-1],['v05Next',1]]){
+  const node=el(key);if(!node)continue;
+  node.hidden=false;node.disabled=state.monthIndex+delta<0||
+   state.monthIndex+delta>=months.length;
+  node.onclick=()=>{state.monthIndex+=delta;
+   state.chosenDay=days.find(x=>x.startsWith(months[state.monthIndex]));
+   formalV05Draw_();};
+ }
+ const today=slots.filter(x=>formalDate_(x.startAtUtc)===state.chosenDay);
+ const select=el('slot');formalClear_(select);
+ if(select){select.hidden=false;
+  for(const slot of today){
+   const o=document.createElement('option');o.value=slot.slotId;
+   o.textContent=formalTime_(slot.startAtUtc)+'｜剩餘 '+slot.remaining+
+    '／'+slot.capacity+'，候補 '+slot.waitlistCount;
+   select.appendChild(o);
+  }
+  select.onchange=formalV05Choice_;
+ }
+ const choices=el('v05Choices');formalClear_(choices);
+ if(choices){choices.hidden=false;
+  for(const slot of today){
+   const btn=formalButton_(formalTime_(slot.startAtUtc)+
+    '｜'+(slot.bookable?'尚有名額':'已滿／候補'),()=>{
+    select.value=slot.slotId;formalV05Choice_();});
+   choices.appendChild(btn);
+  }}
+ if(el('noAvailable'))el('noAvailable').hidden=slots.length>0;
+ formalV05Choice_();
+}
+function formalV05Choice_(){
+ const slot=formalSelected_(),hold=el('hold');
+ if(!hold)return;
+ hold.hidden=false;hold.disabled=!slot||state.busy;
+ hold.textContent=slot&&slot.bookable?'保留此E1正式時段':
+  slot?'加入此E1場次候補':'尚未選取正式場次';
+ const note=el('v05Status');
+ if(note){note.hidden=false;note.textContent=slot?
+  (slot.bookable?'目前可申請暫留，必須再由伺服器確認名額。':
+   '尚無可直接預約名額，可依候補順序登記，尚非正式預約。'):
+   '請先選擇日期與場次。';}
+}
+function formalV05Read_(){
+ if(!state.emailProof)return;
+ rpc('study1FormalV05Slots',state.emailProof,result=>{
+  if(!result||result.experiment!=='E1'||!Array.isArray(result.slots)){
+   status('正式E1時段來源尚未通過核對，暫不提供預約。');return;
+  }
+  state.slots=result.slots;formalV05Draw_();
+  status(result.slots.length?
+   '請選擇經核對的E1日期及場次；名額以送出時伺服器重新核實為準。':
+   '目前沒有已核實可選的E1場次。');
+ });
+}
+function formalV08Panel_(reservation){
+ const root=el('step-confirm');
+ if(!root)return;
+ formalClear_(root);
+ const heading=document.createElement('h2');
+ heading.textContent='E1 正式預約／候補狀態';root.appendChild(heading);
+ const p=document.createElement('p');p.className='help';
+ p.textContent=reservation.status==='HELD'?
+  '您的時段已暫留，尚未完成知情同意或研究確認；到期後暫留可能失效。':
+  '目前僅為候補登記，尚未獲得名額；釋出名額後需重新驗證並依候補順序領取。';
+ root.appendChild(p);
+ const slot=state.slots.find(x=>x.slotId===reservation.slotId);
+ const info=document.createElement('p');
+ info.textContent='時段：'+(slot?formalTime_(slot.startAtUtc):reservation.slotId)+
+  (reservation.holdUntilUtc?'｜暫留期限 '+formalTime_(reservation.holdUntilUtc):'');
+ root.appendChild(info);
+ const controls=document.createElement('div');controls.className='actionrow';
+ controls.appendChild(formalButton_('唯讀重新核對原預約',formalV08Read_));
+ controls.appendChild(formalButton_('取消此暫留／候補',()=>{
+  if(state.busy)return;
+  rpc('study1FormalCancel',{emailProof:state.emailProof,
+   reservationId:reservation.reservationId,requestId:genRequest()},r=>{
+   if(!r||r.cancelled!==true){status('取消未確認，請唯讀重新核對，勿自動重送。');return;}
+   status('原Reservations已回讀取消狀態。');
+   formalV08Read_();
+  });
+ }));
+ if(reservation.status==='WAITLISTED'){
+  controls.appendChild(formalButton_('按候補順位檢查可否領取名額',()=>{
+   rpc('study1FormalWaitlistClaim',{emailProof:state.emailProof,
+    reservationId:reservation.reservationId,requestId:genRequest()},r=>{
+    if(r&&r.held)status('已確認候補暫留，尚未完成正式研究同意。');
+    else status('候補仍待順位或名額釋出，未成立暫留。');
+    formalV08Read_();
+   });
+  }));
+ }else if(reservation.status==='HELD'){
+  const select=document.createElement('select');
+  select.setAttribute('aria-label','選擇改期的E1正式場次');
+  for(const candidate of state.slots.filter(x=>
+   x.slotId!==reservation.slotId&&x.bookable)){
+   const option=document.createElement('option');
+   option.value=candidate.slotId;
+   option.textContent=formalTime_(candidate.startAtUtc);
+   select.appendChild(option);
+  }
+  if(select.options.length){controls.appendChild(select);
+   controls.appendChild(formalButton_('改至選定E1場次',()=>{
+    if(!select.value||state.busy)return;
+    rpc('study1FormalMove',{emailProof:state.emailProof,
+     reservationId:reservation.reservationId,newSlotId:select.value,
+     requestId:genRequest()},r=>{
+     if(!r||!r.moved){status('改期尚未成立；請重新核對原預約狀態。');return;}
+     status('已回讀原Reservations的改期結果。');
+     formalV08Read_();
+    });
+   }));
+  }
+ }
+ controls.appendChild(formalButton_('返回查詢E1日期',()=>{
+  show('slots');formalV05Read_();}));
+ root.appendChild(controls);
+ show('confirm');
+}
+function formalV08Read_(){
+ if(!state.emailProof)return;
+ rpc('study1FormalStatus',state.emailProof,result=>{
+  if(!result||result.experiment!=='E1'||!Array.isArray(result.reservations)){
+   status('原預約狀態尚未核實，請勿重複送出異動。');return;
+  }
+  const active=result.reservations.filter(r=>
+   r.status==='WAITLISTED'||(r.status==='HELD'&&
+    new Date(r.holdUntilUtc).getTime()>Date.now()));
+  if(active.length){
+   const chosen=active.find(r=>r.status==='HELD')||active[0];
+   state.activeBooking=chosen;formalV08Panel_(chosen);
+  }else{
+   state.activeBooking=null;show('slots');formalV05Read_();
+   status('已唯讀核對原Reservations：目前沒有有效暫留或候補。');
+  }
+ });
+}
+el('hold').addEventListener('click',()=>{
+ if(!state.emailProof||state.busy)return;
+ const chosen=formalSelected_();if(!chosen)return;
+ const requestId=genRequest();
+ el('hold').disabled=true;
+ if(!chosen.bookable){
+  rpc('study1FormalWaitlistJoin',{emailProof:state.emailProof,
+   slotId:chosen.slotId,requestId},r=>{
+   if(!r||!r.joined){status('候補登記未成立，請核對正式場次或既有候補。');formalV05Choice_();return;}
+   status('已回讀正式候補紀錄，候補尚非預約或錄取。');
+   formalV08Read_();
+  });
+  return;
+ }
+ rpc('study1FormalQuoteHold',{emailProof:state.emailProof,
+  slotId:chosen.slotId,requestId},quote=>{
+  if(!quote||!quote.allowed||!quote.quote){
+   status('此時段沒有可正式暫留的名額，請重新載入場次。');
+   formalV05Read_();return;
+  }
+  rpc('study1FormalHoldSlot',{emailProof:state.emailProof,
+   quote:quote.quote},held=>{
+   if(!held||held.held!==true){
+    status('預約沒有成立；請唯讀核對原Reservations，不要自動重送。');
+    formalV05Read_();return;
+   }
+   status('原Reservations已完成暫留與回讀，尚未完成正式知情同意。');
+   formalV08Read_();
+  });
+ });
+});
+
 }else status('目前尚未開放線上報名。');
 })();
 
