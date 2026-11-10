@@ -59,7 +59,7 @@ test('PDF signing checks form input and independent source gates, not a blanket 
  const h=isolated();
  await assert.rejects(h.scope.study1EConsentSignPdf({
   token:'attacker',name:'TEST',documentSha:'a'.repeat(64),
-  signature:'fake',agree:true,read:true,answerAcknowledged:true
+  signature:'INVALID*PNG',agree:true,read:true,answerAcknowledged:true
  }),/必須完成正式文件全文閱讀/);
  assert.equal(h.externalIO,0);
 });
