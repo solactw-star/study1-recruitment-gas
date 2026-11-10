@@ -1131,3 +1131,27 @@ NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一
 - 原 gas/Study1EConsentBinding.js 的私有 `study1EConsentIssueBound_(input)` **已移除呼叫者自訂adapter參數**，一律使用原伺服器端 `study1EConsentBindingAdapter_()` 作為單一可信正式來源；以此阻斷內部錯誤傳入假身分、假OTP/時段的邊界。合成VM測試僅在沙盒覆寫工廠，不變更正式GAS權責。原七步/預約/PDF安全開關保持不變。
 - 最後獨立程式HEAD=`41322f6ca7d7913d9c81b7e450f098e74eca58bf`；原GitHub PR #133隔離工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42752519608，**768 PASS／0 FAIL／0 SKIP**。先前§70-S.9所記`04e768cc`為新增OTP核⼼回歸階段，請以本段後續版本為準。
 - 尚未完成且不可因CI取代：REC核准的真人身份/實驗E1/E2權責資料來源、真人OTP申請/信件寄送與收件、正式時段CAS持久化、最後PDF/手寫簽名與真人申請的可信瀏覽器連結、REC原版簽名欄位及日期視覺驗收、實際本人副本權限UAT；所有正式Sheet寫入、GAS同步與部署仍未執行。OPEN=false、CONSENT_READY=false、MYSELF、E2未獨立授權絕不啟用。
+
+
+### 70-S.10｜2026-11-10 REC 202604EM033 實際核可範圍、身分與資料權責核對、未授權電子簽署硬性封鎖
+
+**任務／權責：** Study1招募網站原PR #133隔離分支、唯一GitHub規格 docs/study1-system-spec.md；REC研究程序另以202604EM033有效核可文件及正式批准修正為主，網站規格及Script Properties都不得取代REC。本段是對原§70-S.9～9.1的增量核對，不是REC修正案或真人操作授權。
+
+**已直接核實正式證據：**
+- NTU-REC 202604EM033「核可證書」Google Drive原ID `1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy`，原PDF SHA256 `de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4`。核可日期2026-06-30，核可效期2026-08-01～2027-07-31。核可計畫書版本日期2026-05-19、研究參與者知情同意書版本日期2026-05-11、招募文宣2026-05-14。**日期及核可整體計畫不等於線上簽名/新核身方法或文件PDF位元組取得核准。**
+- 2026-05-11實驗一同意書原ODT與Drive DOCX原ID `1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m`；實驗二原同日期ODT。同意書規定研究人員先口頭及書面說明研究、回答問題，分別由研究人員及參與者簽名，參與者留存一份。**沒有把遠端Canvas手寫／網頁OTP當成正式電子知情同意或具法律身分證明的核可文字。**
+- 實驗一參與者需年滿18歲、中原大學學生，及符合其他當次核可資格；實驗二另外必須**未參加過實驗一**。不能只用參與者自陳、電子郵件OTP、Cookie或姓名代替獨立可信的成年/在學/先前E1參與史證據。原正式Applicants、Screenings、Verification及Reservations、Slots資料表表頭不含經核定的真人身分查核證據，也缺獨立跨實驗E1參與史的核准來源。
+- 原REC同意書載明可識別紙本由研究主持人置於上鎖櫃、電子檔置於設有密碼的研究用電腦並限制研究團隊存取；其留存/銷毀規則以核可同意書為準。既有正式系統Google Sheets與私人Drive PDF引擎是**網站技術與行政準備來源**，不能僅以現有Sheet ID、欄位、ACL或SHA推定已獲REC准許取代原核可的蒐集、儲存、電子同意及副本交付方式。資料欄位及實驗別權責來源不擅自另建。
+- 原REC實驗一仍有120組字詞與自傳式RIF敘述，與研究端目前144組字詞及取消自傳式RIF的執行設計相異，標記 `REC_REVIEW_REQUIRED`，未完成核准修正前不以網站流程改寫或執行未核可內容。
+- Google Drive找到名稱為`REC-P-06-計畫變更申請書-20261022.docx`（ID `1QN4ura_dwefSxXIM7pD6QGTulo6CoEsI`），讀取內容為未填妥的變更申請制式表格，**不是核可修正**。目前核對的Drive與研究郵件沒有查到後續核准遠端電子簽署或「Email OTP即正式本人認證」的修正核可；如未來有新原件，須由核准記錄及適用範圍重新查證，不能以查無當作永久事實。
+- 2026-11-04產生的E1完整PDF副本（ID `1iL3kn61IrMcHa4PaTUN9s-ZA8t9R1FfI`，SHA256 `718441b3a74cd2e0d4ce0d800fb35a4a9dc38efd1cdf3ef3529ebd8afc7a28f3`）**不能因其內容版號顯示2026-05-11便自動當成REC原位元組核可的模板**；E2原ODT亦不可代替已核對實際PDF SHA/頁數/簽名框。
+
+**隔離分支原程式安全增量實作（本輪沒有正式Sheet/GAS/REC寫入）**：
+1. `gas/Study1EConsentBinding.js` 新增不可由Script Properties、公開參數解鎖的 `STUDY1_REC_VERIFIED_BASELINE_` 來源記錄與 `study1RecRequireElectronicConsentApproval_()` 明確拒絕函式；原私有`study1EConsentIssueBound_`在讀取/鎖/寫入任何真人資料前立即阻止尚未REC核准的遠端簽署邀請。E1/E2可信身分證據新增加成年、CYCU學生資格（必須經獨立核可來源核實及留有SHA），E2再需要獨立核對「未參加E1」與證據SHA；上述eligibility/E1 history證據均與原申請ID、OTP、時段、PDF版號/SHA一起納入原HMAC，正式來源更動即須拒絕使用舊簽署邀請。
+2. `gas/AdminSandbox.js` 的新`study1EConsentSignPdf`及舊`study1EConsentSign`（獨立PNG）路徑均新增同一REC硬性封鎖，防止單靠設定`OPEN`、`CONSENT_READY`、`STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY`等屬性而收取未核可的真人手寫電子簽名。原伺服器OTP/正式Sheet讀取`study1EConsentIdentityAttestation_`與`study1EConsentOtpApplicantAuthorization_`繼續預設拒絕，**不將電子郵件控制權冒充身分認證**。
+3. 原合成CI只在Node VM的測試範圍暫時覆寫REC拒絕函式，驗證PDF引擎與資料綁定既有功能；正式GAS來源沒有覆寫或啟用管道。新增`tests/study1-rec-202604EM033-authority.test.cjs`、擴充`tests/study1-econsent-binding.test.cjs`的成年/在學/E2先前E1證據缺漏、冒用/錯來源與SHA變更測試，另更新原測試的合成資格證據。最新程式驗證HEAD `636d9287bebf071573158e71798599ed5a0554d7`，CI：https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42755139501，**774 PASS、0 FAIL、0 SKIP**；未執行真人UAT或任何正式實體/線上REC簽署。
+
+**已完成：** 原REC證書日期/版本/來源SHA回查、E1/E2實際條文/資格/資料保存權責差異核對、原GitHub隔離程式與合成安全負面CI。**阻塞：** `REC_REVIEW_REQUIRED=true`、`REC_REMOTE_SIGNING_AMENDMENT_VERIFIED=false`、`LIVE_IDENTITY_SOURCE=BLOCKED`、`LIVE_E1_HISTORY_SOURCE=BLOCKED`、`OTP_PERSONAL_IDENTITY_APPROVED=false`、`REAL_WIZARD_SIGNING_NOT_INTEGRATED=true`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_READY=false`、`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`。
+`OPEN=false`、`CONSENT_READY=false`、`MYSELF`、實驗二不自動開放、原七步報名與V05/V08未變更。
+
+**下一步：** 由研究主持人依REC程序釐清線上電子同意與身分／年齡／CYCU學籍及E1參與史查驗的合法方式、參與者線上/紙本同意與電子檔案保存副本的核准適用範圍；取得核准修正及原PDF版本/SHA後，才可在原私有適配器將合法來源接上真實核身交易，另完成含本人權限/研究人員簽名的實機UAT。這不授權合併main、GAS同步/部署或啟用真人收件。
