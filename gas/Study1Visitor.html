@@ -736,7 +736,7 @@ function formalConsentWire_(){
    if(!formalConsent||formalConsent.token!==token)return;
    if(result&&result.state==='WITHDRAWN'){
     formalConsent.confirmed=true;
-    status('已記錄撤回事件，原始PDF與簽署證據依研究保存規定保留。');
+    status('已記錄撤回通知；研究團隊仍須依適用REC與您的意願辦理已蒐集資料銷毀或去識別化，網站不會自行刪除正式存證。');
    }else status('撤回未能確認，請聯絡研究團隊。');
   });
  }));
