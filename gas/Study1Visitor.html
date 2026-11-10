@@ -606,10 +606,13 @@ function formalConsentStatus_(){
  });
 }
 async function formalVerifySigned_(copy){
+ const preSigned=copy&&copy.researcherPreSigned===true;
  if(!formalConsent||copy.experiment!=='E1'||
     copy.dualSigned!==true||
     !/^[a-f0-9]{64}$/.test(copy.participantSignedPdfSha256||'')||
-    copy.participantSignedPdfSha256===copy.signedPdfSha256||
+    (preSigned?
+     copy.participantSignedPdfSha256!==copy.signedPdfSha256:
+     copy.participantSignedPdfSha256===copy.signedPdfSha256)||
     copy.participantSignedPdfSha256===copy.sourceSha256||
     copy.version!==formalConsent.documentVersion||
     copy.sourceSha256!==formalConsent.documentSha256||
@@ -628,15 +631,17 @@ async function formalVerifySigned_(copy){
  }).formatToParts(instant).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
  if(copy.taipeiDate!==date.year+'/'+date.month+'/'+date.day)
   throw Error('FORMAL_SIGNED_PDF_TAIPEI_DATE_INVALID');
- const staffInstant=new Date(copy.researcherSignedAt);
- if(!Number.isFinite(staffInstant.getTime())||
-    staffInstant.toISOString()!==copy.researcherSignedAt)
-  throw Error('FORMAL_RESEARCHER_SIGNED_TIME_INVALID');
- const staffDay=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
-  timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
- }).formatToParts(staffInstant).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
- if(copy.researcherTaipeiDate!==staffDay.year+'/'+staffDay.month+'/'+staffDay.day)
-  throw Error('FORMAL_RESEARCHER_TAIPEI_DATE_INVALID');
+ if(!preSigned){
+  const staffInstant=new Date(copy.researcherSignedAt);
+  if(!Number.isFinite(staffInstant.getTime())||
+     staffInstant.toISOString()!==copy.researcherSignedAt)
+   throw Error('FORMAL_RESEARCHER_SIGNED_TIME_INVALID');
+  const staffDay=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+   timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(staffInstant).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+  if(copy.researcherTaipeiDate!==staffDay.year+'/'+staffDay.month+'/'+staffDay.day)
+   throw Error('FORMAL_RESEARCHER_TAIPEI_DATE_INVALID');
+ }
  const raw=atob(copy.base64),bytes=Uint8Array.from(raw,x=>x.charCodeAt(0));
  if(bytes.length!==copy.bytes||
     String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
@@ -662,7 +667,8 @@ function formalConsentCopy_(){
    el('officialSignedPdfDownload').download='Study1_E1_'+copy.version+'_signed.pdf';
    el('officialSignedPdfSha').textContent=result.sha;
    el('officialSignedPdfDate').textContent=copy.taipeiDate;
-   el('officialSignedPdfStatus').textContent=
+   el('officialSignedPdfStatus').textContent=copy.researcherPreSigned===true?
+    '研究者事先簽名的原PDF與本人線上筆跡已整合，完成簽署PDF及臺灣日期、SHA回讀通過；研究者可於後台下載。':
     '研究人員已在原核准PDF獨立欄位簽名（臺灣日期 '+copy.researcherTaipeiDate+'）；完整雙簽PDF、參與者臺灣日期與SHA回讀通過，可下載本人副本。';
    status('完整線上雙簽PDF與本人副本已核對；原預約是否成立，仍須獨立核對Reservations。');
    // §70-S.23: a dual-signed PDF is NOT a booking confirmation.
