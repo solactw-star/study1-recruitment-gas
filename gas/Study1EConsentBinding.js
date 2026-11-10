@@ -316,13 +316,14 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
  return {schemaVersion:1,applicantId,reservationId,slotId,challengeId,
   screeningId:request.screeningId,experiment,documentSha:doc.sha256,
   documentVersion:doc.version,identityEvidenceSha:identity.evidenceSha256,
+  priorE1EvidenceSha:experiment==='E2'?identity.priorE1EvidenceSha256:null,
   verifiedAtUtc:identity.verifiedAtUtc,otpUsedAtUtc:challenge[6],
   holdUntilUtc:reservation[4]};
 }
 function study1BindingDigest_(binding){
  const keys=['schemaVersion','applicantId','reservationId','slotId','challengeId',
   'screeningId','experiment','documentSha','documentVersion',
-  'identityEvidenceSha','verifiedAtUtc','otpUsedAtUtc','holdUntilUtc'];
+  'identityEvidenceSha','priorE1EvidenceSha','verifiedAtUtc','otpUsedAtUtc','holdUntilUtc'];
  if(!binding||Object.keys(binding).sort().join(',')!==
     keys.concat(['digest']).sort().join(','))
   throw Error('電子同意綁定結構遭更動');
