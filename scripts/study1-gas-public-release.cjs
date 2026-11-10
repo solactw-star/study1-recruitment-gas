@@ -25,7 +25,7 @@ function assertClosedPublicSources(remote){
  const reviewed=new Set(['appsscript','Index','Website','AdminSandbox','AdminConsole',
   'Study1Flow','Study1Unified','OtpCore','BookingCore','OtpThrottle',
   'OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter',
-  'Study1Visitor','Study1Team']);
+  'Study1Visitor','Study1Team','Study1PdfLib','Study1PdfStampCore']);
  check(remote.files.length===reviewed.size&&
   remote.files.every(x=>reviewed.has(x.name))&&
   new Set(remote.files.map(x=>x.name)).size===reviewed.size,
@@ -50,7 +50,9 @@ function assertClosedPublicSources(remote){
   BookingHoldTransaction:['SERVER_JS','gas/BookingHoldTransaction.js'],
   Study1FixtureAdapter:['SERVER_JS','gas/Study1FixtureAdapter.js'],
   Study1Visitor:['HTML','gas/Study1Visitor.html'],
-  Study1Team:['HTML','gas/Study1Team.html']
+  Study1Team:['HTML','gas/Study1Team.html'],
+  Study1PdfLib:['SERVER_JS','gas/Study1PdfLib.js'],
+  Study1PdfStampCore:['SERVER_JS','gas/Study1PdfStampCore.js']
  };
  for(const [name,[type,filename]] of Object.entries(sourceMap)){
   check(one(remote.files,name,type).source===script(filename),
