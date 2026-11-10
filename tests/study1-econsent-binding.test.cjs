@@ -70,7 +70,7 @@ function harness(snap,now=new Date()){
 }
 test('Real adapter is deliberately absent; no browser-provided proof can activate production',()=>{
  const h=harness(snapshot(new Date()));
- assert.throws(()=>h.originalFactory(),/REC_REVIEW_REQUIRED/);
+ assert.throws(()=>h.originalFactory(),/BACKEND_NOT_READY/);
  assert.equal(h.registry.records.length,0);
 });
 test('One trusted identity + consumed OTP + screened applicant + HELD booking + exact E1 PDF issue one short-lived invite',()=>{
