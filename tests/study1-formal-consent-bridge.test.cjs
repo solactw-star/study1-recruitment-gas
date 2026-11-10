@@ -47,7 +47,7 @@ function harness(){
       nowUtc:now(0),snapshot:{reservations:{rows},slots:{rows:slots}},lock});}
    finally{lock.releaseLock();}
   },
-  study1FormalSlot_:(ctx,slotId)=>{seen.slot++;if(slotId!==id)throw Error('untrusted slot');return slots[0];},
+  study1FormalSlot_:(ctx,slotId)=>{seen.slot++;if(slotId!==id||slots[0][0]!==slotId)throw Error('untrusted slot');return slots[0];},
   study1EConsentReadyDocument_:(experiment)=>{if(experiment!=='E1')throw Error('E2 blocked');return doc;},
   study1PdfLayoutRead_:()=>({verified:true}),
   study1EConsentBindingAdapter_:(audience)=>{
