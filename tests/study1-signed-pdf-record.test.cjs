@@ -213,3 +213,17 @@ test('full signing is fail-closed when the independent PDF or wizard binding gat
  await assert.rejects(h.scope.study1EConsentSignPdf({}),/REC_REVIEW_REQUIRED|目前尚未/);
  assert.equal(h.files.size,before);
 });
+
+test('unbound legacy invitation cannot create a signed PDF even if nominal feature flags are enabled',async()=>{
+ const h=buildHarness(await createBlank());
+ assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E1'}),/REC_REVIEW_REQUIRED/);
+ h.values.set('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY','true');
+ const issued=h.scope.study1EConsentIssue({experiment:'E1'});
+ h.scope.study1EConsentExplain({id:issued.id,question:'synthetic Q&A',answer:'synthetic answer',resolved:true});
+ const count=h.files.size;
+ await assert.rejects(h.scope.study1EConsentSignPdf({
+  token:issued.token,name:'TEST NAME',signature:syntheticInk().toString('base64'),
+  documentSha:h.doc.sha256,read:true,answerAcknowledged:true,agree:true
+ }),/未綁定身分|未綁定/);
+ assert.equal(h.files.size,count,'no signed PDF or new evidence after a refused unbound token');
+});
