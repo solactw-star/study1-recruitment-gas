@@ -85,8 +85,12 @@ function study1FormalSlot_(ctx,slotId){
  return row;
 }
 function study1FormalQueue_(snapshot,slotId){
- return snapshot.reservations.rows.filter(x=>x[2]===slotId&&x[3]==='WAITLISTED')
-  .sort((a,b)=>a[6].localeCompare(b[6])||a[0].localeCompare(b[0]));
+ // Same-millisecond entries retain original append order, not random
+ // HMAC/UUID lexical ordering; that is the only auditable FIFO tie-break.
+ return snapshot.reservations.rows.map((row,index)=>({row,index}))
+  .filter(x=>x.row[2]===slotId&&x.row[3]==='WAITLISTED')
+  .sort((a,b)=>a.row[6].localeCompare(b.row[6])||a.index-b.index)
+  .map(x=>x.row);
 }
 function study1FormalRemaining_(ctx,row){
  return row[3]-bookingHoldCount_(ctx.snapshot.reservations.rows,
