@@ -34,46 +34,54 @@ test('REC source-of-truth is NTU 202604EM033 2026-06-30 approval, 2026-05-11 ora
  assert.equal(b.certificateSha256,
   'de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4');
  assert.equal(b.approvedConsentProcedure,'RESEARCHER_EXPLANATION_AND_WRITTEN_SIGNATURE');
- assert.equal(b.remoteElectronicConsentApproved,false);
+ assert.equal(b.remoteElectronicConsentApprovalStatus,'NOT_DETERMINED_BY_CERTIFICATE');
  assert.equal(b.emailOtpProvesLegalIdentity,false);
  assert.equal(b.e2MustNotHaveParticipatedE1,true);
 });
-test('All feature flags, owner privileges, and synthetic E1/E2 values cannot authorize online invitation',()=>{
+
+test('Approved Study1 is not globally vetoed: invite follows real binding evidence checks',()=>{
  const h=isolated();
- for(const input of [
-  {experiment:'E1'},
-  {experiment:'E2'},
-  {applicantId:'APP_12345678',challengeId:'CHAL_12345678',
-   documentSha:'f'.repeat(64),documentVersion:'Version02',
-   experiment:'E1',reservationId:'RSV_12345678',screeningId:'SCR_12345678',
-   slotId:'SLOT_12345678'}
- ]){
-  assert.throws(()=>h.scope.study1EConsentIssueBound_(input),
-   /REC_REVIEW_REQUIRED.*網路電子簽署/);
- }
+ h.scope.study1EConsentReadyDocument_=()=>({experiment:'E1',sha256:'f'.repeat(64),version:'Version02'});
+ h.scope.LockService={getScriptLock:()=>({
+  tryLock:()=>true,hasLock:()=>true,releaseLock:()=>{}
+ })};
+ const input={applicantId:'APP_12345678',challengeId:'CHAL_12345678',
+  documentSha:'f'.repeat(64),documentVersion:'Version02',
+  experiment:'E1',reservationId:'RSV_12345678',screeningId:'SCR_12345678',
+  slotId:'SLOT_12345678'};
+ // Its real, separate identity provider is still deliberately unconfigured;
+ // this must not be expressed as a prohibition on the approved study.
+ assert.throws(()=>h.scope.study1EConsentIssueBound_(input),
+  /IDENTITY_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.externalIO,0);
 });
-test('PDF handwritten online signature never writes evidence without a REC-approved amendment',async()=>{
+test('PDF signing checks form input and independent source gates, not a blanket REC veto',async()=>{
  const h=isolated();
  await assert.rejects(h.scope.study1EConsentSignPdf({
   token:'attacker',name:'TEST',documentSha:'a'.repeat(64),
   signature:'fake',agree:true,read:true,answerAcknowledged:true
- }),/REC_REVIEW_REQUIRED.*網路電子簽署/);
+ }),/必須完成正式文件全文閱讀/);
  assert.equal(h.externalIO,0);
 });
-test('OTP and email/phone are contact checks, not a REC-sanctioned real-world identity attestation',()=>{
+test('Legacy PNG route retains format and synthetic flag checks; no automatic live enablement',()=>{
+ const h=isolated();
+ assert.throws(()=>h.scope.study1EConsentSign({
+  name:'TEST PERSON',token:'TEST',signature:'NOT_BASE64',
+  documentSha:'a'.repeat(64),agree:true,read:true,answerAcknowledged:true
+ }),/必須完成全文閱讀、說明確認/);
+ assert.equal(h.externalIO,0);
+});
+test('CLOSED website still rejects both PDF and legacy signature paths',async()=>{
+ const h=isolated();
+ h.scope.study1EConsentEnabled_=()=>false;
+ assert.throws(()=>h.scope.study1EConsentSign({}),/尚未開放有效電子簽署/);
+ await assert.rejects(h.scope.study1EConsentSignPdf({}),/尚未開放有效電子簽署/);
+ assert.equal(h.externalIO,0);
+});
+test('Email OTP alone cannot assert independent study-participant identity',()=>{
  const h=isolated();
  assert.throws(()=>h.scope.study1EConsentIdentityAttestation_({
   applicantId:'APP_12345678',email:'participant@example.org',otpVerified:true
- }),/REC_REVIEW_REQUIRED/);
- assert.equal(h.externalIO,0);
-});
-
-test('legacy PNG e-sign remains blocked by REC even if owner enables synthetic legacy flag',()=>{
- const h=isolated();
- assert.throws(()=>h.scope.study1EConsentSign({
-  name:'TEST PERSON',token:'TEST',signature:'AAAAAAAAAAAAAAAA',
-  documentSha:'a'.repeat(64),agree:true,read:true,answerAcknowledged:true
- }),/REC_REVIEW_REQUIRED.*網路電子簽署/);
+ }),/IDENTITY_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.externalIO,0);
 });
