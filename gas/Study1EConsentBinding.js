@@ -63,13 +63,129 @@ function study1BindingHmac_(items){
   throw Error('身分連結簽章計算失敗');
  return raw.map(x=>(x&255).toString(16).padStart(2,'0')).join('');
 }
-/** This adapter must be built from independently REC-approved authenticated
- * identity and CURRENT live Sheet records within the shared script lock.
- * It is deliberately absent while formal source authority is unresolved.
- * It must never accept a browser-supplied snapshot or fixture.
+/** REC identity attestation is a separate, authoritative private source.
+ * The current approved Applicants/Screenings sheets do NOT contain identity
+ * provenance or E1/E2 authorization. No browser, OTP or admin checkbox can
+ * provide that missing evidence. Wire the REC-approved source only after
+ * its document, purpose, retention, identity policy and owner are verified.
+ */
+function study1EConsentIdentityAttestation_(request){
+ throw Error('REC_REVIEW_REQUIRED：本人核身與實驗別沒有獨立REC核准來源');
+}
+function study1BindingGate_(){
+ study1AdminOwnerRequired_();
+ const p=PropertiesService.getScriptProperties();
+ const expected=[
+  'OPEN','CONSENT_READY','STUDY1_ECONSENT_PROVIDER_VERIFIED',
+  'STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED',
+  'STUDY1_ECONSENT_WIZARD_LINK_VERIFIED',
+  'STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED',
+  'STUDY1_ECONSENT_LIVE_SHEETS_APPROVED'
+ ];
+ if(expected.some(k=>p.getProperty(k)!=='true'))
+  throw Error('REC_REVIEW_REQUIRED：正式本人／OTP／預約／電子同意尚未核准啟用');
+ return true;
+}
+function study1BindingSheetId_(kind){
+ if(typeof SITE_RESOURCES_!=='object'||!SITE_RESOURCES_||
+    SITE_RESOURCES_.personal!=='1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI'||
+    SITE_RESOURCES_.operations!=='1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ')
+  throw Error('正式Sheet ID已變更，拒絕核身與簽署');
+ if(['applicants','screenings','verification'].includes(kind))
+  return SITE_RESOURCES_.personal;
+ if(['slots','reservations'].includes(kind))
+  return SITE_RESOURCES_.operations;
+ throw Error('未核准的正式資料來源');
+}
+/** Targeted, unique col-A lookup, never read the entire PII table.
+ * Preconditions: the ONE shared ScriptLock is held, independent REC identity
+ * attestation succeeded, and all gates have been rechecked before I/O.
+ * No write, append, flush, sheet creation, format/permission mutation.
+ */
+function study1BindingSheetRow_(book,tabName,headers,requestedId){
+ study1BindingId_(requestedId);
+ if(!book||typeof book.getSheetByName!=='function')
+  throw Error('正式Google Sheet連接失敗');
+ const tab=book.getSheetByName(tabName);
+ if(!tab||typeof tab.getLastRow!=='function'||
+    typeof tab.getLastColumn!=='function')
+  throw Error('正式工作表不存在');
+ const rowCount=tab.getLastRow(),colCount=tab.getLastColumn();
+ if(!Number.isSafeInteger(rowCount)||rowCount<2||rowCount>10001||
+    colCount!==headers.length)
+  throw Error('正式工作表資料範圍或欄位數不合格');
+ const hdr=tab.getRange(1,1,1,headers.length).getValues()[0];
+ if(!Array.isArray(hdr)||hdr.length!==headers.length||
+    headers.some((h,i)=>hdr[i]!==h))
+  throw Error('正式工作表表頭不符合已核實schema');
+ const finder=tab.getRange(2,1,rowCount-1,1).createTextFinder(requestedId)
+  .matchEntireCell(true).matchCase(true).useRegularExpression(false);
+ const matches=finder.findAll();
+ if(!Array.isArray(matches)||matches.length!==1)
+  throw Error('正式申請／OTP／預約／時段不是唯一來源');
+ const cell=matches[0];
+ if(!cell||typeof cell.getRow!=='function'||typeof cell.getColumn!=='function')
+  throw Error('正式來源搜尋結果不完整');
+ const n=cell.getRow();
+ if(cell.getColumn()!==1||!Number.isSafeInteger(n)||n<2||n>rowCount)
+  throw Error('正式來源搜尋結果位置錯誤');
+ const row=tab.getRange(n,1,1,headers.length).getValues()[0];
+ if(!Array.isArray(row)||row.length!==headers.length)
+  throw Error('正式來源列欄位不完整');
+ const parsed=[];
+ for(let i=0;i<headers.length;i++){
+  if(!Object.prototype.hasOwnProperty.call(row,i))
+   throw Error('正式來源包含稀疏資料');
+  const v=row[i];
+  if(Object.prototype.toString.call(v)==='[object Date]'){
+   if(!Number.isFinite(v.getTime()))throw Error('正式來源時間無效');
+   parsed.push(new Date(v.getTime()).toISOString());
+  }else if(typeof v==='string'||typeof v==='boolean'||
+           (typeof v==='number'&&Number.isFinite(v))){
+   parsed.push(v);
+  }else throw Error('正式來源資料類型未核准');
+ }
+ if(parsed[0]!==requestedId)throw Error('正式資料列身分遭替換');
+ return {headers:headers.slice(),rows:[parsed]};
+}
+/** Only the approved server-side authority may supply the independent
+ * attestation. It is deliberately BLOCKED until the REC source is verified.
+ * A scripted adapter cannot make a live visitor from the owner TEST fixture.
  */
 function study1EConsentBindingAdapter_(){
- throw Error('REC_REVIEW_REQUIRED：正式核身與實驗別權責來源尚未完成接線');
+ study1BindingGate_();
+ return {readTrustedSnapshot:function(input){
+  study1BindingGate_();
+  if(!input||Object.keys(input).sort().join(',')!==
+      'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
+   throw Error('本人／文件／預約綁定索引不合法');
+  const id=study1EConsentIdentityAttestation_(input);
+  // This independent attestation must match the requested binding before
+  // any real applicant rows or other PII are read.
+  if(!id||id.provenance!=='REC_APPROVED_IDENTITY_ATTESTATION'||
+     id.verified!==true||id.consentProcedureApproved!==true||
+     id.applicantId!==input.applicantId||id.experiment!==input.experiment||
+     id.reservationId!==input.reservationId||id.slotId!==input.slotId||
+     id.challengeId!==input.challengeId||id.screeningId!==input.screeningId||
+     !/^[a-f0-9]{64}$/.test(id.evidenceSha256||''))
+   throw Error('REC_REVIEW_REQUIRED：身分核定證據或研究實驗別未經授權');
+  study1BindingGate_();
+  const personal=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
+  const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
+  // Each of five target rows is read in full under the calling ScriptLock.
+  // A later signature must reread the same five rows before the CAS write.
+  return {identity:id,
+   applicants:study1BindingSheetRow_(personal,'Applicants',
+    STUDY1_BINDING_SCHEMA_.applicants,input.applicantId),
+   screenings:study1BindingSheetRow_(personal,'Screenings',
+    STUDY1_BINDING_SCHEMA_.screenings,input.screeningId),
+   verification:study1BindingSheetRow_(personal,'Verification',
+    STUDY1_BINDING_SCHEMA_.verification,input.challengeId),
+   reservations:study1BindingSheetRow_(operations,'Reservations',
+    STUDY1_BINDING_SCHEMA_.reservations,input.reservationId),
+   slots:study1BindingSheetRow_(operations,'Slots',
+    STUDY1_BINDING_SCHEMA_.slots,input.slotId)};
+ }};
 }
 function study1BindingVerify_(snapshot,request,doc,nowUtc){
  if(!snapshot||typeof snapshot!=='object'||Array.isArray(snapshot)||
