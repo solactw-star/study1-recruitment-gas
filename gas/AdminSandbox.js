@@ -768,7 +768,7 @@ function study1EConsentChange_(id,fn){
    const stored=PropertiesService.getScriptProperties()
     .getProperty(STUDY1_ECONSENT_REGISTRY_);
    if(after&&stored===JSON.stringify(r)){
-    for(const kind of ['explanation','signature','signedPdf','confirmation','withdrawal']){
+    for(const kind of ['explanation','signature','signedPdf','confirmation','withdrawal','disposition']){
      if(after[kind]&&!before[kind])try{
       DriveApp.getFileById(after[kind].id).setTrashed(true);
      }catch(_){}
@@ -880,6 +880,7 @@ function study1EConsentConfirm(input){
   /[<>]/.test(input.notes))throw Error('請記錄身分核對與研究人員確認');
  return study1EConsentChange_(input.id,x=>{
   study1AdminOwnerRequired_();
+  if(x.channel==='FORMAL_E1')throw Error('RESEARCHER_PDF_SIGNATURE_REQUIRED');
   if(x.state!=='SIGNED')throw Error('只有已簽署紀錄能被研究人員確認');
   if(!x.signedPdf&&PropertiesService.getScriptProperties()
      .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
@@ -1138,13 +1139,30 @@ function study1EConsentSignedPdfCopy(token){
   throw Error('未取得雙方確認的完整版簽署PDF，禁止以原PDF加HTML收據取代');
  const event=study1EConsentEvent_(entry.signature,entry,'SIGNATURE');
  const confirmation=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION');
- if(event.data.signedPdfSha256!==entry.signedPdf.sha||
-    confirmation.data.signatureHash!==entry.signature.sha)
+ if(confirmation.data.signatureHash!==entry.signature.sha)
   throw Error('PDF、本人簽名及研究人員確認事件未能一致核對');
+ if(entry.channel==='FORMAL_E1'){
+  if(!entry.participantSignedPdf||
+     entry.participantSignedPdf.sha!==event.data.signedPdfSha256||
+     confirmation.data.participantSignedPdfSha256!==entry.participantSignedPdf.sha||
+     confirmation.data.researcherSignedPdfSha256!==entry.signedPdf.sha||
+     typeof confirmation.data.researcherSignedAt!=='string'||
+     confirmation.data.researcherTaipeiDate!==study1PdfTaipeiDate_(
+      new Date(confirmation.data.researcherSignedAt))||
+     !/^[a-f0-9]{64}$/.test(confirmation.data.researcherSignaturePngSha256||''))
+   throw Error('FORMAL_DUAL_PDF_EVIDENCE_MISMATCH');
+  study1EConsentSignedPdfRead_(entry.participantSignedPdf,entry);
+ }else if(event.data.signedPdfSha256!==entry.signedPdf.sha)
+  throw Error('舊簽署PDF來源與研究員確認未一致');
+
  const bytes=study1EConsentSignedPdfRead_(entry.signedPdf,entry);
  return {experiment:entry.experiment,version:entry.documentVersion,
   sourceSha256:entry.documentSha,signedPdfSha256:entry.signedPdf.sha,
   signedAt:event.data.serverSignedAt,taipeiDate:event.data.taipeiDate,
+  researcherSignedAt:entry.channel==='FORMAL_E1'?confirmation.data.researcherSignedAt:null,
+  researcherTaipeiDate:entry.channel==='FORMAL_E1'?confirmation.data.researcherTaipeiDate:null,
+  participantSignedPdfSha256:entry.channel==='FORMAL_E1'?entry.participantSignedPdf.sha:null,
+  dualSigned:entry.channel==='FORMAL_E1',
   base64:Utilities.base64Encode(bytes),mime:'application/pdf',
   bytes:bytes.length};
 }
