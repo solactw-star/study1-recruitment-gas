@@ -5299,7 +5299,47 @@ $('b12Search').addEventListener('input',b12Reset);
    const heading=document.createElement('strong');heading.textContent=x.experiment+'｜'+x.version+'｜'+x.state;
    const meta=document.createElement('p');
    meta.textContent='紀錄ID：'+x.id+'｜固定原PDF SHA-256：'+x.sha256;
-   box.append(heading,meta);view.append(box);
+   box.append(heading,meta);
+   if(x.experiment==='E1'&&x.researcherPresigned===true&&
+      x.state==='CONFIRMED'&&/^[a-f0-9]{64}$/.test(x.signedPdfSha256||'')){
+    const download=document.createElement('button');
+    download.type='button';download.className='secondary';
+    download.textContent='研究者下載受試者已簽署PDF';
+    download.addEventListener('click',()=>{
+     download.disabled=true;
+     eConsentStaffStatus_('正在使用OWNER權限核對私人完整PDF與SHA…');
+     google.script.run.withSuccessHandler(async payload=>{
+      download.disabled=false;
+      if(!payload||payload.recordId!==x.id||payload.experiment!=='E1'||
+         payload.researcherPreSigned!==true||payload.mime!=='application/pdf'||
+         payload.signedPdfSha256!==x.signedPdfSha256||
+         typeof payload.base64!=='string'||!Number.isSafeInteger(payload.bytes)){
+       eConsentStaffStatus_('簽署PDF紀錄版本不一致，已拒絕下載。');return;
+      }
+      try{
+       const raw=atob(payload.base64),bytes=Uint8Array.from(raw,c=>c.charCodeAt(0));
+       if(bytes.length!==payload.bytes||
+          String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+        throw Error('PDF_BYTES_INVALID');
+       if(!window.crypto||!window.crypto.subtle)throw Error('PDF_SHA_VERIFY_UNAVAILABLE');
+       const sha=Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',bytes)))
+        .map(c=>c.toString(16).padStart(2,'0')).join('');
+       if(sha!==payload.signedPdfSha256)throw Error('PDF_SHA_MISMATCH');
+       const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+       const link=document.createElement('a');link.href=url;
+       link.download='Study1_E1_'+x.id+'_signed.pdf';
+       link.rel='noopener';link.click();
+       setTimeout(()=>URL.revokeObjectURL(url),60000);
+       eConsentStaffStatus_('已核對私人簽署PDF的完整SHA，供研究者下載。');
+      }catch(error){eConsentStaffStatus_('PDF回讀驗證失敗，拒絕下載：'+String(error.message||error));}
+     }).withFailureHandler(e=>{
+      download.disabled=false;
+      eConsentStaffStatus_('無法核實私人PDF來源：'+String(e&&e.message||e));
+     }).study1EConsentOwnerSignedPdfDownload(x.id);
+    });
+    box.append(download);
+   }
+   view.append(box);
   }
   select.value=list.records.some(x=>x.id===prior)?prior:'';
  }
