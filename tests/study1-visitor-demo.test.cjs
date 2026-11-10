@@ -60,7 +60,7 @@ test('V06 last confirmation lists only synthetic research, Taiwan time, owner de
  assert.match(html,/id="v06Summary"/);
  for(const id of ['v06Study','v06Date','v06Time','v06Place','v06Email','v06Consent','v06Status'])
   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/確認這筆虛構預約/);
+ assert.match(html,/資料正確，前往最後PDF與簽名步驟/);
  assert.match(html,/非REC正式電子簽署/);
  assert.match(html,/demo\.study1@example\.invalid（不寄信）/);
  assert.match(html,/v06Preview_\(model,a\)/);
@@ -68,7 +68,7 @@ test('V06 last confirmation lists only synthetic research, Taiwan time, owner de
  assert.doesNotMatch(html,/<input[^>]*type="email"/);
 });
 
-test('V06 reservation confirmation requires a single consistent valid TEST slot and reviewed synthetic consent',()=>{
+test('V06 pre-signature review requires a single consistent verified HELD TEST slot before PDF consent',()=>{
  const vm=require('node:vm');
  const start=html.indexOf('function v06Preview_('),end=html.indexOf('function render(){',start);
  assert.ok(start>0&&end>start);
@@ -82,7 +82,7 @@ test('V06 reservation confirmation requires a single consistent valid TEST slot 
   policy:{consent:{E1:{version:'PENDING_REC_APPROVAL_E1',sha256:''}}},
   b02:{sessions:{}},slots:[{id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-01-05 10:00',
    remaining:0,bookable:true}]};
- const app={id:'SIM-001',experiment:'E1',phase:'CONSENTED',eligible:true,
+ const app={id:'SIM-001',experiment:'E1',phase:'HELD',eligible:true,
   signatureDemo:true,consentReviewedAt:now-10000,holdUntil:now+600000,holdExpired:false,
   consentVersion:'PENDING_REC_APPROVAL_E1',consentSha256:'',slotId:'SIM-SLOT-E1-A'};
  const context={safePreview:x=>x.mode==='TEST'&&x.open===false&&x.consentReady===false,
@@ -95,10 +95,10 @@ test('V06 reservation confirmation requires a single consistent valid TEST slot 
  assert.equal(summary.date,'2027-01-05');
  assert.equal(summary.time,'10:00（臺灣）');
  assert.match(summary.email,/example\.invalid/);
- assert.match(summary.consent,/非REC正式電子簽署/);
+ assert.match(summary.consent,/尚未簽署/);
  for(const invalid of [
   {...app,phase:'CONFIRMED'}, {...app,eligible:false},
-  {...app,signatureDemo:false}, {...app,consentReviewedAt:null},
+  {...app,phase:'CONSENTED'}, {...app,slotId:null},
   {...app,holdExpired:true}, {...app,holdUntil:now-1},
   {...app,consentVersion:'PENDING_WRONG'}, {...app,slotId:'SIM-NOT-A-SLOT'}
  ])assert.equal(context.v06Preview_(model,invalid),null,'unsafe application must not get confirmation');
