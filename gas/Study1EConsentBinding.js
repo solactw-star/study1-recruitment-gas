@@ -97,6 +97,8 @@ function study1BindingHmac_(items){
  * No independent ID card, student card, or staff identity check is required.
  */
 function study1EConsentIdentityAttestation_(request){
+ if(typeof study1SelfReportedAuthority_!=='function')
+  throw Error('SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED');
  return study1SelfReportedAuthority_(request);
 }
 function study1BindingGate_(){
