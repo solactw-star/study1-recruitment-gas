@@ -67,6 +67,30 @@ function study1ParticipantVerifiedPolicy_(policy){
   throw Error('REC_INTAKE_POLICY_INVALID：不足以確認前置蒐集及篩檢適用程序');
  return policy;
 }
+/** Independent global intake limiter on the ORIGINAL Applicants timestamps only.
+ * This is an operational anti-abuse ceiling, not a study sample-size decision.
+ * Caller must hold the shared ScriptLock; never inspect names or diagnoses.
+ */
+function study1ParticipantHourlyGate_(apps){
+ const last=apps.n;
+ if(last<2)return true;
+ const values=apps.tab.getRange(2,5,last-1,1).getValues();
+ if(!Array.isArray(values)||values.length!==last-1)
+  throw Error('GLOBAL_INTAKE_RATE_SOURCE_INCOMPLETE');
+ const now=Date.now(),since=now-3600000;let recent=0;
+ for(const item of values){
+  if(!Array.isArray(item)||item.length!==1)throw Error('GLOBAL_INTAKE_RATE_SOURCE_INVALID');
+  const cell=item[0];
+  const raw=Object.prototype.toString.call(cell)==='[object Date]'?
+   cell.toISOString():cell;
+  const t=study1BindingUtc_(raw);
+  if(t>now+60000)throw Error('GLOBAL_INTAKE_TIMESTAMP_FUTURE');
+  if(t>=since)recent++;
+ }
+ if(recent>=60)throw Error('GLOBAL_INTAKE_RATE_LIMIT');
+ return true;
+}
+
 function study1ParticipantBegin_(input){
  // Fail before parsing/using any personal data when intake remains closed.
  study1ParticipantGate_();
@@ -118,6 +142,7 @@ function study1ParticipantBegin_(input){
   // No health answer is stored; only the NOT-VERIFIED decision is kept.
   if(study1WizardLookup_(apps,3,r.email,false).length>0)
    throw Error('EMAIL_ALREADY_PENDING：已有相同信箱的未完成申請');
+  study1ParticipantHourlyGate_(apps);
   const now=new Date().toISOString();
   study1WizardAppend_(apps,[applicantId,r.name,r.email,r.phone,
    now,now,'PENDING_EMAIL']);
