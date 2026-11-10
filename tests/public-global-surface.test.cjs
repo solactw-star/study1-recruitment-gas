@@ -23,7 +23,7 @@ const approvedPublicFunctions = [
   'cancelHold', 'doGet', 'getPublicConfig', 'getPublicConsentDocument', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
   'requestOtp', 'submitConsent', 'verifyOtp',
-  'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp','study1ParticipantEmailStatus',
+  'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp','study1ParticipantEmailStatus','study1ParticipantBookingNotice_',
   // E1 booking ports: all re-check REC, self-report, original OTP, slots and ScriptLock
   'study1FormalV05Slots','study1FormalQuoteHold','study1FormalHoldSlot','study1FormalStatus','study1FormalWaitlistJoin','study1FormalWaitlistClaim','study1FormalCancel','study1FormalMove',
   'study1FormalConsentBegin','study1FormalConsentStatus','study1FormalConsentOriginalPdf',
