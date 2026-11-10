@@ -1213,10 +1213,7 @@ async function study1EConsentSignPdf(input){
    emailNotificationStatus=originalBookingConfirmed?'NOT_SENT':'BOOKING_NOT_CONFIRMED';
    if(originalBookingConfirmed&&verifiedContactEmail){
     try{
-     study1ParticipantMailGate_();
-     MailApp.sendEmail({to:verifiedContactEmail,
-      subject:'Study1｜報名與預約已確認',
-      body:'您的Study1實驗一報名與預約已確認。研究者已先簽署的知情同意書已由您在線上完成簽署，完整PDF保存在研究團隊的私人研究資料庫。請透過原報名頁面下載您的簽署副本；如需協助請聯絡研究團隊。'});
+     study1ParticipantBookingNotice_(verifiedContactEmail);
      emailNotificationStatus='SENT';
     }catch(_){emailNotificationStatus='UNKNOWN_REQUIRES_STAFF_REVIEW';}
    }
