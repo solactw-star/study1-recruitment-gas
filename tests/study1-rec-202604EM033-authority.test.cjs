@@ -52,7 +52,7 @@ test('Approved Study1 is not globally vetoed: invite follows real binding eviden
  // Its real, separate identity provider is still deliberately unconfigured;
  // this must not be expressed as a prohibition on the approved study.
  assert.throws(()=>h.scope.study1EConsentIssueBound_(input),
-  /IDENTITY_SOURCE_NOT_CONFIGURED/);
+  /SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.externalIO,0);
 });
 test('PDF signing checks form input and independent source gates, not a blanket REC veto',async()=>{
@@ -82,6 +82,6 @@ test('Email OTP alone cannot assert independent study-participant identity',()=>
  const h=isolated();
  assert.throws(()=>h.scope.study1EConsentIdentityAttestation_({
   applicantId:'APP_12345678',email:'participant@example.org',otpVerified:true
- }),/IDENTITY_SOURCE_NOT_CONFIGURED/);
+ }),/SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.externalIO,0);
 });

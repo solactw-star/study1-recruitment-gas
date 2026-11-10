@@ -14,7 +14,7 @@ function setup({enabled=true,identityApproved=true,duplicate=false}={}){
  const flags=new Map(),now=Date.now(),date=ms=>new Date(now+ms).toISOString();
  for(const k of ['OPEN','CONSENT_READY','STUDY1_ECONSENT_PROVIDER_VERIFIED',
   'STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED','STUDY1_ECONSENT_WIZARD_LINK_VERIFIED',
-  'STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED','STUDY1_ECONSENT_LIVE_SHEETS_APPROVED',
+  'STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED','STUDY1_ECONSENT_LIVE_SHEETS_APPROVED',
   'STUDY1_ECONSENT_OTP_VERIFY_APPROVED'])
   flags.set(k,enabled?'true':'false');
  flags.set('STUDY1_OTP_HMAC_SECRET',secret);

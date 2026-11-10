@@ -41,7 +41,7 @@ function harness({enabled=false,approveIdentity=false,identity=evidence(),tables
  const flags=new Map(),reads=[],lookups=[],writes=[],locked={state:false};
  for(const name of ['OPEN','CONSENT_READY','STUDY1_ECONSENT_PROVIDER_VERIFIED',
   'STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED','STUDY1_ECONSENT_WIZARD_LINK_VERIFIED',
-  'STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED','STUDY1_ECONSENT_LIVE_SHEETS_APPROVED'])
+  'STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED','STUDY1_ECONSENT_LIVE_SHEETS_APPROVED'])
   flags.set(name,enabled?'true':'false');
  flags.set('STUDY1_ECONSENT_BINDING_HMAC_KEY',crypto.randomBytes(40).toString('hex'));
  const book=(id)=>({
@@ -178,7 +178,7 @@ test('Revoking approval between successful reads blocks source rechecks and no r
  const a=h.scope.study1EConsentBindingAdapter_();
  const b=h.scope.study1BindingVerify_(a.readTrustedSnapshot(req),req,doc,new Date().toISOString());
  b.digest=h.scope.study1BindingDigest_({...b,digest:''});
- h.flags.set('STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED','false');
+ h.flags.set('STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED','false');
  assert.throws(()=>h.scope.study1BindingRecheckWithLock_(b,doc,a),/BACKEND_NOT_READY/);
  assert.equal(h.locked.state,false);
  assert.equal(h.registry.records.length,0);
