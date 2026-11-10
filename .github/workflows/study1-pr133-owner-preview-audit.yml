@@ -29,3 +29,4 @@ jobs:
           export CLASPRC_PATH="$RUNNER_TEMP/.clasprc.json"
           node scripts/study1-gas-owner-preview-audit.cjs
           rm -f "$RUNNER_TEMP/.clasprc.json"
+# Preflight only (2026-11-11): run existing read-only remote source, version and private MYSELF audit.
