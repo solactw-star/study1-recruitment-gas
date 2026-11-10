@@ -10,13 +10,12 @@ const req={applicantId:'APP_12345678',screeningId:'SCR_12345678',challengeId:'CH
 const doc={experiment:'E1',sha256:req.documentSha,version:req.documentVersion};
 const ms=Date.now(),stamp=offset=>new Date(ms+offset).toISOString();
 function evidence(){
- return {verified:true,provenance:'REC_APPROVED_IDENTITY_ATTESTATION',
+ return {verified:true,provenance:'STUDY1_E1_SELF_REPORT_OTP_HMAC',
   applicantId:req.applicantId,experiment:req.experiment,consentProcedureApproved:true,
-   age18OrOlderVerified:true,cycuStudentVerified:true,
-   eligibilityEvidenceSource:'REC_APPROVED_ELIGIBILITY_VERIFICATION',
+   emailControlSource:'ORIGINAL_VERIFICATION_FG',
+   eligibilityEvidenceSource:'PARTICIPANT_SELF_REPORT',
    eligibilityEvidenceSha256:'e'.repeat(64),
-  verifierId:'STAFF_SYNTHETIC',approvalReference:'REC-SYNTHETIC-TEST-ONLY',
-  evidenceSha256:'c'.repeat(64),verifiedAtUtc:stamp(-1800000),
+  evidenceSha256:'c'.repeat(64),verifiedAtUtc:stamp(-1500000),
   email:'test@example.org',screeningVersion:'APPROVED_V1',
   screeningId:req.screeningId,reservationId:req.reservationId,
   slotId:req.slotId,challengeId:req.challengeId};
@@ -24,15 +23,15 @@ function evidence(){
 function syntheticTables(){
  return {
   Applicants:{headers:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],
-   rows:[[req.applicantId,'FAKE_TEST','test@example.org','',new Date(ms-7200000),stamp(-600000),'VERIFIED']]},
+   rows:[[req.applicantId,'FAKE_TEST','test@example.org','',new Date(ms-7200000),stamp(-600000),'EMAIL_VERIFIED']]},
   Screenings:{headers:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],
-   rows:[[req.screeningId,req.applicantId,'APPROVED_V1','ELIGIBLE',stamp(-5400000),'STAFF_SYNTHETIC']]},
+   rows:[[req.screeningId,req.applicantId,'APPROVED_V1','ELIGIBLE',stamp(-5400000),'PARTICIPANT_SELF_REPORT']]},
   Verification:{headers:['challenge_id','applicant_id','purpose','otp_hmac','expires_at_utc','attempts','used_at_utc','email','created_at_utc'],
    rows:[[req.challengeId,req.applicantId,'EMAIL_VERIFICATION','b'.repeat(64),
-    stamp(-4200000),1,stamp(-4440000),'test@example.org',stamp(-4800000)]]},
+    stamp(-1200000),1,stamp(-1500000),'test@example.org',stamp(-1800000)]]},
   Reservations:{headers:['reservation_id','applicant_id','slot_id','status','hold_until_utc','idempotency_key','created_at_utc','confirmed_at_utc','cancelled_at_utc','updated_at_utc'],
    rows:[[req.reservationId,req.applicantId,req.slotId,'HELD',stamp(900000),
-    'IDEMPOTENT',stamp(-3600000),'','',stamp(-3550000)]]},
+    'IDEMPOTENT',stamp(-900000),'','',stamp(-850000)]]},
   Slots:{headers:['slot_id','start_at_utc','end_at_utc','capacity','location_code','status','created_by','updated_at_utc'],
    rows:[[req.slotId,stamp(7200000),stamp(10800000),4,'TEST','OPEN','STAFF_SYNTHETIC','']]}
  };
@@ -110,7 +109,7 @@ test('A closed system does not even open real Sheets or request an identity atte
 });
 test('Even with all flags true, missing REC authority blocks all applicant/OTP/booking data reads',()=>{
  const h=harness({enabled:true});
- assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/IDENTITY_SOURCE_NOT_CONFIGURED/);
+ assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED/);
  assert.equal(h.reads.length,0);
  assert.equal(h.lookups.length,0);
 });
@@ -144,15 +143,15 @@ test('Identity swap, experiment swap and source permission errors fail before op
   a=>{a.applicantId='APP_00000000'},
   a=>{a.experiment='E2'},
   a=>{a.verified=false},
-  a=>{a.age18OrOlderVerified=false},
-  a=>{a.cycuStudentVerified=false},
+  a=>{a.emailControlSource='CLIENT_ONLY'},
+  a=>{a.eligibilityEvidenceSource='CLIENT_ASSERTION'},
   a=>{a.eligibilityEvidenceSha256='bad'},
   a=>{a.evidenceSha256='bad'},
   a=>{a.reservationId='RES_00000000'}
  ]){
   const id=evidence();mutation(id);
   const h=harness({enabled:true,approveIdentity:true,identity:id});
-  assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/IDENTITY_EVIDENCE_INVALID/);
+  assert.throws(()=>h.scope.study1EConsentBindingAdapter_().readTrustedSnapshot(req),/SELF_REPORT_EMAIL_OTP_EVIDENCE_INVALID/);
   assert.equal(h.reads.length,0);
  }
 });
