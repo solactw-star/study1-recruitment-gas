@@ -179,10 +179,8 @@ function study1WizardHoldBound_(untrusted){
   r.screeningId,r.experiment,r.slotId,r.documentSha,
   r.documentVersion,r.requestId
  ]);
- const operations=SpreadsheetApp.openById(study1BindingSheetId_('slots'));
- const slots=operations.getSheetByName('Slots');
- const reservations=operations.getSheetByName('Reservations');
- if(!slots||!reservations)throw Error('正式時段及預約表不存在');
+ // No booking Sheet open until the same locked applicant/OTP proof exists.
+ let operations=null,slots=null,reservations=null;
  let last=null,proof=null,slotSha=null;
  const recheck=()=>{
   study1WizardP0Gate_();study1WizardDocument_(r);
@@ -197,6 +195,10 @@ function study1WizardHoldBound_(untrusted){
   isVerifiedAndEligible:applicantId=>{
    if(applicantId!==r.applicantId)return false;
    recheck();
+   operations=SpreadsheetApp.openById(study1BindingSheetId_('slots'));
+   slots=operations.getSheetByName('Slots');
+   reservations=operations.getSheetByName('Reservations');
+   if(!slots||!reservations)throw Error('正式時段及預約表不存在');
    const row=study1BindingSheetRow_(operations,'Slots',
      BOOKING_SLOT_HEADERS_,r.slotId).rows[0];
    slotSha=study1WizardSlotCheck_(r,row);
