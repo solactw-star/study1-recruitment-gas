@@ -529,3 +529,81 @@ function study1OwnerE1SlotAudit(){
    rows};
  }finally{lock.releaseLock();}
 }
+
+/**
+ * §70-S.21: make a NON-ACTIVATING E1/E2 proposal for PI review.
+ * Read the original Slots sheet twice under the owner lock. It is impossible
+ * to propose a real slot when the source has header only, and nothing is
+ * written to Slots, Properties or registry. Client classification is NEVER
+ * treated as approval, even though the candidate is HMAC-addressed.
+ */
+function study1OwnerE1SlotRegistryProposal(input){
+ study1AdminOwnerRequired_();
+ if(!input||Array.isArray(input)||typeof input!=='object'||
+    Object.keys(input).sort().join(',')!=='decisions'||
+    !Array.isArray(input.decisions)||input.decisions.length>1000)
+  throw Error('SLOT_PROPOSAL_REQUEST_INVALID');
+ const decisions=input.decisions;
+ const ids=new Set();
+ for(const d of decisions){
+  if(!d||Array.isArray(d)||typeof d!=='object'||
+     Object.keys(d).sort().join(',')!=='experiment,slotId'||
+     !['E1','E2'].includes(d.experiment))
+   throw Error('SLOT_PROPOSAL_DECISION_INVALID');
+  study1BindingId_(d.slotId);
+  if(ids.has(d.slotId))throw Error('SLOT_PROPOSAL_DUPLICATE_DECISION');
+  ids.add(d.slotId);
+ }
+ const lock=LockService.getScriptLock();
+ if(!lock||typeof lock.tryLock!=='function'||lock.tryLock(5000)!==true)
+  throw Error('SLOT_PROPOSAL_LOCK_BUSY');
+ try{
+  if(lock.hasLock()!==true)throw Error('SLOT_PROPOSAL_LOCK_LOST');
+  study1AdminOwnerRequired_();
+  const book=SpreadsheetApp.openById(study1BindingSheetId_('slots'));
+  if(!book||typeof book.getId!=='function'||
+     book.getId()!=='1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ')
+   throw Error('SLOT_PROPOSAL_ORIGINAL_SOURCE_MISMATCH');
+  const first=bookingReadOnlyTab_(book,'Slots',BOOKING_SLOT_HEADERS_);
+  const second=bookingReadOnlyTab_(book,'Slots',BOOKING_SLOT_HEADERS_);
+  if(!bookingReadOnlySameTab_(first,second))
+   throw Error('SLOT_PROPOSAL_READ_DRIFT');
+  const sourceIds=new Set();
+  for(const r of first.rows){
+   if(!Array.isArray(r)||r.length!==8)
+    throw Error('SLOT_PROPOSAL_ROW_INVALID');
+   study1BindingId_(r[0]);
+   if(sourceIds.has(r[0]))throw Error('SLOT_PROPOSAL_SOURCE_DUPLICATE');
+   sourceIds.add(r[0]);
+  }
+  if(!first.rows.length){
+   if(decisions.length)throw Error('SLOT_PROPOSAL_NO_ORIGINAL_ROWS');
+   return {status:'BLOCKED_NO_OFFICIAL_SLOTS',sourceId:book.getId(),
+    sourceRows:0,proposalEntries:[],registryJson:null,
+    registryHmac:null,approved:false,scriptPropertiesChanged:false};
+  }
+  if(decisions.some(d=>!sourceIds.has(d.slotId)))
+   throw Error('SLOT_PROPOSAL_UNMAPPED_DECISION');
+  const props=PropertiesService.getScriptProperties();
+  if(!props||typeof props.getProperty!=='function')
+   throw Error('SLOT_PROPOSAL_HMAC_NOT_CONFIGURED');
+  const selected=new Map(decisions.map(d=>[d.slotId,d.experiment]));
+  const proposals=first.rows.filter(r=>selected.has(r[0])).map(r=>({
+   slotId:r[0],experiment:selected.get(r[0]),
+   slotRowSha256:study1BindingHmac_(['STUDY1_E1_ORIGINAL_SLOT_ROW_V1',...r])
+  }));
+  proposals.sort((a,b)=>a.slotId.localeCompare(b.slotId));
+  if(!proposals.length)
+   return {status:'PI_DECISIONS_REQUIRED',sourceId:book.getId(),
+    sourceRows:first.rows.length,proposalEntries:[],registryJson:null,
+    registryHmac:null,approved:false,scriptPropertiesChanged:false};
+  const raw=JSON.stringify(proposals);
+  const mac=study1BindingHmac_(['STUDY1_E1_SLOT_REGISTRY_V1',raw]);
+  if(lock.hasLock()!==true)throw Error('SLOT_PROPOSAL_LOCK_LOST');
+  return {status:'PI_REVIEW_CANDIDATE_ONLY',sourceId:book.getId(),
+   sourceRows:first.rows.length,proposalEntries:proposals,
+   registryJson:raw,registryHmac:mac,approved:false,
+   scriptPropertiesChanged:false,needPiIndependentApproval:true,
+   note:'原列HMAC候選，非PI核定；本函式絕不修改登錄或開啟E1/E2'};
+ }finally{lock.releaseLock();}
+}
