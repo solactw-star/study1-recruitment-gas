@@ -899,10 +899,19 @@ function study1EConsentCopy(token){
  const confirmed=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION');
  const withdrawn=entry.withdrawal?
   study1EConsentEvent_(entry.withdrawal,entry,'WITHDRAWAL'):null;
+ // The participant's own existing consent-copy workflow must contain the
+ // FULL stamped PDF, not only a receipt with detached PNG. Keep legacy
+ // synthetic-only tests untouched while the actual enrollment provider is OFF.
+ const complete=entry.signedPdf?study1EConsentSignedPdfCopy(token):null;
  return {state:entry.state,experiment:entry.experiment,version:entry.documentVersion,
   documentSha256:entry.documentSha,signatureEvidenceSha256:entry.signature.sha,
   confirmationEvidenceSha256:entry.confirmation.sha,participant:signed.data.name,
-  signaturePngBase64:signed.data.signaturePngBase64,signedAt:signed.recordedAt,
+  signaturePngBase64:signed.data.signaturePngBase64,
+  signedAt:complete?complete.signedAt:signed.recordedAt,
+  taipeiDate:complete?.taipeiDate||null,
+  signedPdfSha256:complete?.signedPdfSha256||null,
+  signedPdfBase64:complete?.base64||null,
+  signedPdfMime:complete?.mime||null,
   reviewer:confirmed.data.reviewerEmail,confirmedAt:confirmed.recordedAt,
   withdrawalAt:withdrawn?.recordedAt||null,withdrawalEvidenceSha256:entry.withdrawal?.sha||null};
 }
