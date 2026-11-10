@@ -1314,16 +1314,25 @@ function study1EConsentSignedPdfCopy(token){
  const confirmation=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION');
  if(confirmation.data.signatureHash!==entry.signature.sha)
   throw Error('PDF、本人簽名及研究人員確認事件未能一致核對');
+ const researcherPreSigned=entry.channel==='FORMAL_E1'&&entry.researcherPresigned===true;
  if(entry.channel==='FORMAL_E1'){
   if(!entry.participantSignedPdf||
      entry.participantSignedPdf.sha!==event.data.signedPdfSha256||
      confirmation.data.participantSignedPdfSha256!==entry.participantSignedPdf.sha||
-     confirmation.data.researcherSignedPdfSha256!==entry.signedPdf.sha||
-     typeof confirmation.data.researcherSignedAt!=='string'||
+     confirmation.data.researcherSignedPdfSha256!==entry.signedPdf.sha)
+   throw Error('FORMAL_DUAL_PDF_EVIDENCE_MISMATCH');
+  if(researcherPreSigned){
+   // The researcher's actual signature is ALREADY in the immutable uploaded
+   // source PDF; a second researcher timestamp or online signature is false.
+   if(entry.participantSignedPdf.id!==entry.signedPdf.id||
+      confirmation.data.mode!=='RESEARCHER_PRESIGNED_SOURCE'||
+      confirmation.data.researcherSignedSourceSha256!==entry.documentSha)
+    throw Error('FORMAL_PRESIGNED_PDF_SOURCE_EVIDENCE_INVALID');
+  }else if(typeof confirmation.data.researcherSignedAt!=='string'||
      confirmation.data.researcherTaipeiDate!==study1PdfTaipeiDate_(
       new Date(confirmation.data.researcherSignedAt))||
      !/^[a-f0-9]{64}$/.test(confirmation.data.researcherSignaturePngSha256||''))
-   throw Error('FORMAL_DUAL_PDF_EVIDENCE_MISMATCH');
+    throw Error('FORMAL_DUAL_PDF_EVIDENCE_MISMATCH');
   study1EConsentSignedPdfRead_(entry.participantSignedPdf,entry);
  }else if(event.data.signedPdfSha256!==entry.signedPdf.sha)
   throw Error('舊簽署PDF來源與研究員確認未一致');
@@ -1332,23 +1341,29 @@ function study1EConsentSignedPdfCopy(token){
  // before releasing a purportedly dual-signed copy. The PDF SHA alone cannot
  // detect a corrupted or re-linked timestamp evidence record.
  if(entry.channel==='FORMAL_E1'){
-  const participantAt=new Date(event.data.serverSignedAt),
-   researcherAt=new Date(confirmation.data.researcherSignedAt);
+  const participantAt=new Date(event.data.serverSignedAt);
   if(!Number.isFinite(participantAt.getTime())||
-     !Number.isFinite(researcherAt.getTime())||
      participantAt.toISOString()!==event.data.serverSignedAt||
-     researcherAt.toISOString()!==confirmation.data.researcherSignedAt||
-     researcherAt.getTime()<participantAt.getTime()||
-     event.data.taipeiDate!==study1PdfTaipeiDate_(participantAt)||
-     confirmation.data.researcherTaipeiDate!==study1PdfTaipeiDate_(researcherAt))
+     event.data.taipeiDate!==study1PdfTaipeiDate_(participantAt))
    throw Error('FORMAL_DUAL_PDF_CHRONOLOGY_INVALID');
+  if(!researcherPreSigned){
+   const researcherAt=new Date(confirmation.data.researcherSignedAt);
+   if(!Number.isFinite(researcherAt.getTime())||
+      researcherAt.toISOString()!==confirmation.data.researcherSignedAt||
+      researcherAt.getTime()<participantAt.getTime()||
+      confirmation.data.researcherTaipeiDate!==study1PdfTaipeiDate_(researcherAt))
+    throw Error('FORMAL_DUAL_PDF_CHRONOLOGY_INVALID');
+  }
  }
  const bytes=study1EConsentSignedPdfRead_(entry.signedPdf,entry);
  return {experiment:entry.experiment,version:entry.documentVersion,
   sourceSha256:entry.documentSha,signedPdfSha256:entry.signedPdf.sha,
   signedAt:event.data.serverSignedAt,taipeiDate:event.data.taipeiDate,
-  researcherSignedAt:entry.channel==='FORMAL_E1'?confirmation.data.researcherSignedAt:null,
-  researcherTaipeiDate:entry.channel==='FORMAL_E1'?confirmation.data.researcherTaipeiDate:null,
+  researcherSignedAt:entry.channel==='FORMAL_E1'&&!researcherPreSigned?
+   confirmation.data.researcherSignedAt:null,
+  researcherTaipeiDate:entry.channel==='FORMAL_E1'&&!researcherPreSigned?
+   confirmation.data.researcherTaipeiDate:null,
+  researcherPreSigned,
   participantSignedPdfSha256:entry.channel==='FORMAL_E1'?entry.participantSignedPdf.sha:null,
   dualSigned:entry.channel==='FORMAL_E1',
   base64:Utilities.base64Encode(bytes),mime:'application/pdf',
