@@ -40,7 +40,8 @@ function simulate(readiness){
     challengeId:req.challengeId,screeningId:req.screeningId}}),
   study1ParticipantEmailStatus:req=>({
    emailVerified:true,eligibilitySource:'PARTICIPANT_SELF_REPORT',applicationState:'SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED',
-   reservationState:'NOT_AUTHORIZED',consentState:'NOT_SIGNED'})
+   reservationState:'NOT_AUTHORIZED',consentState:'NOT_SIGNED'}),
+  study1FormalV05Slots:req=>({experiment:'E1',slots:[]})
  };
  const runner={
   withFailureHandler(cb){this.failure=cb;return this},
@@ -122,10 +123,11 @@ test('Synthetic browser: gated seven-stage E1 intake -> human token -> email pro
  assert.equal(s.click('otpVerify'),true);
  assert.equal(s.calls.some(x=>x.method==='study1ParticipantVerifyOtp'),true);
  assert.equal(s.calls.some(x=>x.method==='study1ParticipantEmailStatus'),true);
+ assert.equal(s.calls.some(x=>x.method==='study1FormalV05Slots'),true);
  assert.equal(s.node('step-slots').hidden,false);
- assert.equal(s.node('hold').hidden,true,'no unapproved formal slot to book');
+ assert.equal(s.node('hold').disabled,true,'no verified formal slot to book');
  assert.equal(s.node('step-consent').hidden,true,'no remote PDF signature ahead of independent identity');
- assert.match(s.node('status').textContent,/資格勾選已依本人自陳紀錄/);
+ assert.match(s.node('status').textContent,/目前沒有已核實可選的E1場次/);
  assert.equal(s.calls.some(x=>/UnifiedPreview|SIMULATED/.test(x.method)),false);
 });
 test('Synthetic browser: Turnstile token expires and cannot be implicitly reused',()=>{
