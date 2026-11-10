@@ -300,6 +300,20 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  assert.equal(sha(Buffer.from(copy.base64,'base64')),result.signedPdfSha256);
  assert.equal(copy.researcherTaipeiDate,result.researcherTaipeiDate);
  assert.equal(copy.sourceSha256,h.doc.sha256);
+ // Even a hash-valid complete PDF must not be delivered if the participant
+ // signing event were internally re-linked to a later server instant.
+ const originalEvent=h.scope.study1EConsentEvent_;
+ h.scope.study1EConsentEvent_=(ref,entry,kind)=>{
+  const evt=originalEvent(ref,entry,kind);
+  if(kind!=='SIGNATURE')return evt;
+  return {...evt,data:{...evt.data,
+   serverSignedAt:'2030-01-01T00:00:00.000Z',taipeiDate:'2030/01/01'}};
+ };
+ assert.throws(()=>h.scope.study1EConsentSignedPdfCopy(issued.token),
+  /FORMAL_DUAL_PDF_CHRONOLOGY_INVALID/);
+ h.scope.study1EConsentEvent_=originalEvent;
+ assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,
+  result.signedPdfSha256);
  const pdf=await PDFLib.PDFDocument.load(Buffer.from(copy.base64,'base64'));
  assert.equal(pdf.getPageCount(),5,'all REC PDF pages must be preserved');
  assert.equal(sha(h.files.get(h.originalId).bytes),h.doc.sha256);
