@@ -131,6 +131,18 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <section class="step" id="step-consent" hidden><span class="tag">STEP 06 · 最後階段：PDF與簽署</span><h2>最後閱讀完整同意書並本人簽署</h2>
 <p class="lead" id="consentStudyTitle">完成資格、身分與聯絡驗證、時段和資料核對後，最後才顯示對應實驗的知情同意文件。</p>
 <div class="box warn"><strong>文件用途聲明</strong><p>目前只有「虛構的 PDF 示例」，不是倫理審查核准的正式研究參與同意書。下方的確認不是法律或研究上有效的電子簽署。</p></div>
+<div class="box" id="officialConsentRead" aria-label="最後報名階段正式PDF原文核對">
+ <strong>實驗一／實驗二｜研究團隊已公開的完整原版 PDF</strong>
+ <p id="officialPdfStatus" class="help" role="status" aria-live="polite">完成前面的資格、聯絡、身分與時段核對後，才會讀取所選實驗的文件。此處不會送出任何同意或簽名。</p>
+ <dl><dt>文件名稱</dt><dd id="officialPdfTitle">尚未核實</dd>
+ <dt>正式文件版號</dt><dd id="officialPdfVersion">尚未核實</dd>
+ <dt>原始 SHA-256</dt><dd id="officialPdfSha">尚未核實</dd></dl>
+ <a id="officialPdfDownload" class="pdf" hidden download="Study1_Consent_Original.pdf" rel="noopener">下載已核對原版PDF（未簽署）</a>
+ <object id="officialPdfViewer" type="application/pdf" width="100%" height="520" hidden aria-label="經SHA核對的完整版原始知情同意PDF">
+  <p>瀏覽器無法內嵌顯示PDF時，請使用上方的原文下載連結完整閱讀。</p>
+ </object>
+ <p class="help">原始PDF不包含此處的手寫簽名。正式提交須另生成完整簽署PDF及獨立SHA；目前尚未開放真人簽名及收件。</p>
+</div>
 <a id="pdf" class="pdf" href="#" download="Study1_Sample_Not_REC.pdf" rel="noopener">查看示範 PDF 文件</a>
 <label class="check"><input id="readPdf" type="checkbox"><span>我已開啟範例並了解這份文件不是正式 REC 同意書</span></label>
 <div class="actionrow"><button id="review" type="button">確認已閱讀範例</button></div>
@@ -222,6 +234,93 @@ previewCanvas.addEventListener('pointercancel',endPreviewStroke_);
 $('visitorSignatureClear').addEventListener('click',()=>{clearVisitorSignature_();render();});
 function runnableOwnerPreview_(data){return !!data&&data.mode==='TEST'&&
  data.open===false&&data.consentReady===false&&data.pdfFixture?.kind==='SIMULATED_PDF_NOT_REC';}
+
+/** §70-S: owner-only wizard; read exact published E1/E2 PDF at LAST stage.
+ * The original file is fetched via existing SHA-verified source RPC; neither
+ * PDF bytes nor a signature are written to application/TEST storage. */
+const officialPdf={key:null,experiment:null,state:'idle',url:null,meta:null};
+function officialPdfReset_(message){
+ if(officialPdf.url&&typeof URL!=='undefined'&&URL.revokeObjectURL)
+  URL.revokeObjectURL(officialPdf.url);
+ officialPdf.url=null;officialPdf.meta=null;officialPdf.state='idle';
+ for(const [id,value] of [['officialPdfTitle','尚未核實'],
+  ['officialPdfVersion','尚未核實'],['officialPdfSha','尚未核實']])
+  $(id).textContent=value;
+ $('officialPdfViewer').hidden=true;
+ $('officialPdfViewer').removeAttribute('data');
+ $('officialPdfDownload').hidden=true;
+ $('officialPdfDownload').removeAttribute('href');
+ $('officialPdfStatus').textContent=message||'正式PDF尚未核實，不能視為電子知情同意';
+}
+function officialPdfVerify_(doc,exp){
+ if(!doc||doc.available!==true||doc.experiment!==exp||
+   doc.mime!=='application/pdf'||!Number.isSafeInteger(doc.bytes)||
+   doc.bytes<100||doc.bytes>3000000||
+   typeof doc.base64!=='string'||doc.base64.length>4200000||
+   typeof doc.sha256!=='string'||!/^[a-f0-9]{64}$/.test(doc.sha256)||
+   typeof doc.title!=='string'||!doc.title.trim()||doc.title.length>100||
+   typeof doc.version!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(doc.version))
+  throw Error('正式文件來源、實驗、版號或SHA格式不正確');
+ const binary=atob(doc.base64),bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+ if(bytes.length!==doc.bytes||String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('正式PDF位元組長度或檔頭不一致');
+ if(!window.crypto||!window.crypto.subtle)
+  throw Error('瀏覽器缺少SHA-256驗證能力，禁止顯示未驗證文件');
+ return window.crypto.subtle.digest('SHA-256',bytes).then(digest=>{
+  const hash=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  if(hash!==doc.sha256)throw Error('原文件SHA-256校驗失敗');
+  return {bytes,hash,version:doc.version,title:doc.title,experiment:exp};
+ });
+}
+function officialPdfLoadAfterReview_(a){
+ const key=holdFingerprint_(a);
+ if(!key||reviewedHoldKey!==key||a.phase!=='HELD')return;
+ if(officialPdf.key===key&&officialPdf.experiment===a.experiment&&
+   ['loading','ready','unavailable'].includes(officialPdf.state))return;
+ officialPdfReset_('正在核對所選實驗的完整原始PDF與SHA-256…');
+ officialPdf.key=key;officialPdf.experiment=a.experiment;
+ officialPdf.state='loading';
+ if(typeof window==='undefined'||!window.crypto||!window.crypto.subtle||
+    typeof google==='undefined'||!google.script||
+    !google.script.run||typeof google.script.run.getPublicConsentDocument!=='function'){
+   officialPdf.state='unavailable';
+   $('officialPdfStatus').textContent='無法確認正式PDF的安全讀取服務；原隔離測試報名仍與正式電子同意完全分開。';
+   return;
+ }
+ const exp=a.experiment;
+ google.script.run.withSuccessHandler(async doc=>{
+  if(officialPdf.key!==key||officialPdf.experiment!==exp||
+     reviewedHoldKey!==key||holdFingerprint_(current())!==key)return;
+  try{
+   if(doc&&doc.available===false){
+    officialPdf.state='unavailable';
+    $('officialPdfStatus').textContent='研究團隊尚未明確發布此實驗的完整版核准PDF；不能簽署正式同意。';
+    return;
+   }
+   const verified=await officialPdfVerify_(doc,exp);
+   if(officialPdf.key!==key||reviewedHoldKey!==key||
+      holdFingerprint_(current())!==key)return;
+   const url=URL.createObjectURL(new Blob([verified.bytes],{type:'application/pdf'}));
+   officialPdf.url=url;officialPdf.meta=verified;officialPdf.state='ready';
+   $('officialPdfTitle').textContent=verified.title;
+   $('officialPdfVersion').textContent=verified.version;
+   $('officialPdfSha').textContent=verified.hash;
+   $('officialPdfDownload').href=url;
+   $('officialPdfDownload').download='Study1_'+exp+'_'+verified.version+'_original.pdf';
+   $('officialPdfDownload').hidden=false;
+   $('officialPdfViewer').data=url;$('officialPdfViewer').hidden=false;
+   $('officialPdfStatus').textContent='已依原版位元組核對SHA-256；僅供原文閱讀，尚未建立有效簽名或已簽署PDF。';
+  }catch(error){
+   officialPdf.state='unavailable';
+   officialPdfReset_('原文件未通過驗證：'+String(error.message||error));
+  }
+ }).withFailureHandler(error=>{
+  if(officialPdf.key!==key)return;
+  officialPdf.state='unavailable';
+  $('officialPdfStatus').textContent='無法取得該實驗的正式PDF：'+String(error.message||error);
+ }).getPublicConsentDocument(exp);
+}
+
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
 const v08={draft:null};
  const v07={blocked:false,recovering:false,last:null,generation:0,causalUnknown:false,retiredRequestId:null};
@@ -480,6 +579,10 @@ function render(){
  const a=current(),stage=chooseStage(),progress=Math.max(0,phases.indexOf(stage));
  const currentInkKey=holdFingerprint_(a);
  if(previewInkKey!==currentInkKey){previewInkKey=currentInkKey;clearVisitorSignature_();}
+ if(officialPdf.key&&officialPdf.key!==currentInkKey){
+  officialPdfReset_('原身分、時段或文件版本已改變；請重新核對資料才可讀取正式PDF。');
+  officialPdf.key=null;officialPdf.experiment=null;
+ }
  const legacy='Study 1｜正式網站整合流程（測試資料模式）';
  if(model.config&&typeof model.config.title==='string'&&model.config.title!==legacy)
   $('visitorHeroTitle').textContent=model.config.title;
@@ -1224,6 +1327,7 @@ $('confirm').addEventListener('click',()=>{
  const a=current();
  if(busy||v07.blocked||!a||a.phase!=='HELD'||!v06Preview_(model,a))return;
  reviewedHoldKey=holdFingerprint_(a);clearVisitorSignature_();render();
+ officialPdfLoadAfterReview_(a);
 });
 $('move').addEventListener('click',()=>v08Preview_('MOVE'));
 $('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
