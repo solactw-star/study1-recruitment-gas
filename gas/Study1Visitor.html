@@ -60,6 +60,9 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 .v05SlotCard small{font-size:13px;font-weight:400}
 @media(max-width:540px){.v05SlotCards{grid-template-columns:1fr}.v05MonthBar{gap:5px}.v05MonthBar button{padding:7px}.v05Calendar{padding:8px}.v05Grid{gap:2px}.v05Day{font-size:13px}}
 @media(max-width:700px){.two{grid-template-columns:1fr}.shell{padding:0 12px 40px}.maincard{padding:20px}.study-card{min-height:0}dl{grid-template-columns:95px 1fr}nav{align-items:flex-start}}
+
+/* §70-S private-only handwriting UI; no signature bytes are sent to GAS. */
+#visitorSignaturePreview{display:block;width:100%;max-width:700px;height:160px;background:#fff;border:2px dashed #9bbfba;border-radius:10px;touch-action:none;user-select:none}
 </style>
 </head>
 <body>
@@ -113,27 +116,34 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
  <p id="v08WaitStatus" class="help" role="status">候補來源尚未核實。</p>
 </div>
 <p class="help">未列出的日期不代表沒有申請者。若來源或日期異常，所有選擇會停用；虛構操作不會占用正式研究名額。</p></section>
-<section class="step" id="step-consent" hidden><span class="tag">STEP 05 · 同意說明</span><h2>了解研究與參與者權益</h2>
-<p class="lead" id="consentStudyTitle">您正在體驗研究同意程序。</p>
-<div class="box warn"><strong>文件用途聲明</strong><p>目前只有「虛構的 PDF 示例」，不是倫理審查核准的正式研究參與同意書。下方的確認不是法律或研究上有效的電子簽署。</p></div>
-<a id="pdf" class="pdf" href="#" download="Study1_Sample_Not_REC.pdf" rel="noopener">查看示範 PDF 文件</a>
-<label class="check"><input id="readPdf" type="checkbox"><span>我已開啟範例並了解這份文件不是正式 REC 同意書</span></label>
-<div class="actionrow"><button id="review" type="button">確認已閱讀範例</button></div>
-<label class="check"><input id="agree" type="checkbox"><span>我了解此為虛構角色的報名示範，不會留下真實簽名或產生正式報名</span></label>
-<div class="actionrow"><button id="finish" type="button" disabled>確認並完成示範報名</button></div>
-<p class="help" id="consentStatus">請先開啟並確認範例文件。</p></section>
-<section class="step" id="step-confirm" hidden><span class="tag">STEP 06 · 報名確認</span><h2>最後確認示範預約</h2>
-<p>請確認目前的虛構研究、臺灣場次時間、預約方式及示範同意狀態。這不是有效的正式預約、驗證信箱或REC同意書；提交時原GAS仍會重新檢查版本、時段及容量。</p>
+<section class="step" id="step-confirm" hidden><span class="tag">STEP 05 · 報名資料核對</span><h2>簽署前請核對研究與預約資料</h2>
+<p>這一步只核對研究項目、聯絡驗證狀態與臺灣場次時間，不會在此簽署、提交或成立預約。核對完成後，才會進入最後的完整PDF與本人簽名步驟；目前仍是OWNER隔離測試資料。</p>
 <dl id="v06Summary" class="box" aria-label="示範預約最後確認">
  <dt>研究項目</dt><dd id="v06Study">尚未確認</dd>
  <dt>場次日期</dt><dd id="v06Date">尚未確認</dd>
  <dt>開始時間（臺灣）</dt><dd id="v06Time">尚未確認</dd>
  <dt>參與方式／地點</dt><dd id="v06Place">尚未核准正式資訊</dd>
  <dt>示範聯絡方式</dt><dd id="v06Email">demo.study1@example.invalid（不寄信）</dd>
- <dt>同意紀錄</dt><dd id="v06Consent">只有虛構同意，非REC正式簽署</dd>
+ <dt>同意狀態</dt><dd id="v06Consent">尚未簽署，核對後才進入最終階段</dd>
 </dl>
 <p id="v06Status" class="help" role="status" aria-live="polite">正在核對虛構預約來源。</p>
-<button id="confirm" type="button" disabled>確認這筆虛構預約</button></section>
+<button id="confirm" type="button" disabled>資料正確，前往最後PDF與簽名步驟</button></section>
+<section class="step" id="step-consent" hidden><span class="tag">STEP 06 · 最後階段：PDF與簽署</span><h2>最後閱讀完整同意書並本人簽署</h2>
+<p class="lead" id="consentStudyTitle">完成資格、身分與聯絡驗證、時段和資料核對後，最後才顯示對應實驗的知情同意文件。</p>
+<div class="box warn"><strong>文件用途聲明</strong><p>目前只有「虛構的 PDF 示例」，不是倫理審查核准的正式研究參與同意書。下方的確認不是法律或研究上有效的電子簽署。</p></div>
+<a id="pdf" class="pdf" href="#" download="Study1_Sample_Not_REC.pdf" rel="noopener">查看示範 PDF 文件</a>
+<label class="check"><input id="readPdf" type="checkbox"><span>我已開啟範例並了解這份文件不是正式 REC 同意書</span></label>
+<div class="actionrow"><button id="review" type="button">確認已閱讀範例</button></div>
+<div class="box" id="visitorSignaturePreviewBox" aria-label="最後階段本人手寫簽名的隔離操作預覽">
+<strong>本人手寫簽名窗格｜原私人流程回歸測試</strong>
+<p class="help">請使用滑鼠、手指或觸控筆親自書寫。這個隔離測試畫布不會上傳簽名、不會產生有效電子同意，也不會修改正式PDF。正式版必須將影像寫入原PDF的研究參與者欄位，並以可信伺服器時間自動填入簽名當天的臺灣日期。</p>
+<canvas id="visitorSignaturePreview" width="700" height="160" aria-label="本人手寫簽名預覽畫布，隔離測試不保存筆跡"></canvas>
+<div class="actionrow"><button type="button" class="ghost" id="visitorSignatureClear">清除筆跡，重新簽署</button></div>
+<p class="help" id="visitorSignatureStatus" role="status">尚未手寫簽名。此預覽不是REC有效簽署。</p>
+</div>
+<label class="check"><input id="agree" type="checkbox"><span>我了解此為虛構角色的報名示範，不會留下真實簽名或產生正式報名</span></label>
+<div class="actionrow"><button id="finish" type="button" disabled>確認並完成示範報名</button></div>
+<p class="help" id="consentStatus">請先開啟並確認範例文件。</p></section>
 <section class="step" id="step-done" hidden><div class="receipt"><span class="tag">已完成示範</span><h2 id="doneHeading">報名流程已完成</h2>
 <p>您已成功體驗與參與者相同的報名、初篩、驗證、預約與同意操作。</p>
 <dl><dt>申請編號</dt><dd id="receiptId">—</dd><dt>研究項目</dt><dd id="receiptStudy">—</dd><dt>預約時段</dt><dd id="receiptSlot">—</dd><dt>通知狀態</dt><dd>示範通知已產生，未發送真實郵件</dd></dl>
@@ -170,7 +180,45 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 (function(){
 'use strict';
 const $=id=>document.getElementById(id);
-const phases=['choose','screen','otp','slots','consent','confirm','done'];
+const phases=['choose','screen','otp','slots','confirm','consent','done'];
+// §70-S: keep original seven-stage TEST adapters and existing reservation model;
+// the pre-signature summary is a read-only UI stage, not a server CONFIRM.
+let reviewedHoldKey=null,previewInk=false,previewDrawing=false,previewInkKey=null;
+const holdFingerprint_=a=>a&&a.phase==='HELD'?
+ [a.id,a.experiment,a.slotId,a.holdUntil,a.consentVersion,a.consentSha256].join('|'):null;
+const previewCanvas=$('visitorSignaturePreview'),previewCtx=previewCanvas.getContext('2d');
+previewCtx.strokeStyle='#173944';previewCtx.lineWidth=2.5;previewCtx.lineCap='round';previewCtx.lineJoin='round';
+function clearVisitorSignature_(){
+ previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+ previewInk=false;previewDrawing=false;
+ $('visitorSignatureStatus').textContent='尚未手寫簽名。此預覽不是REC有效簽署。';
+}
+const previewPoint_=event=>{
+ const r=previewCanvas.getBoundingClientRect();
+ return {x:(event.clientX-r.left)*previewCanvas.width/r.width,
+         y:(event.clientY-r.top)*previewCanvas.height/r.height};
+};
+previewCanvas.addEventListener('pointerdown',event=>{
+ const a=current();
+ if(busy||!model||!a||chooseStage()!=='consent'||
+   reviewedHoldKey!==holdFingerprint_(a)||!runnableOwnerPreview_(model))return;
+ event.preventDefault();
+ previewDrawing=true;previewCanvas.setPointerCapture(event.pointerId);
+ const p=previewPoint_(event);previewCtx.beginPath();previewCtx.moveTo(p.x,p.y);
+ previewCtx.lineTo(p.x+.2,p.y+.2);previewCtx.stroke();previewInk=true;
+});
+previewCanvas.addEventListener('pointermove',event=>{
+ if(!previewDrawing)return;event.preventDefault();
+ const p=previewPoint_(event);previewCtx.lineTo(p.x,p.y);previewCtx.stroke();
+});
+const endPreviewStroke_=()=>{if(previewDrawing){previewDrawing=false;
+ $('visitorSignatureStatus').textContent='已完成本機手寫預覽。尚未存入PDF或形成有效電子同意。';
+ render();}};
+previewCanvas.addEventListener('pointerup',endPreviewStroke_);
+previewCanvas.addEventListener('pointercancel',endPreviewStroke_);
+$('visitorSignatureClear').addEventListener('click',()=>{clearVisitorSignature_();render();});
+function runnableOwnerPreview_(data){return !!data&&data.mode==='TEST'&&
+ data.open===false&&data.consentReady===false&&data.pdfFixture?.kind==='SIMULATED_PDF_NOT_REC';}
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
 const v08={draft:null};
  const v07={blocked:false,recovering:false,last:null,generation:0,causalUnknown:false,retiredRequestId:null};
@@ -229,8 +277,8 @@ const chooseStage=()=>{
   case 'INELIGIBLE':return 'ineligible';
   case 'SCREENED':case 'OTP_SENT':return 'otp';
   case 'VERIFIED':return 'slots';
-  case 'HELD':return 'consent';
-  case 'CONSENTED':return 'confirm';
+  case 'HELD':return reviewedHoldKey===holdFingerprint_(a)?'consent':'confirm';
+  case 'CONSENTED':return 'consent';
   case 'CONFIRMED':case 'CANCELLED':return 'done';
   default:return 'choose';
  }
@@ -381,10 +429,9 @@ $('slot').addEventListener('change',()=>{
 /* V06 confirmation summary never authorizes a real participant booking.
  * Only the server-owned, owner-only TEST view supplies these values. */
 function v06Preview_(response,a){
- if(!safePreview(response)||!a||a.phase!=='CONSENTED'||
+ if(!safePreview(response)||!a||a.phase!=='HELD'||
     !['E1','E2'].includes(a.experiment)||a.eligible!==true||
-    a.signatureDemo!==true||!Number.isFinite(a.consentReviewedAt)||
-    a.consentReviewedAt<=0||a.holdExpired!==false||
+    a.holdExpired!==false||
     !Number.isFinite(a.holdUntil)||a.holdUntil<=Date.now()||
     a.consentVersion!==response.policy?.consent?.[a.experiment]?.version||
     a.consentSha256!==response.policy?.consent?.[a.experiment]?.sha256)
@@ -409,7 +456,7 @@ function v06Preview_(response,a){
   place:session&&typeof session.place==='string'&&session.place.trim()?
    '虛構場次地點：'+session.place:'虛構場次；正式參與方式／地點待核准',
   email:'demo.study1@example.invalid（不寄信）',
-  consent:'已記錄虛構同意；非REC正式電子簽署'};
+  consent:'尚未簽署；下一步才進入最後的知情同意'};
 }
 function v06Render_(){
  const values=v06Preview_(model,current());
@@ -420,14 +467,16 @@ function v06Render_(){
  $('v06Email').textContent=values?.email||'無法核實';
  $('v06Consent').textContent=values?.consent||'無法核實';
  $('v06Status').textContent=values?
-  '已核對同一份虛構申請與時段；提交時仍由原GAS再次確認。':
+  '已核對同一份虛構申請與時段；按下一步只進入最後的PDF與簽名，尚不送出預約。':
   '預約場次、同意紀錄或來源版本無法核實；禁止提交，請重新載入。';
- $('confirm').disabled=busy||!values;
+ $('confirm').disabled=busy||!values||current()?.phase!=='HELD'||v07.blocked;
 }
 
 function render(){
  if(!model)return;
  const a=current(),stage=chooseStage(),progress=Math.max(0,phases.indexOf(stage));
+ const currentInkKey=holdFingerprint_(a);
+ if(previewInkKey!==currentInkKey){previewInkKey=currentInkKey;clearVisitorSignature_();}
  const legacy='Study 1｜正式網站整合流程（測試資料模式）';
  if(model.config&&typeof model.config.title==='string'&&model.config.title!==legacy)
   $('visitorHeroTitle').textContent=model.config.title;
@@ -470,8 +519,9 @@ function render(){
  $('v08Refresh').disabled=busy||v07.blocked||
   !['CONFIRMED','CANCELLED'].includes(a.phase);
  $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
- $('review').disabled=busy||!$('readPdf').checked||!!a.consentReviewedAt;
- $('finish').disabled=busy||!a.consentReviewedAt||!$('agree').checked;
+ $('review').disabled=busy||stage!=='consent'||!$('readPdf').checked||!!a.consentReviewedAt;
+ $('finish').disabled=busy||stage!=='consent'||reviewedHoldKey!==holdFingerprint_(a)||
+  a.phase!=='HELD'||!a.consentReviewedAt||!$('agree').checked||!previewInk;
  $('consentStatus').textContent=a.consentReviewedAt?'範例已確認，可繼續完成示範同意。':'請先開啟並確認範例文件。';
  $('receiptId').textContent=a.id+'（虛構）';$('receiptStudy').textContent=studyName(a.experiment);
  const slot=model.slots.find(s=>s.id===a.slotId);
@@ -1151,20 +1201,27 @@ $('otpVerify').addEventListener('click',()=>{const a=current();if(a)issue('OTP_V
 $('hold').addEventListener('click',()=>{const a=current(),slots=v05Read_(model,a);if(a&&slots&&slots.some(s=>s.id===$('slot').value&&s.day===v05State.date))issue('HOLD',{id:a.id,slotId:$('slot').value});});
 $('readPdf').addEventListener('change',render);$('agree').addEventListener('change',render);
 $('review').addEventListener('click',()=>{
- const a=current();if(!a||!$('readPdf').checked)return;
+ const a=current();if(!a||chooseStage()!=='consent'||
+  reviewedHoldKey!==holdFingerprint_(a)||!$('readPdf').checked)return;
  issue('PDF_DEMO_REVIEW',{id:a.id,sha256:model.pdfFixture.sha256},()=>{
   const now=current();if(!now)return;
   issue('CONSENT_REVIEW',{id:now.id,version:now.consentVersion,sha256:now.consentSha256});
  });
 });
 $('finish').addEventListener('click',()=>{
- const a=current();if(!a||!$('agree').checked||!a.consentReviewedAt)return;
+ const a=current();if(!a||a.phase!=='HELD'||chooseStage()!=='consent'||
+   reviewedHoldKey!==holdFingerprint_(a)||!previewInk||
+   !$('agree').checked||!a.consentReviewedAt)return;
  issue('CONSENT',{id:a.id,accepted:true,version:a.consentVersion,signature:'SIMULATED_SIGN_ONLY'},()=>{
   // Same actual server flow; final confirmation stays one participant button.
   const confirmed=current();if(confirmed)issue('CONFIRM',{id:confirmed.id});
  });
 });
-$('confirm').addEventListener('click',()=>{const a=current();if(a&&v06Preview_(model,a))issue('CONFIRM',{id:a.id});});
+$('confirm').addEventListener('click',()=>{
+ const a=current();
+ if(busy||v07.blocked||!a||a.phase!=='HELD'||!v06Preview_(model,a))return;
+ reviewedHoldKey=holdFingerprint_(a);clearVisitorSignature_();render();
+});
 $('move').addEventListener('click',()=>v08Preview_('MOVE'));
 $('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
 $('v08Refresh').addEventListener('click',()=>{
