@@ -51,7 +51,8 @@ test('Real OTP never invokes test command or demo code; email is not student ver
  assert.match(visitor,/document\.body\.dataset\.siteMode==='FORMAL'\)return;/);
  assert.match(visitor,/if\(sampleCode\)sampleCode\.hidden=true/);
  assert.match(visitor,/if\(el\('otpPaste'\)\)el\('otpPaste'\)\.hidden=true/);
- assert.match(visitor,/研究資格仍待研究團隊核實；目前尚未核准占用時段或簽署同意/);
+ assert.match(visitor,/資格勾選已依本人自陳紀錄/);
+ assert.match(visitor,/不需查驗身分證或學生證/);
  assert.match(intake,/phase:'PENDING_EMAIL'/);
  assert.match(intake,/s\[3\]!=='PENDING_REVIEW'/);
  assert.match(intake,/return \{verified:true,reason:'EMAIL_CONTROL_ONLY',emailProof:proof\}/);
