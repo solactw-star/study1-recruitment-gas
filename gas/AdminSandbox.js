@@ -1283,6 +1283,21 @@ function study1EConsentSignedPdfCopy(token){
  }else if(event.data.signedPdfSha256!==entry.signedPdf.sha)
   throw Error('舊簽署PDF來源與研究員確認未一致');
 
+ // Re-evaluate BOTH independent server dates and their chronological order
+ // before releasing a purportedly dual-signed copy. The PDF SHA alone cannot
+ // detect a corrupted or re-linked timestamp evidence record.
+ if(entry.channel==='FORMAL_E1'){
+  const participantAt=new Date(event.data.serverSignedAt),
+   researcherAt=new Date(confirmation.data.researcherSignedAt);
+  if(!Number.isFinite(participantAt.getTime())||
+     !Number.isFinite(researcherAt.getTime())||
+     participantAt.toISOString()!==event.data.serverSignedAt||
+     researcherAt.toISOString()!==confirmation.data.researcherSignedAt||
+     researcherAt.getTime()<participantAt.getTime()||
+     event.data.taipeiDate!==study1PdfTaipeiDate_(participantAt)||
+     confirmation.data.researcherTaipeiDate!==study1PdfTaipeiDate_(researcherAt))
+   throw Error('FORMAL_DUAL_PDF_CHRONOLOGY_INVALID');
+ }
  const bytes=study1EConsentSignedPdfRead_(entry.signedPdf,entry);
  return {experiment:entry.experiment,version:entry.documentVersion,
   sourceSha256:entry.documentSha,signedPdfSha256:entry.signedPdf.sha,
