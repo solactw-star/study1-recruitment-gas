@@ -696,7 +696,8 @@ function e1SlotOwnerAudit_(){
   table.appendChild(body);result.appendChild(table);
  }).study1OwnerE1SlotAudit();
 }
-$('e1SlotAuditLoad').addEventListener('click',e1SlotOwnerAudit_);
+if($('e1SlotAuditLoad')&&typeof $('e1SlotAuditLoad').addEventListener==='function')
+ $('e1SlotAuditLoad').addEventListener('click',e1SlotOwnerAudit_);
 
 reload();
 })();
