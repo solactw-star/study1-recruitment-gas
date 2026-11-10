@@ -123,3 +123,102 @@ async function study1PdfComposeSigned_(source,signature,layout,expected,serverDa
    experiment:expected.experiment,version:expected.version};
  }catch(err){throw Error('正式PDF簽署合成失敗：'+String(err.message||err));}
 }
+
+
+/**
+ * §70-S.22: second, researcher-only handwritten signature on the SAME
+ * complete PDF. Both PDF rectangles must be approved independently for
+ * the exact ORIGINAL REC PDF SHA/version; no PDF text search or guessed
+ * coordinates. Never changes the original or the participant-signed bytes.
+ */
+function study1PdfResearcherLayoutRead_(experiment,document){
+ if(experiment!=='E1'||!document||document.experiment!=='E1')
+  throw Error('RESEARCHER_E1_ONLY');
+ // A valid overall REC-scope policy and source/ACL verification is separate
+ // from a page-geometry decision. Both are mandatory, never substitutes.
+ const effective=study1FormalConsentRecScope_();
+ if(document.sha256!==effective.consentDocumentSha256||
+    document.id!==effective.consentDocumentId)
+  throw Error('RESEARCHER_LAYOUT_REC_SOURCE_MISMATCH');
+ const raw=PropertiesService.getScriptProperties().getProperty(
+  'STUDY1_ECONSENT_APPROVED_RESEARCHER_LAYOUT_V1');
+ if(typeof raw!=='string'||!raw||raw.length>10000)
+  throw Error('RESEARCHER_PDF_LAYOUT_NOT_APPROVED');
+ let data;
+ try{data=JSON.parse(raw);}catch(_){throw Error('RESEARCHER_PDF_LAYOUT_INVALID');}
+ if(!data||data.schemaVersion!==1||!Array.isArray(data.bindings)||
+    data.bindings.length<1||data.bindings.length>24)
+  throw Error('RESEARCHER_PDF_LAYOUT_INVALID');
+ const matches=data.bindings.filter(x=>x.experiment===experiment&&
+  x.documentSha===document.sha256&&x.version===document.version);
+ if(matches.length!==1)
+  throw Error('RESEARCHER_PDF_LAYOUT_NOT_UNIQUE');
+ const research=study1PdfLayoutValidate_(matches[0],document);
+ const participant=study1PdfLayoutRead_(experiment,document);
+ if(participant.pageCount!==research.pageCount)
+  throw Error('RESEARCHER_PDF_PAGE_COUNT_MISMATCH');
+ if(participant.pageIndex===research.pageIndex){
+  const region=(item,kind)=>kind==='signature'?
+    {x:item.signature.x,y:item.signature.y,
+     w:item.signature.width,h:item.signature.height}:
+    {x:item.date.x,y:item.date.y,w:100,h:item.date.fontSize+2};
+  const overlap=(a,b)=>a.x<b.x+b.w&&b.x<a.x+a.w&&
+    a.y<b.y+b.h&&b.y<a.y+a.h;
+  for(const x of ['signature','date'])for(const y of ['signature','date'])
+   if(overlap(region(participant,x),region(research,y)))
+    throw Error('RESEARCHER_PDF_SIGNING_FIELDS_OVERLAP');
+ }
+ return research;
+}
+async function study1PdfComposeResearcherSigned_(participantBytes,researcherPng,
+ layout,expected,serverDate){
+ if(!expected||expected.experiment!=='E1'||
+    !/^[a-f0-9]{64}$/.test(expected.participantSignedSha256||'')||
+    !/^[a-f0-9]{64}$/.test(expected.sha256||'')||
+    !(serverDate instanceof Date)||!Number.isFinite(serverDate.getTime()))
+  throw Error('RESEARCHER_PDF_SOURCE_OR_TIME_INVALID');
+ study1PdfLayoutValidate_(layout,expected);
+ if(typeof PDFLib!=='object'||!PDFLib||!PDFLib.PDFDocument)
+  throw Error('RESEARCHER_PDF_ENGINE_MISSING');
+ const base=Array.from(participantBytes||[],x=>x&255);
+ const ink=Array.from(researcherPng||[],x=>x&255);
+ if(base.length<100||base.length>6000000||
+    String.fromCharCode(...base.slice(0,5))!=='%PDF-'||
+    study1PdfDigest_(base)!==expected.participantSignedSha256)
+  throw Error('RESEARCHER_PDF_PARTICIPANT_SHA_CHANGED');
+ if(ink.length<100||ink.length>90000||
+    ink.slice(0,8).join(',')!=='137,80,78,71,13,10,26,10')
+  throw Error('RESEARCHER_PDF_INK_INVALID');
+ const when=serverDate.toISOString(),date=study1PdfTaipeiDate_(serverDate);
+ const pdf=await PDFLib.PDFDocument.load(Uint8Array.from(base),
+  {ignoreEncryption:false,updateMetadata:false});
+ if(pdf.isEncrypted||pdf.getPageCount()!==layout.pageCount)
+  throw Error('RESEARCHER_PDF_PAGE_COUNT_CHANGED');
+ const page=pdf.getPage(layout.pageIndex),size=page.getSize();
+ if(Math.abs(size.width-layout.pageWidth)>1.5||
+    Math.abs(size.height-layout.pageHeight)>1.5)
+  throw Error('RESEARCHER_PDF_PAGE_DIMENSIONS_CHANGED');
+ const png=await pdf.embedPng(Uint8Array.from(ink));
+ const font=await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
+ page.drawImage(png,{x:layout.signature.x,y:layout.signature.y,
+  width:layout.signature.width,height:layout.signature.height});
+ page.drawText(date,{x:layout.date.x,y:layout.date.y,
+  size:layout.date.fontSize,font,color:PDFLib.rgb(0,0,0)});
+ pdf.setModificationDate(serverDate);
+ const dual=Array.from(await pdf.save({useObjectStreams:false}));
+ if(dual.length<base.length||dual.length>6000000)
+  throw Error('RESEARCHER_PDF_FINAL_SIZE_INVALID');
+ const finalSha=study1PdfDigest_(dual);
+ if(finalSha===expected.participantSignedSha256||
+    finalSha===expected.sha256)
+  throw Error('RESEARCHER_PDF_NOT_STAMPED');
+ const reopen=await PDFLib.PDFDocument.load(Uint8Array.from(dual),
+  {ignoreEncryption:false,updateMetadata:false});
+ if(reopen.getPageCount()!==layout.pageCount)
+  throw Error('RESEARCHER_PDF_REOPEN_FAILED');
+ return {experiment:'E1',version:expected.version,
+  sourceSha256:expected.sha256,participantSignedSha256:expected.participantSignedSha256,
+  signedSha256:finalSha,signedPdfBytes:dual,
+  researcherSignedAt:when,researcherTaipeiDate:date,
+  pageIndex:layout.pageIndex,pageCount:layout.pageCount};
+}
