@@ -839,6 +839,8 @@ function study1EConsentSession(token){
 /** Browser supplied signature is accepted once, bound to owner-verified invite. */
 function study1EConsentSign(input){
  if(!study1EConsentEnabled_())throw Error('尚未開放有效電子簽署');
+ // Old synthetic PNG route cannot become an unapproved real signature by toggling flags.
+ study1RecRequireElectronicConsentApproval_();
  // Legacy isolated synthetic event is preserved solely for existing TEST regression.
  // It must NEVER serve as an operational signed consent or replace a signed PDF.
  if(PropertiesService.getScriptProperties().getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
