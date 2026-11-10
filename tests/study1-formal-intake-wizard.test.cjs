@@ -54,7 +54,9 @@ test('Real OTP never invokes test command or demo code; email is not student ver
  assert.match(visitor,/研究資格仍待研究團隊核實；目前尚未核准占用時段或簽署同意/);
  assert.match(intake,/phase:'PENDING_EMAIL'/);
  assert.match(intake,/s\[3\]!=='PENDING_REVIEW'/);
- assert.match(intake,/return \{verified:result\.verified===true,\s*reason:result\.verified\?'EMAIL_CONTROL_ONLY':'REJECTED'\}/);
+ assert.match(intake,/return \{verified:true,reason:'EMAIL_CONTROL_ONLY',emailProof:proof\}/);
+ assert.match(intake,/function study1ParticipantEmailStatus_\(/);
+ assert.match(intake,/EMAIL_PROOF_SIGNATURE_INVALID/);
 });
 test('Original V05/V08 and summary/consent step order remain unchanged',()=>{
  assert.match(visitor,/const phases=\['choose','screen','otp','slots','confirm','consent','done'\]/);
