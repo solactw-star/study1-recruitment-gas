@@ -439,3 +439,93 @@ function study1WizardReviewBound_(untrusted){
    documentSha:r.documentSha};
  }finally{lock.releaseLock();}
 }
+
+
+/**
+ * §70-S.20 OWNER-only, READ-ONLY audit of the exact original Slots rows.
+ * This never assigns E1/E2, approves a slot, reads participant reservations,
+ * writes ScriptProperties, or activates recruitment. A PI must separately
+ * review real rows and their valid REC/protocol scope before provisioning.
+ * A browser's claim that a slot is E1 is never used as authority.
+ */
+function study1OwnerE1SlotAudit(){
+ study1AdminOwnerRequired_();
+ const lock=LockService.getScriptLock();
+ if(!lock||typeof lock.tryLock!=='function'||lock.tryLock(5000)!==true)
+  throw Error('E1_AUDIT_LOCK_UNAVAILABLE');
+ try{
+  if(lock.hasLock()!==true)throw Error('E1_AUDIT_LOCK_LOST');
+  study1AdminOwnerRequired_();
+  const p=PropertiesService.getScriptProperties();
+  const book=SpreadsheetApp.openById(study1BindingSheetId_('slots'));
+  if(!book||typeof book.getId!=='function'||
+     book.getId()!=='1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ')
+   throw Error('E1_AUDIT_SOURCE_ID_MISMATCH');
+  // Read only Slots twice, validating exact schema and formula absence.
+  // In particular, never return/read Applicants or Reservations PII here.
+  const first=bookingReadOnlyTab_(book,'Slots',BOOKING_SLOT_HEADERS_);
+  const second=bookingReadOnlyTab_(book,'Slots',BOOKING_SLOT_HEADERS_);
+  if(!bookingReadOnlySameTab_(first,second))
+   throw Error('E1_AUDIT_SLOTS_CHANGED_DURING_READ');
+  const raw=p.getProperty('STUDY1_E1_SLOT_REGISTRY_V1');
+  const mac=p.getProperty('STUDY1_E1_SLOT_REGISTRY_HMAC');
+  const approved=p.getProperty('STUDY1_E1_SLOT_REGISTRY_APPROVED')==='true';
+  const hasRegistry=raw!==null&&raw!==undefined;
+  const hmacKey=p.getProperty('STUDY1_ECONSENT_BINDING_HMAC_KEY');
+  const hmacConfigured=typeof hmacKey==='string'&&hmacKey.length>=32&&
+   !/SIMULATED|TEST_ONLY|EXAMPLE|DEFAULT/i.test(hmacKey);
+  let registry=[];
+  if(hasRegistry||mac!==null&&mac!==undefined||approved){
+   if(!hmacConfigured||typeof raw!=='string'||raw.length<2||
+      raw.length>200000||typeof mac!=='string'||!/^[a-f0-9]{64}$/.test(mac))
+    throw Error('E1_AUDIT_REGISTRY_INVALID');
+   if(study1BindingHmac_(['STUDY1_E1_SLOT_REGISTRY_V1',raw])!==mac)
+    throw Error('E1_AUDIT_REGISTRY_TAMPERED');
+   try{registry=JSON.parse(raw);}catch(_){throw Error('E1_AUDIT_REGISTRY_INVALID');}
+   if(!Array.isArray(registry)||registry.length<1||registry.length>10000)
+    throw Error('E1_AUDIT_REGISTRY_INVALID');
+   const ids=new Set();
+   for(const r of registry){
+    if(!r||Array.isArray(r)||typeof r!=='object'||
+       Object.keys(r).sort().join(',')!=='experiment,slotId,slotRowSha256'||
+       !['E1','E2'].includes(r.experiment)||!/^[a-f0-9]{64}$/.test(r.slotRowSha256||''))
+     throw Error('E1_AUDIT_REGISTRY_INVALID');
+    study1BindingId_(r.slotId);
+    if(ids.has(r.slotId))throw Error('E1_AUDIT_REGISTRY_DUPLICATE');
+    ids.add(r.slotId);
+   }
+  }
+  const reg=new Map(registry.map(r=>[r.slotId,r]));
+  const seen=new Set(),rows=first.rows.map(row=>{
+   const slotId=study1BindingId_(row[0]);
+   if(seen.has(slotId))throw Error('E1_AUDIT_DUPLICATE_ORIGINAL_SLOT_ID');
+   seen.add(slotId);
+   const pin=reg.get(slotId),fingerprint=hmacConfigured?
+    study1BindingHmac_(['STUDY1_E1_ORIGINAL_SLOT_ROW_V1',...row]):null;
+   const originalMatches=!!pin&&fingerprint===pin.slotRowSha256;
+   // Report the registry label only: neither the ID nor the location implies E1.
+   const registryExperiment=pin?pin.experiment:'UNCLASSIFIED';
+   const start=row[1] instanceof Date?row[1].toISOString():row[1];
+   const end=row[2] instanceof Date?row[2].toISOString():row[2];
+   return {slotId,startAtUtc:start,endAtUtc:end,capacity:row[3],
+    locationCode:row[4],status:row[5],registryExperiment,
+    pinnedRowMatches:originalMatches,
+    pinStatus:!pin?'NOT_REVIEWED':originalMatches?'MATCHED':'STALE'};
+  });
+  const missing=registry.filter(r=>!seen.has(r.slotId)).map(r=>r.slotId);
+  if(lock.hasLock()!==true)throw Error('E1_AUDIT_LOCK_LOST');
+  const matchedE1=rows.filter(r=>r.registryExperiment==='E1'&&
+    r.pinnedRowMatches).length;
+  const stale=rows.some(r=>r.pinStatus==='STALE')||missing.length>0;
+  const mappingVerified=approved&&hasRegistry&&hmacConfigured&&
+    matchedE1>0&&!stale;
+  return {mode:'OWNER_ONLY_READ_ONLY',source:'ORIGINAL_OPERATIONS_SLOTS',
+   slotCount:rows.length,registryEntries:registry.length,
+   ownerRegistryApprovedFlag:approved,hmacKeyPresent:hmacConfigured,
+   registrySignatureChecked:hasRegistry,matchedE1Count:matchedE1,
+   staleOrMissingRegistryRows:stale,missingPinnedIds:missing,
+   mappingVerified,formalReady:false,recRemoteConsentScopeVerified:false,
+   note:'僅核對原Slots與目前已配置的HMAC；未審定新E1場次、未查REC遠端同意適用、未部署或開放收件。',
+   rows};
+ }finally{lock.releaseLock();}
+}
