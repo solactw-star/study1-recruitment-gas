@@ -12,6 +12,9 @@ const ms=Date.now(),stamp=offset=>new Date(ms+offset).toISOString();
 function evidence(){
  return {verified:true,provenance:'REC_APPROVED_IDENTITY_ATTESTATION',
   applicantId:req.applicantId,experiment:req.experiment,consentProcedureApproved:true,
+   age18OrOlderVerified:true,cycuStudentVerified:true,
+   eligibilityEvidenceSource:'REC_APPROVED_ELIGIBILITY_VERIFICATION',
+   eligibilityEvidenceSha256:'e'.repeat(64),
   verifierId:'STAFF_SYNTHETIC',approvalReference:'REC-SYNTHETIC-TEST-ONLY',
   evidenceSha256:'c'.repeat(64),verifiedAtUtc:stamp(-1800000),
   email:'test@example.org',screeningVersion:'APPROVED_V1',
