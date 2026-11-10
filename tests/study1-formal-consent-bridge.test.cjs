@@ -168,9 +168,9 @@ test('a confirmed consent may read its existing status after intake closes, but 
  assert.throws(()=>h.scope.study1FormalConsentStatus('TOKEN'),/CLOSED/);
  h.registry.records[0].state='CONFIRMED';
  const result=h.scope.study1FormalConsentStatus('TOKEN');
- assert.equal(result.staffConfirmed,true);
+ assert.equal(result.staffConfirmed,false,'a state flag cannot replace the two private signed PDFs');
  assert.equal(result.state,'CONFIRMED');
- assert.equal(result.copyAvailable,false,'copy still requires the original signed PDF');
+ assert.equal(result.copyAvailable,false,'copy still requires both independent PDF SHA refs');
 });
 
 test('original FORMAL REC PDF is token, OTP and HELD-bound; never calls CLOSED demo read',()=>{
