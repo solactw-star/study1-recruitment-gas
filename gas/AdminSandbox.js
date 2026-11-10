@@ -768,7 +768,7 @@ function study1EConsentChange_(id,fn){
    const stored=PropertiesService.getScriptProperties()
     .getProperty(STUDY1_ECONSENT_REGISTRY_);
    if(after&&stored===JSON.stringify(r)){
-    for(const kind of ['explanation','signature','confirmation','withdrawal']){
+    for(const kind of ['explanation','signature','signedPdf','confirmation','withdrawal']){
      if(after[kind]&&!before[kind])try{
       DriveApp.getFileById(after[kind].id).setTrashed(true);
      }catch(_){}
@@ -833,6 +833,10 @@ function study1EConsentSession(token){
 /** Browser supplied signature is accepted once, bound to owner-verified invite. */
 function study1EConsentSign(input){
  if(!study1EConsentEnabled_())throw Error('尚未開放有效電子簽署');
+ // Legacy isolated synthetic event is preserved solely for existing TEST regression.
+ // It must NEVER serve as an operational signed consent or replace a signed PDF.
+ if(PropertiesService.getScriptProperties().getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
+  throw Error('正式電子簽署必須產生完整簽名PDF，舊獨立PNG簽名路徑已關閉');
  if(!input||Object.keys(input).sort().join(',')!=='agree,answerAcknowledged,documentSha,name,read,signature,token'||
   input.agree!==true||input.answerAcknowledged!==true||input.read!==true||
   typeof input.name!=='string'||!input.name.trim()||input.name.length>80||
@@ -936,4 +940,153 @@ function study1EConsentOwnerWithdraw(input){
    signatureHash:x.signature.sha,confirmationHash:x.confirmation.sha});
   return {...x,state:'WITHDRAWN',withdrawal:f};
  });
+}
+
+
+/**
+ * §70-S: full PDF composition is separate from the legacy synthetic-only
+ * SIGNATURE event. No live personal data is accepted unless the independent
+ * provider/REC/WIZARD gates are verified, and a pinned owner-reviewed PDF
+ * layout exists for the exact E1/E2 source SHA. Private GAS only, no CDN.
+ */
+function study1EConsentSignedPdfStore_(stamp,entry){
+ if(!stamp||stamp.experiment!==entry.experiment||
+   stamp.sourceSha256!==entry.documentSha||
+   stamp.version!==entry.documentVersion||
+   !/^[a-f0-9]{64}$/.test(stamp.signedSha256))
+  throw Error('簽署版PDF與固定研究實驗、文件版號不相符');
+ const bytes=stamp.signedPdfBytes;
+ if(!Array.isArray(bytes)||bytes.length<100||bytes.length>6000000||
+   study1PdfDigest_(bytes)!==stamp.signedSha256)
+  throw Error('簽署版PDF內容或SHA錯誤');
+ const folder=study1EConsentFolder_();
+ const name='Study1_'+entry.experiment+'_signed_'+entry.id+'_'+stamp.signedSha256.slice(0,12)+'.pdf';
+ const blob=Utilities.newBlob(bytes.map(b=>b>127?b-256:b),'application/pdf',name);
+ const file=folder.createFile(blob);
+ try{
+  file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.VIEW);
+  if(file.getSharingAccess()!==DriveApp.Access.PRIVATE||
+     file.getMimeType()!=='application/pdf'||
+     file.getSize()!==bytes.length)
+   throw Error('完整簽署PDF未保存在私人位置');
+  const copied=file.getBlob().getBytes();
+  if(copied.length!==bytes.length||
+     study1PdfDigest_(copied)!==stamp.signedSha256)
+   throw Error('完整簽署PDF寫入後回讀SHA不一致');
+  return {id:file.getId(),sha:stamp.signedSha256};
+ }catch(error){try{file.setTrashed(true);}catch(_){}throw error;}
+}
+function study1EConsentSignedPdfRead_(ref,entry){
+ if(!ref||typeof ref.id!=='string'||!/^[A-Za-z0-9_-]{15,100}$/.test(ref.id)||
+   typeof ref.sha!=='string'||!/^[a-f0-9]{64}$/.test(ref.sha))
+  throw Error('完整簽署PDF索引不合法');
+ study1EConsentFolder_();
+ const f=DriveApp.getFileById(ref.id);
+ if(f.getMimeType()!=='application/pdf'||
+   f.getSharingAccess()!==DriveApp.Access.PRIVATE||
+   f.getSize()<100||f.getSize()>6000000)
+  throw Error('簽署PDF格式、大小或私人權限變動');
+ const parents=f.getParents();let allowed=false;
+ while(parents.hasNext())
+  if(parents.next().getId()===STUDY1_CONSENT_DOC_FOLDER_)allowed=true;
+ if(!allowed)throw Error('簽署PDF已脫離原私人研究資料夾');
+ const bytes=f.getBlob().getBytes();
+ if(bytes.length!==f.getSize()||study1PdfDigest_(bytes)!==ref.sha)
+  throw Error('完整簽署PDF已變動或SHA不一致');
+ return bytes;
+}
+async function study1EConsentSignPdf(input){
+ // Important: this endpoint is intentionally UNAVAILABLE until a real
+ // registration-bound identity provider and approved PDF evidence provider
+ // are installed. No owner-only TEST fixture can set these live gates.
+ if(!study1EConsentEnabled_())
+  throw Error('尚未開放有效電子簽署');
+ const p=PropertiesService.getScriptProperties();
+ if(p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
+    p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true')
+  throw Error('REC_REVIEW_REQUIRED：正式PDF保存與本人報名身分連結尚未驗證');
+ if(!input||Object.keys(input).sort().join(',')!=='agree,answerAcknowledged,documentSha,name,read,signature,token'||
+  input.agree!==true||input.answerAcknowledged!==true||input.read!==true||
+  typeof input.name!=='string'||!input.name.trim()||input.name.length>80||
+  /[<>\u0000-\u001f]/.test(input.name)||
+  typeof input.documentSha!=='string'||!/^[a-f0-9]{64}$/.test(input.documentSha)||
+  typeof input.signature!=='string'||input.signature.length>125000||
+  !/^[A-Za-z0-9+/]+={0,2}$/.test(input.signature))
+  throw Error('必須完成正式文件全文閱讀、說明確認、姓名及本人手寫簽名');
+ const pngBytes=Utilities.base64Decode(input.signature);
+ if(pngBytes.length<100||pngBytes.length>90000||
+  pngBytes.slice(0,8).map(b=>b&255).join(',')!=='137,80,78,71,13,10,26,10')
+  throw Error('本人手寫簽名必須是完整PNG');
+ const prior=study1EConsentEntry_(input.token,study1EConsentRegistry_());
+ if(prior.state!=='EXPLAINED'||prior.documentSha!==input.documentSha||
+   prior.expires<=Date.now())
+  throw Error('此固定文件已失效，無法簽署');
+ study1EConsentEvent_(prior.explanation,prior,'EXPLANATION');
+ const doc=study1EConsentReadyDocument_(prior.experiment);
+ if(doc.version!==prior.documentVersion||doc.sha256!==prior.documentSha)
+  throw Error('已選用的核准文件不是原先說明並同意的版本');
+ const layout=study1PdfLayoutRead_(prior.experiment,doc);
+ const verifiedOriginal=study1ConsentDocumentBytes_(doc);
+ // Trusted server time is created here, never accepted from the browser.
+ const signedAt=new Date();
+ const stamped=await study1PdfComposeSigned_(verifiedOriginal,pngBytes,layout,
+  {experiment:prior.experiment,sha256:prior.documentSha,
+   version:prior.documentVersion},signedAt);
+ let savedPdf=null;
+ try{
+  const changed=study1EConsentChange_(prior.id,x=>{
+   if(!study1EConsentEnabled_()||
+      p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
+      p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true'||
+      x.state!=='EXPLAINED'||x.expires<=Date.now()||
+      x.documentSha!==prior.documentSha||
+      x.documentVersion!==prior.documentVersion)
+    throw Error('同意書版本、身分連結或簽署狀態在處理時已改變');
+   study1EConsentEvent_(x.explanation,x,'EXPLANATION');
+   const reloaded=study1EConsentReadyDocument_(x.experiment);
+   study1PdfLayoutRead_(x.experiment,reloaded);
+   if(reloaded.sha256!==stamped.sourceSha256)throw Error('核准原PDF變動');
+   savedPdf=study1EConsentSignedPdfStore_(stamped,x);
+   const event=study1EConsentFile_('SIGNATURE',x,{
+    name:input.name.trim(),signaturePngBase64:input.signature,
+    read:true,answerAcknowledged:true,agreed:true,
+    signedPdfSha256:savedPdf.sha,serverSignedAt:stamped.serverSignedAt,
+    taipeiDate:stamped.taipeiDate,explanationHash:x.explanation.sha});
+   return {...x,state:'SIGNED',signature:event,signedPdf:savedPdf};
+  });
+  if(changed.state!=='SIGNED'||!changed.signedPdf||
+     changed.signedPdf.sha!==stamped.signedSha256)
+   throw Error('簽署PDF寫後索引核對未通過');
+  return {state:'SIGNED',experiment:prior.experiment,
+   documentSha256:stamped.sourceSha256,
+   signedPdfSha256:stamped.signedSha256,
+   signedAt:stamped.serverSignedAt,taipeiDate:stamped.taipeiDate,
+   message:'完整簽署PDF已保存，待研究人員確認並交付本人副本'};
+ }catch(error){
+  if(savedPdf){
+   let referenced=false;
+   try{referenced=study1EConsentRegistry_().records.some(x=>x.id===prior.id&&
+       x.signedPdf?.id===savedPdf.id&&x.signedPdf.sha===savedPdf.sha);}
+   catch(_){referenced=true;} // ambiguous state: never delete possible evidence
+   if(!referenced)try{DriveApp.getFileById(savedPdf.id).setTrashed(true);}catch(_){}
+  }
+  throw error;
+ }
+}
+/** Only the one fixed document's signed-PDF bytes, after staff confirmation. */
+function study1EConsentSignedPdfCopy(token){
+ const entry=study1EConsentEntry_(token,study1EConsentRegistry_());
+ if(!['CONFIRMED','WITHDRAWN'].includes(entry.state)||!entry.signedPdf)
+  throw Error('未取得雙方確認的完整版簽署PDF，禁止以原PDF加HTML收據取代');
+ const event=study1EConsentEvent_(entry.signature,entry,'SIGNATURE');
+ const confirmation=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION');
+ if(event.data.signedPdfSha256!==entry.signedPdf.sha||
+    confirmation.data.signatureHash!==entry.signature.sha)
+  throw Error('PDF、本人簽名及研究人員確認事件未能一致核對');
+ const bytes=study1EConsentSignedPdfRead_(entry.signedPdf,entry);
+ return {experiment:entry.experiment,version:entry.documentVersion,
+  sourceSha256:entry.documentSha,signedPdfSha256:entry.signedPdf.sha,
+  signedAt:event.data.serverSignedAt,taipeiDate:event.data.taipeiDate,
+  base64:Utilities.base64Encode(bytes),mime:'application/pdf',
+  bytes:bytes.length};
 }
