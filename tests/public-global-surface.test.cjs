@@ -16,7 +16,7 @@ const approvedPublicFunctions = [
   'study1EConsentAvailability','study1EConsentSession','study1EConsentSign',
   'study1EConsentSignPdf','study1EConsentSignedPdfCopy',
   'study1EConsentConfirmPdf','study1EConsentOwnerPendingPdfConfirmations',
-  'study1EConsentOwnerWithdrawalCases','study1EConsentOwnerRecordDispositionEvidence',
+  'study1EConsentOwnerWithdrawalCases',
   'study1EConsentCopy','study1EConsentWithdraw', // owner / fixed-capability authenticated endpoints, each gated
   // strictly owner-authorized, sandbox-only
   'study1UnifiedPreviewGet', 'study1UnifiedPreviewCommand', 'study1UnifiedPreviewSelfTest', 'study1UnifiedB06Command', 'study1UnifiedB12AuditPage', 'study1UnifiedB01LayoutGet', 'study1UnifiedB01LayoutSave', // owner-only shared formal workflow TEST adapter; NOT public enrollment
