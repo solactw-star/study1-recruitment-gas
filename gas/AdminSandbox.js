@@ -934,7 +934,8 @@ function study1EConsentWithdraw(input){
    confirmationHash:x.confirmation.sha});
   return {...x,state:'WITHDRAWN',withdrawal:f};
  });
- return {state:next.state,recorded:true};
+ return {state:next.state,recorded:true,
+  requiresResearcherDataDisposition:true};
 }
 function study1EConsentOwnerList(){
  study1AdminOwnerRequired_();
