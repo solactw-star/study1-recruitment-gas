@@ -781,6 +781,11 @@ function study1EConsentChange_(id,fn){
 /** Authenticated OWNER creates a fixed-document one-person invitation. */
 function study1EConsentIssue(input){
  study1AdminOwnerRequired_();
+ // Old experiment-only issuance has no applicant/OTP/reservation/identity proof.
+ // Keep solely as a synthetic legacy fixture; it cannot sign a real PDF.
+ if(PropertiesService.getScriptProperties()
+    .getProperty('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY')!=='true')
+  throw Error('REC_REVIEW_REQUIRED：正式簽署邀請必須由本人綁定的核身及預約來源核發');
  if(!input||Object.keys(input).join(',')!=='experiment'||
   !['E1','E2'].includes(input.experiment))throw Error('實驗選擇不合法');
  const doc=study1EConsentReadyDocument_(input.experiment);
@@ -1034,6 +1039,10 @@ async function study1EConsentSignPdf(input){
   pngBytes.slice(0,8).map(b=>b&255).join(',')!=='137,80,78,71,13,10,26,10')
   throw Error('本人手寫簽名必須是完整PNG');
  const prior=study1EConsentEntry_(input.token,study1EConsentRegistry_());
+ // A bearer token and staff manual invitation are never sufficient proof.
+ // This must be re-read from approved server-only sources, not from the browser.
+ if(!prior.binding)throw Error('REC_REVIEW_REQUIRED：此邀請未綁定身分／OTP／預約');
+ const bindingAdapter=study1EConsentBindingAdapter_();
  if(prior.state!=='EXPLAINED'||prior.documentSha!==input.documentSha||
    prior.expires<=Date.now())
   throw Error('此固定文件已失效，無法簽署');
@@ -1041,6 +1050,7 @@ async function study1EConsentSignPdf(input){
  const doc=study1EConsentReadyDocument_(prior.experiment);
  if(doc.version!==prior.documentVersion||doc.sha256!==prior.documentSha)
   throw Error('已選用的核准文件不是原先說明並同意的版本');
+ study1BindingRecheck_(prior.binding,doc,bindingAdapter,new Date().toISOString());
  const layout=study1PdfLayoutRead_(prior.experiment,doc);
  const verifiedOriginal=study1ConsentDocumentBytes_(doc);
  // Trusted server time is created here, never accepted from the browser.
@@ -1062,6 +1072,11 @@ async function study1EConsentSignPdf(input){
    const reloaded=study1EConsentReadyDocument_(x.experiment);
    study1PdfLayoutRead_(x.experiment,reloaded);
    if(reloaded.sha256!==stamped.sourceSha256)throw Error('核准原PDF變動');
+   // Revalidate the same identity, consumed OTP, active slot and hold while
+   // holding the very script lock protecting the signature event CAS.
+   if(!x.binding||x.binding.digest!==prior.binding.digest)
+    throw Error('簽署邀請的本人身分連結發生變動');
+   study1BindingRecheck_(x.binding,reloaded,bindingAdapter,new Date().toISOString());
    savedPdf=study1EConsentSignedPdfStore_(stamped,x);
    const event=study1EConsentFile_('SIGNATURE',x,{
     name:input.name.trim(),signaturePngBase64:input.signature,
