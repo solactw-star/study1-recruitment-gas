@@ -293,8 +293,14 @@ function study1ParticipantOtpVerify_(input){
  // Verification F:G was read back inside the same transaction lock.
  // Never promote Applicants to VERIFIED or Screenings to ELIGIBLE.
  if(result.verified!==true)return {verified:false,reason:'REJECTED'};
- const rows=lastRead?.rows?.filter(row=>row[0]===input.challengeId)||[];
- if(rows.length!==1||typeof rows[0][6]!=='string'||!rows[0][6])
+ // readSnapshot captured the pre-write F:G state. The successful CAS
+ // updated the sheet, not that snapshot; use a fresh persisted readback.
+ const after=study1BindingOtpSnapshot_(tab,
+  {applicantId:r.applicantId,challengeId:input.challengeId},r.email);
+ const rows=after.rows.filter(row=>row[0]===input.challengeId);
+ if(rows.length!==1||rows[0][1]!==r.applicantId||
+    study1BindingEmail_(rows[0][7])!==r.email||
+    typeof rows[0][6]!=='string'||!rows[0][6])
   throw Error('OTP_POST_WRITE_PROOF_UNKNOWN');
  const proof=study1ParticipantEmailProof_(r,input.challengeId,rows[0][6]);
  return {verified:true,reason:'EMAIL_CONTROL_ONLY',emailProof:proof};
