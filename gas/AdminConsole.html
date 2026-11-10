@@ -148,6 +148,8 @@ select{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px soli
  <button type="button" class="secondary" id="staffPdfClear">清除本人筆跡</button>
  <button type="button" id="staffPdfConfirm" disabled>本人簽署並產生完整雙簽 PDF（不能自動重送）</button>
  <p id="staffPdfStatus" role="status" aria-live="polite">尚未取得正式待簽紀錄；不會操作真人資料或解除正式安全門檻。</p>
+ <button type="button" class="secondary" id="staffWithdrawalLoad">唯讀核對撤回後資料處置待辦</button>
+ <div id="staffWithdrawalResults" role="status" aria-live="polite">撤回後個資處置僅能由研究團隊依適用REC完成；本頁不自動刪除、去識別化或宣稱完成。</div>
  <p><small>研究員確認後才可能交付參與者完整雙簽副本；撤回不代表研究資料已處置，仍須依 REC 及參與者意願另行辦理。</small></p>
 </section>
 <p><a href="?">返回公開研究資訊</a></p>
@@ -807,6 +809,39 @@ function staffPdfSetup_(){
  });
 }
 staffPdfSetup_();
+
+function staffWithdrawalSetup_(){
+ const button=$('staffWithdrawalLoad'),out=$('staffWithdrawalResults');
+ if(!button||!out||typeof button.addEventListener!=='function')return;
+ button.addEventListener('click',()=>{
+  button.disabled=true;out.textContent='正在以 OWNER 權限唯讀查核撤回存證…';
+  const fail=e=>{button.disabled=false;
+   out.textContent='撤回待辦查核未通過：'+String(e&&e.message||e);};
+  google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{
+   button.disabled=false;
+   if(!result||result.readOnly!==true||!Array.isArray(result.records)){
+    fail('撤回來源未通過唯讀驗證');return;
+   }
+   while(out.firstChild)out.removeChild(out.firstChild);
+   if(!result.records.length){
+    out.textContent='目前沒有可由此模組核實的E1撤回待處置案件';return;
+   }
+   const list=document.createElement('ul');
+   for(const rec of result.records){
+    if(!rec||typeof rec.id!=='string'||
+       !['DESTROY','DEIDENTIFY','CONTACT_STAFF'].includes(rec.dataChoice))continue;
+    const li=document.createElement('li');
+    li.textContent=rec.id+'｜參與者資料處置意願：'+rec.dataChoice+
+      '｜目前狀態：'+rec.dispositionState+
+      '。此清單不會自動執行資料銷毀或去識別化。';
+    list.appendChild(li);
+   }
+   out.appendChild(list);
+  }).study1EConsentOwnerWithdrawalCases();
+ });
+}
+staffWithdrawalSetup_();
+
 
 reload();
 })();
