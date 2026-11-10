@@ -13,6 +13,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'Study1EConsentBinding',type:'SERVER_JS',path:'gas/Study1EConsentBinding.js'},
  {name:'Study1EConsentOtpAdapter',type:'SERVER_JS',path:'gas/Study1EConsentOtpAdapter.js'},
  {name:'Study1WizardP0Bridge',type:'SERVER_JS',path:'gas/Study1WizardP0Bridge.js'},
+ {name:'Study1WizardEnrollment',type:'SERVER_JS',path:'gas/Study1WizardEnrollment.js'},
  {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
  {name:'Study1Team',type:'HTML',path:'gas/Study1Team.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},

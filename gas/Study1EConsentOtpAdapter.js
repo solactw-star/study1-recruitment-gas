@@ -132,6 +132,14 @@ function study1EConsentVerifyContactOtp_(request){
    // Active locked call only, the target and account/email index are re-read
    // after every write to detect changes or late overwritten values.
    const snap=study1BindingOtpSnapshot_(tab,request,sourceEmail);
+   const matching=snap.rows.filter(row=>row[0]===request.challengeId);
+   if(matching.length!==1)throw Error('OTP挑戰識別碼非唯一');
+   const issued=study1BindingUtc_(matching[0][8]);
+   if(snap.rows.some(row=>row[0]!==''&&
+      (row[1]===request.applicantId||
+       study1BindingEmail_(row[7])===sourceEmail)&&
+      study1BindingUtc_(row[8])>issued))
+    throw Error('OTP_SUPERSEDED：新碼已核發，舊碼不得再次使用');
    lastRead=snap;
    return snap;
   },

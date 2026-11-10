@@ -1198,3 +1198,14 @@ NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一
 **獨立狀態／接續點：** `STUDY1_FORMAL_REC_APPROVAL=VERIFIED`；`BRIDGE_STEP_03_04_05_SYNTHETIC_CI_VERIFIED=true`；`ORIGINAL_SEVEN_STAGE_UI_PRESERVED=true`；`LIVE_IDENTITY_AUTHORITY=NOT_CONFIGURED`；`TRUSTED_SLOT_EXPERIMENT_REGISTRY=NOT_CONFIGURED`；`FORMAL_APPLICANT_CREATE_OTP_SEND=NOT_CONNECTED`；`FORMAL_WIZARD_PUBLIC_RPC=NOT_CONNECTED`；`REAL_WIZARD_SIGNING=NOT_CONNECTED`；`UI_VERIFIED=NOT_VERIFIED`；`MAIN_SYNC_VERIFIED=false`；`GAS_SYNC_VERIFIED=false`；`FORMAL_WEBSITE_READY=false`。正式收件仍`OPEN=false`、`CONSENT_READY=false`、`MYSELF`，E2不得自動開放。
 
 `TASK_DOMAIN=Study1_P0_RECRUITMENT_BACKEND`；`SOURCE_PATH=gas/Study1WizardP0Bridge.js + docs/study1-system-spec.md`；`WRITE_OWNER=PR_133_DRAFT_BRANCH`；`LAST_VERIFIED_STEP=stage03_04_05_OFFLINE_CI`；`NEXT_ACTION=核定既有唯一正式本人/實驗別與場次歸屬證據存取角色、以真實來源完成Applicant創建與OTP寄送及可驗證持久化，將正式模式映射到原Study1Visitor七步，再做實際瀏覽器及權限UAT`；`BLOCKERS=missing_trusted_identity_and_slot_experiment_authorities + unlinked_public_wizard + deployment_unapproved`；`SYNC_STATUS=GITHUB_PR_ONLY`。
+
+
+### 70-S.13｜2026-11-10 原申請建立及OTP核發寄送私有介接（PR #133隔離分支）
+
+本次僅原PR #133 Draft隔離分支增量；不修改正式Sheets、REC、main、GAS，不合併、部署、寄真人信或開放收件。正式研究依§70-S.11已核可，不因此推定任意遠端電子同意與保存作業逐項核可。原七步Study1Visitor.html、V05/V08月曆及候補／改取消、原SIMULATED_SIGN_ONLY功能隔離保留。
+
+新增原路徑私有gas/Study1WizardEnrollment.js的study1WizardCreateApplication_與study1WizardOtpSendBound_。依原Applicants七欄、Screenings六欄、Verification九欄的ID與表頭，使用獨立可信本人／年齡／CYCU在學／E1-E2資格來源才能建立，E2再需未參加E1之核實證據；HMAC綁定申請ID、篩檢ID，共用ScriptLock，append、flush、原列回讀與相同requestId冪等。跨兩表不是全域ACID，部分寫入fail closed待人工處理，不將網站勾選、郵件OTP或TEST假身分作真人資格。
+
+OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID衍生安全八位碼，10分鐘，D欄僅存HMAC，F:G先存0/空白，原OtpThrottle每小時3筆、最短60秒重送，append/flush/讀回後才使用正式MailApp.sendEmail，同requestId不重寄、寄送結果未知不得自動重寄。原Study1EConsentOtpAdapter新增舊碼被新challenge取代即拒絕，原OtpTransaction處理F:G一次性setValues/flush/讀回。
+
+阻塞：study1WizardIntakeAuthority_、study1EConsentOtpApplicantAuthorization_、study1WizardApplicantAuthority_、study1WizardSlotAuthority_仍無正式可信本人與E1/E2場次來源，原Slots無experiment欄；七步正式RPC、真人PDF簽署、UI UAT未接通。不動OPEN=false、CONSENT_READY=false、MYSELF與E2禁招募。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=NOT_VERIFIED、FORMAL_READY=false。
