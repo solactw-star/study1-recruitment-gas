@@ -598,7 +598,7 @@ function formalConsentStatus_(){
   if(result.copyAvailable===true&&formalConsent.confirmed){
    formalConsentCopy_();
   }else{
-   status(formalConsent.signed?'已保存簽署PDF，待研究人員確認。':
+   status(formalConsent.signed?(formalConsent.researcherPresigned?'您的簽署PDF已保存；正在核對預約結果與本人副本。':'已保存簽署PDF，待研究人員確認。'):
     (formalConsent.researcherPresigned||formalConsent.staffExplained)?
      '請閱讀研究者已簽PDF並本人手寫簽署。':'尚待研究人員說明與回覆疑問。');
   }
@@ -721,7 +721,7 @@ function formalConsentStart_(reservation){
    researcherPresigned:result.researcherPresigned===true,
    originalVerified:false,staffExplained:false,signed:false,confirmed:false};
   show('consent');formalConsentRender_();
-  formalConsentLoadPdf_();status('已綁定原E1暫留及Email OTP；請在線上閱讀完整原版PDF並完成研究人員說明／答疑，之後依序由本人與研究人員在線上雙簽。');
+  formalConsentLoadPdf_();status(result.researcherPresigned===true?'已核對本人預約及Email OTP；本份PDF由研究者事先簽署並上傳，請閱讀完整內容並於網站手寫本人簽名，送出後可查詢簽署PDF與預約結果。':'已核對本人預約及Email OTP，請依有效程序閱讀PDF及完成簽署。');
  });
 }
 function formalInkInit_(){
