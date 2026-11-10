@@ -142,6 +142,13 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
   <p>瀏覽器無法內嵌顯示PDF時，請使用上方的原文下載連結完整閱讀。</p>
  </object>
  <p class="help">原始PDF不包含此處的手寫簽名。正式提交須另生成完整簽署PDF及獨立SHA；目前尚未開放真人簽名及收件。</p>
+ <div id="officialSignedPdfResult" class="box" hidden aria-label="正式完整簽署PDF交付結果">
+  <strong>完整簽署PDF｜研究人員確認後本人副本</strong>
+  <p id="officialSignedPdfStatus" class="help" role="status">只有經原報名本人身分綁定、研究人員確認、伺服器完整PDF SHA回讀，才可取得副本。</p>
+  <dl><dt>簽署版SHA-256</dt><dd id="officialSignedPdfSha">尚未核實</dd>
+  <dt>伺服器簽署日期（臺灣）</dt><dd id="officialSignedPdfDate">尚未核實</dd></dl>
+  <a id="officialSignedPdfDownload" class="pdf" hidden download="Study1_Signed_Consent.pdf" rel="noopener">下載完整已簽署PDF</a>
+ </div>
 </div>
 <a id="pdf" class="pdf" href="#" download="Study1_Sample_Not_REC.pdf" rel="noopener">查看示範 PDF 文件</a>
 <label class="check"><input id="readPdf" type="checkbox"><span>我已開啟範例並了解這份文件不是正式 REC 同意書</span></label>
@@ -238,8 +245,71 @@ function runnableOwnerPreview_(data){return !!data&&data.mode==='TEST'&&
 /** §70-S: owner-only wizard; read exact published E1/E2 PDF at LAST stage.
  * The original file is fetched via existing SHA-verified source RPC; neither
  * PDF bytes nor a signature are written to application/TEST storage. */
+const officialSignedPdf={url:null,status:'idle'};
+function officialSignedPdfReset_(){
+ if(officialSignedPdf.url&&typeof URL!=='undefined'&&URL.revokeObjectURL)
+  URL.revokeObjectURL(officialSignedPdf.url);
+ officialSignedPdf.url=null;officialSignedPdf.status='idle';
+ $('officialSignedPdfResult').hidden=true;
+ $('officialSignedPdfDownload').hidden=true;
+ $('officialSignedPdfDownload').removeAttribute('href');
+ $('officialSignedPdfSha').textContent='尚未核實';
+ $('officialSignedPdfDate').textContent='尚未核實';
+ $('officialSignedPdfStatus').textContent='未取得經研究人員確認的完整簽署PDF。';
+}
+/** Only a backend-issued, one-document, research-staff-confirmed PDF copy can
+ * be delivered. This client-side SHA recheck never authorizes signing. */
+function officialSignedPdfVerify_(copy,original){
+ if(!copy||!original||copy.mime!=='application/pdf'||
+    copy.experiment!==original.experiment||copy.version!==original.version||
+    copy.sourceSha256!==original.hash||
+    typeof copy.signedPdfSha256!=='string'||
+    !/^[a-f0-9]{64}$/.test(copy.signedPdfSha256)||
+    copy.signedPdfSha256===copy.sourceSha256||
+    !Number.isSafeInteger(copy.bytes)||copy.bytes<100||copy.bytes>6000000||
+    typeof copy.base64!=='string'||copy.base64.length>8400000||
+    typeof copy.taipeiDate!=='string'||
+    !/^20\\d{2}\\/(0[1-9]|1[0-2])\\/([0-2]\\d|3[01])$/.test(copy.taipeiDate)||
+    typeof copy.signedAt!=='string'||!/^20\\d{2}-/.test(copy.signedAt))
+  throw Error('已簽署PDF版本、核實來源或臺灣日期不一致');
+ const bin=atob(copy.base64),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+ if(bytes.length!==copy.bytes||
+   String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('已簽署PDF位元組與來源不符');
+ if(!window.crypto||!window.crypto.subtle)
+  throw Error('瀏覽器無法驗證簽署PDF SHA-256');
+ return window.crypto.subtle.digest('SHA-256',bytes).then(digest=>{
+  const sha=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  if(sha!==copy.signedPdfSha256)throw Error('已簽署PDF遭變更，禁止交付');
+  return {bytes,sha,date:copy.taipeiDate,experiment:original.experiment,version:original.version};
+ });
+}
+async function officialSignedPdfDisplay_(copy,key){
+ if(officialPdf.key!==key||reviewedHoldKey!==key||officialPdf.state!=='ready')
+  throw Error('報名身分、預約或原核准PDF已變更');
+ const verified=await officialSignedPdfVerify_(copy,officialPdf.meta);
+ if(officialPdf.key!==key||reviewedHoldKey!==key||
+    holdFingerprint_(current())!==key||officialPdf.state!=='ready')
+  throw Error('下載前報名狀態已改變');
+ officialSignedPdfReset_();
+ const url=URL.createObjectURL(new Blob([verified.bytes],{type:'application/pdf'}));
+ officialSignedPdf.url=url;officialSignedPdf.status='ready';
+ $('officialSignedPdfSha').textContent=verified.sha;
+ $('officialSignedPdfDate').textContent=verified.date;
+ $('officialSignedPdfDownload').href=url;
+ $('officialSignedPdfDownload').download='Study1_'+verified.experiment+'_'+verified.version+'_signed.pdf';
+ $('officialSignedPdfDownload').hidden=false;
+ $('officialSignedPdfResult').hidden=false;
+ $('officialSignedPdfStatus').textContent='完整簽署PDF位元組及SHA已與後端回覆核對；原核准PDF保持不變。';
+ return verified;
+}
+// §70-S: This is deliberately not called by synthetic finish/CONFIRM.
+// Real use requires a registration-bound backend capability, approved PDF layout,
+// actual identity/OTP verification and staff confirmation. No TEST data may
+// invoke study1EConsentSignPdf or claim to be an authentic participant.
 const officialPdf={key:null,experiment:null,state:'idle',url:null,meta:null};
 function officialPdfReset_(message){
+ officialSignedPdfReset_();
  if(officialPdf.url&&typeof URL!=='undefined'&&URL.revokeObjectURL)
   URL.revokeObjectURL(officialPdf.url);
  officialPdf.url=null;officialPdf.meta=null;officialPdf.state='idle';
