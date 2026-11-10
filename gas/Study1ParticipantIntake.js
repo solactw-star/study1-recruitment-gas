@@ -132,14 +132,16 @@ function study1ParticipantBegin_(input){
       !['PENDING_EMAIL','EMAIL_VERIFIED','VERIFIED'].includes(a[6])||
       s[0]!==screeningId||s[1]!==applicantId||
       s[2]!==policy.screeningVersion||
-      s[3]!=='PENDING_REVIEW'||
-      s[5]!=='SELF_REPORT_NOT_VERIFIED')
+      s[3]!=='ELIGIBLE'||
+      s[5]!=='PARTICIPANT_SELF_REPORT')
     throw Error('APPLICATION_REPLAY_MISMATCH');
    return {accepted:true,created:false,applicantId,screeningId,
     phase:'PENDING_EMAIL'};
   }
   // An email cannot be enrolled under multiple different request IDs.
-  // No health answer is stored; only the NOT-VERIFIED decision is kept.
+  // Eligibility is declared by the participant's affirmative selections.
+  // No ID card, student card, or separate manual identity inspection is
+  // required; no individual mental-health answers are persisted.
   if(study1WizardLookup_(apps,3,r.email,false).length>0)
    throw Error('EMAIL_ALREADY_PENDING：已有相同信箱的未完成申請');
   study1ParticipantHourlyGate_(apps);
@@ -147,8 +149,8 @@ function study1ParticipantBegin_(input){
   study1WizardAppend_(apps,[applicantId,r.name,r.email,r.phone,
    now,now,'PENDING_EMAIL']);
   study1WizardAppend_(screens,[screeningId,applicantId,
-   policy.screeningVersion,'PENDING_REVIEW',now,
-   'SELF_REPORT_NOT_VERIFIED']);
+   policy.screeningVersion,'ELIGIBLE',now,
+   'PARTICIPANT_SELF_REPORT']);
   if(lock.hasLock()!==true)throw Error('寫後共用鎖失效');
   return {accepted:true,created:true,applicantId,screeningId,
    phase:'PENDING_EMAIL'};
@@ -196,8 +198,8 @@ function study1ParticipantOtpRows_(r){
  if(a[0]!==r.applicantId||study1BindingEmail_(a[2])!==r.email||
     a[6]!=='PENDING_EMAIL'||
     s[0]!==r.screeningId||s[1]!==r.applicantId||
-    s[2]!==policy.screeningVersion||s[3]!=='PENDING_REVIEW'||
-    s[5]!=='SELF_REPORT_NOT_VERIFIED')
+    s[2]!==policy.screeningVersion||s[3]!=='ELIGIBLE'||
+    s[5]!=='PARTICIPANT_SELF_REPORT')
   throw Error('OTP_PENDING_APPLICATION_MISMATCH');
  return {book,apps,screens,policy};
 }
@@ -384,10 +386,14 @@ function study1ParticipantEmailStatus_(untrusted){
   // A successful mail token still must match the ORIGINAL persisted
   // Applicants/Screenings and Verification F:G under the same lock.
   const book=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
-  const a=study1BindingSheetRow_(book,'Applicants',
-   STUDY1_BINDING_SCHEMA_.applicants,p.applicantId).rows[0];
+  const appRef=study1WizardTable_(book,'Applicants',
+   STUDY1_BINDING_SCHEMA_.applicants);
+  const positions=study1WizardLookup_(appRef,1,p.applicantId,true);
+  if(positions.length!==1)throw Error('EMAIL_APPLICATION_NOT_UNIQUE');
+  const a=study1BindingOtpRow_(appRef.tab,positions[0],7);
   const s=study1BindingSheetRow_(book,'Screenings',
    STUDY1_BINDING_SCHEMA_.screenings,p.screeningId).rows[0];
+  const policy=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
   const v=study1BindingSheetRow_(book,'Verification',
    STUDY1_BINDING_SCHEMA_.verification,p.challengeId).rows[0];
   const email=study1BindingEmail_(a[2]);
@@ -395,8 +401,9 @@ function study1ParticipantEmailStatus_(untrusted){
   const created=study1BindingUtc_(v[8]),expiry=study1BindingUtc_(v[4]),
    used=study1BindingUtc_(v[6]);
   const all=study1WizardIssueRows_(book,p.applicantId,email).snapshot.rows;
-  if(a[6]!=='PENDING_EMAIL'||s[1]!==p.applicantId||
-     s[3]!=='PENDING_REVIEW'||s[5]!=='SELF_REPORT_NOT_VERIFIED'||
+  if(!['PENDING_EMAIL','EMAIL_VERIFIED'].includes(a[6])||
+     s[1]!==p.applicantId||s[2]!==policy.screeningVersion||
+     s[3]!=='ELIGIBLE'||s[5]!=='PARTICIPANT_SELF_REPORT'||
      p.emailHash!==hashed||v[1]!==p.applicantId||
      v[2]!=='EMAIL_VERIFICATION'||study1BindingEmail_(v[7])!==email||
      v[6]!==p.usedAtUtc||used<created||used>=expiry||
@@ -407,8 +414,23 @@ function study1ParticipantEmailStatus_(untrusted){
        study1BindingUtc_(row[8])>=created))
    throw Error('EMAIL_CONTROL_EVIDENCE_CHANGED');
   if(lock.hasLock()!==true)throw Error('EMAIL_STATUS_LOCK_LOST');
+  // Persist only CONTACT verification, not documentary identity.
+  // The separate screening already records participant self-declaration.
+  if(a[6]==='PENDING_EMAIL'){
+   const fresh=study1BindingOtpRow_(appRef.tab,positions[0],7);
+   if(JSON.stringify(fresh)!==JSON.stringify(a))
+    throw Error('EMAIL_APPLICATION_CONCURRENT_CHANGE');
+   const updatedAt=new Date().toISOString();
+   appRef.tab.getRange(positions[0],6,1,2)
+    .setValues([[updatedAt,'EMAIL_VERIFIED']]);
+   SpreadsheetApp.flush();
+   const after=study1BindingOtpRow_(appRef.tab,positions[0],7);
+   if(after[5]!==updatedAt||after[6]!=='EMAIL_VERIFIED')
+    throw Error('EMAIL_APPLICATION_WRITE_VERIFY_FAILED');
+  }
   return {emailVerified:true,experiment:'E1',
-   applicationState:'PENDING_STAFF_ELIGIBILITY_REVIEW',
+   eligibilitySource:'PARTICIPANT_SELF_REPORT',
+   applicationState:'SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED',
    reservationState:'NOT_AUTHORIZED',consentState:'NOT_SIGNED'};
  }finally{lock.releaseLock();}
 }
