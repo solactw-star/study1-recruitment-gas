@@ -168,7 +168,7 @@ test('§70-S E1 full PDF writes a new private signed file, SHA-verifies readback
  const original=await createBlank(),h=buildHarness(original),png=syntheticInk();
  const {request,adapter}=syntheticBindingEvidence(h.doc);
  h.scope.study1EConsentBindingAdapter_=()=>adapter;
- const issued=h.scope.study1EConsentIssueBound_(request,adapter);
+ const issued=h.scope.study1EConsentIssueBound_(request);
  assert.equal(issued.sha256,sha(original));
  h.scope.study1EConsentExplain({id:issued.id,question:'研究資料保存多久？',
   answer:'完整說明合成研究流程。',resolved:true});
