@@ -70,11 +70,11 @@ function harness(){
    if(!held||after.revision!==before.revision+1)throw Error('CAS_NOT_LOCKED');
    seen.writes++;registry.revision=after.revision;registry.records=after.records;
   },
-  study1EConsentEntry_:()=>registry.records[0],
+  study1EConsentEntry_:()=>{if(!registry.records.length)throw Error('TOKEN_INVALID');return registry.records[0];},
   study1EConsentSession_:()=>({state:'ISSUED'}),
   study1EConsentSession:()=>({explanation:null}),
   LockService:{getScriptLock:()=>lock},
-  Utilities:{getUuid:(()=>{let i=0;return ()=>('aaaaaaa'+String(++i).padStart(2,'0')+'-bbbb-4ccc-8ddd-000000000001');})()},
+  Utilities:{getUuid:(()=>{let i=0;return ()=>('aaaaaa'+String(++i).padStart(2,'0')+'-bbbb-4ccc-8ddd-000000000001');})()},
   Date,Number,String,Array,Object,JSON,Error,Set,Math,
  };
  vm.createContext(scope);vm.runInContext(src,scope);
@@ -132,7 +132,7 @@ test('mutated PDF SHA, missing original slot and counterfeit Email OTP are rejec
 });
 test('signed or confirmed status cannot bypass binding or proof gates',()=>{
  const h=harness();
- assert.throws(()=>h.scope.study1FormalConsentStatus('wrong token'),/not bound/i);
+ assert.throws(()=>h.scope.study1FormalConsentStatus('wrong token'),/TOKEN_INVALID/);
  h.scope.study1FormalConsentBegin({emailProof:'MAIL_PROOF',reservationId:rid});
  const r=h.scope.study1FormalConsentStatus('TOKEN');
  assert.equal(r.state,'ISSUED');
