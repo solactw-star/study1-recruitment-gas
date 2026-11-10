@@ -1046,7 +1046,9 @@ async function study1EConsentSignPdf(input){
  // A bearer token and staff manual invitation are never sufficient proof.
  // This must be re-read from approved server-only sources, not from the browser.
  if(!prior.binding)throw Error('BINDING_REQUIRED：此邀請未綁定身分／OTP／預約');
- if(prior.channel==='FORMAL_E1')study1FormalConsentGate_();
+ if(prior.channel==='FORMAL_E1'){
+  study1FormalConsentGate_();study1FormalConsentCopyExpiry_();
+ }
  const bindingAdapter=study1EConsentBindingAdapter_(prior.channel==='FORMAL_E1'?'PUBLIC_E1':undefined);
  if(prior.state!=='EXPLAINED'||prior.documentSha!==input.documentSha||
    prior.expires<=Date.now())
@@ -1084,13 +1086,30 @@ async function study1EConsentSignPdf(input){
    if(!heldLock||heldLock.hasLock()!==true)
     throw Error('PDF_SIGN_FINAL_CAS_LOCK_REQUIRED');
    study1BindingRecheck_(x.binding,reloaded,bindingAdapter,new Date().toISOString(),heldLock);
+   // The typed self-declared signing name must match the original applicant
+   // row. Email OTP is mailbox control, never documentary identity checking.
+   if(x.channel==='FORMAL_E1'){
+    const expected={applicantId:x.binding.applicantId,
+     screeningId:x.binding.screeningId,challengeId:x.binding.challengeId,
+     experiment:'E1',reservationId:x.binding.reservationId,
+     slotId:x.binding.slotId,documentSha:x.binding.documentSha,
+     documentVersion:x.binding.documentVersion};
+    const source=bindingAdapter.readTrustedSnapshot(expected,heldLock);
+    const originalName=source&&source.applicants&&source.applicants.rows&&
+     source.applicants.rows[0]&&source.applicants.rows[0][1];
+    if(typeof originalName!=='string'||originalName.trim()!==input.name.trim())
+     throw Error('FORMAL_CONSENT_NAME_NOT_SAME_APPLICATION');
+   }
+   const accessExpires=x.channel==='FORMAL_E1'?
+    study1FormalConsentCopyExpiry_():x.expires;
    savedPdf=study1EConsentSignedPdfStore_(stamped,x);
    const event=study1EConsentFile_('SIGNATURE',x,{
     name:input.name.trim(),signaturePngBase64:input.signature,
     read:true,answerAcknowledged:true,agreed:true,
     signedPdfSha256:savedPdf.sha,serverSignedAt:stamped.serverSignedAt,
     taipeiDate:stamped.taipeiDate,explanationHash:x.explanation.sha});
-   return {...x,state:'SIGNED',signature:event,signedPdf:savedPdf};
+   return {...x,state:'SIGNED',signature:event,signedPdf:savedPdf,
+    expires:accessExpires};
   });
   if(changed.state!=='SIGNED'||!changed.signedPdf||
      changed.signedPdf.sha!==stamped.signedSha256)
