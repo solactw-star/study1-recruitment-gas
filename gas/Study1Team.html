@@ -767,13 +767,14 @@ body>header nav{max-width:none;padding:14px 24px}
 <section class="panel" id="consentVersionsModule" aria-labelledby="consentVersionsHeading" hidden>
  <span class="tag">正式文件版本管理</span><h2 id="consentVersionsHeading">知情同意書上傳與版本管理</h2>
  <p class="sub">上傳實驗一與實驗二不同時期的同意書。每次上傳保存原PDF及 SHA-256；已封存文件不可覆寫。選用版本不會自動開放收件或更改已簽署文件。</p>
- <div class="warn"><strong>請上傳空白知情同意書</strong><p>不要上傳參與者已簽署、含姓名或其他個資的文件。原始PDF存入研究室私人資料夾。</p></div>
+ <div class="warn"><strong>E1：請先由研究者於PDF正式欄位簽名，再上傳完整檔案</strong><p>受試者報名時只補上自己的手寫簽名；不要上傳任何已由受試者簽署或含受試者個資的文件。來源PDF保存在原私人資料夾，需核對適用REC及版本後才能正式提供。</p></div>
  <form id="consentVersionsForm">
   <div class="grid">
    <label for="consentVersionsExperiment">實驗<select id="consentVersionsExperiment" required><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
    <label for="consentVersionsName">版號<input id="consentVersionsName" required maxlength="33" placeholder="例如 2026-11-09-v2" pattern="[A-Za-z0-9][A-Za-z0-9._-]{0,32}"></label>
    <label for="consentVersionsTitle">文件名稱<input id="consentVersionsTitle" required maxlength="100" placeholder="研究參與者知情同意書"></label>
-   <label for="consentPdfFile">選擇 PDF（3 MB以下）<input id="consentPdfFile" type="file" accept=".pdf,application/pdf" required></label>
+   <label for="consentPdfFile">選擇研究者事先簽署的 PDF（3 MB以下）<input id="consentPdfFile" type="file" accept=".pdf,application/pdf" required></label>
+   <label for="consentPresignedAttest"><input type="checkbox" id="consentPresignedAttest">確認本次E1 PDF已由研究者本人於原研究員欄位簽名，尚無受試者資料；已對照適用REC版本。此為研究者核對聲明，不代表REC核准。</label>
   </div>
   <button type="submit" id="consentUpload">上傳並封存新版本</button>
   <button type="button" id="consentVersionsRefresh" class="secondary">重新載入</button>
@@ -5193,7 +5194,8 @@ $('b12Search').addEventListener('input',b12Reset);
    const version=document.createElement('p');version.textContent='版本：'+doc.version+
     (state.current[doc.experiment]===doc.id?'｜目前選用':'｜已封存')+
     (state.published[doc.experiment]===doc.id?'｜目前提供正式首頁閱讀':'');
-   const hash=document.createElement('span');hash.className='small';hash.textContent='SHA-256：'+doc.sha256;
+   const hash=document.createElement('span');hash.className='small';hash.textContent='SHA-256：'+doc.sha256+
+    (doc.experiment==='E1'?(doc.researcherPresigned===true?'｜研究者事先簽署版（OWNER聲明）':'｜未確認研究者已簽名，不能用於E1正式線上簽署'):'');
    const link=document.createElement('a');link.textContent='開啟私人原版PDF';
    if(/^https:\/\/drive\.google\.com\//.test(doc.url)){
     link.href=doc.url;link.rel='noopener';link.target='_blank';
@@ -5256,6 +5258,9 @@ $('b12Search').addEventListener('input',b12Reset);
   if(!['E1','E2'].includes(experiment)||!title||title.length>100||
    !/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(version))
    return consentStatus_('請檢查文件名稱、版號及實驗。',true);
+  const researcherPresigned=experiment==='E1'&&$('consentPresignedAttest').checked===true;
+  if(experiment==='E1'&&!researcherPresigned)
+   return consentStatus_('E1必須由研究者先在PDF簽署並勾選核對聲明後才能上傳。',true);
   consentWorking=true;consentStatus_('讀取PDF並封存原檔中，請勿關閉頁面…');
   const reader=new FileReader();
   reader.onerror=()=>{consentWorking=false;consentStatus_('本機PDF讀取失敗，未提交。',true);};
@@ -5268,7 +5273,7 @@ $('b12Search').addEventListener('input',b12Reset);
    }).withFailureHandler(e=>{
     consentWorking=false;consentStatus_('上傳失敗：'+String(e.message||e),true);
    }).study1ConsentVersionUpload({experiment,version,title,base64,
-    expectedRevision:consentIndex.revision});
+    researcherPresigned,expectedRevision:consentIndex.revision});
   };
   reader.readAsDataURL(file);
  });
