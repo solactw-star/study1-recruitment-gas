@@ -14,7 +14,8 @@ function setup({enabled=true,identityApproved=true,duplicate=false}={}){
  const flags=new Map(),now=Date.now(),date=ms=>new Date(now+ms).toISOString();
  for(const k of ['OPEN','CONSENT_READY','STUDY1_ECONSENT_PROVIDER_VERIFIED',
   'STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED','STUDY1_ECONSENT_WIZARD_LINK_VERIFIED',
-  'STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED','STUDY1_ECONSENT_LIVE_SHEETS_APPROVED'])
+  'STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED','STUDY1_ECONSENT_LIVE_SHEETS_APPROVED',
+  'STUDY1_ECONSENT_OTP_VERIFY_APPROVED'])
   flags.set(k,enabled?'true':'false');
  flags.set('STUDY1_OTP_HMAC_SECRET',secret);
  flags.set('STUDY1_ECONSENT_BINDING_HMAC_KEY',crypto.randomBytes(36).toString('hex'));
@@ -153,6 +154,12 @@ test('Duplicate challenge IDs, stale writer state and concurrent lock contention
  const c=setup();c.locked.on=true;
  assert.throws(()=>c.scope.study1EConsentVerifyContactOtp_(c.request),/無法取得 OTP 全域交易鎖/);
  assert.equal(c.writes.length,0);
+});
+test('Read-only Sheets approval does not itself authorize OTP verification writes',()=>{
+ const h=setup();h.flags.set('STUDY1_ECONSENT_OTP_VERIFY_APPROVED','false');
+ assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request),/REC_REVIEW_REQUIRED/);
+ assert.equal(h.reads.length,0);
+ assert.equal(h.writes.length,0);
 });
 test('Revoking source approval or losing the HMAC key denies all live writes',()=>{
  const h=setup();h.flags.set('STUDY1_ECONSENT_LIVE_SHEETS_APPROVED','false');
