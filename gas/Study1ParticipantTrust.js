@@ -112,6 +112,8 @@ function study1ParticipantTurnstileCheck_(request){
  return {allowed:true,provenance:'SERVER_APPROVED_RATE_AND_BOT_PROTECTION',
   requestId:request.requestId,
   validatedAtUtc:new Date(now).toISOString(),
+  configHmac:study1BindingHmac_([
+   'TURNSTILE_CONFIG_V1',c.siteKey,c.secret,c.host,c.action]),
   verificationHmac:study1BindingHmac_([
    'TURNSTILE_SITEVERIFY_V1',request.requestId,c.siteKey,c.host,c.action,ts
   ])};
@@ -121,13 +123,19 @@ function study1ParticipantAbuseRecheck_(grant,request){
     grant.provenance!=='SERVER_APPROVED_RATE_AND_BOT_PROTECTION'||
     grant.requestId!==request.requestId||
     typeof grant.verificationHmac!=='string'||
-    !/^[a-f0-9]{64}$/.test(grant.verificationHmac))
+    !/^[a-f0-9]{64}$/.test(grant.verificationHmac)||
+    typeof grant.configHmac!=='string'||
+    !/^[a-f0-9]{64}$/.test(grant.configHmac))
   throw Error('BOT_GRANT_INVALID');
  const when=study1BindingUtc_(grant.validatedAtUtc);
  if(when>Date.now()+30000||Date.now()-when>240000)
   throw Error('BOT_GRANT_EXPIRED');
  // Only re-read independent *configuration* here. A Cloudflare token is
  // single-use: never send it to Siteverify a second time.
- study1ParticipantTurnstileConfig_();
+ const c=study1ParticipantTurnstileConfig_();
+ const expected=study1BindingHmac_([
+  'TURNSTILE_CONFIG_V1',c.siteKey,c.secret,c.host,c.action]);
+ if(grant.configHmac!==expected)
+  throw Error('BOT_PROVIDER_CONFIG_CHANGED_DURING_INTAKE');
  return true;
 }
