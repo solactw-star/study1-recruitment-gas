@@ -200,7 +200,7 @@ function study1EConsentBindingAdapter_(){
      id.reservationId!==input.reservationId||id.slotId!==input.slotId||
      id.challengeId!==input.challengeId||id.screeningId!==input.screeningId||
      !/^[a-f0-9]{64}$/.test(id.evidenceSha256||''))
-   throw Error('REC_REVIEW_REQUIRED：身分核定證據或研究實驗別未經授權');
+   throw Error('IDENTITY_EVIDENCE_INVALID：身分核定證據或研究實驗別不符');
   study1BindingGate_();
   const personal=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
   const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
@@ -248,7 +248,7 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
     !/^[a-f0-9]{64}$/.test(identity.eligibilityEvidenceSha256||'')||
     typeof identity.approvalReference!=='string'||identity.approvalReference.length<8||
     typeof identity.evidenceSha256!=='string'||!/^[a-f0-9]{64}$/.test(identity.evidenceSha256))
-  throw Error('REC_REVIEW_REQUIRED：缺少獨立有效本人身分及實驗別核准證據');
+  throw Error('IDENTITY_EVIDENCE_INVALID：缺少有效本人身分及實驗別查核證據');
  const idWhen=study1BindingUtc_(identity.verifiedAtUtc);
  if(idWhen>now||idWhen<now-86400000)
   throw Error('身分核對已過期或時間異常');
@@ -261,7 +261,7 @@ function study1BindingVerify_(snapshot,request,doc,nowUtc){
       identity.priorE1Source==='REC_APPROVED_STUDY_HISTORY'&&
       typeof identity.priorE1EvidenceSha256==='string'&&
       /^[a-f0-9]{64}$/.test(identity.priorE1EvidenceSha256)))
-  throw Error('REC_REVIEW_REQUIRED：實驗二必須獨立確認未參加過實驗一');
+  throw Error('ELIGIBILITY_EVIDENCE_MISSING：實驗二必須獨立確認未參加過實驗一');
  const person=study1BindingUniqueRow_(snapshot.applicants,
     STUDY1_BINDING_SCHEMA_.applicants,applicantId);
  if(person[0]!==applicantId||person[6]!=='VERIFIED')
@@ -332,7 +332,7 @@ function study1BindingDigest_(binding){
 /** Atomic source reread is performed by the caller UNDER the shared lock. */
 function study1BindingRecheck_(bound,doc,adapter,nowUtc){
  if(!adapter||typeof adapter.readTrustedSnapshot!=='function')
-  throw Error('REC_REVIEW_REQUIRED：沒有獲核准的正式身分／OTP／時段來源');
+  throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：沒有可信的身分／OTP／時段來源');
  if(study1BindingDigest_(bound)!==bound.digest)
   throw Error('身分連結簽章已變更');
  const expected={applicantId:bound.applicantId,reservationId:bound.reservationId,
@@ -381,7 +381,7 @@ function study1EConsentIssueBound_(input){
   // REC-gated factory. Unit tests replace that factory inside a VM.
   const reader=study1EConsentBindingAdapter_();
   if(!reader||typeof reader.readTrustedSnapshot!=='function')
-   throw Error('REC_REVIEW_REQUIRED：未設立可信正式讀取介接');
+   throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：未設立可信正式讀取介接');
   const binding=study1BindingVerify_(reader.readTrustedSnapshot(input),input,doc,nowUtc);
   binding.digest=study1BindingDigest_({...binding,digest:''});
   if(lock.hasLock()!==true)throw Error('共用交易鎖已失效');
