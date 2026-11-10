@@ -1060,3 +1060,24 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - **回歸證據**：原 GitHub PR #133（Draft）之 code HEAD 在新增本接續文字前為 `d8c7ef0fd3744f00eb19afdc126953031116665f`；原 PR 靜態安全工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42741708297 completed/success，**733 PASS／0 FAIL／0 SKIP**。原 B02/B03/B04/V05～V08共用回歸測試已更新為先按資料核對再進入同意流程，保留原數據與CAS負測；CI不等於瀏覽器UI或正式REC電子簽署。
 - **重要未完成項目（不可冒稱完成）**：目前這次程式修正只是**正式流程順序／資訊首頁位置／私有OWNER測試回歸**；原 Visitor 仍是TEST fixture及 `SIMULATED_SIGN_ONLY` 的受保護回歸程式，手寫筆跡僅本機預覽，不會回填到PDF，也沒有可信簽名日期、E1/E2實際發布核准PDF、正式身分／郵件核對或完整簽署PDF與獨立SHA的端到端驗證。因此 `E_CONSENT_PDF_EMBED_IMPLEMENTED=false`、`REAL_ENROLLMENT_IMPLEMENTED=false`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_READY=false`。下一個P0須在**同一原報名wizard**實作核准PDF的安全載入與SHA、簽名影像及可信臺灣日期落於參與者欄、產生獨立已簽PDF、研究人員簽署及本人副本、後端版本化事件與真實身分／時段連接；未核准不得對真人啟用。
 - **寫入／競寫界線**：本輪僅原GitHub隔離分支 `fix/consent-last-preserve-wizard-20261110` 的原路徑程式/測試/唯一規格更新，PR #133仍Draft、main 未修改，原GAS私人V122／公開V124是§70-R既有核實基準，**本輪未觸碰原GAS、部署、正式Sheets、REC、任何真人資料**。分支含 `scripts/study1-gas-public-release.cjs` 的必要安全規則變更，合併main可能觸發原部署工作流；**不得將PR自動合併／部署視為授權**。保持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`，E2不自動招募；正式GAS同步/部署須另核對最新main/遠端備份/競寫及明確權限後執行。
+
+
+### 70-S.6｜2026-11-10 E1/E2 PDF 原文SHA、簽名嵌入、臺灣日期、完整PDF副本的隔離分支增量實作
+
+TASK_DOMAIN=Study1 recruitment website / eConsent; WRITE_OWNER=original GitHub PR #133 (Draft) only; BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e.
+
+**已寫入原程式與回歸測試（PR分支，尚未main／GAS部署）**
+
+- 原 gas/Study1Visitor.html 最後的 step-consent 新增 E1/E2 正式原PDF唯讀核對區。僅在完成原七步流程中的HELD時段及資料核對後，才從原後台已明確發布的 getPublicConsentDocument(exp) 擷取實驗別原文；檢驗PDF檔頭、byte長度、版本、原SHA-256，並用瀏覽器 crypto.subtle.digest 重新計算SHA一致後才提供完整原文檢視及下載；時段或申請版本變動時撤銷舊來源。保留原七步、V05月曆、V08候補/改期/取消及B02/B03/B04。原唯讀RPC只可用於CLOSED正式資訊來源，尚非具真人核身後的正式報名讀取通道。
+- 新 gas/Study1PdfLib.js 是可離線執行的PDF合成函式庫，無CDN。來源由兩個公開鏡像交叉核對Git blob SHA=edb12c72cdaa11b608eb5967cf1531892b7f3b31；原MIT授權/待驗證供應鏈來源寫於原 docs/third-party/pdf-lib-license.md。正式部署前仍須查核發行包供應鏈和原Script版本大小。
+- 新 gas/Study1PdfStampCore.js 以伺服器 Date 與 Asia/Taipei 產生簽署當日yyyy/MM/dd；原核准PDF位元組及SHA不改，將PNG手寫筆跡與日期真正寫到PDF頁面指定位置，生成整份新PDF並計算獨立SHA及重開檔案驗證。必須由OWNER按REC正式原版核定頁次/欄位座標，並以該E1/E2實驗+版號+原文件SHA綁定唯一私有配置STUDY1_ECONSENT_APPROVED_PDF_LAYOUT_V1；缺失/錯頁/錯實驗/座標重疊一律fail closed，不根據檔名或範例臆造。
+- 原 gas/AdminSandbox.js 追加 study1EConsentSignPdf 及 study1EConsentSignedPdfCopy，基於原原始PDF/說明/邀請/實驗/到期/身分狀態檢查，另要求未開啟的PDF_PROVIDER_VERIFIED與WIZARD_LINK_VERIFIED雙閘門；已簽整份PDF寫入原研究室私人Drive，回讀ACL/檔案原位/完整SHA，原CAS紀錄簽名事件、台灣日期和新PDF SHA。研究人員另行確認後，本人以原token取回完整PDF，原study1EConsentCopy也擴充完整PDF欄位。舊獨立PNG-only簽署須LEGACY_SYNTHETIC_ONLY明確隔離測試旗標，不得作正式同意。原式未放寬收件OPEN、CONSENT_READY、MYSELF。
+- 測試包含合成E1/E2五頁完整PDF及PNG、原SHA與新SHA不同、日期跨臺灣午夜、頁碼/來源/座標/版號/來源索引負測、私有文件SHA回讀、研究人員確認後本人完整PDF、撤回保留原事件。CI：https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42745317658 於code HEAD=b9bfc43a280feb591c8543f02db66abd314df6a2 驗證 740 PASS / 0 FAIL / 0 SKIP。先前合成Drive iterator測試語法錯誤已更正，重跑確認。測試只用合成PDF和人造PNG，不是REC原PDF正式頁面實測。
+
+**獨立阻塞／禁止誤判**
+- REC_REVIEW_REQUIRED=true：Google Drive有多個E1/E2命名文件，但尚未依真正核准文件確認哪一份現行有效、電子同意形式、以及各版的PDF實際簽名日期欄座標。正式PDF簽名座標核定配置預設不存在；絕不自行把範例欄位放行。
+- REAL_WIZARD_SIGNING_NOT_INTEGRATED=true：原Visitor仍是PRIVATE OWNER TEST資料模型，最後TEST finish沿用SIMULATED_SIGN_ONLY；尚未連結真人身分、正式OTP、實際場次、同一申請與新的受保護正式PDF簽署事件，因此本輪是簽署引擎/存證/唯讀UI的實作，不是已可完成真人七步正式電子同意。WIZARD_LINK_VERIFIED只是要求核實的安全門檻，非目前具有真實連結的證據。
+- CI不可代替真人實機瀏覽器UI、PDF逐欄視覺核對、研究人員正式PDF簽章、REC批准、可擴充容量及不可改寫存證。FORMAL_READY=false; UI_VERIFIED=NOT_VERIFIED; MAIN_SYNC_VERIFIED=false; GAS_SYNC_VERIFIED=false; E_CONSENT_LIVE=false。
+- 本輪未合併main、未同步/部署GAS、未改REC、正式研究Sheets或真人個資。由於分支包含原GAS同步與public-release管控規則，PR合併main有可能觸發未授權發布，必須等獨立代碼/競寫/遠端備份/安全發布授權完成。OPEN=false，CONSENT_READY=false，原私人MYSELF，實驗二不自動開放。
+
+NEXT_ACTION=人工核實現行REC的E1/E2原PDF、頁數和簽名/日期框並綁定SHA；接續原Visitor的真人身分與驗證、後端申請/場次、完整PDF簽署RPC與研究人員簽章，完成私人瀏覽器UAT及下載後視覺/雜湊驗證。禁止以目前合成CI成果宣稱可正式收件。
