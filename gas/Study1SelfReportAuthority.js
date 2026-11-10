@@ -14,7 +14,13 @@ function study1SelfReportedAuthority_(request){
   throw Error('EXPERIMENT_NOT_OPEN');
  if(!LockService.getScriptLock().hasLock())
   throw Error('SELF_REPORT_SHARED_LOCK_REQUIRED');
- study1BindingGate_();
+ // This source is also used by the PUBLIC participant booking RPC.
+ // Never apply study1BindingGate_() here: it requires admin-owner login.
+ // The private e-consent adapter separately enforces the owner/REC gate.
+ study1ParticipantGate_();
+ if(PropertiesService.getScriptProperties()
+    .getProperty('STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED')!=='true')
+  throw Error('SELF_REPORT_OTP_SOURCE_NOT_READY');
  const policy=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
  const book=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
  const applicant=study1BindingSheetRow_(book,'Applicants',

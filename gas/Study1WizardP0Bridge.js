@@ -77,10 +77,14 @@ function study1WizardSlotAuthority_(request, originalSlot){
    'STUDY1_E1_SLOT_AUTHORITY_V1',mac,request.slotId,rowSha])};
 }
 function study1WizardP0Gate_(){
- study1BindingGate_();
- if(PropertiesService.getScriptProperties()
-    .getProperty('STUDY1_WIZARD_P0_SHEET_HOLD_VERIFIED')!=='true')
-  throw Error('BACKEND_NOT_READY：原七步與正式預約交易尚未完成驗證');
+ // Participant booking uses an E1-specific gate; owner-only consent backend
+ // permissions are checked separately and must never be borrowed here.
+ study1ParticipantGate_();
+ const p=PropertiesService.getScriptProperties();
+ if(p.getProperty('STUDY1_WIZARD_P0_SHEET_HOLD_VERIFIED')!=='true'||
+    p.getProperty('STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED')!=='true'||
+    p.getProperty('STUDY1_E1_BOOKING_APPROVED')!=='true')
+  throw Error('BACKEND_NOT_READY：原七步E1預約及自陳OTP來源尚未完成驗證');
  return true;
 }
 function study1WizardRequest_(r){

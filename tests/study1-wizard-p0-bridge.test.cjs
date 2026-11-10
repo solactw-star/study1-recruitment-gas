@@ -43,7 +43,7 @@ function fixture({approved=true,identity=true,slotProof=true,experiment='E1',cap
  const context=vm.createContext({
   Date,JSON,Array,Object,Set,Number,String,Math,Error,
   PropertiesService:{getScriptProperties:()=>({getProperty:k=>k==='STUDY1_ECONSENT_BINDING_HMAC_KEY'?'0123456789abcdef'.repeat(5):
-     k==='STUDY1_WIZARD_P0_SHEET_HOLD_VERIFIED'&&approved?'true':null})},
+     ['STUDY1_WIZARD_P0_SHEET_HOLD_VERIFIED','STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED','STUDY1_E1_BOOKING_APPROVED'].includes(k)&&approved?'true':null})},
   Utilities:{Charset:{UTF_8:'UTF-8'},
    getUuid:()=> '00000000-1111-4222-8333-'+String(++n).padStart(12,'0'),
    computeHmacSha256Signature:(s,key)=>[...crypto.createHmac('sha256',key).update(s).digest()]},
@@ -59,6 +59,7 @@ function fixture({approved=true,identity=true,slotProof=true,experiment='E1',cap
  vm.runInContext(scripts,context,{timeout:5000});
  context.SITE_RESOURCES_={personal:P,operations:O};
  context.study1BindingGate_=()=>{if(!approved)throw Error('BACKEND_NOT_READY');return true};
+ context.study1ParticipantGate_=()=>{if(!approved)throw Error('BACKEND_NOT_READY');return true};
  context.study1EConsentReadyDocument_=exp=>({experiment:exp,sha256:'a'.repeat(64),version:'2026-05-11/Version02'});
  context.study1BindingSheetRow_=(_book,name,headers,id)=>{
   if(!tables[name]||JSON.stringify(tables[name].headers)!==JSON.stringify(Array.from(headers)))

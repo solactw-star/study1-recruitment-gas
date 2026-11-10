@@ -32,7 +32,8 @@ function env(){
    computeHmacSha256Signature:(raw,key)=>[...crypto.createHmac('sha256',key).update(raw).digest()]}
  });
  vm.runInContext(source,scope,{timeout:4000});
- scope.study1BindingGate_=()=>true; // owner/REC gates tested independently
+ scope.study1ParticipantGate_=()=>true; // public gate tested separately
+ flags.set('STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED','true');
  scope.study1ParticipantRecPolicy_=()=>({screeningVersion:'REC_E1_V2',documentSha256:'b'.repeat(64)});
  scope.study1ParticipantVerifiedPolicy_=p=>p;
  scope.study1BindingSheetRow_=(_book,tab,heads,id)=>{
