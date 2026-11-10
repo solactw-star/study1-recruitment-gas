@@ -98,3 +98,45 @@ test('concurrent original Slot mutation across read passes must not pass',()=>{
  assert.throws(()=>h.ctx.study1OwnerE1SlotAudit(),/E1_AUDIT_SLOTS_CHANGED_DURING_READ/);
  assert.equal(h.getAudit().hasLock,false);
 });
+
+test('zero-row original Slots cannot produce any E1/E2 HMAC candidate or auto-approval',()=>{
+ const h=setup();h.rows.splice(0);
+ const out=h.ctx.study1OwnerE1SlotRegistryProposal({decisions:[]});
+ assert.equal(out.status,'BLOCKED_NO_OFFICIAL_SLOTS');
+ assert.equal(out.sourceRows,0);assert.equal(out.registryJson,null);
+ assert.equal(out.registryHmac,null);assert.equal(out.approved,false);
+ assert.deepEqual(Array.from(out.proposalEntries),[]);
+ assert.equal(h.getAudit().writeCount,0);
+ assert.throws(()=>h.ctx.study1OwnerE1SlotRegistryProposal({
+  decisions:[{slotId:'SLOT_FABRICATED_0001',experiment:'E1'}]}),
+ /SLOT_PROPOSAL_NO_ORIGINAL_ROWS/);
+});
+test('explicit PI-review CANDIDATES hash exact original rows but never activate them',()=>{
+ const h=setup(),before=JSON.stringify([...h.props]);
+ const out=h.ctx.study1OwnerE1SlotRegistryProposal({decisions:[
+  {slotId:h.rows[0][0],experiment:'E1'},{slotId:h.rows[1][0],experiment:'E2'}]});
+ assert.equal(out.status,'PI_REVIEW_CANDIDATE_ONLY');
+ assert.equal(out.approved,false);assert.equal(out.scriptPropertiesChanged,false);
+ assert.equal(JSON.stringify([...h.props]),before);
+ assert.equal(out.proposalEntries.length,2);
+ const parsed=JSON.parse(out.registryJson);
+ assert.equal(parsed[0].experiment,'E1');assert.equal(parsed[1].experiment,'E2');
+ assert.match(out.registryHmac,/^[a-f0-9]{64}$/);
+ assert.equal(h.getAudit().reads,2);
+ assert.equal(h.getAudit().slotsOnly,true);
+ assert.equal(h.getAudit().writeCount,0);
+});
+test('proposal refuses forged/duplicated slot decisions, tampered source and nonowner',()=>{
+ const h=setup();
+ assert.throws(()=>h.ctx.study1OwnerE1SlotRegistryProposal({
+  decisions:[{slotId:'SLOT_UNTRUSTED_0001',experiment:'E1'}]}),/UNMAPPED_DECISION/);
+ assert.throws(()=>h.ctx.study1OwnerE1SlotRegistryProposal({
+  decisions:[{slotId:h.rows[0][0],experiment:'E1'},
+   {slotId:h.rows[0][0],experiment:'E2'}]}),/DUPLICATE_DECISION/);
+ h.setChanged(true);
+ assert.throws(()=>h.ctx.study1OwnerE1SlotRegistryProposal({
+  decisions:[{slotId:h.rows[0][0],experiment:'E1'}]}),/READ_DRIFT/);
+ h.setOwner(false);
+ assert.throws(()=>h.ctx.study1OwnerE1SlotRegistryProposal({decisions:[]}),/OWNER_REQUIRED/);
+ assert.equal(h.getAudit().writeCount,0);
+});
