@@ -90,6 +90,7 @@ function study1FormalConsentDocument_(ctx,reservationId){
     document.experiment!=='E1')
   throw Error('FORMAL_CONSENT_REC_PDF_VERSION_MISMATCH');
  study1PdfLayoutRead_('E1',document);
+ study1PdfResearcherLayoutRead_('E1',document);
  return {r,document};
 }
 /** The public caller supplies only a consumed Email-OTP proof and a personal
@@ -142,6 +143,44 @@ function study1FormalConsentBegin(input){
    needsResearcherExplanation:true,signatureAccepted:false};
  });
 }
+
+/** Token-bound full ORIGINAL PDF, separate from old CLOSED public document RPC. */
+function study1FormalConsentOriginalPdf(token){
+ study1FormalConsentGate_();
+ const entry=study1EConsentEntry_(token,study1EConsentRegistry_());
+ if(entry.channel!=='FORMAL_E1'||entry.experiment!=='E1'||!entry.binding||
+    !['ISSUED','EXPLAINED'].includes(entry.state))
+  throw Error('FORMAL_ORIGINAL_PDF_NOT_AUTHORIZED');
+ const lock=LockService.getScriptLock();
+ if(!lock||lock.tryLock(10000)!==true)throw Error('FORMAL_ORIGINAL_PDF_LOCK_BUSY');
+ try{
+  if(lock.hasLock()!==true)throw Error('FORMAL_ORIGINAL_PDF_LOCK_LOST');
+  study1FormalConsentGate_();
+  const latest=study1EConsentEntry_(token,study1EConsentRegistry_());
+  if(latest.id!==entry.id||!latest.binding||
+     latest.binding.digest!==entry.binding.digest||
+     !['ISSUED','EXPLAINED'].includes(latest.state))
+   throw Error('FORMAL_ORIGINAL_PDF_SESSION_CHANGED');
+  const doc=study1EConsentReadyDocument_('E1'),
+   policy=study1FormalConsentRecScope_();
+  if(doc.id!==policy.consentDocumentId||
+     doc.sha256!==policy.consentDocumentSha256||
+     doc.sha256!==entry.documentSha||
+     doc.version!==entry.documentVersion)
+   throw Error('FORMAL_ORIGINAL_PDF_REC_VERSION_CHANGED');
+  study1PdfLayoutRead_('E1',doc);
+  study1PdfResearcherLayoutRead_('E1',doc);
+  const adapter=study1EConsentBindingAdapter_('PUBLIC_E1');
+  study1BindingRecheck_(latest.binding,doc,adapter,
+   new Date().toISOString(),lock);
+  const bytes=study1ConsentDocumentBytes_(doc);
+  if(lock.hasLock()!==true)throw Error('FORMAL_ORIGINAL_PDF_LOCK_LOST');
+  return {available:true,experiment:'E1',title:doc.title,version:doc.version,
+   sha256:doc.sha256,bytes:bytes.length,mime:'application/pdf',
+   base64:Utilities.base64Encode(bytes)};
+ }finally{lock.releaseLock();}
+}
+
 /** Server-side status exposes no name, email, individual screening answers,
  * raw signature or document bytes; participant needs possession of the token.
  */
