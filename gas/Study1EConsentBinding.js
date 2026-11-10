@@ -316,7 +316,7 @@ function study1BindingRecheckWithLock_(binding,doc,adapter){
  }finally{lock.releaseLock();}
 }
 /** STRICTLY INTERNAL issuance. No public route or live adapter exists yet. */
-function study1EConsentIssueBound_(input,adapter){
+function study1EConsentIssueBound_(input){
  study1AdminOwnerRequired_();
  if(!input||Object.keys(input).sort().join(',')!==
     'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
@@ -329,7 +329,9 @@ function study1EConsentIssueBound_(input,adapter){
   study1AdminOwnerRequired_();
   const doc=study1EConsentReadyDocument_(input.experiment);
   const nowUtc=new Date().toISOString();
-  const reader=adapter||study1EConsentBindingAdapter_();
+  // No caller-supplied adapter: the only trusted reader is the server-owned,
+  // REC-gated factory. Unit tests replace that factory inside a VM.
+  const reader=study1EConsentBindingAdapter_();
   if(!reader||typeof reader.readTrustedSnapshot!=='function')
    throw Error('REC_REVIEW_REQUIRED：未設立可信正式讀取介接');
   const binding=study1BindingVerify_(reader.readTrustedSnapshot(input),input,doc,nowUtc);
