@@ -135,6 +135,7 @@ function simulate(available,withConsent=false){
   },
   study1EConsentWithdraw:req=>{
    assert.equal(req.token,token);
+   assert.equal(req.dataChoice,'CONTACT_STAFF');
    if(!staffConfirmed)throw Error('UNCONFIRMED');
    withdrawn=true;consent='WITHDRAWN';return {state:'WITHDRAWN',recorded:true};
   }
