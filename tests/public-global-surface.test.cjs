@@ -23,7 +23,9 @@ const approvedPublicFunctions = [
   'requestOtp', 'submitConsent', 'verifyOtp',
   'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp','study1ParticipantEmailStatus',
   // E1 booking ports: all re-check REC, self-report, original OTP, slots and ScriptLock
-  'study1FormalV05Slots','study1FormalQuoteHold','study1FormalHoldSlot','study1FormalStatus','study1FormalWaitlistJoin','study1FormalWaitlistClaim','study1FormalCancel','study1FormalMove'
+  'study1FormalV05Slots','study1FormalQuoteHold','study1FormalHoldSlot','study1FormalStatus','study1FormalWaitlistJoin','study1FormalWaitlistClaim','study1FormalCancel','study1FormalMove',
+  // OWNER only: direct original Slots read-only audit, no personal data or writes
+  'study1OwnerE1SlotAudit'
 ].sort();
 
 test('all GAS source files expose only the reviewed closed-site global functions', () => {
@@ -51,6 +53,12 @@ test('all GAS source files expose only the reviewed closed-site global functions
     .sort();
   assert.deepEqual(exposed, approvedPublicFunctions,
     'unreviewed callable GAS entrypoint added or reviewed endpoint removed');
+  const auditSrc=fs.readFileSync(path.join(gasDir,'Study1WizardP0Bridge.js'),'utf8');
+  const audit=auditSrc.slice(auditSrc.indexOf('function study1OwnerE1SlotAudit(){'));
+  assert.match(audit,/study1AdminOwnerRequired_\(\)/);
+  assert.match(audit,/bookingReadOnlyTab_\(/);
+  assert.doesNotMatch(audit,/\b(?:setProperty|deleteProperty|appendRow|setValue|MailApp|GmailApp)\s*\(/);
+
 });
 
 test('staging reschedule and private booking kernels are not callable globals', () => {
