@@ -1138,7 +1138,7 @@ async function study1EConsentSignPdf(input){
  const stamped=await study1PdfComposeSigned_(verifiedOriginal,pngBytes,layout,
   {experiment:prior.experiment,sha256:prior.documentSha,
    version:prior.documentVersion},signedAt);
- let savedPdf=null;
+ let savedPdf=null,verifiedContactEmail=null;
  try{
   const changed=study1EConsentChange_(prior.id,(x,r,heldLock)=>{
    if(!study1EConsentEnabled_()||
@@ -1175,6 +1175,8 @@ async function study1EConsentSignPdf(input){
      source.applicants.rows[0]&&source.applicants.rows[0][1];
     if(typeof originalName!=='string'||originalName.trim()!==input.name.trim())
      throw Error('FORMAL_CONSENT_NAME_NOT_SAME_APPLICATION');
+    // E-mail is read only from the original verified applicant, not browser input.
+    if(preSigned)verifiedContactEmail=study1BindingEmail_(source.applicants.rows[0][2]);
    }
    const accessExpires=x.channel==='FORMAL_E1'?
     study1FormalConsentCopyExpiry_():x.expires;
@@ -1206,8 +1208,21 @@ async function study1EConsentSignPdf(input){
     originalBookingConfirmed=result.bookingConfirmed===true&&result.bookingStatus==='CONFIRMED';
    }catch(_){/* PDF is immutable; original booking requires reconciliation. */}
   }
+  let emailNotificationStatus='NOT_APPLICABLE';
+  if(preSigned){
+   emailNotificationStatus=originalBookingConfirmed?'NOT_SENT':'BOOKING_NOT_CONFIRMED';
+   if(originalBookingConfirmed&&verifiedContactEmail){
+    try{
+     study1ParticipantMailGate_();
+     MailApp.sendEmail({to:verifiedContactEmail,
+      subject:'Study1｜報名與預約已確認',
+      body:'您的Study1實驗一報名與預約已確認。研究者已先簽署的知情同意書已由您在線上完成簽署，完整PDF保存在研究團隊的私人研究資料庫。請透過原報名頁面下載您的簽署副本；如需協助請聯絡研究團隊。'});
+     emailNotificationStatus='SENT';
+    }catch(_){emailNotificationStatus='UNKNOWN_REQUIRES_STAFF_REVIEW';}
+   }
+  }
   return {state:preSigned?'CONFIRMED':'SIGNED',experiment:prior.experiment,
-   researcherPreSigned:preSigned,originalBookingConfirmed,
+   researcherPreSigned:preSigned,originalBookingConfirmed,emailNotificationStatus,
    documentSha256:stamped.sourceSha256,
    signedPdfSha256:stamped.signedSha256,
    signedAt:stamped.serverSignedAt,taipeiDate:stamped.taipeiDate,
