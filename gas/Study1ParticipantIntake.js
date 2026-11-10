@@ -294,3 +294,30 @@ function study1ParticipantOtpVerify_(input){
  return {verified:result.verified===true,
   reason:result.verified?'EMAIL_CONTROL_ONLY':'REJECTED'};
 }
+
+/** Explicit reviewed public HTML Service RPCs, always fail-closed.
+ * Existing Website.js CLOSED endpoints are preserved and unchanged.
+ */
+function study1ParticipantReadiness(){
+ try{
+  study1ParticipantGate_();
+  const policy=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
+  // No active front-end until independently verified abuse controls exist.
+  study1ParticipantAbuseProtection_({requestId:'READINESS_PROBE_ONLY',
+   experiment:'E1',email:'not-supplied'});
+  if(policy.approved!==true)throw Error('REC_POLICY_NOT_APPROVED');
+  return {ready:true,experiment:'E1'};
+ }catch(_){
+  // Do not expose the presence or kind of private record / missing permission.
+  return {ready:false,experiment:'E1',reason:'REGISTRATION_NOT_OPEN'};
+ }
+}
+function study1ParticipantBegin(request){
+ return study1ParticipantBegin_(request);
+}
+function study1ParticipantSendOtp(request){
+ return study1ParticipantOtpSend_(request);
+}
+function study1ParticipantVerifyOtp(request){
+ return study1ParticipantOtpVerify_(request);
+}
