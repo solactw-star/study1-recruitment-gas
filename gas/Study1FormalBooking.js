@@ -425,8 +425,11 @@ function study1FormalMove(input){
  * This is a deliberately one-way, idempotent repairable transaction; it does
  * NOT change the HELD/quote policy or silently resurrect expired bookings.
  */
-function study1FormalFinalizeSignedE1Booking_(consentId){
- study1AdminOwnerRequired_();
+function study1FormalFinalizeSignedE1Booking_(consentId,capabilityToken){
+ // OWNER can reconcile legacy records; a valid participant token can only
+ // close its own already-signed, owner-uploaded pre-signed E1 PDF transaction.
+ const participantPath=typeof capabilityToken==='string';
+ if(!participantPath)study1AdminOwnerRequired_();
  study1FormalConsentGate_();
  study1BindingId_(consentId);
  const lock=LockService.getScriptLock();
@@ -434,11 +437,18 @@ function study1FormalFinalizeSignedE1Booking_(consentId){
   throw Error('FORMAL_BOOKING_FINALIZE_LOCK_BUSY');
  try{
   if(lock.hasLock()!==true)throw Error('FORMAL_BOOKING_FINALIZE_LOCK_LOST');
-  study1AdminOwnerRequired_();study1FormalConsentGate_();
+  if(!participantPath)study1AdminOwnerRequired_();
+  study1FormalConsentGate_();
   const registry=study1EConsentRegistry_();
   const matches=registry.records.filter(x=>x.id===consentId);
   if(matches.length!==1)throw Error('FORMAL_BOOKING_CONSENT_NOT_UNIQUE');
   const entry=matches[0],bound=entry.binding;
+  const researcherPreSigned=entry.researcherPresigned===true;
+  if(participantPath){
+   const holder=study1EConsentEntry_(capabilityToken,registry);
+   if(holder.id!==entry.id||holder.tokenHash!==entry.tokenHash||
+      !researcherPreSigned)throw Error('FORMAL_BOOKING_OWNER_OR_SELF_TOKEN_REQUIRED');
+  }
   if(entry.state!=='CONFIRMED'||entry.channel!=='FORMAL_E1'||
      entry.experiment!=='E1'||!bound||bound.experiment!=='E1'||
      !entry.signature||!entry.confirmation||!entry.participantSignedPdf||
@@ -446,6 +456,8 @@ function study1FormalFinalizeSignedE1Booking_(consentId){
    throw Error('FORMAL_BOOKING_DUAL_PDF_NOT_CONFIRMED');
   const doc=study1EConsentReadyDocument_('E1');
   const rec=study1FormalConsentRecScope_();
+  if(researcherPreSigned&&doc.researcherPresigned!==true)
+   throw Error('FORMAL_BOOKING_RESEARCHER_PRESIGNED_SOURCE_CHANGED');
   if(doc.id!==rec.consentDocumentId||
      doc.sha256!==rec.consentDocumentSha256||
      doc.sha256!==entry.documentSha||doc.version!==entry.documentVersion||
@@ -454,6 +466,11 @@ function study1FormalFinalizeSignedE1Booking_(consentId){
    throw Error('FORMAL_BOOKING_CONSENT_SOURCE_CHANGED');
   const signature=study1EConsentEvent_(entry.signature,entry,'SIGNATURE').data;
   const confirmation=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION').data;
+  if(researcherPreSigned&&
+     (confirmation.mode!=='RESEARCHER_PRESIGNED_SOURCE'||
+      confirmation.researcherSignedSourceSha256!==entry.documentSha||
+      entry.participantSignedPdf.id!==entry.signedPdf.id))
+   throw Error('FORMAL_BOOKING_PRESIGNED_SOURCE_EVIDENCE_MISMATCH');
   if(signature.signedPdfSha256!==entry.participantSignedPdf.sha||
      confirmation.signatureHash!==entry.signature.sha||
      confirmation.participantSignedPdfSha256!==entry.participantSignedPdf.sha||
