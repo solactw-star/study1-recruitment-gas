@@ -21,17 +21,17 @@
  * No researcher checks identity cards, student cards or the CYCU registry.
  * The authority cannot be read without the shared booking transaction lock.
  */
-function study1WizardApplicantAuthority_(request){
- return study1SelfReportedAuthority_(request);
+function study1WizardApplicantAuthority_(request,heldLock){
+ return study1SelfReportedAuthority_(request,heldLock);
 }
 /** Official Slots tab has NO experiment column. Never infer E1/E2 from a
  * slotId string, client selection or free-text location_code.
  */
-function study1WizardSlotAuthority_(request, originalSlot){
+function study1WizardSlotAuthority_(request, originalSlot, heldLock){
  // This registry is an OWNER-provisioned server-side source, NOT a field in
  // the visitor request or a guess from slot_id/location_code. Provisioning
  // remains disabled until the PI has verified the original Slots rows.
- if(!LockService.getScriptLock().hasLock())
+ if(!heldLock||heldLock.hasLock()!==true)
   throw Error('SLOT_SHARED_LOCK_REQUIRED');
  if(request.experiment!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
  const p=PropertiesService.getScriptProperties();
@@ -166,8 +166,8 @@ function study1WizardReadPerson_(r,identity){
   eligibilityEvidenceSha:identity.eligibilityEvidenceSha256,
   e1HistorySha:null};
 }
-function study1WizardSlotCheck_(r,slot){
- const grant=study1WizardSlotAuthority_(r,slot);
+function study1WizardSlotCheck_(r,slot,heldLock){
+ const grant=study1WizardSlotAuthority_(r,slot,heldLock);
  if(!grant||grant.verified!==true||
     grant.provenance!=='TRUSTED_FORMAL_SLOT_EXPERIMENT_REGISTRY'||
     grant.experiment!==r.experiment||grant.slotId!==r.slotId||
@@ -225,17 +225,17 @@ function study1WizardHoldBound_(untrusted){
  ]);
  // No booking Sheet open until the same locked applicant/OTP proof exists.
  let operations=null,slots=null,reservations=null;
- let last=null,proof=null,slotSha=null;
+ let last=null,proof=null,slotSha=null,bookingLock=null;
  const recheck=()=>{
   study1WizardP0Gate_();study1WizardDocument_(r);
-  const att=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r));
+  const att=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r,bookingLock));
   const fresh=study1WizardReadPerson_(r,att);
   if(proof&&JSON.stringify(proof)!==JSON.stringify(fresh))
    throw Error('WIZARD_PROOF_CHANGED：資格自陳或OTP來源在同一交易中變動');
   proof=fresh;return fresh;
  };
  const adapters={
-  getLock:()=>LockService.getScriptLock(),
+  getLock:()=>{bookingLock=LockService.getScriptLock();return bookingLock;},
   isVerifiedAndEligible:applicantId=>{
    if(applicantId!==r.applicantId)return false;
    recheck();
@@ -245,7 +245,7 @@ function study1WizardHoldBound_(untrusted){
    if(!slots||!reservations)throw Error('正式時段及預約表不存在');
    const row=study1BindingSheetRow_(operations,'Slots',
      BOOKING_SLOT_HEADERS_,r.slotId).rows[0];
-   slotSha=study1WizardSlotCheck_(r,row);
+   slotSha=study1WizardSlotCheck_(r,row,bookingLock);
    // Direct holds must not jump over a prior E1 waitlist. A queue head
    // must claim the seat using the separate reverified WAITLIST operation.
    const pending=study1WizardReadBook_(reservations,BOOKING_RESERVATION_HEADERS_)
@@ -261,7 +261,7 @@ function study1WizardHoldBound_(untrusted){
    };
    const chosen=snapshot.slots.rows.filter(row=>row[0]===r.slotId);
    if(chosen.length!==1)throw Error('指定場次並非唯一');
-   const checked=study1WizardSlotCheck_(r,chosen[0]);
+   const checked=study1WizardSlotCheck_(r,chosen[0],bookingLock);
    if(slotSha&&checked!==slotSha)
     throw Error('SLOT_EXPERIMENT_MISMATCH：時段實驗別證據已更新');
    slotSha=checked;
@@ -397,7 +397,7 @@ function study1WizardReviewBound_(untrusted){
  try{
   if(lock.hasLock()!==true)throw Error('共用鎖失效');
   study1WizardP0Gate_();study1WizardDocument_(r);
-  const identity=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r));
+  const identity=study1WizardAuthorityCheck_(r,study1WizardApplicantAuthority_(r,lock));
   const proof=study1WizardReadPerson_(r,identity);
   if(lock.hasLock()!==true)throw Error('自陳資格核對期間共用鎖失效');
   const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
@@ -405,7 +405,7 @@ function study1WizardReviewBound_(untrusted){
     BOOKING_RESERVATION_HEADERS_,reservationId).rows[0];
   const slot=study1BindingSheetRow_(operations,'Slots',
     BOOKING_SLOT_HEADERS_,r.slotId).rows[0];
-  const slotEvidenceSha=study1WizardSlotCheck_(r,slot);
+  const slotEvidenceSha=study1WizardSlotCheck_(r,slot,lock);
   const idempotencyKey='WZ_'+study1BindingHmac_([
    'STUDY1_WIZARD_BOOKING_V1',r.applicantId,r.challengeId,
    r.screeningId,r.experiment,r.slotId,r.documentSha,

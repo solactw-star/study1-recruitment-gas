@@ -25,12 +25,12 @@ function study1FormalProof_(value){
  if(p.experiment!=='E1')throw Error('EXPERIMENT_NOT_OPEN');
  return p;
 }
-function study1FormalAuthenticateLocked_(proof){
- if(!LockService.getScriptLock().hasLock())
+function study1FormalAuthenticateLocked_(proof,heldLock){
+ if(!heldLock||heldLock.hasLock()!==true)
   throw Error('FORMAL_BOOKING_SHARED_LOCK_REQUIRED');
  const identity=study1SelfReportedAuthority_({
   applicantId:proof.applicantId,screeningId:proof.screeningId,
-  challengeId:proof.challengeId,experiment:'E1'});
+  challengeId:proof.challengeId,experiment:'E1'},heldLock);
  if(identity.verifiedAtUtc!==proof.usedAtUtc||
     identity.eligibilityEvidenceSource!=='PARTICIPANT_SELF_REPORT'||
     identity.emailControlSource!=='ORIGINAL_VERIFICATION_FG'||
@@ -63,10 +63,10 @@ function study1FormalWithLock_(untrustedProof,fn){
  try{
   if(lock.hasLock()!==true)throw Error('FORMAL_BOOKING_LOCK_LOST');
   study1FormalGate_();
-  const identity=study1FormalAuthenticateLocked_(proof);
+  const identity=study1FormalAuthenticateLocked_(proof,lock);
   const nowUtc=new Date().toISOString(),snapshot=study1FormalSnapshot_();
   study1FormalValidateSnapshot_(snapshot,nowUtc);
-  const ctx={proof,identity,nowUtc,snapshot};
+  const ctx={proof,identity,nowUtc,snapshot,lock};
   const result=fn(ctx);
   if(lock.hasLock()!==true)throw Error('FORMAL_BOOKING_LOCK_LOST');
   return result;
@@ -78,7 +78,7 @@ function study1FormalSlot_(ctx,slotId){
  if(matches.length!==1)throw Error('SLOT_NOT_FOUND');
  const row=matches[0];
  // Registry is OWNER-reviewed, HMAC-bound, and pins the full original row.
- study1WizardSlotCheck_({slotId,experiment:'E1'},row);
+ study1WizardSlotCheck_({slotId,experiment:'E1'},row,ctx.lock);
  if(row[5]!=='OPEN'||study1BindingUtc_(row[1])<=Date.now()||
     study1BindingUtc_(row[2])<=study1BindingUtc_(row[1]))
   throw Error('SLOT_NOT_BOOKABLE');
@@ -106,7 +106,7 @@ function study1FormalV05Slots(emailProof){
   const list=[];
   for(const row of ctx.snapshot.slots.rows){
    if(row[5]!=='OPEN'||study1BindingUtc_(row[1])<=Date.now())continue;
-   try{study1WizardSlotAuthority_({slotId:row[0],experiment:'E1'},row);}
+   try{study1WizardSlotAuthority_({slotId:row[0],experiment:'E1'},row,ctx.lock);}
    catch(error){
     if(String(error.message)==='SLOT_EXPERIMENT_MISMATCH')continue;
     throw error; // expired/HMAC-invalid/stale E1 mapping blocks output
@@ -224,7 +224,7 @@ function study1FormalWriteExisting_(ctx,before,after){
  const range=tab.getRange(ix+2,1,1,BOOKING_RESERVATION_HEADERS_.length);
  if(!study1FormalSame_(range.getValues()[0],before))
   throw Error('V08_CONCURRENT_CHANGE');
- if(!LockService.getScriptLock().hasLock())
+ if(!ctx.lock||ctx.lock.hasLock()!==true)
   throw Error('V08_LOCK_LOST');
  range.setValues([after]);
  SpreadsheetApp.flush();
@@ -238,7 +238,7 @@ function study1FormalAppend_(ctx,newRow){
  if(!tab||tab.getLastColumn()!==BOOKING_RESERVATION_HEADERS_.length||
     tab.getLastRow()!==ctx.snapshot.reservations.rows.length+1)
   throw Error('V08_STORAGE_CHANGED');
- if(!LockService.getScriptLock().hasLock())throw Error('V08_LOCK_LOST');
+ if(!ctx.lock||ctx.lock.hasLock()!==true)throw Error('V08_LOCK_LOST');
  tab.appendRow(newRow);SpreadsheetApp.flush();
  const row=tab.getRange(tab.getLastRow(),1,1,newRow.length).getValues()[0];
  if(!study1FormalSame_(row,newRow))throw Error('V08_MUTATION_OUTCOME_UNKNOWN');

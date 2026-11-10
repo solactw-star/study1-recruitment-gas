@@ -96,10 +96,10 @@ function study1BindingHmac_(items){
  * email OTP proves only mailbox control, not documentary identity.
  * No independent ID card, student card, or staff identity check is required.
  */
-function study1EConsentIdentityAttestation_(request){
+function study1EConsentIdentityAttestation_(request,heldLock){
  if(typeof study1SelfReportedAuthority_!=='function')
   throw Error('SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED');
- return study1SelfReportedAuthority_(request);
+ return study1SelfReportedAuthority_(request,heldLock);
 }
 function study1BindingGate_(){
  study1AdminOwnerRequired_();
@@ -183,12 +183,12 @@ function study1BindingSheetRow_(book,tabName,headers,requestedId){
  */
 function study1EConsentBindingAdapter_(){
  study1BindingGate_();
- return {readTrustedSnapshot:function(input){
+ return {readTrustedSnapshot:function(input,heldLock){
   study1BindingGate_();
   if(!input||Object.keys(input).sort().join(',')!==
       'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
    throw Error('本人／文件／預約綁定索引不合法');
-  const id=study1EConsentIdentityAttestation_(input);
+  const id=study1EConsentIdentityAttestation_(input,heldLock);
   // Server-certified E1 self-declaration and consumed original OTP, not an
   // independent documentary identity or a client-supplied eligibility flag.
   if(!id||id.provenance!=='STUDY1_E1_SELF_REPORT_OTP_HMAC'||
@@ -320,7 +320,7 @@ function study1BindingDigest_(binding){
  return study1BindingHmac_(items);
 }
 /** Atomic source reread is performed by the caller UNDER the shared lock. */
-function study1BindingRecheck_(bound,doc,adapter,nowUtc){
+function study1BindingRecheck_(bound,doc,adapter,nowUtc,heldLock){
  if(!adapter||typeof adapter.readTrustedSnapshot!=='function')
   throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：沒有可信的身分／OTP／時段來源');
  if(study1BindingDigest_(bound)!==bound.digest)
@@ -329,7 +329,7 @@ function study1BindingRecheck_(bound,doc,adapter,nowUtc){
   slotId:bound.slotId,challengeId:bound.challengeId,screeningId:bound.screeningId,
   experiment:bound.experiment,documentSha:bound.documentSha,
   documentVersion:bound.documentVersion};
- const current=study1BindingVerify_(adapter.readTrustedSnapshot(expected),
+ const current=study1BindingVerify_(adapter.readTrustedSnapshot(expected,heldLock),
   expected,doc,nowUtc);
  const reread={...current,digest:bound.digest};
  if(study1BindingDigest_(reread)!==bound.digest)
@@ -348,7 +348,7 @@ function study1BindingRecheckWithLock_(binding,doc,adapter){
   throw Error('無法取得身分／預約共用交易鎖');
  try{
   if(lock.hasLock()!==true)throw Error('共用交易鎖已失效');
-  const result=study1BindingRecheck_(binding,doc,adapter,new Date().toISOString());
+  const result=study1BindingRecheck_(binding,doc,adapter,new Date().toISOString(),lock);
   if(lock.hasLock()!==true)throw Error('身分核對期間共用交易鎖失效');
   return result;
  }finally{lock.releaseLock();}
@@ -372,7 +372,7 @@ function study1EConsentIssueBound_(input){
   const reader=study1EConsentBindingAdapter_();
   if(!reader||typeof reader.readTrustedSnapshot!=='function')
    throw Error('IDENTITY_SOURCE_NOT_CONFIGURED：未設立可信正式讀取介接');
-  const binding=study1BindingVerify_(reader.readTrustedSnapshot(input),input,doc,nowUtc);
+  const binding=study1BindingVerify_(reader.readTrustedSnapshot(input,lock),input,doc,nowUtc);
   binding.digest=study1BindingDigest_({...binding,digest:''});
   if(lock.hasLock()!==true)throw Error('共用交易鎖已失效');
   const r=study1EConsentRegistry_();

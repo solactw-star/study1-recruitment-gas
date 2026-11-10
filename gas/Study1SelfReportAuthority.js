@@ -5,14 +5,14 @@
  *
  * The caller must own the shared ScriptLock. No public RPC in this module.
  */
-function study1SelfReportedAuthority_(request){
+function study1SelfReportedAuthority_(request,heldLock){
  if(!request||typeof request!=='object'||Array.isArray(request))
   throw Error('SELF_REPORT_REQUEST_INVALID');
  for(const field of ['applicantId','screeningId','challengeId'])
   study1BindingId_(request[field]);
  if(request.experiment!=='E1')
   throw Error('EXPERIMENT_NOT_OPEN');
- if(!LockService.getScriptLock().hasLock())
+ if(!heldLock||heldLock.hasLock()!==true)
   throw Error('SELF_REPORT_SHARED_LOCK_REQUIRED');
  // This source is also used by the PUBLIC participant booking RPC.
  // Never apply study1BindingGate_() here: it requires admin-owner login.

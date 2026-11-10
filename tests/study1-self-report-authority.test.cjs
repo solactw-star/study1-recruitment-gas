@@ -42,7 +42,7 @@ function env(){
  };
  scope.study1WizardIssueRows_=()=>({snapshot:{rows:history.map(x=>x.slice())}});
  return {scope,rows,history,req,email,now,lock,flags,seen,
-  bind:()=>scope.study1SelfReportedAuthority_(req)};
+  bind:()=>scope.study1SelfReportedAuthority_(req,{hasLock:()=>lock.held})};
 }
 test('No shared ScriptLock means no applicant PII read or server HMAC',()=>{
  const x=env();
