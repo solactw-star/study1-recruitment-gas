@@ -260,7 +260,10 @@ test('FORMAL consent-last browser synthetic: HELD -> actual PDF SHA -> staff exp
  assert.ok(h.calls.some(x=>x.name==='study1EConsentSignPdf'));
  assert.equal(h.node('finish').disabled,true);
  h.staffConfirm();refresh.handlers.get('click')();
- await new Promise(resolve=>setImmediate(resolve));
+ // WebCrypto SHA-256 is truly asynchronous in the VM, not guaranteed to
+ // settle after a single event-loop turn on a busy CI runner.
+ for(let i=0;i<40&&h.node('officialSignedPdfResult').hidden;i++)
+  await new Promise(resolve=>setTimeout(resolve,5));
  assert.equal(h.node('officialSignedPdfResult').hidden,false);
  assert.equal(h.node('officialSignedPdfDownload').hidden,false);
  assert.equal(h.node('officialSignedPdfSha').textContent,h.signedSha);
@@ -273,7 +276,8 @@ test('FORMAL consent-last browser synthetic: HELD -> actual PDF SHA -> staff exp
  // A distinct verified CONFIRMED reservation may be reported as booked.
  h.reservations[0].status='CONFIRMED';
  refresh.handlers.get('click')();
- await new Promise(resolve=>setImmediate(resolve));
+ for(let i=0;i<40&&!/正式預約均已獨立核實/.test(h.node('status').textContent);i++)
+  await new Promise(resolve=>setTimeout(resolve,5));
  assert.match(h.node('status').textContent,/正式預約均已獨立核實/);
  const withdrawal=findIn('step-consent','撤回已確認');
  assert.ok(withdrawal);
