@@ -17,6 +17,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'Study1ParticipantIntake',type:'SERVER_JS',path:'gas/Study1ParticipantIntake.js'},
  {name:'Study1ParticipantTrust',type:'SERVER_JS',path:'gas/Study1ParticipantTrust.js'},
  {name:'Study1SelfReportAuthority',type:'SERVER_JS',path:'gas/Study1SelfReportAuthority.js'},
+ {name:'Study1FormalBooking',type:'SERVER_JS',path:'gas/Study1FormalBooking.js'},
  {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
  {name:'Study1Team',type:'HTML',path:'gas/Study1Team.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
@@ -24,6 +25,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'OtpThrottle',type:'SERVER_JS',path:'gas/OtpThrottle.js'},
  {name:'OtpTransaction',type:'SERVER_JS',path:'gas/OtpTransaction.js'},
  {name:'BookingHoldTransaction',type:'SERVER_JS',path:'gas/BookingHoldTransaction.js'},
+ {name:'BookingReadOnlySheet',type:'SERVER_JS',path:'gas/BookingReadOnlySheet.js'},
  {name:'Study1FixtureAdapter',type:'SERVER_JS',path:'gas/Study1FixtureAdapter.js'}
 ]);
 function assertClosedWebsite(source){
