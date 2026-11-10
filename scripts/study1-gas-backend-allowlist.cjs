@@ -128,7 +128,7 @@ function assertAdminSandbox(source){
    'study1EConsentSignedPdfStore_','study1EConsentSignedPdfRead_',
    'study1EConsentSignPdf','study1EConsentSignedPdfCopy',
    'study1EConsentConfirmPdf','study1EConsentOwnerPendingPdfConfirmations',
-   'study1EConsentOwnerWithdrawalCases']);
+   'study1EConsentOwnerWithdrawalCases','study1EConsentOwnerSignedPdfDownload']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
