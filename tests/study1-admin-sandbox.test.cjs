@@ -500,6 +500,8 @@ test('P0 formal e-consent owner-verified one-time private invitation, Q&A, signa
  }));
  h.values.set('OPEN','true');h.values.set('CONSENT_READY','true');
  h.values.set('STUDY1_ECONSENT_PROVIDER_VERIFIED','true');
+ // Synthetic-only compatibility path; never available to production participants.
+ h.values.set('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY','true');
  assert.equal(h.scope.study1EConsentAvailability().enabled,true);
  assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E2'}),/實驗二尚未/);
  const issued=h.scope.study1EConsentIssue({experiment:'E1'});
