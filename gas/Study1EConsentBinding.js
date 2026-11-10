@@ -181,10 +181,13 @@ function study1BindingSheetRow_(book,tabName,headers,requestedId){
  * attestation. It is deliberately BLOCKED until the REC source is verified.
  * A scripted adapter cannot make a live visitor from the owner TEST fixture.
  */
-function study1EConsentBindingAdapter_(){
- study1BindingGate_();
+function study1EConsentBindingAdapter_(audience){
+ const gate=()=>audience==='PUBLIC_E1'?study1FormalConsentGate_():
+  audience===undefined?study1BindingGate_():
+  (()=>{throw Error('CONSENT_BINDING_AUDIENCE_INVALID');})();
+ gate();
  return {readTrustedSnapshot:function(input,heldLock){
-  study1BindingGate_();
+  gate();
   if(!input||Object.keys(input).sort().join(',')!==
       'applicantId,challengeId,documentSha,documentVersion,experiment,reservationId,screeningId,slotId')
    throw Error('本人／文件／預約綁定索引不合法');
@@ -202,7 +205,7 @@ function study1EConsentBindingAdapter_(){
      id.screeningId!==input.screeningId||
      !/^[a-f0-9]{64}$/.test(id.evidenceSha256||''))
    throw Error('SELF_REPORT_EMAIL_OTP_EVIDENCE_INVALID');
-  study1BindingGate_();
+  gate();
   const personal=SpreadsheetApp.openById(study1BindingSheetId_('applicants'));
   const operations=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
   // Each of five target rows is read in full under the calling ScriptLock.
