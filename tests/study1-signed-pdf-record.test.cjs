@@ -314,3 +314,58 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,
   result.signedPdfSha256);
 });
+
+test('researcher signing uses only independently reviewed, nonoverlapping original PDF rectangles',async()=>{
+ const original=await createBlank(),h=buildHarness(original);
+ h.scope.study1FormalConsentRecScope_=()=>({
+  consentDocumentId:h.doc.id,consentDocumentSha256:h.doc.sha256});
+ assert.throws(()=>h.scope.study1PdfResearcherLayoutRead_('E1',h.doc),
+  /RESEARCHER_PDF_LAYOUT_NOT_APPROVED/);
+ const staff={experiment:'E1',documentSha:h.doc.sha256,version:h.doc.version,
+  pageCount:5,pageIndex:4,pageWidth:595,pageHeight:842,
+  signature:{x:100,y:70,width:190,height:50},
+  date:{x:350,y:87,fontSize:11}};
+ h.values.set('STUDY1_ECONSENT_APPROVED_RESEARCHER_LAYOUT_V1',
+  JSON.stringify({schemaVersion:1,bindings:[staff]}));
+ assert.throws(()=>h.scope.study1PdfResearcherLayoutRead_('E1',h.doc),
+  /RESEARCHER_PDF_SIGNING_FIELDS_OVERLAP/);
+ staff.signature.y=180;staff.date.y=190;
+ h.values.set('STUDY1_ECONSENT_APPROVED_RESEARCHER_LAYOUT_V1',
+  JSON.stringify({schemaVersion:1,bindings:[staff]}));
+ assert.equal(h.scope.study1PdfResearcherLayoutRead_('E1',h.doc).signature.y,180);
+ h.scope.study1FormalConsentRecScope_=()=>({
+  consentDocumentId:h.doc.id,consentDocumentSha256:'f'.repeat(64)});
+ assert.throws(()=>h.scope.study1PdfResearcherLayoutRead_('E1',h.doc),
+  /RESEARCHER_LAYOUT_REC_SOURCE_MISMATCH/);
+});
+test('two handwritten signatures preserve full PDF and independently trusted Asia/Taipei calendar days across midnight',async()=>{
+ const original=await createBlank(),h=buildHarness(original),ink=syntheticInk();
+ const participant=await h.scope.study1PdfComposeSigned_([...original],[...ink],
+  h.scope.study1PdfLayoutRead_('E1',h.doc),
+  {experiment:'E1',version:h.doc.version,sha256:h.doc.sha256},
+  new Date('2026-11-10T15:55:00.000Z'));
+ h.scope.study1FormalConsentRecScope_=()=>({
+  consentDocumentId:h.doc.id,consentDocumentSha256:h.doc.sha256});
+ const staff={experiment:'E1',documentSha:h.doc.sha256,version:h.doc.version,
+  pageCount:5,pageIndex:4,pageWidth:595,pageHeight:842,
+  signature:{x:100,y:180,width:190,height:50},
+  date:{x:350,y:195,fontSize:11}};
+ h.values.set('STUDY1_ECONSENT_APPROVED_RESEARCHER_LAYOUT_V1',
+  JSON.stringify({schemaVersion:1,bindings:[staff]}));
+ const layout=h.scope.study1PdfResearcherLayoutRead_('E1',h.doc);
+ const expected={experiment:'E1',version:h.doc.version,sha256:h.doc.sha256,
+  participantSignedSha256:participant.signedSha256};
+ const dual=await h.scope.study1PdfComposeResearcherSigned_(
+  participant.signedPdfBytes,[...ink],layout,expected,
+  new Date('2026-11-10T16:05:00.000Z'));
+ assert.equal(participant.taipeiDate,'2026/11/10');
+ assert.equal(dual.researcherTaipeiDate,'2026/11/11');
+ assert.notEqual(dual.signedSha256,participant.signedSha256);
+ assert.notEqual(dual.signedSha256,h.doc.sha256);
+ assert.equal(sha(original),h.doc.sha256);
+ assert.equal((await PDFLib.PDFDocument.load(Buffer.from(dual.signedPdfBytes))).getPageCount(),5);
+ await assert.rejects(h.scope.study1PdfComposeResearcherSigned_(
+  participant.signedPdfBytes,[...ink],layout,
+  {...expected,participantSignedSha256:'f'.repeat(64)},
+  new Date('2026-11-10T16:05:00.000Z')),/RESEARCHER_PDF_PARTICIPANT_SHA_CHANGED/);
+});
