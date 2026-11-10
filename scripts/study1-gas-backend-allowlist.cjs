@@ -8,6 +8,8 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'AdminConsole',type:'HTML',path:'gas/AdminConsole.html'},
  {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
  {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'},
+ {name:'Study1PdfLib',type:'SERVER_JS',path:'gas/Study1PdfLib.js'},
+ {name:'Study1PdfStampCore',type:'SERVER_JS',path:'gas/Study1PdfStampCore.js'},
  {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
  {name:'Study1Team',type:'HTML',path:'gas/Study1Team.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
