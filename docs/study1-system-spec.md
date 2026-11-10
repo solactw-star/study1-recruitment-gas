@@ -1211,3 +1211,18 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 阻塞：study1WizardIntakeAuthority_、study1EConsentOtpApplicantAuthorization_、study1WizardApplicantAuthority_、study1WizardSlotAuthority_仍無正式可信本人與E1/E2場次來源，原Slots無experiment欄；七步正式RPC、真人PDF簽署、UI UAT未接通。不動OPEN=false、CONSENT_READY=false、MYSELF與E2禁招募。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=NOT_VERIFIED、FORMAL_READY=false。
 
 **§70-S.13 合成CI與回讀（2026-11-10）：** 新增tests/study1-wizard-enrollment.test.cjs九組合成情境，包含無核准來源不得讀寫、原Applicants/Screenings結構與HMAC冪等、E2既參加E1拒絕、Verification A:I發碼/HMAC/假MailApp、F:G一次消耗及重播拒絕、同鍵重送不再寄信、60秒節流、舊碼被新碼取代、每小時3次上限、共鎖競寫及部分寫入拒絕。原GitHub Actions run https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42771208212 對code HEAD=18d0d9c1fde6d70b8f9d306e66a53f0e0ad62be4 取得798 PASS／0 FAIL／0 SKIP（執行時間約20秒）。此為Node VM合成測試，並非真人UI或MailApp實寄、正式GAS授權或收件驗收。SOURCE_COMMIT=18d0d9c1fde6d70b8f9d306e66a53f0e0ad62be4，LAST_VERIFIED_STEP=PR分支原檔及CI回讀，WRITE_OWNER=PR #133，SYNC_STATUS=branch only，NEXT_ACTION=獨立權責來源／原七步正式RPC及實機UAT，BLOCKERS=trusted identity、E1/E2 slot registry、正式版PDF及電子同意適用性。
+
+
+### 70-S.14｜2026-11-10 原GAS OWNER私人預覽V125部署與人工UAT交付
+
+**本輪授權：** 使用者要求將現行最新進度部署供本人人工測試。僅更新原GAS Script ID與原私人OWNER /exec，不合併PR #133、不更新正式main/REC/個資Sheet、不啟用正式收件或公開簽署。此授權不等於將網站電子同意適用範圍視為已核准。
+
+**原ID與遠端核實：** GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`；原私人部署ID `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s`；原私人V122已更新至**V125**。新版私人Immutable SHA256 `6c13c7b1d71ffcee337ed62b26a4948f5a48ba5ff4d8fcc070f2b7f2ea895520`；遠端GAS HEAD SHA256 `df11a52035e9cccf02a4b3fa3e30677cd62a3dcff7be107e61a13c088cf774cf`。獨立唯讀Actions Run `42772956076` 回讀 `headMatches=true`、`immutableMatchesBranch=true`、私人 `webapp.access=MYSELF`、`executeAs=USER_ACCESSING`；GAS HEAD原公開資訊站manifest為 `ANYONE_ANONYMOUS / USER_DEPLOYING`。公開版本未作本次部署目標。
+
+**預寫備份與異常紀錄：** 原寫前GAS完整SHA256 `0b1043e8183ca7206b8b6e548af151acd65a410c7ed450495ec755d43a0401a0`，Drive原完整備份ID `1WU8bslsIlch0kzJlmAEnZMSjdVlkrV-Y`；原私人V122。首次部署Actions Run `42772619772` 顯示failure，是因部署API立即GET時版本更新尚未傳播，另回滾參數存在缺陷；**不能僅看該失敗狀態判斷是否上線**。後續Run `42772956076` 確定原私人版本V125已更新並逐位元組等同分支審核來源。部署工具已另外修正版本回讀等待及回滾參數（不重新部署）。
+
+**人工測試入口：** https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo 。原GAS OWNER登入，測原七步、V05日期月曆、V08合成候補/改期/取消、最後階段PDF預覽/示範簽名；team / admin路由亦僅限OWNER。不得輸入真人身分/Email/真時段或執行正式電子簽署。
+
+**安全與限制：** 原Website.js對公開requestOtp/verifyOtp/holdSlot/submitConsent仍無條件拒絕；原Study1Visitor保留TEST `00000000`與`SIMULATED_SIGN_ONLY`，正式OTP寄送/申請建立僅私有介接與合成CI，缺可信真人身份及E1/E2時段歸屬，尚不能在網頁操作真人OTP端到端。原REC核准研究不等於網站任何遠端同意實作已逐項適用。原OPEN/CONSENT_READY設計仍維持關閉、未變更ScriptProperties（本次未直接讀取其實際值）；E2未獨立核准且2027年前不招募。程式798 PASS/0 FAIL不代替UI測試，`UI_VERIFIED=false`、`FORMAL_READY=false`。
+
+**接續點：** `TASK_DOMAIN=Study1 website / owner preview UAT`; `SOURCE_ID=original GAS Script ID`；`SOURCE_VERSION=private V125 / SHA256 6c13c7b1d71ffcee337ed62b26a4948f5a48ba5ff4d8fcc070f2b7f2ea895520`；`LAST_VERIFIED_STEP=GAS read-only immutable/source/permission audit`；`COMPLETED=OWNER_PREVIEW_DEPLOY_VERIFIED`；`NEXT_ACTION=OWNER manual browser UAT, then fix observed UI issues on isolated branch`；`BLOCKERS=TRUSTED_IDENTITY_SOURCE_NOT_CONFIGURED, TRUSTED_SLOT_E1E2_SOURCE_NOT_CONFIGURED, REAL_WIZARD_OTP_NOT_CONNECTED, UI_VERIFIED_NOT_DONE`；`WRITE_OWNER=PR #133 isolated branch`；`SYNC_STATUS=GAS_OWNER_PREVIEW_SYNC_VERIFIED=true, MAIN_SYNC_VERIFIED=false, UI_VERIFIED=false, FORMAL_READY=false`。
