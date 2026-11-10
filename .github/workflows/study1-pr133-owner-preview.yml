@@ -1,4 +1,7 @@
 name: Study1 PR133 isolated OWNER-only preview deployment
+# Authorized MVP presigned E1 OWNER deployment request 2026-11-10.
+# PREWRITE backup, private MYSELF manifest, exact Script ID and SHA checks
+# must pass; never update public deployment, OPEN, CONSENT_READY or real Sheets.
 on:
   push:
     branches: ['fix/consent-last-preserve-wizard-20261110']
