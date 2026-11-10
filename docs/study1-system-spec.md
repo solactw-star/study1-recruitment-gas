@@ -1452,3 +1452,19 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **正式安全門檻及未完成**：原正式Slots `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 雙次`A1:H1000`只剩表頭（0筆），PI尚未逐場核定E1與HMAC；正式quote 2分鐘、HELD 10分鐘、FIFO與候補仍為未核准工作暫設，不因移除15分鐘時長硬門檻而自動變更。原有效REC（E1原文件ID `1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m`）仍有說明、答疑、雙方簽名欄、一式兩份與研究資料儲存／撤回事項；原變更夾只見10/22申請與10/27修訂稿，缺遠端雙方簽署/線上研究員說明/Google Drive儲存適用的獨立生效REC核准與原PDF簽署座標核定。真Turnstile/Email OTP/私人GAS遠端版本及ACL/UI UAT尚未獨立驗收。跨存儲中途失敗可安全標`OWNER_RECONCILIATION_REQUIRED`，但正式OWNER人工復原與跨表實際驗證流程**仍待獨立安全設計及驗收**；勿冒稱完全ACID。原正式`OPEN=false`、`CONSENT_READY=false`、私人`MYSELF`、E2禁招、PR Draft未合併；不部署、不寄真信、不收真人。
 
 **接續點**：TASK_DOMAIN=Study1 recruitment/online E1 consent and booking; SOURCE_PATH=PR #133 + `docs/study1-system-spec.md` §§70-S.23–23.1；LAST_VERIFIED_STEP=879_SYNTHETIC_CI_PASS_AND_PR_CODE_READBACK；NEXT_ACTION=read latest PR HEAD and new docs CI, resolve REC remote/PI actual Slots/booking policies and full real service/private deployment preflight, design safe OWNER reconciliation path, then eligible real UI UAT; BLOCKERS=REC_REVIEW_REQUIRED,NO_OFFICIAL_E1_SLOTS,PI_QUOTE_HELD_FIFO_PENDING,LIVE_TURNSTILE_OTP_UNVERIFIED,PDF_LAYOUT_UNAPPROVED,PRIVATE_GAS_NOT_DEPLOYED,REAL_UI_NOT_VERIFIED,OWNER_RECONCILIATION_UAT_PENDING；WRITE_OWNER=original PR #133 isolated branch；SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false。
+
+
+### 70-S.24｜最新使用者定案：只建立五項基礎MVP，先由研究者簽署並上傳PDF
+
+**最新明確需求（高於舊§70-S.20–23.1相衝突的業務流程與自動擴充安排）**：
+1. 本階段僅交付五項：**E1報名、知情同意電子簽署、日期時段預約、Email通知、研究者後台管理**。不要再從規格、文件或開發者自行推定新增候補進階管理、額外報表、複雜審核、多次簽章或其他新功能；若既有系統已有其他功能，可保留但不可把它們當MVP必要門檻，新增擴充須等待使用者主動下達指令。
+2. **PDF順序唯一**：研究者於網站外完成自己在研究者欄位的簽章及日期→研究者在原OWNER後台上傳該**已簽署完整PDF**、選用當次有效正式版本（後台維持原PDF不可改、私人Drive、SHA及版本管理）→E1受試者完成必要報名、Email驗證與時段選擇後，於網站讀取研究者**事前已簽署**版本PDF→在網頁手寫欄親筆簽名，系統在核准的**參與者欄位**加上筆跡及可信Asia/Taipei日期→存成新的完整已簽PDF與獨立SHA及私人ACL→研究者於原後台事先查閱、下載該份由雙方簽署的PDF。**不再要求研究者於每筆受試者簽完後重新簽名**，亦不得重疊／覆寫原研究者簽章。
+3. **簡化操作**：研究者在後台一次上傳／核對已簽PDF，受試者只需閱讀與手寫簽署，不安排額外15分鐘最低倒數。本條為使用者網站需求；研究人員應告知、答疑、簽章、存儲及遠端執行的法律/REC適用範圍，**仍以生效REC與明示修正案為準**。未驗證正式適用REC時，只能合成測試、保留正式收件關閉，不把使用者網站需求冒稱REC核准。
+4. Email功能最低範圍：原 Email OTP／驗證與報名結果通知（給受試者，必要時給研究者管理端）；不得擅自開寄真人測試信件，未確認寄送結果不可冒稱送達。時段只用**PI明示核定**的原Slots E1日期、容量、地點，操作原Reservations的預約持久化與狀態回讀；預約成功與PDF成功分別驗證，避免逾時假成功。既有quote/HELD/FIFO不是本次新需求，不自行新增相關進階功能或設定。
+5. 研究者後台最低範圍：上傳／選用／核對研究者事先簽署PDF、管理報名及場次、查看申請/同意狀態、以授權權限取得簽署完成PDF及Email通知狀態。保留原OWNER驗證、資料最少揭露與私人ACL。
+6. 研究端正式資料、GAS與網站版本不可互相取代。使用者本輪**明確要求把迄今變更部署至原GAS**；執行前需原Script ID遠端HEAD/manifest/版本與最近部署回讀、完整寫前備份、競寫檢查、授權/私人MYSELF維持及寫後SHA/部署驗證。**單純Push GitHub或CI成功不算GAS部署。** 未取得必要遠端來源/安全證據時應標記DEPLOY_BLOCKED而非自動合併main、冒稱部署或開放真人。
+7. 原`OPEN=false`、`CONSENT_READY=false`、`MYSELF`與E2不招募保持到有效REC/PI/個資/正式安全門檻與真實UI驗證完成；部署原碼≠正式收件開放。維持原GitHub唯一主規格與原PR增量、不建第二份主檔，只有使用者再指示才進行MVP以外擴充。
+
+**本輪啟動時已核實**：原PR#133 HEAD `9af696697a819c17479445ca136e7c303e6038a6`（修改前）；原Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`的Drive metadata屬Google Apps Script、單一原研究室Owner，但**目前無法僅憑Drive metadata證明遠端HEAD、manifest、部署版本及完整備份**。原營運Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ`前次Slots兩獨立讀取僅表頭；未有PI核定場次與生效REC遠端簽署核准可核對。相關程式/測試/部署/CI需以實際後續回讀另行判定，不在本決策中先宣稱完成。
+
+**接續標記**：TASK_DOMAIN=Study1 website E1 minimalist registration MVP; SOURCE_PATH=original PR#133 / docs/study1-system-spec.md §70-S.24; NEXT_ACTION=只改上述五個功能所必要的現有程式與合成驗證、原GAS安全部署前讀取及授權範圍內同步；BLOCKERS=REC_REMOTE_CONSENT_REVIEW_REQUIRED,NO_PI_APPROVED_SLOTS,REMOTE_GAS_SOURCE_BACKUP_UNVERIFIED；WRITE_OWNER=original PR#133；非授權真人研究資料/REC/Sheet不修改。
