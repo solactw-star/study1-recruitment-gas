@@ -1083,12 +1083,15 @@ async function study1EConsentSignPdf(input){
  if(prior.channel==='FORMAL_E1'){
   study1FormalConsentGate_();study1FormalConsentCopyExpiry_();
  }
+ const preSigned=prior.channel==='FORMAL_E1'&&prior.researcherPresigned===true;
  const bindingAdapter=study1EConsentBindingAdapter_(prior.channel==='FORMAL_E1'?'PUBLIC_E1':undefined);
- if(prior.state!=='EXPLAINED'||prior.documentSha!==input.documentSha||
-   prior.expires<=Date.now())
+ if((prior.state!=='EXPLAINED'&&!(preSigned&&prior.state==='ISSUED'))||
+   prior.documentSha!==input.documentSha||prior.expires<=Date.now())
   throw Error('此固定文件已失效，無法簽署');
- study1EConsentEvent_(prior.explanation,prior,'EXPLANATION');
+ if(!preSigned)study1EConsentEvent_(prior.explanation,prior,'EXPLANATION');
  const doc=study1EConsentReadyDocument_(prior.experiment);
+ if(preSigned&&doc.researcherPresigned!==true)
+  throw Error('RESEARCHER_PRESIGNED_SOURCE_CHANGED');
  if(doc.version!==prior.documentVersion||doc.sha256!==prior.documentSha)
   throw Error('已選用的核准文件不是原先說明並同意的版本');
  study1BindingRecheckWithLock_(prior.binding,doc,bindingAdapter);
@@ -1105,12 +1108,15 @@ async function study1EConsentSignPdf(input){
    if(!study1EConsentEnabled_()||
       p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
       p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true'||
-      x.state!=='EXPLAINED'||x.expires<=Date.now()||
+      (x.state!=='EXPLAINED'&&!(preSigned&&x.state==='ISSUED'&&x.researcherPresigned===true))||
+      x.expires<=Date.now()||
       x.documentSha!==prior.documentSha||
       x.documentVersion!==prior.documentVersion)
     throw Error('同意書版本、身分連結或簽署狀態在處理時已改變');
-   study1EConsentEvent_(x.explanation,x,'EXPLANATION');
+   if(!preSigned)study1EConsentEvent_(x.explanation,x,'EXPLANATION');
    const reloaded=study1EConsentReadyDocument_(x.experiment);
+   if(preSigned&&reloaded.researcherPresigned!==true)
+    throw Error('RESEARCHER_PRESIGNED_SOURCE_CHANGED');
    study1PdfLayoutRead_(x.experiment,reloaded);
    if(reloaded.sha256!==stamped.sourceSha256)throw Error('核准原PDF變動');
    // Revalidate the same identity, consumed OTP, active slot and hold while
@@ -1141,18 +1147,36 @@ async function study1EConsentSignPdf(input){
     name:input.name.trim(),signaturePngBase64:input.signature,
     read:true,answerAcknowledged:true,agreed:true,
     signedPdfSha256:savedPdf.sha,serverSignedAt:stamped.serverSignedAt,
-    taipeiDate:stamped.taipeiDate,explanationHash:x.explanation.sha});
-   return {...x,state:'SIGNED',signature:event,signedPdf:savedPdf,
+    taipeiDate:stamped.taipeiDate,
+    explanationHash:x.explanation?x.explanation.sha:null});
+   // Researcher signed the immutable uploaded source before enrollment.
+   // Never request or forge a second researcher signature after participant.
+   const confirmation=preSigned?study1EConsentFile_('CONFIRMATION',x,{
+    mode:'RESEARCHER_PRESIGNED_SOURCE',researcherSignedSourceSha256:x.documentSha,
+    signatureHash:event.sha,participantSignedPdfSha256:savedPdf.sha,
+    researcherSignedPdfSha256:savedPdf.sha,recordedAtUtc:new Date().toISOString()}):null;
+   return {...x,state:preSigned?'CONFIRMED':'SIGNED',signature:event,
+    signedPdf:savedPdf,participantSignedPdf:preSigned?savedPdf:null,
+    confirmation:preSigned?confirmation:x.confirmation,
     expires:accessExpires};
   });
-  if(changed.state!=='SIGNED'||!changed.signedPdf||
+  if(changed.state!==(preSigned?'CONFIRMED':'SIGNED')||!changed.signedPdf||
      changed.signedPdf.sha!==stamped.signedSha256)
    throw Error('簽署PDF寫後索引核對未通過');
-  return {state:'SIGNED',experiment:prior.experiment,
+  let originalBookingConfirmed=false;
+  if(preSigned){
+   try{
+    const result=study1FormalFinalizeSignedE1Booking_(changed.id,input.token);
+    originalBookingConfirmed=result.bookingConfirmed===true&&result.bookingStatus==='CONFIRMED';
+   }catch(_){/* PDF is immutable; original booking requires reconciliation. */}
+  }
+  return {state:preSigned?'CONFIRMED':'SIGNED',experiment:prior.experiment,
+   researcherPreSigned:preSigned,originalBookingConfirmed,
    documentSha256:stamped.sourceSha256,
    signedPdfSha256:stamped.signedSha256,
    signedAt:stamped.serverSignedAt,taipeiDate:stamped.taipeiDate,
-   message:'完整簽署PDF已保存，待研究人員確認並交付本人副本'};
+   message:preSigned?'研究者已先簽署PDF，本人線上簽名版已保存；請核對預約狀態及下載副本':
+    '完整簽署PDF已保存，待研究人員確認並交付本人副本'};
  }catch(error){
   if(savedPdf){
    let referenced=false;
