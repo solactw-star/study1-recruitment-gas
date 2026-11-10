@@ -1052,3 +1052,11 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 ### 70-S.4 版本／接續狀態
 
 - TASK_DOMAIN=Study1 原正式招募網站與電子知情同意UX重構；當次決策基準=2026-11-10使用者指出公開說明頁錯放簽署以及要求保留/正式化舊Step-by-Step頁；BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；READ_SOURCE=gas/Index.html、gas/Study1Visitor.html、docs/study1-system-spec.md §70-O～R；LAST_VERIFIED_STEP=兩份程式來源存在且流程差異已比對；NEXT_ACTION=在原程式增量恢復wizard且移動簽署至報名最後、真正PDF欄位嵌入與日期、隔離測試後依權責部署驗證；BLOCKERS=現行正式PDF核准/發布、REC電子程序、可持久化私有資料與身分驗證、完整可操作UI及GAS部署；WRITE_OWNER=GitHub原main＋原同ID GAS；MAIN_SYNC_VERIFIED=不得因本次規格PR冒稱；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false。
+
+
+### 70-S.5 本輪實際程式修復與限定完成狀態（2026-11-10）
+
+- **已修改原程式（隔離分支，非 main）**：原 gas/Index.html 的獨立簽署畫布、輸入與簽署RPC瀏覽器邏輯已撤出；公開首頁保留研究與知情同意程序說明，不能直接簽名。原 gas/Study1Visitor.html 七步程式與 V05 月曆、V08 候補/改期/取消均保留；將私有OWNER隔離測試的步驟改為 choose→screen→otp→slots→confirm（資料核對，不寫CONFIRM）→consent（最後階段PDF及手寫預覽）→done，先完成HELD摘要核對，才進入最後PDF與筆跡，既有TEST後端CONSENT→CONFIRM及來源CAS仍沿用。原 gas/Website.js 與原 scripts/study1-gas-index-preview.cjs、scripts/study1-gas-public-release.cjs 改為明確禁止公開首頁存在簽名畫布和任何表單欄位，不放寬原後台身份隔離及CLOSED收件。
+- **回歸證據**：原 GitHub PR #133（Draft）之 code HEAD 在新增本接續文字前為 `d8c7ef0fd3744f00eb19afdc126953031116665f`；原 PR 靜態安全工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42741708297 completed/success，**733 PASS／0 FAIL／0 SKIP**。原 B02/B03/B04/V05～V08共用回歸測試已更新為先按資料核對再進入同意流程，保留原數據與CAS負測；CI不等於瀏覽器UI或正式REC電子簽署。
+- **重要未完成項目（不可冒稱完成）**：目前這次程式修正只是**正式流程順序／資訊首頁位置／私有OWNER測試回歸**；原 Visitor 仍是TEST fixture及 `SIMULATED_SIGN_ONLY` 的受保護回歸程式，手寫筆跡僅本機預覽，不會回填到PDF，也沒有可信簽名日期、E1/E2實際發布核准PDF、正式身分／郵件核對或完整簽署PDF與獨立SHA的端到端驗證。因此 `E_CONSENT_PDF_EMBED_IMPLEMENTED=false`、`REAL_ENROLLMENT_IMPLEMENTED=false`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_READY=false`。下一個P0須在**同一原報名wizard**實作核准PDF的安全載入與SHA、簽名影像及可信臺灣日期落於參與者欄、產生獨立已簽PDF、研究人員簽署及本人副本、後端版本化事件與真實身分／時段連接；未核准不得對真人啟用。
+- **寫入／競寫界線**：本輪僅原GitHub隔離分支 `fix/consent-last-preserve-wizard-20261110` 的原路徑程式/測試/唯一規格更新，PR #133仍Draft、main 未修改，原GAS私人V122／公開V124是§70-R既有核實基準，**本輪未觸碰原GAS、部署、正式Sheets、REC、任何真人資料**。分支含 `scripts/study1-gas-public-release.cjs` 的必要安全規則變更，合併main可能觸發原部署工作流；**不得將PR自動合併／部署視為授權**。保持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`，E2不自動招募；正式GAS同步/部署須另核對最新main/遠端備份/競寫及明確權限後執行。
