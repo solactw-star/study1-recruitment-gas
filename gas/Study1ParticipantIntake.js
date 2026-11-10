@@ -464,3 +464,18 @@ function study1ParticipantVerifyOtp(request){
 function study1ParticipantEmailStatus(proof){
  return study1ParticipantEmailStatus_(proof);
 }
+
+
+/**
+ * Minimal MVP booking-confirmed email notice. Internal private helper ONLY:
+ * caller must first verify the original E1 Reservation is CONFIRMED and the
+ * applicant mailbox against the original consumed OTP under ScriptLock.
+ * Never send a PDF attachment, eligibility detail or private Drive URL.
+ */
+function study1ParticipantBookingNotice_(verifiedApplicantEmail){
+ study1ParticipantMailGate_();
+ const to=study1BindingEmail_(verifiedApplicantEmail);
+ MailApp.sendEmail({to,subject:'Study1｜報名與預約已確認',
+  body:'您的Study1實驗一報名與時段預約已確認。研究者事先簽署的知情同意書已由您於報名網站完成簽名。完整簽署PDF已存入研究團隊私人資料庫；您可在原報名頁面的有效驗證期間下載副本。如需協助請聯絡研究團隊。'});
+ return {attempted:true};
+}
