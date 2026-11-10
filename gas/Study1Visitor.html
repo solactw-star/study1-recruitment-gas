@@ -728,11 +728,22 @@ function formalConsentWire_(){
  const reason=document.createElement('textarea');reason.maxLength=600;
  label.appendChild(reason);
  withdrawal.appendChild(label);
+ const choice=document.createElement('select');
+ choice.setAttribute('aria-label','撤回後個人資料處置意願，需研究團隊依REC核對執行');
+ for(const [key,text] of [
+  ['CONTACT_STAFF','請研究團隊先聯絡我，確認資料處置方式'],
+  ['DESTROY','我希望研究團隊依核准程序銷毀已蒐集個人資料'],
+  ['DEIDENTIFY','我希望研究團隊依核准程序將已蒐集個人資料去識別化']]){
+  const option=document.createElement('option');option.value=key;
+  option.textContent=text;choice.appendChild(option);
+ }
+ choice.value='CONTACT_STAFF';
+ withdrawal.appendChild(choice);
  withdrawal.appendChild(formalButton_('撤回已確認的研究同意（不刪原始存證）',()=>{
   if(!formalConsent||!formalConsent.confirmed||reason.value.trim().length<4)
    return;
   const token=formalConsent.token;
-  rpc('study1EConsentWithdraw',{token,reason:reason.value},result=>{
+  rpc('study1EConsentWithdraw',{token,reason:reason.value,dataChoice:choice.value},result=>{
    if(!formalConsent||formalConsent.token!==token)return;
    if(result&&result.state==='WITHDRAWN'){
     formalConsent.confirmed=true;
