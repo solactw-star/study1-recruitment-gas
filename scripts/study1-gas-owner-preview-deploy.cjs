@@ -54,7 +54,7 @@ function reviewSources(){
  for(const [name,hash] of [
   ['OtpThrottle','93fc0adb2e45b90d75f092109b204dce51ac6ee1'],
   ['OtpTransaction','85e554cab2c6767fd80545b8c6e573c99e750a9e'],
-  ['BookingHoldTransaction','1f12a687625ceb72414227451853a900e3dab692']])
+  ['BookingHoldTransaction','d15375bb4ea6825231cca60cd2ab9cbb28a4f024']])
    backend.assertTransactionKernel(map.get(name),hash,name);
  must(map.get('Study1Visitor').includes('SIMULATED_SIGN_ONLY'),
   'original 7-step synthetic wizard missing');
@@ -65,9 +65,10 @@ function reviewSources(){
   map.get('Study1WizardEnrollment').includes('throw Error(')&&
   map.get('Study1WizardEnrollment').includes('function study1WizardOtpSendBound_(r){'),
   'OTP intake authority/issuer not pinned');
- must(map.get('Study1EConsentBinding').includes('function study1EConsentIdentityAttestation_(request){')&&
-  map.get('Study1EConsentBinding').includes('IDENTITY_SOURCE_NOT_CONFIGURED'),
-  'REC person identity must remain unconfigured');
+ must(map.get('Study1EConsentBinding').includes('function study1EConsentIdentityAttestation_(request,heldLock){')&&
+  map.get('Study1EConsentBinding').includes('SELF_REPORT_OTP_SOURCE_NOT_CONFIGURED')&&
+  map.get('Study1EConsentBinding').includes('return study1SelfReportedAuthority_(request,heldLock);'),
+  'self-reported E1 applicant must still have consumed OTP and locked binding');
  must(map.get('Study1WizardP0Bridge').includes('SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED'),
   'source-based E1/E2 slot mapping must remain fail-closed');
  must(map.get('Study1EConsentOtpAdapter').includes('OTP_SUPERSEDED'),
