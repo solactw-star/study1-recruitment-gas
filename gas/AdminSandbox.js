@@ -1051,7 +1051,7 @@ async function study1EConsentSignPdf(input){
  const doc=study1EConsentReadyDocument_(prior.experiment);
  if(doc.version!==prior.documentVersion||doc.sha256!==prior.documentSha)
   throw Error('已選用的核准文件不是原先說明並同意的版本');
- study1BindingRecheck_(prior.binding,doc,bindingAdapter,new Date().toISOString());
+ study1BindingRecheckWithLock_(prior.binding,doc,bindingAdapter);
  const layout=study1PdfLayoutRead_(prior.experiment,doc);
  const verifiedOriginal=study1ConsentDocumentBytes_(doc);
  // Trusted server time is created here, never accepted from the browser.
