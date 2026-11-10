@@ -65,7 +65,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 #visitorSignaturePreview{display:block;width:100%;max-width:700px;height:160px;background:#fff;border:2px dashed #9bbfba;border-radius:10px;touch-action:none;user-select:none}
 </style>
 </head>
-<body>
+<body data-site-mode="<?= flowMode ?>">
 <div class="noticebar" role="note">研究網站示範模式 · 僅供老師體驗操作 · 不接受正式報名、不寄發電子郵件或蒐集真人資料</div>
 <header><nav><div class="brand">Study 1 <small>記憶與身體感覺研究</small></div><a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究資訊首頁</a></nav>
 <div class="hero"><div class="eyebrow">心理學研究 · 參與者報名體驗</div><h1 id="visitorHeroTitle">一起探索，<br><span>記憶與身體感覺</span><br>之間的關係。</h1><p>與研究介紹首頁相同的研究主題及視覺風格，依序了解資格、確認聯絡方式並選擇參與時段。本頁為虛構資料展示。</p><p class="help" id="siteNoticeText">所有資料均為虛構測試，不會建立正式報名。</p></div></header>
@@ -79,6 +79,14 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <section class="step" id="step-screen" hidden><span class="tag">STEP 02 · 資格初篩</span><h2>確認參與條件</h2>
 <p class="lead">為了展示系統，請以「虛構的符合資格學生」角色操作；不要依自己的身體或心理狀況作答。</p>
 <p class="box"><strong>示範參與者</strong><br>姓名：示範同學（不蒐集真名）<br>聯絡信箱：demo.study1@example.invalid（不寄信）</p>
+
+<div id="formalContact" class="box" hidden aria-label="正式申請基本聯絡資料">
+ <strong>正式申請聯絡資料</strong>
+ <p class="help">只有正式招募開放，經核實REC資料使用與防濫用程序後才可輸入。初篩答案不逐題保存；電子郵件驗證不等於研究資格證明。</p>
+ <label for="formalName" class="field">姓名</label><input id="formalName" type="text" autocomplete="name" maxlength="80" disabled>
+ <label for="formalEmail" class="field">電子郵件</label><input id="formalEmail" type="email" autocomplete="email" maxlength="254" disabled>
+ <label for="formalPhone" class="field">電話（非必填）</label><input id="formalPhone" type="tel" autocomplete="tel" maxlength="30" disabled>
+</div>
 <div id="screenQuestions">
 <label class="check"><input id="adult" type="checkbox" checked><span id="qAdult">已滿十八歲</span></label>
 <label class="check"><input id="cycu" type="checkbox" checked><span id="qCycu">具有中原大學學生身分</span></label>
@@ -196,8 +204,133 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <div id="status" role="status" aria-live="polite">正在連接研究報名示範…</div>
 </div></main><footer>Study1 · 國科會研究計畫 NSTC 115-2410-H-033-015 · 本網頁為示範版，非正式招募服務。</footer>
 <script>
+
 (function(){
 'use strict';
+// This controller reuses the ORIGINAL seven stage elements and has no TEST
+// fixtures. It never falls back from failed formal RPCs into simulated data.
+if(typeof document==='undefined'||!document.body||
+   document.body.dataset.siteMode!=='FORMAL')return;
+const el=id=>document.getElementById(id);
+const state={ready:false,app:null,mail:null,busy:false,requestId:null};
+const genRequest=()=>{
+ if(!globalThis.crypto||typeof crypto.getRandomValues!=='function')
+  throw Error('瀏覽器無法安全建立申請識別碼');
+ const bytes=new Uint8Array(20);crypto.getRandomValues(bytes);
+ return 'REQ_'+Array.from(bytes).map(n=>n.toString(16).padStart(2,'0')).join('');
+};
+const show=step=>{
+ for(const name of ['choose','screen','ineligible','otp','slots','confirm','consent','done']){
+  const node=el('step-'+name);if(node)node.hidden=name!==step;
+ }
+ if(el('progressText'))el('progressText').textContent='Study1｜'+
+  ({choose:'研究選擇',screen:'資格初篩',otp:'電子郵件驗證',slots:'時段與資格確認'}[step]||step);
+};
+const status=message=>{el('status').textContent=message};
+const rpc=(name,payload,onSuccess)=>{
+ if(!window.google||!google.script||!google.script.run){status('目前無法連線至研究報名系統。');return;}
+ state.busy=true;
+ google.script.run.withFailureHandler(()=>{
+  state.busy=false;status('目前未完成該項操作，請勿重複送出；可聯絡研究團隊確認。');
+ }).withSuccessHandler(result=>{
+  state.busy=false;onSuccess(result);
+ })[name](payload);
+};
+const note=document.querySelector('.noticebar');
+if(note)note.textContent='Study1 研究報名｜依目前研究開放狀態提供服務';
+const hero=document.querySelector('header .hero p');
+if(hero)hero.textContent='依序完成研究選擇、資格初篩、電子郵件驗證與時段核對；正式知情同意僅在最後階段進行。';
+const foot=document.querySelector('footer');
+if(foot)foot.textContent='Study1 · NSTC 115-2410-H-033-015｜研究報名以核准程序及正式開放公告為準';
+const intro=document.querySelector('#step-choose .lead');
+if(intro)intro.textContent='正式資格、研究流程與預約時段均以最新適用核准文件為準。';
+const contact=el('formalContact');
+if(contact)contact.hidden=false;
+const eligibilityNote=document.querySelector('#step-screen .lead');
+if(eligibilityNote)eligibilityNote.textContent='請依自身情況誠實回答。電子郵件OTP僅確認信箱控制權，不代表身分或學籍已核實。';
+const examplePerson=document.querySelector('#step-screen p.box');
+if(examplePerson)examplePerson.hidden=true;
+const yes=Object.freeze(['adult','cycu','noDx','noTreatment','noPractice']);
+for(const id of yes){const input=el(id);if(input){input.checked=false;input.disabled=true;}}
+if(el('noE1')){el('noE1').checked=false;el('noE1').disabled=true;}
+const initialOtpBox=document.querySelector('#step-otp > .box');
+if(initialOtpBox)initialOtpBox.hidden=true;
+const sampleCode=document.querySelector('#otpInputWrap > .box');
+if(sampleCode)sampleCode.hidden=true;
+if(el('otpPaste'))el('otpPaste').hidden=true;
+if(el('otpInputWrap'))el('otpInputWrap').hidden=true;
+const otpLead=document.querySelector('#step-otp .lead');
+if(otpLead)otpLead.textContent='系統將寄送八位數電子郵件驗證碼至您剛提供的電子郵件地址，10分鐘內有效。';
+const slotLead=document.querySelector('#step-slots .lead');
+if(slotLead)slotLead.textContent='已完成信箱控制權核對。研究資格、有效名額、本人身分與適用研究仍須由系統及研究團隊核實；目前尚不可直接成立預約。';
+for(const id of ['v05Dates','v05Choices','v05Status','v05Month','v05Prev','v05Next','slot','hold','v08WaitBox']){
+ const node=el(id);if(node)node.hidden=true;
+}
+if(el('screenNext'))el('screenNext').textContent='送出申請並繼續驗證電子郵件';
+if(el('otpSend'))el('otpSend').textContent='寄送電子郵件驗證碼';
+if(el('otpVerify'))el('otpVerify').textContent='確認電子郵件驗證碼';
+if(el('noAvailable'))el('noAvailable').hidden=false;
+show('choose');
+el('chooseE1').addEventListener('click',()=>{
+ if(!state.ready||state.busy)return;
+ show('screen');status('請完成正式資格初篩與最少必要聯絡資料。');
+});
+el('screenBack').addEventListener('click',()=>show('choose'));
+el('screenNext').addEventListener('click',()=>{
+ if(!state.ready||state.busy)return;
+ const payload={experiment:'E1',adult:el('adult').checked,cycu:el('cycu').checked,
+  noDx:el('noDx').checked,noTreatment:el('noTreatment').checked,
+  noPractice:el('noPractice').checked,name:el('formalName').value,
+  email:el('formalEmail').value,phone:el('formalPhone').value,
+  requestId:state.requestId||genRequest()};
+ state.requestId=payload.requestId;
+ rpc('study1ParticipantBegin',payload,result=>{
+  if(!result||result.accepted!==true){
+   show('ineligible');status('目前不符合此研究的報名條件。');return;
+  }
+  state.app={applicantId:result.applicantId,screeningId:result.screeningId,
+   experiment:'E1',email:payload.email};
+  show('otp');status('申請已建立待驗證狀態；尚未完成正式資格審查或預約。');
+ });
+});
+el('otpSend').addEventListener('click',()=>{
+ if(!state.ready||state.busy||!state.app)return;
+ const payload={...state.app,requestId:genRequest()};
+ rpc('study1ParticipantSendOtp',payload,result=>{
+  if(!result||result.sent!==true){status('驗證碼已寄送或暫時受節流限制，請稍後重新核對信箱。');return;}
+  state.mail=result.challengeId;
+  el('otpInputWrap').hidden=false;
+  status('請至登記信箱查看驗證碼，郵件可能需要一些時間。');
+ });
+});
+el('otpVerify').addEventListener('click',()=>{
+ if(!state.ready||state.busy||!state.app||!state.mail)return;
+ rpc('study1ParticipantVerifyOtp',{...state.app,challengeId:state.mail,
+  code:el('otpInput').value},result=>{
+  if(!result||result.verified!==true){status('驗證碼無效、已使用或逾期，請確認後再操作。');return;}
+  show('slots');
+  status('電子郵件已驗證。此階段尚不代表研究資格已核定或時段預約成立。');
+ });
+});
+if(typeof google!=='undefined'&&google.script&&google.script.run){
+ google.script.run.withFailureHandler(()=>status('目前尚未開放線上報名。'))
+  .withSuccessHandler(result=>{
+   state.ready=!!(result&&result.ready===true&&result.experiment==='E1');
+   el('chooseE1').disabled=!state.ready;
+   el('chooseE2').disabled=true;
+   if(el('noAvailable'))el('noAvailable').textContent=
+    state.ready?'可選擇實驗一並進行申請。':'目前尚未開放正式報名與簽署。';
+   for(const id of ['formalName','formalEmail','formalPhone',...yes]){
+    if(el(id))el(id).disabled=!state.ready;
+   }
+   status(state.ready?'系統可受理實驗一待核申請，須再完成信箱與研究資格程序。':'目前尚未開放正式報名與簽署。');
+  }).study1ParticipantReadiness();
+}else status('目前尚未開放線上報名。');
+})();
+
+(function(){
+'use strict';
+if(typeof document!=='undefined'&&document.body&&document.body.dataset&&document.body.dataset.siteMode==='FORMAL')return;
 const $=id=>document.getElementById(id);
 const phases=['choose','screen','otp','slots','confirm','consent','done'];
 // §70-S: keep original seven-stage TEST adapters and existing reservation model;

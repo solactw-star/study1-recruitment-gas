@@ -20,7 +20,8 @@ const approvedPublicFunctions = [
   'study1UnifiedPreviewGet', 'study1UnifiedPreviewCommand', 'study1UnifiedPreviewSelfTest', 'study1UnifiedB06Command', 'study1UnifiedB12AuditPage', 'study1UnifiedB01LayoutGet', 'study1UnifiedB01LayoutSave', // owner-only shared formal workflow TEST adapter; NOT public enrollment
   'cancelHold', 'doGet', 'getPublicConfig', 'getPublicConsentDocument', 'holdSlot', 'listSlots',
   'myFunction', // preserved original GAS placeholder; not a collection API
-  'requestOtp', 'submitConsent', 'verifyOtp'
+  'requestOtp', 'submitConsent', 'verifyOtp',
+  'study1ParticipantReadiness','study1ParticipantBegin','study1ParticipantSendOtp','study1ParticipantVerifyOtp'
 ].sort();
 
 test('all GAS source files expose only the reviewed closed-site global functions', () => {
