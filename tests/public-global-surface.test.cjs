@@ -14,6 +14,7 @@ const approvedPublicFunctions = [
   'adminGetSandboxConfig', 'adminSaveSandboxConfig', 'adminValidateSandboxConfig', 'adminRunSandboxSelfTest', 'adminGetTestBookings', 'adminChangeTestBooking', 'study1ConsentVersionList', 'study1ConsentVersionUpload', 'study1ConsentVersionSelect', 'study1ConsentVersionPublication',
   'study1EConsentIssue','study1EConsentExplain','study1EConsentConfirm','study1EConsentOwnerList','study1EConsentOwnerWithdraw',
   'study1EConsentAvailability','study1EConsentSession','study1EConsentSign',
+  'study1EConsentSignPdf','study1EConsentSignedPdfCopy',
   'study1EConsentCopy','study1EConsentWithdraw', // owner / fixed-capability authenticated endpoints, each gated
   // strictly owner-authorized, sandbox-only
   'study1UnifiedPreviewGet', 'study1UnifiedPreviewCommand', 'study1UnifiedPreviewSelfTest', 'study1UnifiedB06Command', 'study1UnifiedB12AuditPage', 'study1UnifiedB01LayoutGet', 'study1UnifiedB01LayoutSave', // owner-only shared formal workflow TEST adapter; NOT public enrollment
