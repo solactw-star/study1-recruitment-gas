@@ -4,8 +4,8 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),cryp
 const src=['Study1EConsentBinding.js','Study1ParticipantTrust.js']
  .map(f=>fs.readFileSync(path.join(__dirname,'../gas',f),'utf8')).join('\n');
 const sha=b=>crypto.createHash('sha256').update(b).digest('hex');
-const evidenceA=Buffer.from('synthetic approval evidence for offline source test');
-const evidenceB=Buffer.from('synthetic consent evidence for offline source test, distinct');
+const evidenceA=Buffer.from('synthetic approval evidence for offline source test'.repeat(5));
+const evidenceB=Buffer.from('synthetic consent evidence for offline source test, distinct'.repeat(5));
 function harness({configured=true}={}){
  const props=new Map(),docs=new Map([['APPROVAL_SOURCE_12345',evidenceA],
   ['CONSENT_SOURCE_12345',evidenceB]]);
@@ -80,7 +80,7 @@ test('Pinned independent REC approval + consent bytes validate only with explici
 });
 test('REC consent sha mismatch, copied approval and expired effective scope fail closed',()=>{
  const x=harness();
- x.docs.set('CONSENT_SOURCE_12345',Buffer.from('tampered synthetic consent bytes'));
+ x.docs.set('CONSENT_SOURCE_12345',Buffer.from('X'.repeat(evidenceB.length)));
  assert.throws(()=>x.scope.study1ParticipantRecSource_(),/REC_EVIDENCE_SHA_MISMATCH/);
  x.docs.set('CONSENT_SOURCE_12345',evidenceB);
  x.policy.approvalDocumentId=x.policy.consentDocumentId;
