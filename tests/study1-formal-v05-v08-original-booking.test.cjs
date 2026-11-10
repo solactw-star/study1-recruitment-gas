@@ -78,6 +78,25 @@ function harness(){
       if(!row)throw Error('READ_PAST_END');
       return row.slice(col-1,col+width-1);
      }),getFormulas:()=>Array.from({length:height},()=>Array(width).fill('')),
+     createTextFinder:term=>{
+      let entire=false,sensitive=true,regex=true;
+      const finder={matchEntireCell(value){entire=value;return finder;},
+       matchCase(value){sensitive=value;return finder;},
+       useRegularExpression(value){regex=value;return finder;},
+       findAll(){
+        assert.equal(entire,true);assert.equal(regex,false);
+        const matching=[];
+        for(let row=start;row<start+height;row++){
+         const cells=row===1?table.headers:table.rows[row-2];
+         if(!cells)continue;
+         const value=cells[col-1];
+         const equal=sensitive?value===term:String(value).toLowerCase()===String(term).toLowerCase();
+         if(equal)matching.push({getRow:()=>row,getColumn:()=>col});
+        }
+        return matching;
+       }};
+      return finder;
+     },
      setValues:grid=>{
       if(!held)throw Error('UNLOCKED_MUTATION');
       if(intercept){const fn=intercept;intercept=null;fn()}
@@ -169,7 +188,7 @@ test('V05 verified E1 registry returns only true E1 slots and exact seat counts'
  const h=harness(),p=h.proof(h.person('A'));
  const r=h.ctx.study1FormalV05Slots(p);
  assert.equal(r.experiment,'E1');
- assert.deepEqual(r.slots.map(x=>x.slotId),[h.S1,h.S2]);
+ assert.deepEqual(Array.from(r.slots,x=>x.slotId),[h.S1,h.S2]);
  assert.ok(r.slots.every(x=>x.capacity===1&&x.remaining===1&&x.bookable===true));
  assert.equal(h.tables.Reservations.rows.length,0);
 });
