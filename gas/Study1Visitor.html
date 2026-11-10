@@ -542,7 +542,7 @@ function formalConsentRender_(){
 function formalConsentLoadPdf_(){
  if(!formalConsent)return;
  const currentToken=formalConsent.token;
- rpc('getPublicConsentDocument','E1',async doc=>{
+ rpc('study1FormalConsentOriginalPdf',currentToken,async doc=>{
   if(!formalConsent||formalConsent.token!==currentToken)return;
   try{
    const bytes=await formalVerifyPdf_(doc,formalConsent);
