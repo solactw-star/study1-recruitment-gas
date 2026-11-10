@@ -84,7 +84,8 @@ function buildHarness(original){
  }
  let serial=0;
  const utilities={
-  DigestAlgorithm:{SHA_256:'SHA_256'},
+  DigestAlgorithm:{SHA_256:'SHA_256'},Charset:{UTF_8:'UTF-8'},
+  computeHmacSha256Signature:(txt,key)=>[...crypto.createHmac('sha256',key).update(txt).digest()],
   computeDigest:(_,data)=>[...crypto.createHash('sha256').update(blobBytes(data)).digest()],
   getUuid:()=>{serial++;return 'aaaaaaaa-bbbb-4ccc-8ddd-'+serial.toString(16).padStart(12,'0');},
   base64Decode:base64=>[...Buffer.from(base64,'base64')],
@@ -107,10 +108,10 @@ function buildHarness(original){
    getActiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'}),
    getEffectiveUser:()=>({getEmail:()=> 'solac.tw@gmail.com'})
   },
-  LockService:{getScriptLock:()=>({tryLock:()=>true,releaseLock:()=>{}})},
+  LockService:{getScriptLock:()=>({tryLock:()=>true,hasLock:()=>true,releaseLock:()=>{}})},
   JSON,Date,Number,String,Array,Set,Object,Uint8Array,Math,Error,Promise
  });
- for(const p of ['gas/AdminSandbox.js','gas/Study1PdfStampCore.js'])
+ for(const p of ['gas/AdminSandbox.js','gas/Study1PdfStampCore.js','gas/Study1EConsentBinding.js'])
   vm.runInContext(fs.readFileSync(path.join(__dirname,'..',p),'utf8'),scope);
  const doc={experiment:'E1',id:originalId,title:'Synthetic study consent',
   version:'Version02',sha256:sha(original),bytes:original.length,
@@ -130,12 +131,44 @@ function buildHarness(original){
  for(const [k,v] of Object.entries({OPEN:'true',CONSENT_READY:'true',
   STUDY1_ECONSENT_PROVIDER_VERIFIED:'true',
   STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED:'true',
-  STUDY1_ECONSENT_WIZARD_LINK_VERIFIED:'true'}))values.set(k,v);
+  STUDY1_ECONSENT_WIZARD_LINK_VERIFIED:'true',
+  STUDY1_ECONSENT_BINDING_HMAC_KEY:crypto.randomBytes(40).toString('hex')}))values.set(k,v);
  return {scope,values,files,originalId,doc,writes:()=>writes};
+}
+
+/** Entirely synthetic trusted SNAPSHOT, not an authenticated GAS adapter or
+ * a participant identity. Tests the actual binding verifier + PDF write path. */
+function syntheticBindingEvidence(doc){
+ const now=Date.now(),ts=n=>new Date(now+n).toISOString();
+ const req={applicantId:'APP_00000001',screeningId:'SCR_00000001',
+  challengeId:'CHAL_00000001',reservationId:'RSV_00000001',slotId:'SLOT_00000001',
+  experiment:'E1',documentSha:doc.sha256,documentVersion:doc.version};
+ const snapshot={
+  applicants:{headers:['applicant_id','name','email','phone','created_at_utc','updated_at_utc','status'],
+   rows:[[req.applicantId,'SYNTHETIC','participant@example.org','',ts(-7200000),ts(-600000),'VERIFIED']]},
+  screenings:{headers:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],
+   rows:[[req.screeningId,req.applicantId,'REC_TEST_V1','ELIGIBLE',ts(-5400000),'STAFF_TEST']]},
+  verification:{headers:['challenge_id','applicant_id','purpose','otp_hmac','expires_at_utc','attempts','used_at_utc','email','created_at_utc'],
+   rows:[[req.challengeId,req.applicantId,'EMAIL_VERIFICATION','b'.repeat(64),ts(-4200000),
+     1,ts(-4440000),'participant@example.org',ts(-4800000)]]},
+  reservations:{headers:['reservation_id','applicant_id','slot_id','status','hold_until_utc','idempotency_key','created_at_utc','confirmed_at_utc','cancelled_at_utc','updated_at_utc'],
+   rows:[[req.reservationId,req.applicantId,req.slotId,'HELD',ts(900000),'HOLD_TEST',ts(-3600000),'','',ts(-3500000)]]},
+  slots:{headers:['slot_id','start_at_utc','end_at_utc','capacity','location_code','status','created_by','updated_at_utc'],
+   rows:[[req.slotId,ts(7200000),ts(10800000),5,'TEST','OPEN','STAFF_TEST','']]},
+  identity:{verified:true,provenance:'REC_APPROVED_IDENTITY_ATTESTATION',
+   consentProcedureApproved:true,applicantId:req.applicantId,experiment:'E1',
+   email:'participant@example.org',verifierId:'STAFF_TEST',approvalReference:'TEST_SNAPSHOT_ONLY',
+   evidenceSha256:'c'.repeat(64),verifiedAtUtc:ts(-1800000),
+   screeningVersion:'REC_TEST_V1',screeningId:req.screeningId,slotId:req.slotId,
+   reservationId:req.reservationId,challengeId:req.challengeId}
+ };
+ return {request:req,adapter:{readTrustedSnapshot:()=>snapshot},snapshot};
 }
 test('§70-S E1 full PDF writes a new private signed file, SHA-verifies readback and issues a correct participant copy',async()=>{
  const original=await createBlank(),h=buildHarness(original),png=syntheticInk();
- const issued=h.scope.study1EConsentIssue({experiment:'E1'});
+ const {request,adapter}=syntheticBindingEvidence(h.doc);
+ h.scope.study1EConsentBindingAdapter_=()=>adapter;
+ const issued=h.scope.study1EConsentIssueBound_(request,adapter);
  assert.equal(issued.sha256,sha(original));
  h.scope.study1EConsentExplain({id:issued.id,question:'研究資料保存多久？',
   answer:'完整說明合成研究流程。',resolved:true});
