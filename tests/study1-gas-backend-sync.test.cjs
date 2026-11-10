@@ -144,3 +144,19 @@ test('Unified TEST integration cannot call real Sheet preflight or unreviewed tr
  }
  assert.doesNotThrow(()=>backend.assertUnifiedFlow(unified));
 });
+
+
+test('MVP deployment preview source preflight pins the entire original owner-only GAS set',()=>{
+ const preview=require('../scripts/study1-gas-owner-preview-deploy.cjs');
+ const files=preview.reviewSources();
+ assert.ok(files.length>20);
+ const pdf=files.find(x=>x.name==='Study1FormalConsent');
+ const backend=files.find(x=>x.name==='AdminSandbox');
+ const team=files.find(x=>x.name==='Study1Team');
+ assert.match(pdf.source,/E1_RESEARCHER_PRESIGNED_PDF_NOT_UPLOADED/);
+ assert.match(backend.source,/function study1EConsentOwnerSignedPdfDownload\(/);
+ assert.match(team.source,/id="consentPresignedAttest"/);
+ const names=files.map(x=>x.name);
+ assert.equal(new Set(names).size,names.length);
+ assert.equal(names.includes('appsscript'),false,'immutable private MYSELF manifest staged separately');
+});
