@@ -132,7 +132,11 @@ test('Cross-experiment, applicant swapping, unverified source and invalid OTP sy
   h=>{h.request.code='1234abcd'}
  ]){
   const h=setup();change(h);
-  assert.throws(()=>h.scope.study1EConsentVerifyContactOtp_(h.request));
+  let rejected=false;
+  try{const response=h.scope.study1EConsentVerifyContactOtp_(h.request);
+   rejected=response.verified===false&&response.reason==='REJECTED';}
+  catch(_){rejected=true;}
+  assert.equal(rejected,true,'mismatched applicant or email must not verify');
   assert.equal(h.writes.length,0);
   assert.equal(h.locked.on,false);
  }
