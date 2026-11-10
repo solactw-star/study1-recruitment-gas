@@ -385,6 +385,7 @@ if(typeof google!=='undefined'&&google.script&&google.script.run){
    }
    status(state.ready?'系統可受理實驗一待核申請，須再完成信箱與研究資格程序。':'目前尚未開放正式報名與簽署。');
   }).study1ParticipantReadiness();
+}else status('目前尚未開放線上報名。');
 
 // V05 + V08 formal UI uses the ORIGINAL seven-step elements in FORMAL mode.
 // TEST mode remains a separate owner-only controller below this IIFE.
@@ -597,7 +598,6 @@ el('hold').addEventListener('click',()=>{
  });
 });
 
-}else status('目前尚未開放線上報名。');
 })();
 
 (function(){
