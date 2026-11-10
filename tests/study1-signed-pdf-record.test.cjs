@@ -308,9 +308,17 @@ test('FORMAL_E1 real PDF engine rechecks original self-reported name under final
  assert.equal(finalRef.signedPdf.sha,result.signedPdfSha256);
  await assert.rejects(h.scope.study1EConsentConfirmPdf(staffRequest),
   /RESEARCHER_PDF_UNBOUND_OR_STALE/);
+ assert.throws(()=>h.scope.study1EConsentWithdraw({
+  token:issued.token,reason:'合成參與者要求退出',dataChoice:'AUTO_DELETE'}),
+  /請填寫撤回理由/);
  const withdrawn=h.scope.study1EConsentWithdraw({
-  token:issued.token,reason:'合成參與者要求退出'});
+  token:issued.token,reason:'合成參與者要求退出',dataChoice:'DEIDENTIFY'});
  assert.equal(withdrawn.requiresResearcherDataDisposition,true);
+ assert.equal(withdrawn.dataDispositionState,'PENDING_RESEARCH_TEAM_ACTION');
+ const pending=h.scope.study1EConsentOwnerWithdrawalCases();
+ assert.equal(pending.readOnly,true);
+ assert.equal(pending.records[0].dataChoice,'DEIDENTIFY');
+ assert.equal(pending.records[0].dispositionState,'PENDING_RESEARCH_TEAM_ACTION');
  assert.equal(h.scope.study1EConsentSignedPdfCopy(issued.token).signedPdfSha256,
   result.signedPdfSha256);
 });
