@@ -1388,3 +1388,21 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **暫留政策相容風險：** 原同意書預估研究員說明約15分鐘，但目前 V05 HELD 工作暫設值只有10分鐘，實際真人可能尚未說明完畢時預約就失效。2分鐘quote、10分鐘HELD與FIFO政策未獲PI正式核定，不能擅自延長或當作有效核准程序。
 
 **本次正式隔離分支寫入：** 撤回狀態 commit 315b1a9d4596874556288a19211fb7f803288358；前端提示 commit 4c0e065bdc346dacf7882a3ab86b49922a540965；回歸 commit 694437cdd7b83bfcb56cec3d6a7389bf1877c475。以上均未寫正式 REC、原資料 Sheet、GAS、main，也沒有開啟真人收件或E2。
+
+
+### 70-S.22｜2026-11-10 E1 FORMAL 研究人員第二次PDF簽章、獨立REC硬門檻及撤回資料處置
+
+**授權與正式來源：** 承接唯一Draft PR #133最新§70-S.21.1，沿用原七步FORMAL、V05/V08、個資Sheet與原Email OTP HMAC、HELD預約及原完整PDF引擎，僅在原隔離分支增量修改程式、合成測試與唯一GitHub規格。原核可證書202604EM033 ID 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy、有效E1原同意書051108 Version02 ID 1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m：研究人員須事前說明／答疑（原文約15分鐘），原PDF有研究人員及參與者分開簽名/日期欄、一式兩份及退出資料處置規範。原變更申請夾1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR查得10/22申請及10/27修改稿，未找到已核准遠端簽署／雲端保存的獨立生效決議；REC證書ACL仍見anyone/writer待核。這些資料不是核准電子PDF欄位座標或實機部署的證據。REC_REVIEW_REQUIRED。
+
+**已完成的隔離工程：** 
+1. gas/Study1PdfStampCore.js新增研究人員專用核准欄位讀取及第二次PDF合成。獨立要求有效REC文書、原PDF ID+SHA+版號、研究人員簽名及臺灣日期欄的PI/REC明示核准座標；與參與者原欄交疊或原頁面/大小不同即拒絕。以已驗證的完整參與者簽署PDF及其SHA，嵌入研究人員本人PNG及伺服器可信Asia/Taipei日期，重新輸出完整雙簽PDF及新的獨立SHA。原核可PDF與參與者先前簽署版均保留，不覆寫。
+2. gas/AdminSandbox.js新增OWNER限定的study1EConsentConfirmPdf與待確認索引讀取。舊study1EConsentConfirm不可將FORMAL_E1僅憑確認事件當作雙簽完成；新函式須OWNER Active/Effective雙帳號、原自陳Email OTP、有效HELD及原PDF來源和雙方核准位置，在共用ScriptLock與CAS重讀一致後保存雙簽PDF、參與者已簽PDF索引、研究員獨立簽章／臺灣日期與SHA私有存證；僅全部核對通過才能標記CONFIRMED。study1EConsentSignedPdfCopy必須核對研究員確認事件、完整雙簽SHA及參與者原簽SHA才交付本人副本。
+3. 原gas/AdminConsole.html加OWNER本人手寫Canvas、原待簽記錄ID／參與者已簽SHA唯讀查詢，僅明示操作而不自動重送；未經REC核准不能寫簽章。原gas/Study1Visitor.html的FORMAL本人PDF交付額外要求dualSigned=true、雙簽SHA與參與者原簽SHA分離、研究員及參與者各自可信臺灣日期驗證。
+4. gas/Study1FormalConsent.js新增study1FormalConsentOriginalPdf(token)。修復原FORMAL需OPEN=true卻錯用僅准OPEN=false的原Demo公開PDF讀取端點；現在僅持合法原E1憑證並在共同鎖內核對有效Email OTP、HELD、REC、原文件版號與兩組核准簽章位置才可取得完整原PDF。原CLOSED Demo讀取函式不變。研究員欄未核准時，連簽署邀請都不核發。
+5. 撤回：原study1EConsentWithdraw在舊呼叫相容下新增DESTROY、DEIDENTIFY、CONTACT_STAFF的參與者意願，只私有登錄撤回證據；新增OWNER唯讀study1EConsentOwnerWithdrawalCases，原後台可核查待處置清單，不回傳個資逐題與手寫簽名。狀態明確PENDING_RESEARCH_TEAM_ACTION；不自動刪除／去識別化任何研究資料，亦不允許把人工申報冒稱REC確認已完成，須依適用REC、PI及參與者意願另取得實際執行與核對證據。
+
+**合成驗收：** 擴增tests/study1-signed-pdf-record.test.cjs，測研究員欄位缺失、重疊、錯SHA、重複研究員確認、原PDF保全、完整雙簽PDF私有副本、伺服器時間跨臺灣午夜、撤回後副本及參與者選擇；擴增tests/study1-formal-consent-bridge.test.cjs的原E1憑證保護PDF來源與失效HELD拒絕，以及tests/study1-formal-v05-v08-browser-e2e.test.cjs的雙日期/雙SHA本人副本核對。原GAS精確部署來源與公開RPC、OWNER後台安全白名單仍保留，CI需以當次最後HEAD成功結果回讀，不以此文替代實際測試證據。
+
+**實際尚未完成：** 原正式營運Slots兩次唯讀只有表頭、沒有任何PI核定E1場次；真實REC網站遠端電子同意、雙方PDF核准欄位座標及Google Drive保存適用性尚無獨立核准證據；HELD暫設10分鐘與原研究人員說明約15分鐘可能衝突；真Turnstile、真Email、GAS部署、研究員與參與者實機雙角色UI均未驗證；撤回後實際資料銷毀／去識別化仍需研究團隊另執行。維持OPEN=false、CONSENT_READY=false、私人MYSELF、E2禁止、未合併main、未同步部署GAS、未碰正式REC或Sheets、不寄信/不收真人。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false。
+
+**接續：** TASK_DOMAIN=Study1 FORMAL E1 dual PDF / REC; SOURCE_PATH=PR#133 / docs/study1-system-spec.md §70-S.22; COMPLETED=researcher PDF second stamp + OWNER Canvas + OTP/HELD-bound original PDF + independent dual SHA copy verification + withdrawal preference/queue; NEXT_ACTION=核實最新CI/commit、PI有效REC遠端同意與雙欄坐標、PI原Slots核定、確認原HELD政策及私有GAS部署前安全驗證；BLOCKERS=REC_REVIEW_REQUIRED,NO_APPROVED_RESEARCHER_LAYOUT,NO_OFFICIAL_E1_SLOTS,REAL_SERVICES_NOT_VERIFIED,ACTUAL_WITHDRAWAL_DISPOSITION_PENDING,UI_NOT_VERIFIED; SYNC_STATUS=PR_BRANCH_ONLY。
