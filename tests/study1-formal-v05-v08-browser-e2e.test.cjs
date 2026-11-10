@@ -6,12 +6,24 @@ const start=html.indexOf("(function(){\n'use strict';\n// This controller reuses
 const end=html.indexOf("\n})();\n\n(function(){",start);
 assert.ok(start>0&&end>start,'formal controller must remain inside original IIFE');
 const formal=html.slice(start,end+5);
-function simulate(available){
+function simulate(available,withConsent=false){
  const nodes=new Map(),calls=[],errors=[],reservations=[],uuid=()=>crypto.randomBytes(8).toString('hex');
  const now=Date.now(),S1='SLOT_E1_BROWSER_A_12345678',S2='SLOT_E1_BROWSER_B_12345678';
  const base=[{slotId:S1,startAtUtc:new Date(now+86400000).toISOString(),endAtUtc:new Date(now+90000000).toISOString(),capacity:1,remaining:1,waitlistCount:0,bookable:true},
   {slotId:S2,startAtUtc:new Date(now+172800000).toISOString(),endAtUtc:new Date(now+176400000).toISOString(),capacity:1,remaining:1,waitlistCount:0,bookable:true}];
  const slots=available==='full'?[{...base[0],remaining:0,bookable:false}]:base;
+ const token='aaaaaaaa-bbbb-4ccc-8ddd-111111111111-aaaaaaaa-bbbb-4ccc-8ddd-222222222222';
+ const sourcePdf=Buffer.from('%PDF-'+('E1 APPROVED SYNTHETIC '.repeat(15)));
+ const signedPdf=Buffer.from('%PDF-'+('SIGNED FOR E1 SYNTHETIC '.repeat(15)));
+ const pdfSha=crypto.createHash('sha256').update(sourcePdf).digest('hex');
+ const signedSha=crypto.createHash('sha256').update(signedPdf).digest('hex');
+ const signedAt=new Date(now).toISOString();
+ const taipei=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(signedAt));
+ const date=Object.fromEntries(taipei.map(p=>[p.type,p.value]));
+ const taipeiDate=date.year+'/'+date.month+'/'+date.day;
+ let consent='ISSUED',staffExplained=false,staffConfirmed=false,withdrawn=false;
+
  function element(kind,id){
   const n={kind,id,hidden:id==='formalHumanCheck',disabled:false,textContent:'',value:'',checked:false,children:[],handlers:new Map(),attributes:{},
    setAttribute(name,value){this.attributes[name]=value;},
@@ -22,7 +34,20 @@ function simulate(available){
    get options(){return this.children.filter(x=>x.kind==='option');}
   };return n;
  }
- function node(id){if(!nodes.has(id))nodes.set(id,element(id==='slot'?'select':'div',id));return nodes.get(id);}
+ function node(id){
+  if(!nodes.has(id)){
+   const n=element(id==='slot'?'select':'div',id);
+   if(withConsent&&id==='visitorSignaturePreview'){
+    n.width=700;n.height=160;
+    n.getContext=()=>({fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){}});
+    n.getBoundingClientRect=()=>({left:0,top:0,width:700,height:160});
+    n.toDataURL=()=>('data:image/png;base64,'+
+      Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),Buffer.alloc(160)]).toString('base64'));
+   }
+   nodes.set(id,n);
+  }
+  return nodes.get(id);
+ }
  const doc={body:{dataset:{siteMode:'FORMAL'}},
   head:{appendChild(x){x.onload?.();return x;}},
   getElementById:node,
@@ -69,6 +94,51 @@ function simulate(available){
    return {moved:true};
   }
  };
+
+ if(withConsent)Object.assign(server,{
+  study1FormalConsentBegin:req=>{
+   assert.equal(req.emailProof,eProof);
+   const r=reservations.find(x=>x.reservationId===req.reservationId);
+   if(!r||r.status!=='HELD')throw Error('NOT_HELD');
+   return {state:'ISSUED',experiment:'E1',reservationId:r.reservationId,
+    token,documentVersion:'V1',documentSha256:pdfSha};
+  },
+  getPublicConsentDocument:exp=>{
+   assert.equal(exp,'E1');
+   return {available:true,experiment:'E1',version:'V1',sha256:pdfSha,
+    title:'SYNTHETIC E1 approved fixture',mime:'application/pdf',
+    bytes:sourcePdf.length,base64:sourcePdf.toString('base64')};
+  },
+  study1FormalConsentStatus:sessionToken=>{
+   assert.equal(sessionToken,token);
+   return {experiment:'E1',state:consent,version:'V1',sourceSha256:pdfSha,
+    researcherExplanationCompleted:staffExplained,
+    explanation:staffExplained?{answer:'研究員已說明研究內容及可撤回權益'}:null,
+    signatureAccepted:consent==='SIGNED'||staffConfirmed,
+    staffConfirmed,copyAvailable:staffConfirmed,withdrawn};
+  },
+  study1EConsentSignPdf:req=>{
+   assert.equal(req.token,token);assert.equal(req.documentSha,pdfSha);
+   assert.equal(req.read,true);assert.equal(req.answerAcknowledged,true);
+   if(!staffExplained)throw Error('RESEARCHER_EXPLANATION_MISSING');
+   consent='SIGNED';
+   return {state:'SIGNED',experiment:'E1',documentSha256:pdfSha,signedPdfSha256:signedSha,
+    taipeiDate,signedAt};
+  },
+  study1EConsentSignedPdfCopy:sessionToken=>{
+   assert.equal(sessionToken,token);
+   if(!staffConfirmed)throw Error('STAFF_CONFIRM_REQUIRED');
+   return {experiment:'E1',version:'V1',sourceSha256:pdfSha,
+    signedPdfSha256:signedSha,signedAt,taipeiDate,
+    mime:'application/pdf',bytes:signedPdf.length,
+    base64:signedPdf.toString('base64')};
+  },
+  study1EConsentWithdraw:req=>{
+   assert.equal(req.token,token);
+   if(!staffConfirmed)throw Error('UNCONFIRMED');
+   withdrawn=true;consent='WITHDRAWN';return {state:'WITHDRAWN',recorded:true};
+  }
+ });
  const rpc={
   withFailureHandler(cb){this.failure=cb;return this;},
   withSuccessHandler(cb){this.success=cb;return this;}
@@ -80,9 +150,13 @@ function simulate(available){
    catch(err){errors.push(String(err.stack||err));rpc.failure?.(err);}
   };
  }
- const ctx={document:doc,window:{turnstile,google:{script:{run:rpc}}},
+ const ctx={document:doc,window:{turnstile,
+  crypto:withConsent?{subtle:crypto.webcrypto.subtle}:undefined,
+  google:{script:{run:rpc}}},
   google:{script:{run:rpc}},crypto:{getRandomValues:array=>crypto.randomFillSync(array)},
-  Uint8Array,Date,Intl,Array,Object,String,Math,Error};
+  Uint8Array,Date,Intl,Array,Object,String,Math,Error,Promise,
+  URL:{createObjectURL:()=>('blob:offline:'+uuid()),revokeObjectURL(){}},
+  Blob:globalThis.Blob,atob:b64=>Buffer.from(b64,'base64').toString('binary')};
  vm.runInNewContext(formal,ctx,{timeout:4000});
  function click(id){
   const n=node(id),fn=n.handlers.get('click')||n.onclick;
@@ -111,7 +185,11 @@ function simulate(available){
   assert.equal(node('step-slots').hidden,false);
   assert.equal(calls.some(x=>x.name==='study1FormalV05Slots'),true);
  }
- return {enter,click,node,act,findButton,slots,reservations,calls,errors,S1,S2};
+ return {enter,click,node,act,findButton,slots,reservations,calls,errors,S1,S2,
+  staffExplain:()=>{staffExplained=true;consent='EXPLAINED';},
+  staffConfirm:()=>{staffConfirmed=true;consent='CONFIRMED';},
+  isWithdrawn:()=>withdrawn,
+  pdfSha,signedSha};
 }
 test('FORMAL browser: original E1 V05 quote -> HELD -> V08 MOVE -> CANCEL, no DEMO commands',()=>{
  const h=simulate();h.enter();
@@ -141,5 +219,60 @@ test('FORMAL browser: full E1 V05 slot -> WAITLISTED -> V08 claim, never auto-bo
  h.act('按候補順位檢查可否領取名額');
  assert.equal(h.reservations[0].status,'HELD');
  assert.equal(h.node('step-confirm').hidden,false);
+ assert.deepEqual(h.errors,[]);
+});
+
+test('FORMAL consent-last browser synthetic: HELD -> actual PDF SHA -> staff explanation -> ink -> signed PDF -> staff copy -> withdrawal',async()=>{
+ const h=simulate(undefined,true);
+ h.enter();assert.equal(h.click('hold'),true);
+ h.act('核對本人暫留並進入最後知情同意');
+ // Async browser WebCrypto digest must settle before any consent action.
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(h.node('step-consent').hidden,false);
+ assert.equal(h.node('officialPdfDownload').hidden,false);
+ assert.equal(h.node('finish').disabled,true);
+ assert.equal(h.calls.some(x=>x.name==='study1EConsentSignPdf'),false);
+ const findIn=(root,term)=>{
+  const search=n=>{
+   if(n.kind==='button'&&n.textContent.includes(term))return n;
+   for(const c of n.children){const f=search(c);if(f)return f;}
+   return null;
+  };
+  return search(h.node(root));
+ };
+ const refresh=findIn('step-consent','更新研究人員說明');
+ assert.ok(refresh);
+ h.staffExplain();refresh.handlers.get('click')();
+ assert.equal(h.node('finish').disabled,true,'no signature/affirmative check yet');
+ const canvas=h.node('visitorSignaturePreview');
+ canvas.handlers.get('pointerdown')({clientX:20,clientY:20,pointerId:1});
+ canvas.handlers.get('pointermove')({clientX:60,clientY:70,pointerId:1});
+ canvas.handlers.get('pointerup')({clientX:60,clientY:70,pointerId:1});
+ h.node('readPdf').checked=true;
+ h.node('readPdf').handlers.get('change')();
+ h.node('agree').checked=true;
+ h.node('agree').handlers.get('change')();
+ assert.equal(h.node('finish').disabled,false);
+ assert.equal(h.click('finish'),true);
+ assert.ok(h.calls.some(x=>x.name==='study1EConsentSignPdf'));
+ assert.equal(h.node('finish').disabled,true);
+ h.staffConfirm();refresh.handlers.get('click')();
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(h.node('officialSignedPdfResult').hidden,false);
+ assert.equal(h.node('officialSignedPdfDownload').hidden,false);
+ assert.equal(h.node('officialSignedPdfSha').textContent,h.signedSha);
+ assert.equal(h.node('officialPdfSha').textContent,h.pdfSha);
+ const withdrawal=findIn('step-consent','撤回已確認');
+ assert.ok(withdrawal);
+ const area=withdrawal;
+ // The textarea is a sibling of the withdrawal button, inside its parent box.
+ const box=h.node('step-consent').children.find(x=>x.children.some(y=>y===area));
+ assert.ok(box);
+ const label=box.children.find(x=>x.kind==='label');
+ const reason=label.children.find(x=>x.kind==='textarea');
+ reason.value='研究參與者希望撤回同意';
+ withdrawal.handlers.get('click')();
+ assert.equal(h.isWithdrawn(),true);
+ assert.equal(h.calls.some(x=>/UnifiedPreview|SIMULATED_SIGN_ONLY/.test(x.name)),false);
  assert.deepEqual(h.errors,[]);
 });
