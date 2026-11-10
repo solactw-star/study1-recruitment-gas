@@ -413,3 +413,80 @@ function study1FormalMove(input){
    reservationId:newId,slotId:target[0],holdUntilUtc:newRow[4]};
  });
 }
+
+
+/**
+ * §70-S.23: OWNER-only, post-dual-PDF ORIGINAL Reservations completion.
+ * The signed consent registry is stored separately from the operations Sheet:
+ * NEVER confirm the seat before the independent PDF registry has committed.
+ * Afterward, recheck the complete source under the shared ScriptLock, then
+ * CAS only that existing HELD row to CONFIRMED, and read it back. A failure
+ * leaves a real signed PDF intact but booking status explicitly unconfirmed.
+ * This is a deliberately one-way, idempotent repairable transaction; it does
+ * NOT change the HELD/quote policy or silently resurrect expired bookings.
+ */
+function study1FormalFinalizeSignedE1Booking_(consentId){
+ study1AdminOwnerRequired_();
+ study1FormalConsentGate_();
+ study1BindingId_(consentId);
+ const lock=LockService.getScriptLock();
+ if(!lock||typeof lock.tryLock!=='function'||lock.tryLock(10000)!==true)
+  throw Error('FORMAL_BOOKING_FINALIZE_LOCK_BUSY');
+ try{
+  if(lock.hasLock()!==true)throw Error('FORMAL_BOOKING_FINALIZE_LOCK_LOST');
+  study1AdminOwnerRequired_();study1FormalConsentGate_();
+  const registry=study1EConsentRegistry_();
+  const matches=registry.records.filter(x=>x.id===consentId);
+  if(matches.length!==1)throw Error('FORMAL_BOOKING_CONSENT_NOT_UNIQUE');
+  const entry=matches[0],bound=entry.binding;
+  if(entry.state!=='CONFIRMED'||entry.channel!=='FORMAL_E1'||
+     entry.experiment!=='E1'||!bound||bound.experiment!=='E1'||
+     !entry.signature||!entry.confirmation||!entry.participantSignedPdf||
+     !entry.signedPdf)
+   throw Error('FORMAL_BOOKING_DUAL_PDF_NOT_CONFIRMED');
+  const doc=study1EConsentReadyDocument_('E1');
+  const rec=study1FormalConsentRecScope_();
+  if(doc.id!==rec.consentDocumentId||
+     doc.sha256!==rec.consentDocumentSha256||
+     doc.sha256!==entry.documentSha||doc.version!==entry.documentVersion||
+     bound.documentSha!==doc.sha256||bound.documentVersion!==doc.version||
+     study1BindingDigest_(bound)!==bound.digest)
+   throw Error('FORMAL_BOOKING_CONSENT_SOURCE_CHANGED');
+  const signature=study1EConsentEvent_(entry.signature,entry,'SIGNATURE').data;
+  const confirmation=study1EConsentEvent_(entry.confirmation,entry,'CONFIRMATION').data;
+  if(signature.signedPdfSha256!==entry.participantSignedPdf.sha||
+     confirmation.signatureHash!==entry.signature.sha||
+     confirmation.participantSignedPdfSha256!==entry.participantSignedPdf.sha||
+     confirmation.researcherSignedPdfSha256!==entry.signedPdf.sha)
+   throw Error('FORMAL_BOOKING_DUAL_PDF_HASH_MISMATCH');
+  study1EConsentSignedPdfRead_(entry.participantSignedPdf,entry);
+  study1EConsentSignedPdfRead_(entry.signedPdf,entry);
+  const nowUtc=new Date().toISOString(),snapshot=study1FormalSnapshot_();
+  study1FormalValidateSnapshot_(snapshot,nowUtc);
+  const originals=snapshot.reservations.rows.filter(r=>r[0]===bound.reservationId);
+  if(originals.length!==1)throw Error('FORMAL_BOOKING_ORIGINAL_RESERVATION_NOT_UNIQUE');
+  const original=originals[0],ctx={snapshot,nowUtc,lock};
+  if(original[1]!==bound.applicantId||original[2]!==bound.slotId)
+   throw Error('FORMAL_BOOKING_IDENTITY_SLOT_CHANGED');
+  // The same PI-signed original E1 slot row remains the only authority.
+  study1FormalSlot_(ctx,original[2]);
+  if(original[3]==='CONFIRMED'){
+   if(!original[7]||original[8])
+    throw Error('FORMAL_BOOKING_CONFIRMATION_INCONSISTENT');
+   return {bookingConfirmed:true,reason:'ALREADY_CONFIRMED',
+    reservationId:original[0],bookingStatus:'CONFIRMED',readOnlyReplay:true};
+  }
+  if(original[3]!=='HELD'||study1BindingUtc_(original[4])<=Date.now())
+   throw Error('FORMAL_BOOKING_HELD_EXPIRED_OR_CHANGED');
+  // Verify the actual self-reported applicant and consumed Email OTP afresh.
+  const adapter=study1EConsentBindingAdapter_('PUBLIC_E1');
+  study1BindingRecheck_(bound,doc,adapter,nowUtc,lock);
+  if(lock.hasLock()!==true)throw Error('FORMAL_BOOKING_FINALIZE_LOCK_LOST');
+  const changed=original.slice();
+  changed[3]='CONFIRMED';changed[7]=nowUtc;changed[9]=nowUtc;
+  study1FormalWriteExisting_(ctx,original,changed);
+  study1FormalAfterMutation_(snapshot,[[original[0],changed]]);
+  return {bookingConfirmed:true,reason:'CONFIRMED_AFTER_DUAL_PDF',
+   reservationId:original[0],bookingStatus:'CONFIRMED',readOnlyReplay:false};
+ }finally{lock.releaseLock();}
+}
