@@ -298,6 +298,23 @@ function study1BindingRecheck_(bound,doc,adapter,nowUtc){
   throw Error('OTP、身分、場次或文件來源已更新；需重新驗證');
  return current;
 }
+/** Pre-signature read must also be protected by the same shared script lock;
+ * after PDF composition the independent final CAS recheck runs inside the
+ * e-consent transaction lock. Never hold a GAS lock across async PDF work.
+ */
+function study1BindingRecheckWithLock_(binding,doc,adapter){
+ const lock=LockService.getScriptLock();
+ if(!lock||typeof lock.tryLock!=='function'||
+    typeof lock.hasLock!=='function'||typeof lock.releaseLock!=='function'||
+    lock.tryLock(10000)!==true)
+  throw Error('無法取得身分／預約共用交易鎖');
+ try{
+  if(lock.hasLock()!==true)throw Error('共用交易鎖已失效');
+  const result=study1BindingRecheck_(binding,doc,adapter,new Date().toISOString());
+  if(lock.hasLock()!==true)throw Error('身分核對期間共用交易鎖失效');
+  return result;
+ }finally{lock.releaseLock();}
+}
 /** STRICTLY INTERNAL issuance. No public route or live adapter exists yet. */
 function study1EConsentIssueBound_(input,adapter){
  study1AdminOwnerRequired_();
@@ -312,7 +329,10 @@ function study1EConsentIssueBound_(input,adapter){
   study1AdminOwnerRequired_();
   const doc=study1EConsentReadyDocument_(input.experiment);
   const nowUtc=new Date().toISOString();
-  const binding=study1BindingVerify_(adapter.readTrustedSnapshot(input),input,doc,nowUtc);
+  const reader=adapter||study1EConsentBindingAdapter_();
+  if(!reader||typeof reader.readTrustedSnapshot!=='function')
+   throw Error('REC_REVIEW_REQUIRED：未設立可信正式讀取介接');
+  const binding=study1BindingVerify_(reader.readTrustedSnapshot(input),input,doc,nowUtc);
   binding.digest=study1BindingDigest_({...binding,digest:''});
   if(lock.hasLock()!==true)throw Error('共用交易鎖已失效');
   const r=study1EConsentRegistry_();
