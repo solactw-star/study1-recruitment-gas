@@ -146,6 +146,9 @@ test('Identity swap, experiment swap and source permission errors fail before op
   a=>{a.applicantId='APP_00000000'},
   a=>{a.experiment='E2'},
   a=>{a.verified=false},
+  a=>{a.age18OrOlderVerified=false},
+  a=>{a.cycuStudentVerified=false},
+  a=>{a.eligibilityEvidenceSha256='bad'},
   a=>{a.evidenceSha256='bad'},
   a=>{a.reservationId='RES_00000000'}
  ]){
