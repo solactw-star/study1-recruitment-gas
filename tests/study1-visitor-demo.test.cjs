@@ -22,7 +22,10 @@ test('Teacher DEMO runs the SAME Study1Unified E1/E2 eligibility, OTP, booking, 
  assert.match(html,/study1UnifiedPreviewCommand\(envelope\)/);
  assert.match(html,/SIMULATED_SIGN_ONLY/);
  assert.match(html,/demo\.study1@example\.invalid/);
- assert.doesNotMatch(html,/<input[^>]*type="email"/);
+ assert.match(html,/id="formalContact"[^>]*hidden/);
+ assert.match(html,/id="formalEmail"[^>]*disabled/);
+ const demoOnly=html.replace(/<div id="formalContact"[\s\S]*?<\/div>/,'');
+ assert.doesNotMatch(demoOnly,/<input[^>]*type="email"/);
 });
 test('The teacher-facing route requires owner identity and CLOSED flags; no real public booking endpoints are opened',()=>{
  assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\);/);
@@ -65,7 +68,10 @@ test('V06 last confirmation lists only synthetic research, Taiwan time, owner de
  assert.match(html,/demo\.study1@example\.invalid（不寄信）/);
  assert.match(html,/v06Preview_\(model,a\)/);
  assert.match(html,/v06Render_\(\)/);
- assert.doesNotMatch(html,/<input[^>]*type="email"/);
+ assert.match(html,/id="formalContact"[^>]*hidden/);
+ assert.match(html,/id="formalEmail"[^>]*disabled/);
+ const demoOnly=html.replace(/<div id="formalContact"[\s\S]*?<\/div>/,'');
+ assert.doesNotMatch(demoOnly,/<input[^>]*type="email"/);
 });
 
 test('V06 pre-signature review requires a single consistent verified HELD TEST slot before PDF consent',()=>{
