@@ -6,7 +6,7 @@ const start=html.indexOf("(function(){\n'use strict';\n// This controller reuses
 const end=html.indexOf("\n})();\n\n(function(){",start);
 assert.ok(start>0&&end>start,'formal controller must remain inside original IIFE');
 const formal=html.slice(start,end+5);
-function simulate(available,withConsent=false){
+function simulate(available,withConsent=false,researcherPresigned=false){
  const nodes=new Map(),calls=[],errors=[],reservations=[],uuid=()=>crypto.randomBytes(8).toString('hex');
  const now=Date.now(),S1='SLOT_E1_BROWSER_A_12345678',S2='SLOT_E1_BROWSER_B_12345678';
  const base=[{slotId:S1,startAtUtc:new Date(now+86400000).toISOString(),endAtUtc:new Date(now+90000000).toISOString(),capacity:1,remaining:1,waitlistCount:0,bookable:true},
@@ -101,7 +101,7 @@ function simulate(available,withConsent=false){
    const r=reservations.find(x=>x.reservationId===req.reservationId);
    if(!r||r.status!=='HELD')throw Error('NOT_HELD');
    return {state:'ISSUED',experiment:'E1',reservationId:r.reservationId,
-    token,documentVersion:'V1',documentSha256:pdfSha};
+    token,documentVersion:'V1',documentSha256:pdfSha,researcherPresigned};
   },
   study1FormalConsentOriginalPdf:sessionToken=>{
    assert.equal(sessionToken,token);
@@ -112,6 +112,7 @@ function simulate(available,withConsent=false){
   study1FormalConsentStatus:sessionToken=>{
    assert.equal(sessionToken,token);
    return {experiment:'E1',state:consent,version:'V1',sourceSha256:pdfSha,
+    researcherPreSigned:researcherPresigned,
     researcherExplanationCompleted:staffExplained,
     explanation:staffExplained?{answer:'研究員已說明研究內容及可撤回權益'}:null,
     signatureAccepted:consent==='SIGNED'||staffConfirmed,
@@ -120,18 +121,21 @@ function simulate(available,withConsent=false){
   study1EConsentSignPdf:req=>{
    assert.equal(req.token,token);assert.equal(req.documentSha,pdfSha);
    assert.equal(req.read,true);assert.equal(req.answerAcknowledged,true);
-   if(!staffExplained)throw Error('RESEARCHER_EXPLANATION_MISSING');
-   consent='SIGNED';
-   return {state:'SIGNED',experiment:'E1',documentSha256:pdfSha,signedPdfSha256:signedSha,
-    taipeiDate,signedAt};
+   if(!staffExplained&&!researcherPresigned)throw Error('RESEARCHER_EXPLANATION_MISSING');
+   consent=researcherPresigned?'CONFIRMED':'SIGNED';
+   if(researcherPresigned)staffConfirmed=true;
+   return {state:consent,experiment:'E1',documentSha256:pdfSha,signedPdfSha256:signedSha,
+    taipeiDate,signedAt,researcherPreSigned:researcherPresigned};
   },
   study1EConsentSignedPdfCopy:sessionToken=>{
    assert.equal(sessionToken,token);
    if(!staffConfirmed)throw Error('STAFF_CONFIRM_REQUIRED');
    return {experiment:'E1',version:'V1',sourceSha256:pdfSha,
     signedPdfSha256:signedSha,signedAt,taipeiDate,dualSigned:true,
-    participantSignedPdfSha256:'f'.repeat(64),
-    researcherSignedAt:signedAt,researcherTaipeiDate:taipeiDate,
+    participantSignedPdfSha256:researcherPresigned?signedSha:'f'.repeat(64),
+    researcherSignedAt:researcherPresigned?null:signedAt,
+    researcherTaipeiDate:researcherPresigned?null:taipeiDate,
+    researcherPreSigned:researcherPresigned,
     mime:'application/pdf',bytes:signedPdf.length,
     base64:signedPdf.toString('base64')};
   },
@@ -297,9 +301,32 @@ test('FORMAL consent-last browser synthetic: HELD -> actual PDF SHA -> staff exp
 // Latest operational decision does not eliminate staff Q&A evidence: it only
 // removes the old 15-minute duration as a hard timer for online e-consent.
 test('§70-S.23 consent is online-only without a 15-minute countdown or booking shortcut',()=>{
- assert.match(html,/知情同意全程線上完成/);
- assert.match(html,/不設定15分鐘倒數/);
- assert.match(html,/須先由研究人員完成線上說明及疑問回覆/);
+ assert.match(html,/請閱讀研究者事先完成簽名/);
+ assert.match(formal,/researcherPresigned/);
+ assert.match(formal,/研究者已先簽署完整PDF/);
  assert.match(formal,/a dual-signed PDF is NOT a booking confirmation/);
  assert.match(formal,/rpc\('study1FormalStatus',state\.emailProof,booking/);
+});
+
+test('§70-S.24 MVP: researcher presigns source before upload; participant signs once without staff second signature',async()=>{
+ const h=simulate(undefined,true,true);h.enter();h.click('hold');
+ h.act('核對本人暫留並進入最後知情同意');
+ for(let i=0;i<40&&h.node('officialPdfDownload').hidden;i++)
+  await new Promise(resolve=>setTimeout(resolve,5));
+ assert.equal(h.node('officialPdfDownload').hidden,false);
+ assert.equal(h.calls.some(c=>c.name==='study1EConsentSignPdf'),false);
+ const canvas=h.node('visitorSignaturePreview');
+ canvas.handlers.get('pointerdown')({clientX:20,clientY:20,pointerId:1});
+ canvas.handlers.get('pointermove')({clientX:60,clientY:40,pointerId:1});
+ canvas.handlers.get('pointerup')({clientX:60,clientY:40,pointerId:1});
+ h.node('readPdf').checked=true;h.node('readPdf').handlers.get('change')();
+ h.node('agree').checked=true;h.node('agree').handlers.get('change')();
+ assert.equal(h.node('finish').disabled,false);
+ assert.equal(h.click('finish'),true);
+ for(let i=0;i<40&&h.node('officialSignedPdfDownload').hidden;i++)
+  await new Promise(resolve=>setTimeout(resolve,5));
+ assert.equal(h.node('officialSignedPdfDownload').hidden,false);
+ assert.ok(h.calls.some(c=>c.name==='study1EConsentSignPdf'));
+ assert.equal(h.calls.some(c=>c.name==='study1EConsentConfirmPdf'),false);
+ assert.deepEqual(h.errors,[]);
 });
