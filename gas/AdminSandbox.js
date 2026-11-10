@@ -1023,6 +1023,9 @@ async function study1EConsentSignPdf(input){
  // are installed. No owner-only TEST fixture can set these live gates.
  if(!study1EConsentEnabled_())
   throw Error('尚未開放有效電子簽署');
+ // The 202604EM033 approval is oral + written, not remote e-sign.
+ // This source-level gate cannot be lifted by runtime feature flags.
+ study1RecRequireElectronicConsentApproval_();
  const p=PropertiesService.getScriptProperties();
  if(p.getProperty('STUDY1_ECONSENT_PDF_PROVIDER_VERIFIED')!=='true'||
     p.getProperty('STUDY1_ECONSENT_WIZARD_LINK_VERIFIED')!=='true')
