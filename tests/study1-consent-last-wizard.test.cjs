@@ -10,11 +10,11 @@ const visitor=()=>read('gas/Study1Visitor.html');
 
 test('§70-S public information homepage cannot expose direct signing or actual enrollment',()=>{
  const html=home();
- assert.match(html,/id="consent"/);
- assert.match(html,/知情同意是報名最後的步驟/);
- assert.match(html,/目前尚未開放線上簽署/);
+ assert.doesNotMatch(html,/id="consent"/);
+ assert.doesNotMatch(html,/知情同意是報名最後的步驟/);
+ assert.match(html,/href="\?view=apply"/);
  assert.match(html,/id="apply"/);
- assert.match(html,/<button class="btn" disabled type="button">報名尚未開放<\/button>/);
+ assert.match(html,/查看正式報名流程（目前不收件）/);
  assert.doesNotMatch(html,/<(?:form|input|textarea|canvas|iframe)\b/i);
  assert.doesNotMatch(html,/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/);
  assert.doesNotMatch(html,/initConsentPortal_|study1EConsentSign\(/);
