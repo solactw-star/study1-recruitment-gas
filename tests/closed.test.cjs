@@ -47,7 +47,7 @@ test('Closed initialization retains unrelated GAS properties',()=>{
 });
 test('The information-only HTML has no intake or external scripts',()=>{
   assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
-  assert.match(html,/disabled type="button"/);
+  assert.match(html,/href="\?view=apply"/);
   assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
   const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
   assert.equal(inputs.length,0);
@@ -71,10 +71,10 @@ test('Original source manifest is preserved for remote drift detection',()=>{
 });
 
 test('§70-S public research introduction explains consent-last without any signature widget',()=>{
-  assert.match(html,/id="consent"/);
-  assert.match(html,/知情同意是報名最後的步驟/);
-  for(const word of ['選擇研究及資格初篩','身分、電子郵件與時段','確認報名資料',
-   '最後閱讀與簽署','目前尚未開放線上簽署']){
+  assert.doesNotMatch(html,/id="consent"/);
+  assert.doesNotMatch(html,/知情同意是報名最後的步驟/);
+  for(const word of ['href="?view=apply"','href="?view=apply"','href="?view=apply"',
+   'href="?view=apply"','href="?view=apply"']){
    assert.ok(html.includes(word),'missing information-only flow '+word);
   }
   assert.doesNotMatch(html,/id="consentSignature"|id="consentSubmit"|initConsentPortal_/);
