@@ -1473,7 +1473,7 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 
 **最新使用者決策；仍以 §70-S.24 五項 MVP 為唯一交付範圍。** 使用者指定唯一原公開招募網站 `https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec`，不再用私人 `?view=demo`、虛構角色/時段/固定OTP、GitHub CI或私人GAS部署冒充正式公開網站交付。
 
-1. **首頁與導覽**：原 `gas/Index.html` 移除完整的獨立 `#consent` 區塊、對應導覽和首頁CTA，以及過期FAQ；不設首頁PDF閱讀/簽署窗格。一般研究介紹可描述「報名後階段閱讀並簽署」，但全文PDF與簽名只在原七步 FORMAL 報名最後階段提供；首頁不蒐集任何姓名、資格答案、簽名或個資。
+1. **首頁與導覽**：原 `gas/Index.html` 移除完整的獨立 `#consent` 區塊、對應導覽和首頁CTA，以及過期FAQ；並移除頁首獨立的「研究報名及線上知情同意尚未開放」提示卡及不再使用的 CSS，不在首頁重複放置知情同意相關提示區塊。**正式收件關閉訊息仍保留於原 `#apply` 報名區域，後端 `OPEN=false`、`CONSENT_READY=false` 安全閘門維持不變。**不設首頁PDF閱讀/簽署窗格。一般研究介紹可描述「報名後階段閱讀並簽署」，但全文PDF與簽名只在原七步 FORMAL 報名最後階段提供；首頁不蒐集任何姓名、資格答案、簽名或個資。
 2. **正式入口**：首頁對應 `/exec?view=apply` 的實際原公開部署完整網址，GAS iframe `target="_top"`；原 `gas/Website.js` 的 `view=apply` 必須是 `flowMode='FORMAL'`，不經過舊模擬機制。原 `view=demo` 舊書籤僅在 OWNER 身分驗證通過時轉到 **FORMAL** 同版頁面，不再渲染虛構報名展示；管理後台指向正式 E1 報名入口。既有離線/合成模擬測試可保留，但不可成為正式產品 UI、公開入口或強制部署必要功能。
 3. **反回退門檻**：原 `scripts/study1-gas-index-preview.cjs`、`scripts/study1-gas-owner-preview-deploy.cjs`、`scripts/study1-gas-backend-allowlist.cjs` 和 `scripts/study1-gas-public-release.cjs` 必須禁止首頁獨立同意區塊、檢查公開 FORMAL 入口及受保護後台，舊 `SIMULATED_SIGN_ONLY` 不再是 OWNER 部署的必要契約。維持真實報名/OTP/預約/同意後端 fail-closed、安全身份及權限檢查與原合成回歸，不為移除 Demo 而讓真人寫入通過。
 4. **驗收五層分離**：`PR_IMPLEMENTED`、`CI_PASS`、`MAIN_SYNC_VERIFIED`、`GAS_SOURCE/PRIVATE/PUBLIC_DEPLOYMENT_VERIFIED` 與 `PUBLIC_SITE_UI_VERIFIED` 必須分別取得證據；需以**指定公開網址**非登入者實際 HTTP/瀏覽器回讀無舊同意區塊、正確 FORMAL 連結、受保護路由及對應部署版本，才可宣稱公開網站新版交付。私人 OWNER V127 或合成 CI 不代替公開 V124 的更新。
