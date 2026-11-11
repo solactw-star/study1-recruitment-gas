@@ -442,6 +442,62 @@ function study1WizardReviewBound_(untrusted){
 
 
 /**
+ * Public E1 pre-enrollment preflight: use ONLY the original Slots, never
+ * applicant or consent records. Verify independent PI-reviewed E1 HMAC pins
+ * and a future OPEN row before collecting a name or triggering Turnstile.
+ * The response is Boolean only; no slot names, calendar, location or secret
+ * is exposed to anonymous callers. Caller may supply an existing ScriptLock.
+ */
+function study1FormalPublicSlotReady_(heldLock){
+ const externallyLocked=heldLock!==undefined;
+ const lock=externallyLocked?heldLock:LockService.getScriptLock();
+ if(!lock||typeof lock.hasLock!=='function'||
+    (!externallyLocked&&(!lock.tryLock||lock.tryLock(5000)!==true)))
+  throw Error('E1_PREFLIGHT_SLOT_LOCK_UNAVAILABLE');
+ try{
+  if(lock.hasLock()!==true)throw Error('E1_PREFLIGHT_SLOT_LOCK_LOST');
+  const p=PropertiesService.getScriptProperties();
+  if(p.getProperty('STUDY1_E1_SLOT_REGISTRY_APPROVED')!=='true')
+   return false;
+  const book=SpreadsheetApp.openById(study1BindingSheetId_('slots'));
+  if(!book||typeof book.getId!=='function'||
+     book.getId()!=='1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ')
+   throw Error('E1_PREFLIGHT_SOURCE_ID_MISMATCH');
+  // These readers reject formulas and malformed headers, and two identical
+  // reads guard against inconsistent rows without modifying the original.
+  const first=bookingReadOnlyTab_(book,'Slots',BOOKING_SLOT_HEADERS_);
+  const second=bookingReadOnlyTab_(book,'Slots',BOOKING_SLOT_HEADERS_);
+  if(!bookingReadOnlySameTab_(first,second))
+   throw Error('E1_PREFLIGHT_SOURCE_CHANGED');
+  if(!first.rows.length)return false;
+  const now=Date.now(),ids=new Set();let found=0;
+  for(const row of first.rows){
+   const id=study1BindingId_(row[0]);
+   if(ids.has(id))throw Error('E1_PREFLIGHT_DUPLICATE_SLOT');
+   ids.add(id);
+   if(row[5]!=='OPEN')continue;
+   const starts=study1BindingUtc_(row[1]);
+   const ends=study1BindingUtc_(row[2]);
+   if(ends<=starts)throw Error('E1_PREFLIGHT_TIME_INVALID');
+   if(starts<=now)continue;
+   if(!Number.isSafeInteger(row[3])||row[3]<1)
+    throw Error('E1_PREFLIGHT_CAPACITY_INVALID');
+   try{
+    study1WizardSlotAuthority_({slotId:id,experiment:'E1'},row,lock);
+    found++;
+   }catch(error){
+    if(String(error.message)==='SLOT_EXPERIMENT_MISMATCH')continue;
+    throw error; // stale/tampered E1 registry is never silently ignored
+   }
+  }
+  if(lock.hasLock()!==true)throw Error('E1_PREFLIGHT_SLOT_LOCK_LOST');
+  return found>0;
+ }finally{
+  if(!externallyLocked)lock.releaseLock();
+ }
+}
+
+/**
  * §70-S.20 OWNER-only, READ-ONLY audit of the exact original Slots rows.
  * This never assigns E1/E2, approves a slot, reads participant reservations,
  * writes ScriptProperties, or activates recruitment. A PI must separately
