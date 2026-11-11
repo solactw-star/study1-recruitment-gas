@@ -172,7 +172,23 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <label class="check"><input id="agree" type="checkbox"><span>我了解此為虛構角色的報名示範，不會留下真實簽名或產生正式報名</span></label>
 <div class="actionrow"><button id="finish" type="button" disabled>確認並完成示範報名</button></div>
 <p class="help" id="consentStatus">請先開啟並確認範例文件。</p></section>
-<section class="step" id="step-done" hidden><div class="receipt"><span class="tag">已完成示範</span><h2 id="doneHeading">報名流程已完成</h2>
+<section class="step" id="step-done" hidden>
+<div id="formalDoneResult" class="receipt" role="status" aria-live="polite" hidden>
+ <span class="tag">E1 正式報名狀態｜獨立來源核對</span>
+ <h2 id="formalDoneHeading">預約結果尚未核實</h2>
+ <p id="formalDoneMessage">必須先驗證完整簽署PDF及原Reservations的本人預約結果。</p>
+ <dl>
+  <dt>研究項目</dt><dd>實驗一 E1</dd>
+  <dt>原預約狀態</dt><dd id="formalDoneBooking">UNKNOWN｜不可視為已確認</dd>
+  <dt>原預約識別碼</dt><dd id="formalDoneReservation">待本人核對</dd>
+  <dt>已簽完整PDF SHA-256</dt><dd id="formalDonePdfSha">未核實</dd>
+  <dt>本人簽署日期（臺灣）</dt><dd id="formalDonePdfDate">未核實</dd>
+  <dt>郵件通知狀態</dt><dd>未由此頁驗證寄送；請以正式通知來源為準</dd>
+ </dl>
+ <p id="formalDoneNotice" class="help">PDF簽署與預約成立須分別核實。狀態不明時請勿重送申請或簽名。</p>
+ <button type="button" id="formalDoneBack" class="ghost">返回查看已簽PDF與唯讀核對狀態</button>
+</div>
+<div id="demoDoneDetails"><div class="receipt"><span class="tag">已完成示範</span><h2 id="doneHeading">報名流程已完成</h2>
 <p>您已成功體驗與參與者相同的報名、初篩、驗證、預約與同意操作。</p>
 <dl><dt>申請編號</dt><dd id="receiptId">—</dd><dt>研究項目</dt><dd id="receiptStudy">—</dd><dt>預約時段</dt><dd id="receiptSlot">—</dd><dt>通知狀態</dt><dd>示範通知已產生，未發送真實郵件</dd></dl>
 <p class="help">此確認頁面不代表已正式錄取或完成正式研究報名。</p></div>
@@ -190,7 +206,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <div class="actionrow"><button id="v08Commit" type="button" disabled>確認執行這筆虛構變更</button>
 <button id="v08Back" type="button" class="ghost">返回，不變更</button></div>
 </div>
-<p id="e2Hint" class="help" hidden>實驗二正式研究包含八週安排；本 Demo 展示前期報名與時段預約，後續團課、居家練習與分組將依核准研究流程安排。</p></section>
+<p id="e2Hint" class="help" hidden>實驗二正式研究包含八週安排；本 Demo 展示前期報名與時段預約，後續團課、居家練習與分組將依核准研究流程安排。</p></div></section>
 <div class="box warn" aria-label="V07虛構預約結果核對">
 <strong>V07｜虛構預約結果與安全回讀</strong>
 <p id="v07Result" role="status" aria-live="polite">尚未送出虛構預約；待人工審核狀態未接入，不得視為已核准。</p>
@@ -490,6 +506,59 @@ function formalV05Read_(){
  * AND an explicitly recorded researcher explanation on the same fixed PDF.
  */
 let formalConsent=null,formalPdfUrl=null,formalSignedUrl=null,formalInk=false;
+const formalDemoDone=el('demoDoneDetails'),formalDoneNode=el('formalDoneResult');
+if(formalDemoDone)formalDemoDone.hidden=true;
+if(formalDoneNode)formalDoneNode.hidden=false;
+const formalTestResult=document.querySelector('[aria-label="V07虛構預約結果核對"]');
+if(formalTestResult)formalTestResult.hidden=true;
+if(el('formalDoneBack'))el('formalDoneBack').addEventListener('click',()=>{
+ show('consent');formalConsentStatus_();
+});
+/** Pure adjudication: never infer CONFIRMED from consent or HELD. */
+function formalReceiptOutcome_(booking,reservationId,slotId,nowMs){
+ if(!booking||booking.experiment!=='E1'||!Array.isArray(booking.reservations)||
+    typeof reservationId!=='string'||!reservationId||
+    typeof slotId!=='string'||!slotId)
+  return 'UNKNOWN';
+ const rows=booking.reservations.filter(r=>
+  r&&r.reservationId===reservationId&&r.slotId===slotId);
+ if(rows.length!==1)return 'UNKNOWN';
+ const row=rows[0];
+ if(row.status==='CONFIRMED')return 'CONFIRMED';
+ if(row.status==='HELD'&&typeof row.holdUntilUtc==='string'&&
+    Number.isFinite(Date.parse(row.holdUntilUtc))&&
+    Date.parse(row.holdUntilUtc)>nowMs)return 'HELD';
+ return 'UNKNOWN';
+}
+function formalDoneRender_(outcome,pdfSha,taipeiDate,reservationId){
+ if(!formalConsent||!formalConsent.confirmed||
+    !/^[a-f0-9]{64}$/.test(pdfSha||'')||
+    typeof taipeiDate!=='string'||!/^\\d{4}\\/\\d{2}\\/\\d{2}$/.test(taipeiDate)||
+    reservationId!==formalConsent.reservationId||
+    !['CONFIRMED','HELD','UNKNOWN'].includes(outcome)){
+  status('PDF及預約的獨立結果未能核實；不得宣稱完成報名。');
+  return;
+ }
+ const confirmed=outcome==='CONFIRMED',held=outcome==='HELD';
+ el('formalDoneHeading').textContent=confirmed?
+  '實驗一報名及預約已確認':held?
+  '已簽署PDF，時段仍為暫留':'已簽署PDF，預約尚未確認';
+ el('formalDoneMessage').textContent=confirmed?
+  '完整簽署PDF與原Reservations的本人CONFIRMED紀錄已分別核對；請保存文件並留意正式通知。':held?
+  '完整簽署PDF已核實，但原時段仍為有效HELD；不代表已完成正式預約，請聯絡研究團隊核對。':
+  '完整簽署PDF已核實，但原預約不存在唯一有效且一致的確認狀態；請研究團隊人工核對，勿重複提交。';
+ el('formalDoneBooking').textContent=outcome+(confirmed?'｜原預約已核對':held?'｜暫留，非正式確認':'｜不得視為已確認');
+ el('formalDoneReservation').textContent=reservationId;
+ el('formalDonePdfSha').textContent=pdfSha;
+ el('formalDonePdfDate').textContent=taipeiDate;
+ el('formalDoneNotice').textContent=confirmed?
+  '正式預約以原Reservations確認紀錄為準；Email是否送達須另由寄信紀錄核實。':
+  '請聯絡研究團隊確認原預約狀態；不要重新簽名、付款或重複申請。';
+ show('done');
+ status(confirmed?
+  '完整雙簽PDF及本人預約CONFIRMED已獨立核實。':
+  '完整PDF已核實，原預約尚未確認，請勿重複提交。');
+}
 function formalRevoke_(url){
  if(url&&typeof URL!=='undefined'&&typeof URL.revokeObjectURL==='function')
   URL.revokeObjectURL(url);
@@ -674,30 +743,21 @@ function formalConsentCopy_(){
    // §70-S.23: a dual-signed PDF is NOT a booking confirmation.
    // Read only the authenticated applicant's original reservation status;
    // never update Reservations here or infer CONFIRMED from consent.
-   if(state.emailProof){
-    const reservationId=formalConsent.reservationId,verifiedToken=token;
-    rpc('study1FormalStatus',state.emailProof,booking=>{
-     if(!formalConsent||formalConsent.token!==verifiedToken)return;
-     const same=booking&&booking.experiment==='E1'&&
-      Array.isArray(booking.reservations)?
-      booking.reservations.filter(r=>r.reservationId===reservationId):[];
-     if(same.length!==1){
-      status('雙方已在線上簽署PDF，但原預約成立狀態無法核實；請聯絡研究團隊，勿重複提交。');
-      return;
-     }
-     const current=same[0];
-     if(current.status==='CONFIRMED'){
-      status('雙方線上PDF簽署及原Reservations正式預約均已獨立核實。請保存PDF副本。');
-     }else if(current.status==='HELD'&&
-      Number.isFinite(Date.parse(current.holdUntilUtc))&&
-      Date.parse(current.holdUntilUtc)>Date.now()){
-      status('雙方線上PDF簽署已完成；原Reservations仍為HELD暫留，尚未正式預約確認，須由研究團隊核對。');
-     }else{
-      status('雙方線上PDF簽署已完成；原Reservations非已確認預約（'+
-       String(current.status||'UNKNOWN')+'），請研究團隊人工核對，不能宣稱報名完成。');
-     }
-    });
+   // The signed PDF is verified independently above. The original booking
+   // must be read separately; a valid PDF cannot imply a confirmed booking.
+   if(!state.emailProof||!formalConsent.slotId){
+    formalDoneRender_('UNKNOWN',result.sha,copy.taipeiDate,formalConsent.reservationId);
+    return;
    }
+   const reservationId=formalConsent.reservationId,slotId=formalConsent.slotId;
+   const verifiedToken=token;
+   rpc('study1FormalStatus',state.emailProof,booking=>{
+    if(!formalConsent||formalConsent.token!==verifiedToken||
+       formalConsent.reservationId!==reservationId||
+       formalConsent.slotId!==slotId)return;
+    const outcome=formalReceiptOutcome_(booking,reservationId,slotId,Date.now());
+    formalDoneRender_(outcome,result.sha,copy.taipeiDate,reservationId);
+   });
   }catch(e){
    status('已簽PDF完整性核對失敗，禁止提供副本：'+String(e.message||e));
   }
@@ -717,6 +777,7 @@ function formalConsentStart_(reservation){
    status('尚無合法本人預約／正式同意邀請；禁止進入PDF簽署。');return;
   }
   formalConsent={token:result.token,reservationId:reservation.reservationId,
+   slotId:reservation.slotId,
    documentSha256:result.documentSha256,documentVersion:result.documentVersion,
    researcherPresigned:result.researcherPresigned===true,
    originalVerified:false,staffExplained:false,signed:false,confirmed:false};
