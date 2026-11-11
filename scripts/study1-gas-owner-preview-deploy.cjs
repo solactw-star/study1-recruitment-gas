@@ -25,7 +25,7 @@ function ensureInvocation(){
 }
 function checkFrontEnd(source){
  must(source.startsWith('<!doctype html>'),'no reviewed Index');
- must(source.includes('href="?view=apply"')&&!source.includes('id="consent"')&&
+ must(source.includes('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"')&&!source.includes('id="consent"')&&
   !source.includes('href="#consent"'),'Index must link to FORMAL enrollment without standalone consent');
  must(!/id="consentSignature"|id="consentSubmit"|initConsentPortal_|<canvas\b|<form\b|<textarea\b/i.test(source),
   'public Index can collect identity or signatures');
