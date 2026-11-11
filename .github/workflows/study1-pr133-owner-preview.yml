@@ -66,3 +66,5 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/.clasprc.json"
 # 2026-11-11: Owner-authorized isolated PR133 latest-HEAD run; strict backup, CAS, MYSELF checks retained.
+# 2026-11-11 OWNER explicit one-time authorization: original Script ID existing PRIVATE MYSELF deployment only;
+# use current PR HEAD, fresh full remote Drive backup/readback, manifest/ACL/CAS checks; do not touch public deployment or Sheets.
