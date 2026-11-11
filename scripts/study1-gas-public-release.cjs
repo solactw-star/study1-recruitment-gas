@@ -58,13 +58,15 @@ function assertClosedPublicSources(remote){
   check(one(remote.files,name,type).source===script(filename),
    'Original GAS remote source diverged from reviewed GitHub main: '+name);
  }
- check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
-  !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
+ check(!idx.includes('id="consent"')&&!idx.includes('href="#consent"')&&
+  idx.includes('href="?view=apply"')&&
+  !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page must route to the FORMAL CLOSED product, not Demo or standalone consent');
  check(!/<(?:form|textarea)\b/i.test(idx),'Public site has no active collection form');
  const inputs=[...idx.matchAll(/<input\\b[^>]*>/gi)].map(x=>x[0]);
  check(inputs.length===0,'Public homepage must not accept identity/signature inputs');
- check(idx.includes('知情同意是報名最後的步驟')&&
-  idx.includes('目前尚未開放線上簽署')&&
+ check(!idx.includes('完整閱讀研究文件，再決定是否同意')&&
+  !idx.includes('知情同意是報名最後的步驟')&&
+  !idx.includes('class="container faq"')&&
   !/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/.test(idx)&&
   !/<(?:canvas|iframe)\\b/i.test(idx)&&!idx.includes('initConsentPortal_'),
   'Signing interface may not be exposed on public information homepage');
