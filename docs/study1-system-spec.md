@@ -1618,3 +1618,12 @@ D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權�
 **保守遷移**：只有 OWNER 經實際原 GAS 安全驗證後，將 Script Properties `STUDY1_ECONSENT_MIGRATION_V2_APPROVED=true` 明確設為 true，才允許**下一次原有合格寫入時**將舊索引全部複製進 V2；本次 GitHub 提交不設定旗標、不執行正式資料遷移。尚未啟用時原 V1 全部保留，舊 12 筆／7,500 字元檢查繼續生效。一旦存在有效 V2 指標，不因移除旗標而降版；舊 V1 原始內容原封保留且每輪校驗 SHA，任何外部競寫都會被察覺並停止。若指標可能已提交但 GAS 回應不明，保留所有可能被引用的私人 PDF/事件檔，不自動清除或盲目重送。這是同一正式同意索引的 V2 儲存後端，不是另一份可獨立發放同意或招募資料的主檔。
 
 **驗證與使用限制**：新增針對 V1 相容、>12 筆擴充、鎖、CAS、HMAC、SHA、ACL、來源父目錄、資料未遺失、寫前失敗及指標提交後不確定狀態的合成負測；保留全部既有 CI。即便新版 HEAD CI 通過，`REGISTRY_V2_LIVE_MIGRATED=false`、`GAS_DEPLOYED=false`、`UI_VERIFIED=false`，直到原 GAS 同 ID 備份／版本／遠端 SHA/manifest/ACL、OWNER 受控實測與正式指標的獨立回讀完成。真人收件繼續 `OPEN=false`、`CONSENT_READY=false`，E2 不開放；依 §70-S.31 的風險分級不得把程式與 CI 成功冒充營運就緒。
+
+
+### 70-S.33｜2026-11-11 E1 OWNER 預簽 PDF 與已簽副本管理的最小正式流程
+
+**既有功能保留**：`study1ConsentVersionUpload`、`study1ConsentVersionSelect`、`study1EConsentOwnerList`、`study1EConsentOwnerSignedPdfDownload` 原 ID／原程式沿用，不再建第二套檔案管理或後台。E1 的研究者事先於正式 PDF 簽名並勾選 OWNER 確認後，上傳／選用時要在原私人 Drive 再核對 PDF 原始檔 MIME、尺寸、原父資料夾、PRIVATE ACL、完整 SHA；未標研究者預簽的 E1 檔不能選為正式來源。上傳來源索引提交後結果不明時保留可能已被引用的 PDF，禁止錯誤清除。正式 E1 由報名本人在最後步驟補簽，不以研究者逐筆第二次簽名或手動建立邀請作正常前提。
+
+**OWNER 狀態分流**：同意紀錄 `CONFIRMED` 只代表完整 PDF／事件證據已存，**不能代表**原 `Reservations` 已獨立確認；後台新增 OWNER 專用唯讀核對原 `Slots`／`Reservations`，沿用既有 read-only double snapshot + schema/status驗證、ScriptLock 和權限，按同意紀錄修訂版回傳 E1 各筆 `CONFIRMED/HELD/EXPIRED/CANCELLED/UNKNOWN`。只有來源同一申請者、同一 slot、唯一 reservation、有效 CONFIRMED timestamp 才顯示真正成立。若 GET 失敗／原來源矛盾／版本不同，顯示「預約未核實」，不得以已簽 PDF 推定成立。本人簽署後的完整 PDF 只能 OWNER 在通過既有 PDF 事件、私人 ACL、原 SHA 查核後下載；不顯示原 Drive fileId/URL；撤回紀錄需依既有處理流程，不能刪除歷史證據。
+
+**營運控制**：原舊邀請／研究人員逐筆說明／第二簽介面保留在程式供歷史相容，但不在 E1 正式工作區顯示；不得由此開啟 E2、憑證核身、Demo 或正式收件。V2 同意索引仍需獨立 OWNER 核定遷移，未授權時關閉。本節只授權 PR 程式與測試，不能因 CI PASS 宣稱 GAS、REC、PI 核定時段或公開 E1 真 UI 已通過。

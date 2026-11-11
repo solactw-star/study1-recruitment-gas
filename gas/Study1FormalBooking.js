@@ -507,3 +507,63 @@ function study1FormalFinalizeSignedE1Booking_(consentId,capabilityToken){
    reservationId:original[0],bookingStatus:'CONFIRMED',readOnlyReplay:false};
  }finally{lock.releaseLock();}
 }
+
+
+/**
+ * OWNER-only E1 signed-PDF/booking status audit. No writes, owner-only IDs
+ * and no claim of booked seating based solely on a CONFIRMED consent event.
+ * Uses the ORIGINAL doubly-read Reservations snapshot and existing validator.
+ */
+function study1OwnerE1ConsentBookingAudit(){
+ study1AdminOwnerRequired_();
+ const lock=LockService.getScriptLock();
+ if(!lock||typeof lock.tryLock!=='function'||lock.tryLock(10000)!==true)
+  throw Error('OWNER_E1_BOOKING_AUDIT_LOCK_BUSY');
+ try{
+  if(lock.hasLock()!==true)throw Error('OWNER_E1_BOOKING_AUDIT_LOCK_LOST');
+  study1AdminOwnerRequired_();
+  const registry=study1EConsentRegistry_();
+  const snapshot=study1FormalSnapshot_(),asOfUtc=new Date().toISOString();
+  study1FormalValidateSnapshot_(snapshot,asOfUtc);
+  if(!snapshot||!snapshot.reservations||
+     !Array.isArray(snapshot.reservations.rows)||
+     !Array.isArray(registry.records)||
+     !Number.isSafeInteger(registry.revision))
+   throw Error('OWNER_E1_BOOKING_AUDIT_SOURCE_INVALID');
+  const matched=new Map();
+  for(const row of snapshot.reservations.rows){
+   if(!Array.isArray(row)||row.length!==10||typeof row[0]!=='string')
+    throw Error('OWNER_E1_BOOKING_AUDIT_ROW_INVALID');
+   const group=matched.get(row[0])||[];
+   group.push(row);matched.set(row[0],group);
+  }
+  const records=registry.records.filter(x=>x&&x.channel==='FORMAL_E1'&&
+   x.experiment==='E1').map(x=>{
+    const unknown={id:x.id,bookingStatus:'UNKNOWN',bookingConfirmed:false};
+    const b=x.binding;
+    if(!b||b.experiment!=='E1'||typeof b.reservationId!=='string'||
+       typeof b.applicantId!=='string'||typeof b.slotId!=='string')
+     return unknown;
+    const found=matched.get(b.reservationId)||[];
+    if(found.length!==1)return unknown;
+    const row=found[0];
+    if(row[1]!==b.applicantId||row[2]!==b.slotId)return unknown;
+    if(row[3]==='CONFIRMED'){
+     if(typeof row[7]!=='string'||!row[7]||row[8])
+      return unknown;
+     return {id:x.id,bookingStatus:'CONFIRMED',bookingConfirmed:true};
+    }
+    if(row[3]==='HELD'){
+     const heldUntil=study1BindingUtc_(row[4]);
+     return {id:x.id,bookingStatus:heldUntil>Date.now()?'HELD':'EXPIRED',
+      bookingConfirmed:false};
+    }
+    if(row[3]==='CANCELLED')
+     return {id:x.id,bookingStatus:'CANCELLED',bookingConfirmed:false};
+    return unknown;
+   });
+  if(lock.hasLock()!==true)throw Error('OWNER_E1_BOOKING_AUDIT_LOCK_LOST');
+  return {readOnly:true,source:'ORIGINAL_RESERVATIONS',
+   consentRevision:registry.revision,asOfUtc,records};
+ }finally{lock.releaseLock();}
+}

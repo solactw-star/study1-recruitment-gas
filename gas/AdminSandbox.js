@@ -502,7 +502,7 @@ function study1ConsentVersionUpload(input){
   .map(b=>(b&255).toString(16).padStart(2,'0')).join('');
  const lock=LockService.getScriptLock();
  if(!lock.tryLock(10000))throw Error('另一筆同意書版本作業進行中，請重試');
- let file=null;
+ let file=null,indexCommitAttempted=false;
  try{
   study1AdminOwnerRequired_();study1SandboxBookingFlags_();
   const current=study1ConsentVersionRead_();
@@ -522,18 +522,23 @@ function study1ConsentVersionUpload(input){
    version:input.version,sha256,bytes:bytes.length,url:file.getUrl(),
    researcherPresigned:input.experiment==='E1'&&input.researcherPresigned===true,
    at:new Date().toISOString()};
+  // Independently read the actual Drive bytes, SHA, folder membership and ACL
+  // BEFORE the immutable version index can reference this uploaded PDF.
+  study1ConsentDocumentBytes_(entry);
   const next={schemaVersion:1,revision:current.revision+1,
    documents:current.documents.concat([entry]),current:{...current.current},published:{...current.published}};
   const payload=JSON.stringify(next);
   if(payload.length>7500)throw Error('文件索引容量不足，未接受新版本');
   const prop=PropertiesService.getScriptProperties();
+  indexCommitAttempted=true;
   prop.setProperty(STUDY1_CONSENT_DOC_INDEX_,payload);
   if(prop.getProperty(STUDY1_CONSENT_DOC_INDEX_)!==payload)
    throw Error('同意書版本索引寫後回讀不一致');
   return next;
  }catch(e){
-  // Only the newly created file may be discarded; existing versions are immutable.
-  if(file)try{file.setTrashed(true);}catch(_){}
+  // A failed/ambiguous property commit may already reference the uploaded
+  // PDF. Never trash that file after attempting the index pointer write.
+  if(file&&!indexCommitAttempted)try{file.setTrashed(true);}catch(_){}
   throw e;
  }finally{lock.releaseLock();}
 }
@@ -551,6 +556,11 @@ function study1ConsentVersionSelect(input){
   if(current.revision!==input.expectedRevision)throw Error('版本選用衝突，請先重新載入');
   const entry=current.documents.find(x=>x.id===input.id);
   if(!entry)throw Error('只能選擇原私人資料夾中的已存版本');
+  if(entry.experiment==='E1'&&entry.researcherPresigned!==true)
+   throw Error('E1_RESEARCHER_PRESIGNED_PDF_REQUIRED');
+  // Recheck the exact original immutable PDF bytes, SHA, PRIVATE ACL and
+  // original-folder parent, even when the same version was already selected.
+  study1ConsentDocumentBytes_(entry);
   if(current.current[entry.experiment]===entry.id)return current;
   // Selection changes only the owner's reference, never REC approval, signatures,
   // public routes, existing signed records or the formal intake switch.

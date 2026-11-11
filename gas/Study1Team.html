@@ -782,15 +782,18 @@ body>header nav{max-width:none;padding:14px 24px}
  <p id="consentVersionsStatus" role="status" aria-live="polite">尚未讀取文件版本目錄。</p>
  <h3>已上傳的各版文件</h3><div id="consentVersionsRows" class="entries" aria-live="polite"></div>
  <div class="panel" id="eConsentStaffModule" aria-labelledby="eConsentStaffHeading">
-  <h3 id="eConsentStaffHeading">線上知情同意｜研究人員說明、簽署與撤回管理</h3>
-  <p>正式產品的研究人員工作區。先核對參與者身分，再交付固定文件專屬邀請碼；所有事件逐筆封存。尚未啟用正式收件時不能建立真人邀請。</p>
+  <h3 id="eConsentStaffHeading">E1 電子同意｜已簽署 PDF 與原預約核對</h3>
+  <p>正式 E1：研究者先在完整 PDF 簽署，由 OWNER 上傳選用；參與者經 Email OTP、資格自陳及原預約暫留後，於網站最後一步簽署。後台僅核對原 PDF／簽署證據、獨立預約及人工撤回，不要求研究者逐筆第二次簽署。</p>
+  <label for="eConsentStaffId">E1 同意紀錄<select id="eConsentStaffId"><option value="">請先核對紀錄</option></select></label>
+  <button id="eConsentBookingAudit" type="button" class="secondary">獨立核對 E1 原 Reservations 預約狀態</button>
+  <p id="eConsentBookingStatus" class="small" role="status" aria-live="polite">預約尚未獨立核對；已簽 PDF 不等於預約成立。</p>
+  <div id="eConsentLegacyStaffControls" hidden>
   <label for="eConsentIssueExperiment">建立邀請的研究實驗
    <select id="eConsentIssueExperiment"><option value="E1">實驗一</option><option value="E2">實驗二</option></select></label>
   <button id="eConsentIssue" type="button">核對已發布文件並建立專屬邀請</button>
   <p id="eConsentIssuedToken" class="small" role="status" aria-live="polite">專屬邀請碼只在建立成功時顯示一次，請以安全方式交給本人。</p>
   <hr><h4>研究人員說明與個別疑問答覆</h4>
   <p>先選擇下方邀請紀錄。請記錄參與者的實際疑問與研究人員說明，未完成說明前不能接受本人簽署。</p>
-  <label for="eConsentStaffId">當次邀請紀錄<select id="eConsentStaffId"><option value="">請先核對紀錄</option></select></label>
   <label for="eConsentStaffQuestion">參與者提出的疑問（無特別疑問可留空）
    <textarea id="eConsentStaffQuestion" maxlength="1600" rows="3"></textarea></label>
   <label for="eConsentStaffAnswer">研究人員實際說明及答覆（必填）
@@ -800,6 +803,8 @@ body>header nav{max-width:none;padding:14px 24px}
   <label for="eConsentStaffReviewNote">再次核身及簽署確認說明
    <textarea id="eConsentStaffReviewNote" maxlength="1000" rows="3"></textarea></label>
   <button id="eConsentConfirm" type="button">核對本人身分並完成研究人員確認</button>
+  </div>
+  <hr><h4>E1 正式撤回</h4>
   <label for="eConsentStaffWithdrawal">經核對身分的人工撤回理由
    <textarea id="eConsentStaffWithdrawal" maxlength="600" rows="3"></textarea></label>
   <button id="eConsentOwnerWithdraw" type="button" class="secondary">核對本人身分並封存撤回事件</button>
@@ -5201,7 +5206,8 @@ $('b12Search').addEventListener('input',b12Reset);
     link.href=doc.url;link.rel='noopener';link.target='_blank';
    }else link.removeAttribute('href');
    const select=document.createElement('button');select.type='button';select.className='secondary';
-   select.textContent='選用此版本';select.disabled=state.current[doc.experiment]===doc.id;
+   select.textContent='選用此版本';select.disabled=state.current[doc.experiment]===doc.id||
+    (doc.experiment==='E1'&&doc.researcherPresigned!==true);
    select.addEventListener('click',()=>{
     if(consentWorking||!consentIndex)return;
     consentWorking=true;consentStatus_('正在核對選用版本…');
@@ -5281,12 +5287,15 @@ $('b12Search').addEventListener('input',b12Reset);
 
  // Researcher e-consent operations stay in the existing OWNER-only sidebar.
  let eConsentStaffRows=[],eConsentStaffBusy=false;
+ let eConsentStaffRevision=null,eConsentBookingAudit=null;
  const eConsentStaffStatus_=text=>{$('eConsentStaffStatus').textContent=text;};
  function eConsentStaffRender_(list){
-  if(!list||!Array.isArray(list.records)||list.records.length>3000){
-   eConsentStaffRows=[];return eConsentStaffStatus_('電子同意狀態來源無法核對，停止操作。');
+  if(!list||!Number.isSafeInteger(list.revision)||list.revision<0||
+     !Array.isArray(list.records)||list.records.length>3000){
+   eConsentStaffRows=[];eConsentStaffRevision=null;eConsentBookingAudit=null;
+   return eConsentStaffStatus_('電子同意狀態來源無法核對，停止操作。');
   }
-  eConsentStaffRows=list.records;
+  eConsentStaffRows=list.records;eConsentStaffRevision=list.revision;
   const select=$('eConsentStaffId'),prior=select.value;
   select.replaceChildren();
   const empty=document.createElement('option');empty.value='';empty.textContent='請選擇一筆邀請';select.append(empty);
@@ -5300,6 +5309,19 @@ $('b12Search').addEventListener('input',b12Reset);
    const meta=document.createElement('p');
    meta.textContent='紀錄ID：'+x.id+'｜固定原PDF SHA-256：'+x.sha256;
    box.append(heading,meta);
+   if(x.experiment==='E1'&&x.researcherPresigned===true){
+    const audit=document.createElement('p');audit.className='small';
+    const matched=eConsentBookingAudit&&
+     eConsentBookingAudit.consentRevision===list.revision?
+     eConsentBookingAudit.records.find(r=>r.id===x.id):null;
+    audit.textContent=matched&&matched.bookingStatus==='CONFIRMED'&&
+     matched.bookingConfirmed===true?
+     '原預約已獨立核對：CONFIRMED；完整PDF仍以私人SHA回讀為準。':
+     matched?
+     '原預約未確認：'+matched.bookingStatus+'；已簽PDF不等於預約成立。':
+     '預約尚未獨立核對；已簽PDF不等於預約成立。';
+    box.append(audit);
+   }
    if(x.experiment==='E1'&&x.researcherPresigned===true&&
       x.state==='CONFIRMED'&&/^[a-f0-9]{64}$/.test(x.signedPdfSha256||'')){
     const download=document.createElement('button');
@@ -5347,12 +5369,51 @@ $('b12Search').addEventListener('input',b12Reset);
   if(eConsentStaffBusy)return;
   eConsentStaffStatus_('正在核對私人簽署索引與研究人員權限…');
   google.script.run.withSuccessHandler(data=>{
-   eConsentStaffRender_(data);eConsentStaffStatus_('已核對研究人員私人同意紀錄。');
+   eConsentBookingAudit=null;
+   eConsentStaffRender_(data);eConsentStaffStatus_('已核對研究人員私人同意紀錄；預約尚未獨立核對。');
+   $('eConsentBookingStatus').textContent='預約尚未獨立核對；已簽 PDF 不等於預約成立。';
   }).withFailureHandler(e=>{
-   eConsentStaffRows=[];$('eConsentStaffList').replaceChildren();
+   eConsentStaffRows=[];eConsentStaffRevision=null;eConsentBookingAudit=null;
+   $('eConsentBookingStatus').textContent='無法取得原同意來源；預約未核實。';
+   $('eConsentStaffList').replaceChildren();
    eConsentStaffStatus_('同意紀錄尚不能使用：'+String(e.message||e));
   }).study1EConsentOwnerList();
  }
+ function eConsentBookingAudit_(){
+  if(eConsentStaffBusy||eConsentStaffRevision===null)return;
+  const originalRevision=eConsentStaffRevision;
+  eConsentBookingAudit=null;
+  // Clear any previously rendered CONFIRMED label before beginning a fresh
+  // independent source read; a failed read must not leave a stale success.
+  eConsentStaffRender_({revision:eConsentStaffRevision,records:eConsentStaffRows});
+  $('eConsentBookingAudit').disabled=true;
+  $('eConsentBookingStatus').textContent='正在以 OWNER 身分唯讀核對原 Slots／Reservations…';
+  google.script.run.withSuccessHandler(result=>{
+   $('eConsentBookingAudit').disabled=false;
+   if(!result||result.readOnly!==true||
+      result.source!=='ORIGINAL_RESERVATIONS'||
+      result.consentRevision!==originalRevision||
+      eConsentStaffRevision!==originalRevision||
+      !Array.isArray(result.records)||
+      result.records.some(x=>!x||typeof x.id!=='string'||
+       !['CONFIRMED','HELD','EXPIRED','CANCELLED','UNKNOWN'].includes(x.bookingStatus)||
+       typeof x.bookingConfirmed!=='boolean'||
+       (x.bookingConfirmed!==(x.bookingStatus==='CONFIRMED')))){
+    $('eConsentBookingStatus').textContent='原預約來源、同意版本或回讀格式不一致；預約未核實。';
+    eConsentBookingAudit=null;
+    eConsentStaffRender_({revision:eConsentStaffRevision,records:eConsentStaffRows});
+    return;
+   }
+   eConsentBookingAudit=result;
+   eConsentStaffRender_({revision:eConsentStaffRevision,records:eConsentStaffRows});
+   $('eConsentBookingStatus').textContent='原 Reservations 已獨立核對；只有 CONFIRMED 可視為預約成立。';
+  }).withFailureHandler(e=>{
+   $('eConsentBookingAudit').disabled=false;eConsentBookingAudit=null;
+   eConsentStaffRender_({revision:eConsentStaffRevision,records:eConsentStaffRows});
+   $('eConsentBookingStatus').textContent='原預約核對失敗；不得視為已成立：'+String(e&&e.message||e);
+  }).study1OwnerE1ConsentBookingAudit();
+ }
+ $('eConsentBookingAudit').addEventListener('click',eConsentBookingAudit_);
  function eConsentStaffCommand_(label,method,payload){
   if(eConsentStaffBusy)return;
   eConsentStaffBusy=true;eConsentStaffStatus_('正在獨立執行 '+label+' 並核對伺服器存證…');
