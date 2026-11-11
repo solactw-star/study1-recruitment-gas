@@ -6,13 +6,13 @@ const website=read('gas/Website.js'),visitor=read('gas/Study1Visitor.html');
 const intake=read('gas/Study1ParticipantIntake.js');
 const gate=read('scripts/study1-gas-backend-allowlist.cjs');
 
-test('Original single visitor HTML can be templated for E1, demo route remains owner-locked',()=>{
+test('Formal E1 entry is canonical; deprecated demo alias is owner-locked and uses FORMAL only',()=>{
  assert.match(website,/view==='apply'\)\{const t=HtmlService\.createTemplateFromFile\('Study1Visitor'\)/);
  assert.match(website,/t\.flowMode='FORMAL'/);
  assert.match(website,/t\.evaluate\(\)/);
  assert.match(visitor,/<body data-site-mode="<\?= flowMode \?>">/);
- assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\)/);
- assert.match(website,/HtmlService\.createHtmlOutputFromFile\('Study1Visitor'\)/);
+ assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);const t=HtmlService\.createTemplateFromFile\('Study1Visitor'\)/);
+ assert.doesNotMatch(website,/HtmlService\.createHtmlOutputFromFile\('Study1Visitor'\)/);
  assert.doesNotMatch(website,/view==='apply'\)\{study1AdminOwnerRequired_\(\)/);
 });
 test('Formal controller runs only for explicit FORMAL body tag and aborts old demo controller',()=>{
