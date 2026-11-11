@@ -48,7 +48,9 @@ test('Only the authenticated owner can open the visual research-team management 
 test('Formal homepage no longer sends participants to private Demo but preserves original owner-only visitor route',()=>{
  assert.doesNotMatch(index,/\/exec\?view=demo/);
  assert.doesNotMatch(index,/id="consent"/);
- assert.match(index,/研究報名及線上知情同意尚未開放/);
+ assert.doesNotMatch(index,/研究報名及線上知情同意尚未開放|class="notice"/);
+ assert.match(index,/id="apply"/);
+ assert.match(index,/目前尚未開放報名/);
  assert.match(html,/\/exec\?view=apply/);
  assert.match(visitor,/\/exec" target="_top"/);
  assert.match(visitor,/--ink:#163341;--sea:#1b7d80/);
