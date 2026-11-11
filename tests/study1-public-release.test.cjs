@@ -235,7 +235,7 @@ test('Official page presents complete owner-published source PDF, researcher Q&A
  // §70-S: public homepage is information only; no PDF signer or form belongs here.
  assert.doesNotMatch(index,/id="consent"/);
  assert.doesNotMatch(index,/知情同意是報名最後的步驟/);
- assert.match(index,/href="\?view=apply"/);
+ assert.match(index,/exec\?view=apply/);
  assert.doesNotMatch(index,/<(?:canvas|iframe|input|form|textarea)\\b/i);
  assert.doesNotMatch(index,/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/);
  assert.doesNotMatch(index,/initConsentPortal_/);
@@ -254,7 +254,7 @@ test('Official page presents complete owner-published source PDF, researcher Q&A
 test('The public-release gate rejects a changed consent boundary, missing approved PDF GET or unauthorized private file exposure',()=>{
  for(const mutate of [
   r=>{const idx=r.files.find(x=>x.name==='Index');
-   idx.source=idx.source.replace('href="?view=apply"','href="?view=demo"');},
+   idx.source=idx.source.replace('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"','href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=demo"');},
   r=>{const site=r.files.find(x=>x.name==='Website');site.source=site.source.replace(
    'return study1ConsentPublicRead_(experiment);','return DriveApp.getFileById(experiment);');},
   r=>{const admin=r.files.find(x=>x.name==='AdminSandbox');admin.source=admin.source.replace(
