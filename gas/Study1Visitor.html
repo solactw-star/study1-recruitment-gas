@@ -556,8 +556,9 @@ function formalDoneRender_(outcome,pdfSha,taipeiDate,reservationId){
   '請聯絡研究團隊確認原預約狀態；不要重新簽名、付款或重複申請。';
  show('done');
  status(confirmed?
-  '完整雙簽PDF及本人預約CONFIRMED已獨立核實。':
-  '完整PDF已核實，原預約尚未確認，請勿重複提交。');
+  '雙方線上PDF簽署及原Reservations正式預約均已獨立核實。請保存PDF副本。':held?
+  '雙方線上PDF簽署已完成；原Reservations仍為HELD暫留，尚未正式預約確認。':
+  '已簽PDF核實，但原預約為UNKNOWN或不一致；不得宣稱報名完成，請勿重複提交。');
 }
 function formalRevoke_(url){
  if(url&&typeof URL!=='undefined'&&typeof URL.revokeObjectURL==='function')
