@@ -30,3 +30,4 @@ jobs:
           node scripts/study1-gas-owner-preview-audit.cjs
           rm -f "$RUNNER_TEMP/.clasprc.json"
 # Preflight only (2026-11-11): run existing read-only remote source, version and private MYSELF audit.
+# 2026-11-11T21:10:00+08:00: OWNER-requested current-PR remote GET-only recheck; no GAS mutation, deploy or Sheet writes.
