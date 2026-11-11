@@ -87,7 +87,9 @@ test('pre-put recovery refuses to overwrite when inventory changed',async()=>{
  let writes=0;
  const snap={oldVersion:127,deployment:old,deployments:b,
   original:{files:[]},originalSha:'shaold',desiredSha:'shanew',stageSha:'shastage'};
- const api={getContent:async()=>({files:[]}),getDeployment:async()=>old,
+ // GAS SHA canonicalization requires an actual nonempty file inventory.
+ const syntheticFiles=[{name:'Index',type:'HTML',source:'synthetic unchanged source'}];
+ const api={getContent:async()=>({files:syntheticFiles}),getDeployment:async()=>old,
   deployments:async()=>list(b,128),putContent:async()=>{writes++;}};
  assert.equal(await recoverOwnerPreview_(api,snap,false),
   'CONCURRENT_DEPLOYMENT_NO_MUTATION');
