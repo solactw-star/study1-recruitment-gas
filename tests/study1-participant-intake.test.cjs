@@ -383,6 +383,8 @@ test('Self-declared eligibility is not a documentary identity verification',()=>
 
 test('Public intake refuses personal data without a real E1 slot preflight',()=>{
  const x=env({slotReady:false});
+ // Isolate the Slots guard from the otherwise unconfigured Turnstile fixture.
+ x.scope.study1ParticipantTurnstileConfig_=()=>({siteKey:'REAL_ABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789'});
  assert.equal(x.scope.study1ParticipantReadiness().ready,false);
  assert.throws(()=>x.begin(),/E1_OFFICIAL_SLOTS_NOT_AVAILABLE/);
  assert.equal(x.open.length,0);
