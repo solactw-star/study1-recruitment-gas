@@ -74,7 +74,7 @@ test('§70-S public research introduction explains consent-last without any sign
   assert.doesNotMatch(html,/id="consent"/);
   assert.doesNotMatch(html,/知情同意是報名最後的步驟/);
   for(const word of ['id="apply"','id="about"','id="contact"',
-   '研究報名及線上知情同意尚未開放']){
+   '目前尚未開放報名']){
    assert.ok(html.includes(word),'missing information-only flow '+word);
   }
   assert.doesNotMatch(html,/id="consentSignature"|id="consentSubmit"|initConsentPortal_/);
