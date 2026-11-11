@@ -1480,3 +1480,39 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 5. **本輪授權邊界**：僅原 Draft PR #133 同分支程式、回歸測試與本唯一規格原路徑增量修改；不得自動合併 main、GAS apply、改寫 manifest、部署公開版本、啟用真人收件、寄信或修改 REC / 正式研究 Sheets。正式部署須下一次獨立明確授權及寫前 Drive 全備份、競寫、版本/完整 SHA、MYSELF/公開 ACL 與實際 UI 回讀。
 
 **本輪接續點**：TASK_DOMAIN=Study1正式MVP入口與公開首頁；SOURCE_PATH=原 PR #133 / `gas/Index.html` / `gas/Website.js` / `gas/Study1Visitor.html` / 原部署守門腳本 / `docs/study1-system-spec.md`；PRE_DOC_HEAD=`de5aea27b38a8121e098350caedbe8b68278ae6e`；COMPLETED=PR_BRANCH_CODE_AND_TEST_CONTRACT_UPDATED；NEXT_ACTION=核實最新完整合成CI與逐檔blob、檢查原公開部署版本及REC/PI真場次/服務阻塞，待獨立授權才部署並做真實瀏覽器UAT；BLOCKERS=REC_REMOTE_CONSENT_REVIEW_REQUIRED,PI_APPROVED_E1_SLOTS_MISSING,LIVE_PROVIDERS_UNVERIFIED,PUBLIC_DEPLOYMENT_NOT_UPDATED,UI_NOT_VERIFIED；WRITE_OWNER=原PR #133分支；SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,PUBLIC_SITE_UI_VERIFIED=false,FORMAL_READY=false。
+
+### 70-S.26｜原正式首頁與 E1 七步 FORMAL 報名人工 UAT 清單（2026-11-11）
+
+**來源與執行限制**：依 §70-S.24–25 及原 PR #133 即時 HEAD 執行；以唯一指定原公開 `https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec` 為驗收目標。現階段 `OPEN=false`、`CONSENT_READY=false`、私人部署 `MYSELF`、E2 未開放，故只可驗**關閉收件的真實介面與防護**，不得用 Demo、虛構資料網頁、CI 或 OWNER 私人版本替代公開 UI 實測；不得輸入真人個資、寄送實際 OTP、正式預約或簽署。**未部署新版時，所有新版 UI 項目一律 BLOCKED_BY_OLD_PUBLIC_DEPLOYMENT，不得標 PASS。**
+
+**人工測試紀錄固定欄位**：UAT_ID、測試者、Asia/Taipei 日期時間、使用環境／瀏覽器／無痕與登入狀態、完整 URL、部署 ID/不可變版本/完整 GAS SHA、PR HEAD、測試步驟、預期、實測、PASS/FAIL/BLOCKED/NOT_RUN、去識別截圖與 Console/Network 證據、阻塞來源與負責人。不可從程式碼或 CI 代填「實測」；不保存真實參與者個資於截圖或紀錄。
+
+**A. 現階段允許執行：非登入／OWNER 介面、唯讀及封閉負測**
+
+| UAT_ID | 手動操作 | 通過標準（均須實際觀察） |
+|---|---|---|
+| UI-A01 | 先回讀原 PR、main、原公開和私人 GAS 部署的 ID、版本、SHA、manifest；開無痕未登入瀏覽器造訪指定原公開 `/exec` | 公開網站無需登入即顯示研究招募首頁；正式版本對應本次指定原碼，且 PRIVATE OWNER 部署互不冒充。若公開仍為舊版本，記 BLOCKED，不繼續將舊畫面判為新版 |
+| UI-A02 | 檢查首頁、導覽列、頁面各區、瀏覽器可視狀態 | 不存在 `#consent`、獨立知情同意區塊、「知情同意是報名最後的步驟」、「完整閱讀研究文件，再決定是否同意」、對應 CTA、過期 FAQ、頁首獨立「研究報名及線上知情同意尚未開放」提示卡；一般研究介紹提到知情同意屬非獨立簽署區，不視為退回 |
+| UI-A03 | 在首頁點擊「查看正式報名流程（目前不收件）」 | 連往**同一原公開部署** `/exec?view=apply`、正式 E1 介面（`flowMode=FORMAL`）；不跳到私人 OWNER URL、`?view=demo` 或虛構展示 |
+| UI-A04 | 檢查報名首屏、未登入狀態和開關；在不填資料前停下 | 顯示正式 E1 招募樣式及「尚未開放」；不顯示 Demo 身分、虛構 Email、`00000000`、測試時段或虛構預約；E1 不能進入真實資料蒐集，E2 不開放 |
+| UI-A05 | 無痕訪問 `?view=admin`、`?view=team`、`?view=preview`、舊 `?view=demo` | 未授權者不能看到 OWNER 後台、私人 TEST 資料或管理 RPC；舊 Demo 入口不可匿名顯示舊虛構頁；已登入 OWNER 的舊 Demo 書籤只能提供受安全閘門限制的 FORMAL 頁面 |
+| UI-A06 | 檢查關閉收件的操作權限、開發者工具 Network 及系統唯讀稽核（僅有權者執行） | `OPEN=false`、`CONSENT_READY=false`；正式姓名／Email／電話輸入、OTP、時段保留及簽名不可提交；不得產生新 Applicants/Verification/Reservations/PDF 紀錄或送真信。單靠頁面按鈕 disabled 不足以認定後端安全 |
+| UI-A07 | 使用 Chrome 桌機、手機寬度及鍵盤 Tab/Enter 操作首頁與 FORMAL 首頁 | 導覽、狀態提示及焦點可辨識；不被舊區塊或無效錨點遮擋；手機不出現阻斷式溢位，返回上一頁後仍保持關閉 |
+| UI-A08 | 任意阻斷網路／失效的資料讀取（不觸發提交） | 顯示連線/不可受理訊息而非成功畫面；不捏造時段、收件、OTP、PDF 或預約結果 |
+
+**B. 必須取得適用 REC、PI E1 場次、正式身分／Email/Turnstile/PDF/Drive ACL、個資授權及安全啟用/UAT 明確授權後，才能進行的七階段真實 UI 驗收。未達前全部標 BLOCKED，不可為測試擅自打開旗標或寫入真人資料。此處的測試資料與操作程序須另行核准，不是授權自行招募。**
+
+| UAT_ID | 七步／功能 | 必須核對的實際操作與通過標準 |
+|---|---|---|
+| UI-B01 | ① 研究選擇 `choose` | 僅 E1 有核准可報名入口；E2 保持不開放；選擇研究不等於收件 |
+| UI-B02 | ② 資格初篩 `screen` | 最少必要自陳與欄位、必要人機驗證；未填、未達資格或 Turnstile 失敗不可建立申請；不用虛構角色或假身分核驗 |
+| UI-B03 | ③ Email 驗證 `otp` | 真正授權 Email OTP 發送、8 碼驗證、到期/重複/錯碼防護、原 Verification 回讀；不得顯示固定 `00000000` 或 Demo「填入示範碼」；確認信箱不冒充身分/資格審查 |
+| UI-B04 | ④ 日期時段 `slots` | 顯示且只允許 PI 核定的 E1 Slots；容量、日期、時區、地點及暫留/原 Reservations 回讀一致；無場次顯示「尚無核定場次」，不顯示虛構項目 |
+| UI-B05 | ⑤ 報名資料核對 `confirm` | 真實報名資料摘要、E1 與場次正確；此步僅核對，**沒有同意 PDF、簽名或提前確認成功** |
+| UI-B06 | ⑥ 最後 PDF 知情同意 `consent` | 先顯示 OWNER 選用的研究者事先簽署**完整正式原 PDF**，核實版號及 SHA；參與者閱讀後才可在**其核准欄位**手寫簽名，可信 Asia/Taipei 日期寫入；不覆蓋研究者既有簽章、不要求研究者逐筆再簽；完成 PDF 独立 SHA、私人 Drive ACL、合法本人副本及研究者後台下載須實際回讀；不設額外強制 15 分鐘倒數 |
+| UI-B07 | ⑦ 完成與結果 `done` | 只有真實來源一致、同意 PDF 成功及原 Reservations 狀態獨立核對後可宣稱完成；區分 HELD/CONFIRMED/UNKNOWN，顯示 Email 通知實際結果，失敗/逾時不可冒稱成功或自動重送 |
+| UI-B08 | OWNER 後台五項 MVP | 原後台僅授權 OWNER/研究團隊：研究者事先簽署 PDF 上傳/選用、SHA/版本核對；申請/場次/同意狀態查閱，授權下載完整已簽 PDF、核對 Email 通知狀態；不把合成資料當正式收件 |
+
+**失敗守門**：任一 A02–A06 發現首頁舊同意區塊、Demo 洩出、未授權可收件、私人頁可匿名讀取、關閉狀態仍寫入資料，即標 `UI_FAIL_STOP`，停止該路徑 UAT，保留已去識別證據，不嘗試修復為開放狀態。CI 通過僅 `CI_PASS`；新版對應原公開網址、匿名/OWNER 邊界和實際操作完成後才可標 `PUBLIC_SITE_UI_VERIFIED=true`；研究正式啟用仍需獨立 `FORMAL_READY`。不得為節省驗收步驟放寬 REC 與安全門檻。
+
+**本次建立清單時的初始狀態**：以上全部 `NOT_RUN` 或 `BLOCKED`；未取得公開新版部署／瀏覽器操作證據之前，`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`。此節為原 GitHub 唯一規格主檔的人工 UAT 操作與紀錄準則，不是 UI 驗收完成證明。
