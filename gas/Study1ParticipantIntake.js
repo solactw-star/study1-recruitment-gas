@@ -92,8 +92,10 @@ function study1ParticipantHourlyGate_(apps){
 }
 
 function study1ParticipantBegin_(input){
- // Fail before parsing/using any personal data when intake remains closed.
+ // Fail before parsing/using any personal data without real PI-pinned E1 slots.
  study1ParticipantGate_();
+ if(!study1FormalPublicSlotReady_())
+  throw Error('E1_OFFICIAL_SLOTS_NOT_AVAILABLE');
  const r=study1ParticipantInput_(input);
  if(!r.accepted)return {accepted:false,reason:'SCREENING_NOT_ELIGIBLE'};
  const policy=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
@@ -113,6 +115,9 @@ function study1ParticipantBegin_(input){
  try{
   if(lock.hasLock()!==true)throw Error('正式申請共用鎖失效');
   study1ParticipantGate_();
+  // Recheck inside the existing intake lock before the first applicant write.
+  if(!study1FormalPublicSlotReady_(lock))
+   throw Error('E1_OFFICIAL_SLOTS_CHANGED_DURING_INTAKE');
   const refreshed=study1ParticipantVerifiedPolicy_(study1ParticipantRecPolicy_());
   if(JSON.stringify(refreshed)!==JSON.stringify(policy))
    throw Error('REC正式來源在申請期間變動');
@@ -446,6 +451,9 @@ function study1ParticipantReadiness(){
   // validated exactly once with Siteverify in the actual intake operation.
   const antiBot=study1ParticipantTurnstileConfig_();
   if(policy.approved!==true)throw Error('REC_POLICY_NOT_APPROVED');
+  // No real future PI-reviewed E1 slot means no pre-booking PII intake.
+  if(!study1FormalPublicSlotReady_())
+   throw Error('E1_OFFICIAL_SLOTS_NOT_AVAILABLE');
   return {ready:true,experiment:'E1',siteKey:antiBot.siteKey};
  }catch(_){
   // Do not expose the presence or kind of private record / missing permission.
