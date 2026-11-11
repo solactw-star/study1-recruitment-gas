@@ -38,9 +38,9 @@ test('Deprecated demo route cannot publish the old test page; routes to owner-gu
  assert.match(auto,/visitorHtmlSha256/);
 });
 test('Any external scripts, raw HTML injection, or missing signup flow fail DEMO deployment gate',()=>{
- assert.throws(()=>gate.assertVisitorHtml(html+'<script src="https://evil.example/x.js"></script>'),/Visitor demo/);
- assert.throws(()=>gate.assertVisitorHtml(html.replace('id="otpVerify"','id="missing-otp"')),/Visitor demo/);
- assert.throws(()=>gate.assertVisitorHtml(html+'<div onclick="window.fetch(1)"></div>'),/Visitor demo/);
+ assert.throws(()=>gate.assertVisitorHtml(html+'<script src="https://evil.example/x.js"></script>'),/Visitor formal entry contract/);
+ assert.throws(()=>gate.assertVisitorHtml(html.replace('id="otpVerify"','id="missing-otp"')),/Visitor formal entry contract/);
+ assert.throws(()=>gate.assertVisitorHtml(html+'<div onclick="window.fetch(1)"></div>'),/Visitor formal entry contract/);
 });
 
 test('Research-team enrollment presentation settings display E2 2027 as coming soon',()=>{
@@ -54,7 +54,7 @@ test('Research-team enrollment presentation settings display E2 2027 as coming s
 
 test('Participant navigation uses the original full /exec URL and GAS iframe-safe link target',()=>{
  assert.match(html,/<base target="_top">/);
- assert.match(html,/https:\/\/script\.google\.com\/macros\/s\/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s\/exec/);
+ assert.match(html,/https:\/\/script\.google\.com\/macros\/s\/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s\/exec/);
  assert.match(html,/target="_top"/);
 });
 
