@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'..','gas','Index.html'),'utf8');
-const expected=['main','home','about','consent','apply','contact','apply','about','consent'];
+const expected=['main','home','about','apply','contact','apply','about'];
 const source=html.match(/<script>([\s\S]*?)<\/script>/);
 assert.ok(source,'closed info page should have one inline script');
 function harness(reduceMotion=false){
@@ -40,13 +40,13 @@ function harness(reduceMotion=false){
  }
  return {anchors,targets,click,status};
 }
-test('Nine anchor href targets include the consent page in the correct order',()=>{
+test('Seven anchor href targets exclude the standalone consent panel',()=>{
  const all=[...html.matchAll(/<a\b[^>]*href="#([^"]+)"[^>]*>/g)].map(m=>m[1]);
  assert.deepEqual(all,expected);
  for(const id of new Set(expected)) assert.match(html,new RegExp('\\bid="'+id+'"'));
  assert.match(html,/<base target="_top">/);
 });
-test('All nine navigation links remain in the iframe, focus the destination and scroll locally',()=>{
+test('All seven navigation links remain in the iframe, focus the destination and scroll locally',()=>{
  const h=harness();
  for(const a of h.anchors){
   const event=h.click(a);
@@ -87,7 +87,7 @@ test('Latest user-authorized website contact details are shown',()=>{
  assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
 });
 test('Contact and navigation improvement does not activate intake or signing',()=>{
- assert.match(html,/<button class="btn" disabled type="button">/);
+ assert.match(html,/href="\?view=apply"/);
  assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
   const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
   assert.equal(inputs.length,0);
