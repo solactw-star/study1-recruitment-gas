@@ -141,7 +141,7 @@ test('private ACL, original folder parent and SHA are checked every read',()=>{
  file.access='PRIVATE';file.parentId='DIFFERENT_FOLDER';
  assert.throws(()=>f.scope.study1EConsentRegistry_(),/OUTSIDE_PRIVATE_FOLDER/);
  file.parentId='1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU';
- file.bytes=Buffer.from('{"forged":true}','utf8');
+ file.bytes=Buffer.from(file.bytes);file.bytes[20]^=1;
  assert.throws(()=>f.scope.study1EConsentRegistry_(),/SHA_CHANGED/);
 });
 test('a storage error before pointer commit preserves original registry',()=>{

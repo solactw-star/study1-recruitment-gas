@@ -7,7 +7,7 @@ function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDe
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
- LockService:{getScriptLock:()=>({tryLock:()=>{locks++;return true},releaseLock:()=>{locks--}})},
+ LockService:{getScriptLock:()=>({tryLock:()=>{locks++;return true},hasLock:()=>locks>0,releaseLock:()=>{locks--}})},
  JSON,Number,Object,String,Array,Set,Error
  };
  vm.createContext(scope);vm.runInContext(src,scope);

@@ -96,6 +96,12 @@ function assertAdminSandbox(source){
   "function study1EConsentOwnerList(){",
   "function study1EConsentReadyDocument_(experiment){",
   "function study1EConsentEnabled_(){",
+  "function study1EConsentValidateRegistry_(r,maxRecords){",
+  "function study1EConsentPointerV2_(raw,legacyRaw){",
+  "function study1EConsentReadV2_(p){",
+  "study1EConsentValidateRegistry_(next,STUDY1_ECONSENT_MAX_RECORDS_);",
+  "props.setProperty(STUDY1_ECONSENT_POINTER_V2_,ptrRaw)",
+  "file.getSharingAccess()!==DriveApp.Access.PRIVATE",
   "function study1ConsentDocumentBytes_(entry){",
   "DriveApp.getFileById(entry.id)",
   "input.confirmSha256!==entry.sha256",
@@ -124,7 +130,7 @@ function assertAdminSandbox(source){
    'study1ConsentVersionUpload','study1ConsentVersionSelect',
    'study1ConsentDocumentBytes_','study1ConsentVersionPublication',
    'study1ConsentPublicRead_',
-   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList','study1EConsentOwnerWithdraw',
+   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentValidateRegistry_','study1EConsentPointerV2_','study1EConsentReadV2_','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList','study1EConsentOwnerWithdraw',
    'study1EConsentSignedPdfStore_','study1EConsentSignedPdfRead_',
    'study1EConsentSignPdf','study1EConsentSignedPdfCopy',
    'study1EConsentConfirmPdf','study1EConsentOwnerPendingPdfConfirmations',
@@ -133,7 +139,7 @@ function assertAdminSandbox(source){
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
  const driveOps=[...source.matchAll(/\bDriveApp\.([A-Za-z_$][\w$]*)/g)].map(x=>x[1]);
- if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access,getFileById,Access,Permission,Access,getFileById,Access,getFileById,getFileById')
+ if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFileById,Access,Access,Permission,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access,getFileById,Access,Permission,Access,getFileById,Access,getFileById,getFileById')
   throw Error('Unreviewed private consent Drive operation');
 }
 function assertAdminHtml(html){
