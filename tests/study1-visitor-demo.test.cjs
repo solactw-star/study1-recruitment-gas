@@ -27,9 +27,9 @@ test('Teacher DEMO runs the SAME Study1Unified E1/E2 eligibility, OTP, booking, 
  const demoOnly=html.replace(/<div id="formalContact"[\s\S]*?<\/div>/,'');
  assert.doesNotMatch(demoOnly,/<input[^>]*type="email"/);
 });
-test('The teacher-facing route requires owner identity and CLOSED flags; no real public booking endpoints are opened',()=>{
- assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\);/);
- assert.match(website,/HtmlService\.createHtmlOutputFromFile\('Study1Visitor'\)/);
+test('Deprecated demo route cannot publish the old test page; routes to owner-guarded formal while intake remains CLOSED',()=>{
+ assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);const t=HtmlService\.createTemplateFromFile\('Study1Visitor'\);/);
+ assert.doesNotMatch(website,/HtmlService\.createHtmlOutputFromFile\('Study1Visitor'\)/);
  for(const name of ['requestOtp','verifyOtp','holdSlot','submitConsent'])
   assert.match(website,new RegExp('function '+name+'\\(\\)\\{return rejectIntake_\\(\\);\\}'));
  assert.match(workflow,/'gas\/Study1Visitor\.html'/);
