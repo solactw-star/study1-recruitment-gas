@@ -1468,3 +1468,15 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **本輪啟動時已核實**：原PR#133 HEAD `9af696697a819c17479445ca136e7c303e6038a6`（修改前）；原Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`的Drive metadata屬Google Apps Script、單一原研究室Owner，但**目前無法僅憑Drive metadata證明遠端HEAD、manifest、部署版本及完整備份**。原營運Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ`前次Slots兩獨立讀取僅表頭；未有PI核定場次與生效REC遠端簽署核准可核對。相關程式/測試/部署/CI需以實際後續回讀另行判定，不在本決策中先宣稱完成。
 
 **接續標記**：TASK_DOMAIN=Study1 website E1 minimalist registration MVP; SOURCE_PATH=original PR#133 / docs/study1-system-spec.md §70-S.24; NEXT_ACTION=只改上述五個功能所必要的現有程式與合成驗證、原GAS安全部署前讀取及授權範圍內同步；BLOCKERS=REC_REMOTE_CONSENT_REVIEW_REQUIRED,NO_PI_APPROVED_SLOTS,REMOTE_GAS_SOURCE_BACKUP_UNVERIFIED；WRITE_OWNER=original PR#133；非授權真人研究資料/REC/Sheet不修改。
+
+### 70-S.25｜正式產品入口與首頁去 Demo、去獨立同意區塊（2026-11-11）
+
+**最新使用者決策；仍以 §70-S.24 五項 MVP 為唯一交付範圍。** 使用者指定唯一原公開招募網站 `https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec`，不再用私人 `?view=demo`、虛構角色/時段/固定OTP、GitHub CI或私人GAS部署冒充正式公開網站交付。
+
+1. **首頁與導覽**：原 `gas/Index.html` 移除完整的獨立 `#consent` 區塊、對應導覽和首頁CTA，以及過期FAQ；不設首頁PDF閱讀/簽署窗格。一般研究介紹可描述「報名後階段閱讀並簽署」，但全文PDF與簽名只在原七步 FORMAL 報名最後階段提供；首頁不蒐集任何姓名、資格答案、簽名或個資。
+2. **正式入口**：首頁對應 `/exec?view=apply` 的實際原公開部署完整網址，GAS iframe `target="_top"`；原 `gas/Website.js` 的 `view=apply` 必須是 `flowMode='FORMAL'`，不經過舊模擬機制。原 `view=demo` 舊書籤僅在 OWNER 身分驗證通過時轉到 **FORMAL** 同版頁面，不再渲染虛構報名展示；管理後台指向正式 E1 報名入口。既有離線/合成模擬測試可保留，但不可成為正式產品 UI、公開入口或強制部署必要功能。
+3. **反回退門檻**：原 `scripts/study1-gas-index-preview.cjs`、`scripts/study1-gas-owner-preview-deploy.cjs`、`scripts/study1-gas-backend-allowlist.cjs` 和 `scripts/study1-gas-public-release.cjs` 必須禁止首頁獨立同意區塊、檢查公開 FORMAL 入口及受保護後台，舊 `SIMULATED_SIGN_ONLY` 不再是 OWNER 部署的必要契約。維持真實報名/OTP/預約/同意後端 fail-closed、安全身份及權限檢查與原合成回歸，不為移除 Demo 而讓真人寫入通過。
+4. **驗收五層分離**：`PR_IMPLEMENTED`、`CI_PASS`、`MAIN_SYNC_VERIFIED`、`GAS_SOURCE/PRIVATE/PUBLIC_DEPLOYMENT_VERIFIED` 與 `PUBLIC_SITE_UI_VERIFIED` 必須分別取得證據；需以**指定公開網址**非登入者實際 HTTP/瀏覽器回讀無舊同意區塊、正確 FORMAL 連結、受保護路由及對應部署版本，才可宣稱公開網站新版交付。私人 OWNER V127 或合成 CI 不代替公開 V124 的更新。
+5. **本輪授權邊界**：僅原 Draft PR #133 同分支程式、回歸測試與本唯一規格原路徑增量修改；不得自動合併 main、GAS apply、改寫 manifest、部署公開版本、啟用真人收件、寄信或修改 REC / 正式研究 Sheets。正式部署須下一次獨立明確授權及寫前 Drive 全備份、競寫、版本/完整 SHA、MYSELF/公開 ACL 與實際 UI 回讀。
+
+**本輪接續點**：TASK_DOMAIN=Study1正式MVP入口與公開首頁；SOURCE_PATH=原 PR #133 / `gas/Index.html` / `gas/Website.js` / `gas/Study1Visitor.html` / 原部署守門腳本 / `docs/study1-system-spec.md`；PRE_DOC_HEAD=`de5aea27b38a8121e098350caedbe8b68278ae6e`；COMPLETED=PR_BRANCH_CODE_AND_TEST_CONTRACT_UPDATED；NEXT_ACTION=核實最新完整合成CI與逐檔blob、檢查原公開部署版本及REC/PI真場次/服務阻塞，待獨立授權才部署並做真實瀏覽器UAT；BLOCKERS=REC_REMOTE_CONSENT_REVIEW_REQUIRED,PI_APPROVED_E1_SLOTS_MISSING,LIVE_PROVIDERS_UNVERIFIED,PUBLIC_DEPLOYMENT_NOT_UPDATED,UI_NOT_VERIFIED；WRITE_OWNER=原PR #133分支；SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,PUBLIC_SITE_UI_VERIFIED=false,FORMAL_READY=false。
