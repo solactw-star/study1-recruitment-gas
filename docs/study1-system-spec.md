@@ -1513,6 +1513,8 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 | UI-B07 | ⑦ 完成與結果 `done` | 只有真實來源一致、同意 PDF 成功及原 Reservations 狀態獨立核對後可宣稱完成；區分 HELD/CONFIRMED/UNKNOWN，顯示 Email 通知實際結果，失敗/逾時不可冒稱成功或自動重送 |
 | UI-B08 | OWNER 後台五項 MVP | 原後台僅授權 OWNER/研究團隊：研究者事先簽署 PDF 上傳/選用、SHA/版本核對；申請/場次/同意狀態查閱，授權下載完整已簽 PDF、核對 Email 通知狀態；不把合成資料當正式收件 |
 
+**額外程式查核缺口（非 UI 結果）**：於上述 HEAD 的 `gas/Study1Visitor.html` 靜態回讀，正式 FORMAL 控制器在完成簽署 PDF／原 Reservations 狀態查詢路徑內，未發現明確呼叫 `show('done')` 將畫面切至第七步 `step-done`。因此 `UI-B07=BLOCKED_BY_FORMAL_DONE_TRANSITION_REVIEW`，不得以 DOM 中存在 `step-done` 或合成測試通過宣稱七步流程已完成。後續應在原 PR 的五項 MVP 內核對/修正簽署狀態及預約狀態的獨立真實結果呈現，避免把 `HELD` 冒稱 `CONFIRMED`；未另有 REC／資料安全授權不得以真人執行驗證。
+
 **失敗守門**：任一 A02–A06 發現首頁舊同意區塊、Demo 洩出、未授權可收件、私人頁可匿名讀取、關閉狀態仍寫入資料，即標 `UI_FAIL_STOP`，停止該路徑 UAT，保留已去識別證據，不嘗試修復為開放狀態。CI 通過僅 `CI_PASS`；新版對應原公開網址、匿名/OWNER 邊界和實際操作完成後才可標 `PUBLIC_SITE_UI_VERIFIED=true`；研究正式啟用仍需獨立 `FORMAL_READY`。不得為節省驗收步驟放寬 REC 與安全門檻。
 
 **本次建立清單時的初始狀態**：以上全部 `NOT_RUN` 或 `BLOCKED`；未取得公開新版部署／瀏覽器操作證據之前，`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`。此節為原 GitHub 唯一規格主檔的人工 UAT 操作與紀錄準則，不是 UI 驗收完成證明。
