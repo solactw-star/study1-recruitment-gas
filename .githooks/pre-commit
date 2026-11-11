@@ -1,0 +1,10 @@
+#!/bin/sh
+# Opt-in: git config --local core.hooksPath .githooks
+# The complete local PR tests must pass BEFORE committing changes.
+set -eu
+if ! git diff --quiet; then
+ echo "Study1: unstaged tracked changes remain; stage the entire integrated change before committing." >&2
+ exit 1
+fi
+echo "Study1: running full PR safety preflight before commit..."
+npm run verify:pr

@@ -1579,3 +1579,15 @@ D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權�
 - 發布：原 PR #133 仍 Draft/main 未合併；GAS 最新遠端完整 SHA、寫前備份、競寫、私人/公開部署版本及匿名 UI/UAT 無本輪合格證據。程式／CI、GitHub main、GAS 寫入、公開 UI、真人收件各自驗證，不互相替代。
 
 **驗收狀態與接續**：2026-11-11 原 PR 程式及安全測試（至 §70-S.29）已於 commit `43756269a10ed8bff5a629cebc657adc418b4010` 的 GitHub Actions Run `42989825655` 完成 891 PASS／0 FAIL／0 SKIP；此為該次程式與規格版本的合成 CI 證據。後續任何新 HEAD 仍須重新查核其對應 CI，不得把舊 PASS 當作最新結果；且 CI 不等於 main/GAS/公開 UI／真人收件驗收。`SLOT_SOURCE_STATUS=EMPTY_HEADER_ONLY`、`E1_PUBLIC_PREINTAKE_SLOT_PREFLIGHT=CODE_IMPLEMENTED_CI_PASS_891`、`PI_SLOTS_NOT_PROVISIONED=true`、`OWNER_CONSENT_REGISTRY_SCALE_REVIEW_REQUIRED=true`、`MAIN_SYNC_VERIFIED=false`、`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`。下一步先完成真 Slots／預簽 PDF／MailApp／Turnstile／OWNER 正式環境及持久化容量的核實與必要工程修正；不重查 REC 文件。
+
+### 70-S.30｜2026-11-11 PR #133 完整提交前驗證與 CI 通知減量（不降低安全性）
+
+**使用者正式決策**：持續保留原 PR #133 全部既有至少 891 項安全測試（後續只增不減），不能停用 CI、刪除/略過測試、使用 `continue-on-error`、強制標記成功或隱藏真實失敗。減少大量「Run failed」通知的正確方法是：**完成一個功能的程式、測試、必要文件與預檢，再以原 PR 分支單次原子提交**；禁止為同一未完成功能逐檔分次提交而製造連續失敗的中間 HEAD。
+
+**共同預檢**：原 `package.json` 新增 `npm run verify:pr`，執行原 `npm test` 全部 `tests/*.test.cjs`，讀取完整 TAP 摘要驗證 `tests>=891`、`pass=tests`、`fail=0`、`skipped=0`，再執行原 `node --check gas/Website.js`，及 `git diff --check`（含 staged）。無完整摘要、測試不足、錯誤/跳過或語法失敗時均回傳非零狀態。原 `.github/workflows/test.yml` 保留 `pull_request`、`workflow_dispatch`、主分支既有路徑限制、Node 22、`contents: read`，改為呼叫**完全相同的共同預檢指令**。本節不變更 CI 覆蓋率或觸發/回報規則，故真正失敗仍可追查。
+
+**本機防誤送**：新增可選擇的 `.githooks/pre-commit`；本機使用者明確執行 `git config --local core.hooksPath .githooks` 才會啟用，不自行更動其 Git 設定。Hook 要求整合修改全部 staged、執行相同預檢後才允許 commit。GitHub Connector／REST API 直接提交不會執行本機 hook；這類工作者應先於同一完整工作樹驗證，並透過 Git Tree + 單一 commit + 帶 `expected_sha` 的分支 ref 更新一次發佈相依檔案，避免多筆未驗證的中間提交。若無法建立/執行可信的提交前驗證，應明列 `PREFLIGHT_BLOCKED`，不應以逐檔提交代替。
+
+**任務與排程要求**：後續每小時 E1 MVP 建置與人工修正均應先確認原 PR HEAD、main、唯一規格與競寫；一個完整功能一次提交（或無變更則不提交），提交後等待**該 HEAD** CI 結束並回讀實際測試數，只有 `completed/success` 可回報 `CI_PASS`。不再把前一 HEAD 通過當目前通過。不可因測試警示寄信而停用或遮蔽失敗；GitHub Email 通知偏好由使用者自行設定，非本任務更動。原 GAS 同 ID 同步／公開部署、正式研究資料、REC、main 合併及真人收件旗標不受本節授權。
+
+**接續狀態**：`TASK_DOMAIN=Study1_E1_PR133_CI_HYGIENE`；`SOURCE_PATH=.github/workflows/test.yml,package.json,scripts/study1-pr133-preflight.cjs,.githooks/pre-commit,README.md,docs/study1-system-spec.md`；`NEXT_ACTION=待本節同一新 HEAD CI 回讀完成，並對原每小時排程增量同步完整提交前預檢`；`MAIN_SYNC_VERIFIED=false`、`PUBLIC_SITE_UI_VERIFIED=false`、`LIVE_INTAKE_ENABLED=false`。

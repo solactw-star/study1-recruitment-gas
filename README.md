@@ -31,6 +31,26 @@ npm test
 
 > **注意**：原始基準文件需永久保留以利追溯；後續每次 GAS 更新仍須依現行核准流程重新取得並審核遠端狀態、備份與回讀。不可略過驗證或自行修改基準讓失敗通過。
 
+## PR #133 完整提交前驗證（2026-11-11）
+
+為避免程式與測試分次提交觸發中間失敗 CI，在本機完成**整套功能、測試及文件**後，先執行：
+
+```bash
+npm run verify:pr
+```
+
+此指令執行全部原有及新增安全測試，要求**至少 891 項全部通過、0 失敗、0 略過**，再執行原 `gas/Website.js` 語法檢查與 Git 空白字元檢查；不可用 `--skip`、`continue-on-error` 或局部測試替代。PR 的 GitHub Actions 使用**完全相同的命令**，仍對每次 PR 提交留下真實 PASS/FAIL 紀錄。這不會停止 GitHub 的失敗 Email；減少未完成中間提交才可減少不必要失敗通知。
+
+選用本機 Git 提交前自動檢查（**不會自動修改使用者機器設定**）：
+
+```bash
+git config --local core.hooksPath .githooks
+```
+
+啟用後的 `.githooks/pre-commit` 在每次 commit 前拒絕仍有未暫存修改的工作樹，並執行完整預檢；先將相依程式、測試及文件一併 stage。對直接使用 GitHub API 的工作者，本機 hook 不會生效，因此應先在完整來源工作樹通過上述預檢，再採**同一筆原子 commit**，不要對同一功能逐檔 commit。
+
+此流程不合併 main、不修改 GAS 部署、不更動 `OPEN=false` 或 `CONSENT_READY=false`，也不改實驗二或非 MVP 功能。
+
 ## 研究邊界
 
 - 828 Google Drive 工作區：`1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU`
