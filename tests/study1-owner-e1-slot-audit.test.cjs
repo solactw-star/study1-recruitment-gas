@@ -34,6 +34,10 @@ function setup(){
   bookingReadOnlySameTab_:(a,b)=>JSON.stringify(a)===JSON.stringify(b),
   study1BindingId_:id=>{if(typeof id!=='string'||!/^[A-Za-z0-9_-]{8,80}$/.test(id))throw Error('BAD_ID');return id;},
   study1BindingHmac_:hmac,
+  study1BindingUtc_:value=>{
+   const t=Date.parse(value);if(!Number.isFinite(t))throw Error('BAD_UTC');
+   return t;
+  },
  };
  vm.runInNewContext(source,ctx);
  const approve=(entries)=>{
@@ -139,4 +143,36 @@ test('proposal refuses forged/duplicated slot decisions, tampered source and non
  h.setOwner(false);
  assert.throws(()=>h.ctx.study1OwnerE1SlotRegistryProposal({decisions:[]}),/OWNER_REQUIRED/);
  assert.equal(h.getAudit().writeCount,0);
+});
+
+test('public preflight requires approved real E1 rows; never uses owner-only data or writes',()=>{
+ const h=setup();
+ h.setOwner(false);
+ assert.equal(h.ctx.study1FormalPublicSlotReady_(),false,'no owner-pinned registry');
+ assert.equal(h.getAudit().reads,0,'unapproved source must not be opened');
+ h.approve([{experiment:'E1',slotId:h.rows[0][0]},{experiment:'E2',slotId:h.rows[1][0]}]);
+ assert.equal(h.ctx.study1FormalPublicSlotReady_(),true);
+ assert.deepEqual(h.getAudit(),{reads:2,slotsOnly:true,hasLock:false,writeCount:0});
+});
+test('public preflight rejects E2-only, missing Slots, changed pins and inconsistent reads',()=>{
+ const e2=setup();
+ e2.approve([{experiment:'E2',slotId:e2.rows[0][0]}]);
+ assert.equal(e2.ctx.study1FormalPublicSlotReady_(),false);
+ const noRows=setup();noRows.rows.splice(0);
+ noRows.approve([{experiment:'E1',slotId:'SLOT_UNRELATED_0123'}].filter(()=>false));
+ // An empty sheet is not a reason to accept PII, even with a malformed registry.
+ noRows.props.set('STUDY1_E1_SLOT_REGISTRY_APPROVED','true');
+ assert.equal(noRows.ctx.study1FormalPublicSlotReady_(),false);
+ const stale=setup();stale.approve([{experiment:'E1',slotId:stale.rows[0][0]}]);
+ stale.rows[0][3]=99;
+ assert.throws(()=>stale.ctx.study1FormalPublicSlotReady_(),/SLOT_REGISTRY_STALE/);
+ const drift=setup();drift.approve([{experiment:'E1',slotId:drift.rows[0][0]}]);
+ drift.setChanged(true);
+ assert.throws(()=>drift.ctx.study1FormalPublicSlotReady_(),/E1_PREFLIGHT_SOURCE_CHANGED/);
+ assert.equal(drift.getAudit().hasLock,false);
+});
+test('public preflight cannot use an unlocked supplied lock',()=>{
+ const h=setup();h.approve([{experiment:'E1',slotId:h.rows[0][0]}]);
+ assert.throws(()=>h.ctx.study1FormalPublicSlotReady_({hasLock:()=>false}),/E1_PREFLIGHT_SLOT_LOCK_LOST/);
+ assert.equal(h.getAudit().reads,0);
 });
