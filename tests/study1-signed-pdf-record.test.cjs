@@ -418,8 +418,10 @@ test('MVP actual PDF engine accepts only researcher presigned source, adds parti
   bookingChecks++;assert.equal(id,issued.id);assert.equal(token,issued.token);
   return {bookingConfirmed:true,bookingStatus:'CONFIRMED'};
  };
- h.scope.study1ParticipantBookingNotice_=email=>{
-  mailCount++;assert.equal(email,'participant@example.org');return {attempted:true};
+ h.scope.study1ParticipantBookingNotice_=(email,consentId)=>{
+  mailCount++;assert.equal(email,'participant@example.org');
+  assert.equal(consentId,issued.id);
+  return {attempted:true,status:'PROVIDER_ACCEPTED'};
  };
  const signed=await h.scope.study1EConsentSignPdf({
   token:issued.token,name:'SYNTHETIC',signature:png.toString('base64'),
@@ -428,7 +430,7 @@ test('MVP actual PDF engine accepts only researcher presigned source, adds parti
  assert.equal(signed.state,'CONFIRMED');
  assert.equal(signed.researcherPreSigned,true);
  assert.equal(signed.originalBookingConfirmed,true);
- assert.equal(signed.emailNotificationStatus,'SENT');
+ assert.equal(signed.emailNotificationStatus,'PROVIDER_ACCEPTED_NOT_DELIVERED');
  assert.equal(bookingChecks,1);assert.equal(mailCount,1);
  const entry=h.scope.study1EConsentRegistry_().records[0];
  assert.equal(entry.researcherPresigned,true);

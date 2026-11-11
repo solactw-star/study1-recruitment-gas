@@ -46,6 +46,9 @@ function setup(opts={}){
   study1BindingHmac_:()=> 'a'.repeat(64)
  };
  vm.createContext(scope);vm.runInContext(intake,scope);
+ // GAS file declarations overwrite injected test doubles during evaluation.
+ // Restore only the mail gate in this isolated harness; production gate stays intact.
+ scope.study1ParticipantMailGate_=()=>true;
  return {scope,rows,entry,get sends(){return sends;}};
 }
 test('confirmed E1 writes a durable notification before one MailApp attempt',()=>{
