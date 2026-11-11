@@ -25,7 +25,8 @@ function ensureInvocation(){
 }
 function checkFrontEnd(source){
  must(source.startsWith('<!doctype html>'),'no reviewed Index');
- must(source.includes('知情同意是報名最後的步驟'),'Index not consent-last');
+ must(source.includes('href="?view=apply"')&&!source.includes('id="consent"')&&
+  !source.includes('href="#consent"'),'Index must link to FORMAL enrollment without standalone consent');
  must(!/id="consentSignature"|id="consentSubmit"|initConsentPortal_|<canvas\b|<form\b|<textarea\b/i.test(source),
   'public Index can collect identity or signatures');
 }
