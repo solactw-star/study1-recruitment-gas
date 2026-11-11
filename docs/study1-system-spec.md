@@ -1513,7 +1513,7 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 | UI-B07 | ⑦ 完成與結果 `done` | 只有真實來源一致、同意 PDF 成功及原 Reservations 狀態獨立核對後可宣稱完成；區分 HELD/CONFIRMED/UNKNOWN，顯示 Email 通知實際結果，失敗/逾時不可冒稱成功或自動重送 |
 | UI-B08 | OWNER 後台五項 MVP | 原後台僅授權 OWNER/研究團隊：研究者事先簽署 PDF 上傳/選用、SHA/版本核對；申請/場次/同意狀態查閱，授權下載完整已簽 PDF、核對 Email 通知狀態；不把合成資料當正式收件 |
 
-**額外程式查核缺口（非 UI 結果）**：於上述 HEAD 的 `gas/Study1Visitor.html` 靜態回讀，正式 FORMAL 控制器在完成簽署 PDF／原 Reservations 狀態查詢路徑內，未發現明確呼叫 `show('done')` 將畫面切至第七步 `step-done`。因此 `UI-B07=BLOCKED_BY_FORMAL_DONE_TRANSITION_REVIEW`，不得以 DOM 中存在 `step-done` 或合成測試通過宣稱七步流程已完成。後續應在原 PR 的五項 MVP 內核對/修正簽署狀態及預約狀態的獨立真實結果呈現，避免把 `HELD` 冒稱 `CONFIRMED`；未另有 REC／資料安全授權不得以真人執行驗證。
+**第七步程式缺口處理紀錄（仍非 UI 驗收）**：最初發現 FORMAL 控制器缺少第七步 `step-done` 轉場，當時標為 `UI-B07=BLOCKED_BY_FORMAL_DONE_TRANSITION_REVIEW`。2026-11-11 已在原 PR #133 的 `gas/Study1Visitor.html` 修正：僅在已簽 PDF 完整 SHA 驗證及獨立本人 `Reservations` 唯讀查核後，依 `CONFIRMED`、有效 `HELD`、`UNKNOWN` 顯示正式結果；`HELD/UNKNOWN` 不得標為報名完成；隔離 Demo 結果卡，完整已簽PDF可供核實後下載。合成測試及原碼回讀屬 `CODE_IMPLEMENTED`，**尚未執行新版公開 GAS 實際 UI 驗收**，因此更新為 `UI-B07=BLOCKED_BY_PUBLIC_DEPLOYMENT_AND_FORMAL_UAT`、`PUBLIC_SITE_UI_VERIFIED=false`，不得以 CI 通過標正式驗收。
 
 **失敗守門**：任一 A02–A06 發現首頁舊同意區塊、Demo 洩出、未授權可收件、私人頁可匿名讀取、關閉狀態仍寫入資料，即標 `UI_FAIL_STOP`，停止該路徑 UAT，保留已去識別證據，不嘗試修復為開放狀態。CI 通過僅 `CI_PASS`；新版對應原公開網址、匿名/OWNER 邊界和實際操作完成後才可標 `PUBLIC_SITE_UI_VERIFIED=true`；研究正式啟用仍需獨立 `FORMAL_READY`。不得為節省驗收步驟放寬 REC 與安全門檻。
 
@@ -1538,8 +1538,8 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 
 **正式上線必要條件（每項獨立稽核）**：(1) 最新有效REC及修正案明確適用E1網路招募、在線資格資料、遠端知情同意/雙簽PDF和資料處置；(2) PI核定E1 Slots日期時間容量地點與招募文案/額度；(3) 原Sheets/私人Drive ACL、安全審計、Turnstile Siteverify、真實Email及OTP、預先簽署有效PDF版號/SHA/版位、PDF副本與撤回可用性；(4) 原PR最新HEAD完整CI與源碼/競寫回讀，第七步確認狀態修正；(5) main合併、原GAS寫前完整備份/遠端HEAD/manifest、私人與公開部署權限、不可變版本及源碼完整SHA各別驗證；(6) 指定公開網址實際匿名Chrome/手機UI與安全拒收、經正式批准的受控E2E UAT合格；(7) 最終PI/OWNER確認正式營運開關、監控和關閉復原。未全滿足保持LIVE_INTAKE_ENABLED=false、FORMAL_READY=false，不得自動啟用。
 
-**待決事項 D1-D8，PI/使用者決定後才落實到相應權責**：
-D1 正式上線範圍：是否仍僅E1五項MVP（保守預設），或需納入E2及其他舊後台模組；E2沿用不招募限制除非明示及取得新REC/PI。
+**決策狀態：D1已定案；D2–D8待正式來源/PI/使用者核實。不得因D1完成而推定REC、場次或真人收件核准**：
+D1 **已由使用者確認結案（2026-11-11）**：正式上線範圍**僅實驗一 E1 五項 MVP**。實驗二與其他既有非MVP功能維持原設定、不自動擴充或納入本次正式交付；實驗二2027年前不招募，2027年也不自動開放，後續另需明確決策與REC/PI核准。
 D2 提供最新有效REC核准函、修正案版本/生效日、是否涵蓋全線上研究說明、研究者預簽及參與者手寫同意、PDF保存、撤回與通知。
 D3 PI明示核定的E1首批場次、每場容量、地點、報名起訖、受試者人數及管理者；未批准前不填Slots。
 D4 正式預先簽署PDF哪個檔案、有效版號/SHA、參與者簽章座標、存取/保留/副本期限；未核不放簽署。
@@ -1548,4 +1548,4 @@ D6 是否授權收斂研究根資料夾及REC文件目前回傳的anyone:writer�
 D7 允許何種經核准的受控UAT帳號/資料、是否可在正式資料表新增並清理測試紀錄、誰驗收及負責回復；不得自行污染正式資料。
 D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權責/時點；最新用戶要求正式營運不等於省略逐層簽核。
 
-**跨對話接續**：TASK_DOMAIN=Study1_E1_FORMAL_GO_LIVE；GO_LIVE_REQUESTED=true；FORMAL_SPEC_TARGET=LIVE_PRODUCTION；LIVE_INTAKE_ENABLED=false；FORMAL_READY=false；REC_REVIEW_REQUIRED=true；PUBLIC_SITE_UI_VERIFIED=false；SOURCE_PATH=原PR#133/docs/study1-system-spec.md；WRITE_OWNER=原PR#133分支（本次僅規格）；NEXT_ACTION=核實D1–D8及必要MVP安全修正，來源已驗證才逐層發布/啟用；SYNC_STATUS=PR_BRANCH_ONLY_UNTIL_MAIN_MERGE。任何條件不符明列BLOCKED而非假定已啟用。
+**跨對話接續**：TASK_DOMAIN=Study1_E1_FORMAL_GO_LIVE；GO_LIVE_REQUESTED=true；FORMAL_SPEC_TARGET=LIVE_PRODUCTION；LIVE_INTAKE_ENABLED=false；FORMAL_READY=false；REC_REVIEW_REQUIRED=true；PUBLIC_SITE_UI_VERIFIED=false；SOURCE_PATH=原PR#133/docs/study1-system-spec.md；WRITE_OWNER=原PR#133分支（本次僅規格）；NEXT_ACTION=已確認D1_E1_FIVE_MVP_ONLY；續核實D2–D8及必要MVP安全修正，來源已驗證才逐層發布/啟用；SYNC_STATUS=PR_BRANCH_ONLY_UNTIL_MAIN_MERGE。任何條件不符明列BLOCKED而非假定已啟用。
