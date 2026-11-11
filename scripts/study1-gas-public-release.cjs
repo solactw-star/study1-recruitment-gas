@@ -59,7 +59,7 @@ function assertClosedPublicSources(remote){
    'Original GAS remote source diverged from reviewed GitHub main: '+name);
  }
  check(!idx.includes('id="consent"')&&!idx.includes('href="#consent"')&&
-  idx.includes('href="?view=apply"')&&
+  idx.includes('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"')&&
   !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page must route to the FORMAL CLOSED product, not Demo or standalone consent');
  check(!/<(?:form|textarea)\b/i.test(idx),'Public site has no active collection form');
  const inputs=[...idx.matchAll(/<input\\b[^>]*>/gi)].map(x=>x[0]);
