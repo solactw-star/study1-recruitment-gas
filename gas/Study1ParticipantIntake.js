@@ -480,10 +480,87 @@ function study1ParticipantEmailStatus(proof){
  * applicant mailbox against the original consumed OTP under ScriptLock.
  * Never send a PDF attachment, eligibility detail or private Drive URL.
  */
-function study1ParticipantBookingNotice_(verifiedApplicantEmail){
+var STUDY1_E1_NOTIFICATION_HEADERS_=Object.freeze([
+ 'job_id','applicant_id','reservation_id','notice_type','status',
+ 'attempts','created_at_utc','sent_at_utc','last_error_code'
+]);
+/** At-most-once original Notifications A:I outbox; no automatic resend after
+ * ambiguous MailApp failures. PROVIDER_ACCEPTED is not delivery proof. */
+function study1ParticipantBookingNotice_(verifiedApplicantEmail,consentId){
  study1ParticipantMailGate_();
+ study1FormalConsentGate_();
+ study1BindingId_(consentId);
  const to=study1BindingEmail_(verifiedApplicantEmail);
- MailApp.sendEmail({to,subject:'Study1｜報名與預約已確認',
-  body:'您的Study1實驗一報名與時段預約已確認。研究者事先簽署的知情同意書已由您於報名網站完成簽名。完整簽署PDF已存入研究團隊私人資料庫；您可在原報名頁面的有效驗證期間下載副本。如需協助請聯絡研究團隊。'});
- return {attempted:true};
+ const lock=LockService.getScriptLock();
+ if(!lock||lock.tryLock(10000)!==true)throw Error('E1_NOTICE_LOCK_BUSY');
+ try{
+  if(lock.hasLock()!==true)throw Error('E1_NOTICE_LOCK_LOST');
+  study1ParticipantMailGate_();study1FormalConsentGate_();
+  const matches=study1EConsentRegistry_().records.filter(x=>x.id===consentId);
+  if(matches.length!==1)throw Error('E1_NOTICE_CONSENT_NOT_UNIQUE');
+  const entry=matches[0],binding=entry.binding;
+  if(entry.channel!=='FORMAL_E1'||entry.experiment!=='E1'||
+     entry.researcherPresigned!==true||entry.state!=='CONFIRMED'||
+     !entry.signedPdf||!entry.signature||!entry.confirmation||
+     !binding||binding.experiment!=='E1')
+   throw Error('E1_NOTICE_SIGNED_CONSENT_REQUIRED');
+  const id=study1SelfReportedAuthority_({
+   applicantId:binding.applicantId,screeningId:binding.screeningId,
+   challengeId:binding.challengeId,experiment:'E1'},lock);
+  if(id.verified!==true||id.experiment!=='E1'||
+     study1BindingEmail_(id.email)!==to)
+   throw Error('E1_NOTICE_VERIFIED_EMAIL_CHANGED');
+  const snapshot=study1FormalSnapshot_();
+  study1FormalValidateSnapshot_(snapshot,new Date().toISOString());
+  const reservations=snapshot.reservations.rows.filter(x=>x[0]===binding.reservationId);
+  if(reservations.length!==1||reservations[0][1]!==binding.applicantId||
+     reservations[0][2]!==binding.slotId||
+     reservations[0][3]!=='CONFIRMED'||!reservations[0][7]||reservations[0][8])
+   throw Error('E1_NOTICE_ORIGINAL_BOOKING_NOT_CONFIRMED');
+  const book=SpreadsheetApp.openById(study1BindingSheetId_('reservations'));
+  const source=study1WizardTable_(book,'Notifications',STUDY1_E1_NOTIFICATION_HEADERS_);
+  const noticeType='E1_RESERVATION_CONFIRMED';
+  const jobId='NTF_'+study1BindingHmac_([
+   'E1_BOOKING_CONFIRMATION_NOTICE_V1',entry.id,binding.applicantId,
+   binding.reservationId]).slice(0,28);
+  let oldNotice=null;
+  for(const rowNo of study1WizardLookup_(source,3,binding.reservationId,true)){
+   const row=source.tab.getRange(rowNo,1,1,9).getValues()[0];
+   if(!Array.isArray(row)||row.length!==9||row[2]!==binding.reservationId)
+    throw Error('E1_NOTICE_SOURCE_CHANGED');
+   if(row[3]===noticeType){
+    if(oldNotice||row[0]!==jobId||row[1]!==binding.applicantId||
+       row[5]!==1||
+       !['DISPATCHING','PROVIDER_ACCEPTED','UNKNOWN'].includes(row[4]))
+     throw Error('E1_NOTICE_DUPLICATE_OR_CHANGED');
+    oldNotice=row;
+   }
+  }
+  if(oldNotice)return {attempted:false,status:oldNotice[4],jobId};
+  if(study1WizardLookup_(source,1,jobId,true).length)
+   throw Error('E1_NOTICE_JOB_ID_COLLISION');
+  const original=[jobId,binding.applicantId,binding.reservationId,
+   noticeType,'DISPATCHING',1,new Date().toISOString(),'',''];
+  study1WizardAppend_(source,original);
+  if(lock.hasLock()!==true)throw Error('E1_NOTICE_LOCK_LOST_BEFORE_SEND');
+  study1ParticipantMailGate_();
+  let accepted=false;
+  try{
+   MailApp.sendEmail({to,subject:'Study1｜報名與預約已確認',
+    body:'您的Study1實驗一報名與時段預約已確認。研究者事先簽署的知情同意書已由您於報名網站完成簽名。完整簽署PDF已存入研究團隊私人資料庫；您可在原報名頁面的有效驗證期間下載副本。如需協助請聯絡研究團隊。'});
+   accepted=true;
+  }catch(_){/* Remote receipt could be unknown; never auto-resend. */}
+  if(lock.hasLock()!==true)throw Error('E1_NOTICE_LOCK_LOST_AFTER_SEND');
+  const range=source.tab.getRange(source.n+1,1,1,9);
+  if(JSON.stringify(range.getValues()[0])!==JSON.stringify(original))
+   throw Error('E1_NOTICE_POST_SEND_CAS_UNKNOWN');
+  const updated=original.slice();
+  updated[4]=accepted?'PROVIDER_ACCEPTED':'UNKNOWN';
+  updated[7]=accepted?new Date().toISOString():'';
+  updated[8]=accepted?'':'MAIL_PROVIDER_OUTCOME_UNKNOWN';
+  range.setValues([updated]);SpreadsheetApp.flush();
+  if(JSON.stringify(range.getValues()[0])!==JSON.stringify(updated))
+   throw Error('E1_NOTICE_POST_SEND_READBACK_UNKNOWN');
+  return {attempted:true,status:updated[4],jobId};
+ }finally{lock.releaseLock();}
 }

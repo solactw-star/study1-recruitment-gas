@@ -1213,8 +1213,9 @@ async function study1EConsentSignPdf(input){
    emailNotificationStatus=originalBookingConfirmed?'NOT_SENT':'BOOKING_NOT_CONFIRMED';
    if(originalBookingConfirmed&&verifiedContactEmail){
     try{
-     study1ParticipantBookingNotice_(verifiedContactEmail);
-     emailNotificationStatus='SENT';
+     const notice=study1ParticipantBookingNotice_(verifiedContactEmail,changed.id);
+     emailNotificationStatus=notice.status==='PROVIDER_ACCEPTED'?
+      'PROVIDER_ACCEPTED_NOT_DELIVERED':'UNKNOWN_REQUIRES_STAFF_REVIEW';
     }catch(_){emailNotificationStatus='UNKNOWN_REQUIRES_STAFF_REVIEW';}
    }
   }
