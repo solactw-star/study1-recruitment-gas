@@ -8,7 +8,7 @@ const columns={
  Screenings:['screening_id','applicant_id','rules_version','eligibility_result','screened_at_utc','verified_by'],
  Verification:['challenge_id','applicant_id','purpose','otp_hmac','expires_at_utc','attempts','used_at_utc','email','created_at_utc']
 };
-function env({enabled=true,policy=true,abuse=true}={}){
+function env({enabled=true,policy=true,abuse=true,slotReady=true}={}){
  const flags=new Map(),open=[],writes=[],mail=[],time={now:Date.now()},records={Applicants:[],Screenings:[],Verification:[]};
  const lock={held:false};
  for(const key of ['OPEN','CONSENT_READY','STUDY1_E1_INTAKE_APPROVED',
@@ -79,6 +79,14 @@ function env({enabled=true,policy=true,abuse=true}={}){
  };
  const scope=vm.createContext(ctx);
  vm.runInContext(src,scope,{timeout:4000});
+ // The original PI-pinned Slots reader is independently tested with real
+ // snapshot/HMAC mocks; this intake unit fixture controls only its result.
+ const slotSource={ready:slotReady,checks:0};
+ scope.study1FormalPublicSlotReady_=heldLock=>{
+  if(heldLock)assert.equal(lock.held,true);
+  slotSource.checks++;
+  return slotSource.ready;
+ };
  const source={
   approved:true,provenance:'REC_EFFECTIVE_SCREENING_AND_DATA_PROCESSING',
   experiment:'E1',documentSha256:'a'.repeat(64),screeningVersion:'REC_2026_05',
@@ -99,7 +107,7 @@ function env({enabled=true,policy=true,abuse=true}={}){
  const input={experiment:'E1',name:'合成申請者',email:'synthetic.person@example.org',
   phone:'',adult:true,cycu:true,noDx:true,noTreatment:true,noPractice:true,
   requestId:'REQ_SYNTH_PERSON_000001',humanToken:'SYNTHETIC_HUMAN_TOKEN_ABC123456789'};
- return {scope,flags,open,writes,records,lock,source,input,mail,time,
+ return {scope,flags,open,writes,records,lock,source,input,mail,time,slotSource,
   begin:x=>scope.study1ParticipantBegin_(x||input)};
 }
 test('Public intake remains closed before reading PII or opening Sheets',()=>{
@@ -371,4 +379,28 @@ test('Self-declared eligibility is not a documentary identity verification',()=>
  assert.equal(JSON.stringify(x.records).includes('identityCard'),false);
  assert.equal(JSON.stringify(x.records).includes('noDx'),false);
  assert.equal(x.scope.study1ParticipantReadiness().ready,false);
+});
+
+test('Public intake refuses personal data without a real E1 slot preflight',()=>{
+ const x=env({slotReady:false});
+ assert.equal(x.scope.study1ParticipantReadiness().ready,false);
+ assert.throws(()=>x.begin(),/E1_OFFICIAL_SLOTS_NOT_AVAILABLE/);
+ assert.equal(x.open.length,0);
+ assert.deepEqual(x.writes,[]);
+ assert.equal(x.records.Applicants.length,0);
+ assert.equal(x.records.Screenings.length,0);
+ assert.ok(x.slotSource.checks>=2);
+});
+test('A Slot removed after initial preflight fails under the shared lock before any write',()=>{
+ const x=env();
+ const original=x.scope.study1ParticipantAbuseProtection_;
+ x.scope.study1ParticipantAbuseProtection_=r=>{
+  const verified=original(r);
+  x.slotSource.ready=false;
+  return verified;
+ };
+ assert.throws(()=>x.begin(),/E1_OFFICIAL_SLOTS_CHANGED_DURING_INTAKE/);
+ assert.equal(x.lock.held,false);
+ assert.deepEqual(x.writes,[]);
+ assert.deepEqual(x.open,[]);
 });
