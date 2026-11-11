@@ -12,7 +12,7 @@ test('§70-S public information homepage cannot expose direct signing or actual 
  const html=home();
  assert.doesNotMatch(html,/id="consent"/);
  assert.doesNotMatch(html,/知情同意是報名最後的步驟/);
- assert.match(html,/href="\?view=apply"/);
+ assert.match(html,/exec\?view=apply/);
  assert.match(html,/id="apply"/);
  assert.match(html,/查看正式報名流程（目前不收件）/);
  assert.doesNotMatch(html,/<(?:form|input|textarea|canvas|iframe)\b/i);
