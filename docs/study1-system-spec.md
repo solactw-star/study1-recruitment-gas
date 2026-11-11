@@ -1561,3 +1561,21 @@ D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權�
 **後續工作重點**：優先處理真實 E1 Slots 的 PI 核定、正式 PDF 版本與預簽章、Email/Turnstile、資料保存及 ACL、原 PR 最新 HEAD、原 GAS 寫前備份與競寫、指定公開網站實際 UI/安全驗收。REC 項不再作為每輪技術待辦重複羅列，除非 PI／研究行政提供新的正式結論或已涉及實際真人收件的啟用決策。原有安全／部署逐層授權、E2 不自動開放及非 MVP 不擴充均不變。
 
 **接續旗標**：`USER_DECISION_REC_RECHECK_FOR_ENGINEERING=NOT_REQUIRED`；`REC_APPROVAL_DETERMINATION_OWNER=PI`；`REC_STATUS=NOT_INDEPENDENTLY_VERIFIED`；`LIVE_INTAKE_ENABLED=false`；`FORMAL_READY=false`；`MAIN_SYNC_VERIFIED=false`（未合併前）；`NEXT_ACTION=E1五項MVP技術阻塞與正式部署前驗收`。本節寫入原 PR 分支不代表 main／GAS／正式收件已同步。
+
+### 70-S.29｜2026-11-11 E1 正式服務整合：原 Slots 報名前防護與剩餘工程門檻
+
+**授權範圍與證據**：使用者已確認僅 E1 五項 MVP 正式營運、E2/非MVP保持不變，不製造 PI 場次，不動正式 Sheets/REC、部署或開放真人收件。REC 工程責任依 §70-S.28：不再每輪自行重查文件；真人收件仍依 PI／研究行政適用性確認及必要安全門檻。
+
+**本輪真實來源唯讀基準**：原營運 Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 的 `Slots!A1:J30` 僅表頭，未有真實 E1 場次；`Reservations`、`Notifications` 亦僅表頭，`SystemConfig` 仍是 `OPEN=false`、`CONSENT_READY=false`。原個資 Sheet `1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI` 的 `Applicants`、`Verification` 唯讀查核僅表頭。這些是當次讀取結果，後續須再次從原 ID 讀取，不視為永久狀態。
+
+**已在原 PR 修正的工程缺口**：此前 `study1ParticipantReadiness()` 可能在收件旗標、政策及 Turnstile 設定允許時宣稱 E1 可開始申請，但沒有檢查真正的 Slots，造成參與者先輸入個資／完成 OTP，第四步才發現沒有場次。新增 `study1FormalPublicSlotReady_()` 於原 `gas/Study1WizardP0Bridge.js`，只讀原營運 Sheet `Slots`、使用共用 ScriptLock、相同原表兩次讀取與無公式檢查，核實未開始、OPEN、容量正確且經 PI 對原列 HMAC 逐筆核定的 E1 登錄，不信任 E2、slotId 字面或瀏覽器聲明；只回傳 Boolean，絕不傳出私人資料。於原 `gas/Study1ParticipantIntake.js` 的公開 `Readiness`、申請寫入前及共用鎖內再檢查；沒有有效真實 E1 來源即 fail-closed，**不收集報名前個資、不寄 Email、不新增申請**。此防護是新增拒收條件，絕不自行建立、核定或更動原 Slots。既有合成測試保留並增測空表、E2 限制、HMAC 競寫及未開放時無 PII 寫入。
+
+**剩餘五項 MVP 技術阻塞**：
+- 真 Slots：截至當次讀取只有表頭，仍待 PI 核定原 E1 時段、容量、地點、參與人數及原列 HMAC 登錄；不得以測試時段替代，也不得因新增預檢判定已有場次。
+- 預簽 PDF／電子同意：原 `AdminSandbox.js` 使用 `STUDY1_ECONSENT_PRIVATE_V1` Script Properties JSON 紀錄索引、`STUDY1_ECONSENT_MAX_RECORDS_=12` 以及每份屬性 7,500 字元容量保護；這屬正式規模瓶頸。不得只把常數提高就當成資料儲存、查詢、競寫與保留期限已解決。必須驗證真正核定的研究者預簽來源 PDF、SHA、簽名欄位、私人 Drive ACL、本人副本及索引成長情形；如要調整持久化儲存，需要獨立最小遷移設計、相容性及真實資料安全測試。
+- Email OTP/通知：現有後端使用原 Verification 與 MailApp、節流及防重送；正式寄信身分、MailApp 配額、OTP Secret、安全寄件及通知來源仍需生產環境驗證，不以合成 CI 取代。
+- Turnstile：已有 Siteverify、hostname/action/時間與 token 單次驗證，GAS Script Properties 的正式 siteKey/secret/hostname 及真實 `/exec` 網域尚未完成受控環境驗證；不得使用 Cloudflare 公開測試 key。
+- OWNER 後台：已有原 OWNER 管理與 PDF SHA/私人資料存取 API，但現有團隊頁仍有原隔離 Demo 管理模組。不得把 Demo 時段／設定當真實 Slots；需在原五項 MVP 內核對 OWNER 真實時段、同意書選用及完成 PDF 的實際操作與 ACL。PRIVATE `MYSELF` 和匿名路由安全必須維持。
+- 發布：原 PR #133 仍 Draft/main 未合併；GAS 最新遠端完整 SHA、寫前備份、競寫、私人/公開部署版本及匿名 UI/UAT 無本輪合格證據。程式／CI、GitHub main、GAS 寫入、公開 UI、真人收件各自驗證，不互相替代。
+
+**驗收狀態與接續**：本節寫入原路徑後須回讀原 blob/commit，當次 CI 若未完成必須待同一最新 HEAD 結果判定，不沿用前一版 PASS。`SLOT_SOURCE_STATUS=EMPTY_HEADER_ONLY`、`E1_PUBLIC_PREINTAKE_SLOT_PREFLIGHT=CODE_IMPLEMENTED_AWAITING_CI`、`PI_SLOTS_NOT_PROVISIONED=true`、`OWNER_CONSENT_REGISTRY_SCALE_REVIEW_REQUIRED=true`、`MAIN_SYNC_VERIFIED=false`、`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`。下一步先完成真 Slots／預簽 PDF／MailApp／Turnstile／OWNER 正式環境及持久化容量的核實與必要工程修正；不重查 REC 文件。
