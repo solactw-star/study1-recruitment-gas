@@ -56,8 +56,10 @@ function reviewSources(){
   ['OtpTransaction','85e554cab2c6767fd80545b8c6e573c99e750a9e'],
   ['BookingHoldTransaction','d15375bb4ea6825231cca60cd2ab9cbb28a4f024']])
    backend.assertTransactionKernel(map.get(name),hash,name);
- must(map.get('Study1Visitor').includes('SIMULATED_SIGN_ONLY'),
-  'original 7-step synthetic wizard missing');
+ must(map.get('Study1Visitor').includes("document.body.dataset.siteMode!=='FORMAL'")&&
+  map.get('Study1Visitor').includes('study1ParticipantReadiness()')&&
+  map.get('Study1Visitor').includes('function formalConsentLoadPdf_()'),
+  'original seven-step FORMAL enrollment controller missing');
  must(map.get('Study1Visitor').includes('id="v05Dates"')&&
   map.get('Study1Visitor').includes('id="v08WaitBox"'),
   'V05/V08 not preserved');
