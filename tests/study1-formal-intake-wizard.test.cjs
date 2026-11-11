@@ -78,6 +78,11 @@ test('Original V05/V08 and summary/consent step order remain unchanged',()=>{
 
 test('FORMAL seventh stage exists and does not expose demo results or premature success',()=>{
  assert.match(visitor,/id="formalDoneResult"/);
+ assert.match(visitor,/id="formalDonePdfDownload"[^>]*hidden/);
+ assert.ok(visitor.includes("for(const id of ['officialPdfDownload','officialSignedPdfDownload','formalDonePdfDownload'])"));
+ assert.ok(visitor.includes("const result=await formalVerifySigned_(copy)"));
+ assert.ok(visitor.includes("finalLink.href=url;finalLink.download="));
+ assert.ok(visitor.indexOf("finalLink.href=url;finalLink.download=")>visitor.indexOf("const result=await formalVerifySigned_(copy)"));
  assert.match(visitor,/id="demoDoneDetails"/);
  assert.match(visitor,/if\(formalDemoDone\)formalDemoDone\.hidden=true/);
  assert.match(visitor,/if\(formalTestResult\)formalTestResult\.hidden=true/);
