@@ -24,7 +24,7 @@ function file(files,name,type){
   check(a.length===1,'Missing or duplicate '+name+' ('+type+')');return a[0];
 }
 function assertIndex(s){
-  for(const token of ['<base target="_top">','event.preventDefault()','scrollIntoView({','target.focus({preventScroll:true})','研究計畫聯絡人：賴詩潔','03-256-3414','tel:+88632563414','mailto:lily4318@cycu.edu.tw','研究計畫主持人：葉理豪','03-265-3413','tel:+88632653413','mailto:lhyeh@cycu.edu.tw' ,'href="?view=apply"']) check(s.includes(token),'Missing approved site content: '+token);
+  for(const token of ['<base target="_top">','event.preventDefault()','scrollIntoView({','target.focus({preventScroll:true})','研究計畫聯絡人：賴詩潔','03-256-3414','tel:+88632563414','mailto:lily4318@cycu.edu.tw','研究計畫主持人：葉理豪','03-265-3413','tel:+88632653413','mailto:lhyeh@cycu.edu.tw' ,'href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"']) check(s.includes(token),'Missing approved site content: '+token);
   const anchors=[...s.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]);
   check(anchors.join(',')==='main,home,about,apply,contact,apply,about','Public recruitment navigation links changed');
   for(const id of new Set(anchors))check(s.includes('id="'+id+'"'),'Missing anchor target');
@@ -35,7 +35,7 @@ function assertIndex(s){
   check(!s.includes('id="consent"')&&!s.includes('href="#consent"')&&
     !s.includes('完整閱讀研究文件，再決定是否同意')&&
     !s.includes('知情同意是報名最後的步驟')&&
-    s.includes('href="?view=apply"')&&
+    s.includes('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"')&&
     !/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/.test(s)&&
     !/<(?:canvas|iframe)\\b/i.test(s)&&!s.includes('initConsentPortal_')&&
     !/<(?:form|textarea)\\b/i.test(s),
