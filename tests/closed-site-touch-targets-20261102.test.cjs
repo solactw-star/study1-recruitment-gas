@@ -52,7 +52,7 @@ test('decorative Memory & Body label has legible white-on-teal contrast', () => 
   assert.match(html, /<div class="art" aria-hidden="true">/);
 });
 test('touch-target improvement does not enable intake, tracking or signatures', () => {
-  assert.match(html, /<a class="btn" href="\?view=apply" target="_top"/);
+  assert.match(html, /<a class="btn" exec\?view=apply target="_top"/);
   assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
   const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
   assert.equal(inputs.length,0);
