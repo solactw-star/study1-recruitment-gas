@@ -185,6 +185,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
   <dt>本人簽署日期（臺灣）</dt><dd id="formalDonePdfDate">未核實</dd>
   <dt>郵件通知狀態</dt><dd>未由此頁驗證寄送；請以正式通知來源為準</dd>
  </dl>
+ <a id="formalDonePdfDownload" class="pdf" rel="noopener" hidden download="Study1_E1_Signed_Consent.pdf">下載已核實完整簽署PDF</a>
  <p id="formalDoneNotice" class="help">PDF簽署與預約成立須分別核實。狀態不明時請勿重送申請或簽名。</p>
  <button type="button" id="formalDoneBack" class="ghost">返回查看已簽PDF與唯讀核對狀態</button>
 </div>
@@ -567,7 +568,7 @@ function formalRevoke_(url){
 function formalConsentReset_(){
  formalRevoke_(formalPdfUrl);formalRevoke_(formalSignedUrl);
  formalPdfUrl=null;formalSignedUrl=null;formalInk=false;formalConsent=null;
- for(const id of ['officialPdfDownload','officialSignedPdfDownload']){
+ for(const id of ['officialPdfDownload','officialSignedPdfDownload','formalDonePdfDownload']){
   const n=el(id);if(n){n.hidden=true;if(typeof n.removeAttribute==='function')n.removeAttribute('href');}
  }
  if(el('officialPdfViewer')){
@@ -735,6 +736,12 @@ function formalConsentCopy_(){
    el('officialSignedPdfDownload').href=url;
    el('officialSignedPdfDownload').hidden=false;
    el('officialSignedPdfDownload').download='Study1_E1_'+copy.version+'_signed.pdf';
+   // Only SHA-verified signed bytes get a link in the final receipt.
+   const finalLink=el('formalDonePdfDownload');
+   if(finalLink){
+    finalLink.href=url;finalLink.download='Study1_E1_'+copy.version+'_signed.pdf';
+    finalLink.hidden=false;
+   }
    el('officialSignedPdfSha').textContent=result.sha;
    el('officialSignedPdfDate').textContent=copy.taipeiDate;
    el('officialSignedPdfStatus').textContent=copy.researcherPreSigned===true?
