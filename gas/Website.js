@@ -39,7 +39,7 @@ function runClosedChecks_(){
  assert(!/<(?:form|textarea)\b/i.test(html),'no live collection form');
  const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
  assert(inputs.length===0,'public introduction has no identity or signature fields');
- assert(html.includes('href="?view=apply"')&&
+ assert(html.includes('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"')&&
   !html.includes('id="consent"')&&!html.includes('href="#consent"')&&
   !html.includes('完整閱讀研究文件，再決定是否同意')&&
   !html.includes('id="consentSignature"')&&!html.includes('id="consentSubmit"')&&
