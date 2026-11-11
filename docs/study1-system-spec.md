@@ -1518,3 +1518,34 @@ OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID
 **失敗守門**：任一 A02–A06 發現首頁舊同意區塊、Demo 洩出、未授權可收件、私人頁可匿名讀取、關閉狀態仍寫入資料，即標 `UI_FAIL_STOP`，停止該路徑 UAT，保留已去識別證據，不嘗試修復為開放狀態。CI 通過僅 `CI_PASS`；新版對應原公開網址、匿名/OWNER 邊界和實際操作完成後才可標 `PUBLIC_SITE_UI_VERIFIED=true`；研究正式啟用仍需獨立 `FORMAL_READY`。不得為節省驗收步驟放寬 REC 與安全門檻。
 
 **本次建立清單時的初始狀態**：以上全部 `NOT_RUN` 或 `BLOCKED`；未取得公開新版部署／瀏覽器操作證據之前，`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`。此節為原 GitHub 唯一規格主檔的人工 UAT 操作與紀錄準則，不是 UI 驗收完成證明。
+
+### 70-S.27｜2026-11-11 最新決策：Study1 以正式真人報名上線為唯一產品目標
+
+**已核准的產品方向**：使用者要求從本輪起按正式營運規格完成原公開網站，結束 Demo/虛構展示作為產品成果的做法。五項最低必要 MVP：E1 報名資格自陳、研究者預先簽署完整PDF的原後台上傳選用與參與者最後階段電子簽署、PI核定真實E1場次與原Reservations預約、真實Email OTP/通知、OWNER後台管理及簽署PDF查詢下載。合成回歸安全測試可保留，但不得當正式 UI 或收件證據。原PR #133、唯一規格本路徑、原Script ID及原公開GAS網址均不更換。
+
+**啟用與授權解讀**：此決策確認 GO_LIVE_REQUESTED=true 與正式產品目標 LIVE_PRODUCTION，不代表已獲REC、PI、安全或正式資料核准。前置條件未通過時，原 OPEN=false、CONSENT_READY=false、私人管理MYSELF、安全隔離和E2 2027年前禁招維持不變；不因日期到來自動開放，也不自行更動原REC、正式Sheets、研究原始來源或既有ACL。原 GitHub 文件、程式、main合併、GAS source同步、私人/公開部署與真人正式開放仍各需獨立授權及驗證，過去單次部署授權不延續到每小時排程。
+
+**原公開交付對象**：https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec ，Script ID 1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z。原公開頁允許匿名閱讀招募說明，但絕不能因此讓私人管理後台、個資、研究簽名PDF或未授權RPC匿名開放。要以真實公開部署版本/完整SHA/ACL和實際匿名瀏覽器操作驗收，不以CI或私人V127取代。
+
+**2026-11-11 官方來源唯讀查核**：
+- 原PR #133仍Draft未合併；main=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；後續須每輪讀即時PR HEAD而不是沿用本節歷史SHA。
+- 正式營運Sheet 1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ 的Slots A1:R9僅標題、無可用場次；SystemConfig中OPEN=false、CONSENT_READY=false。兩份正式Sheets權限metadata均僅研究室Owner。
+- 找到REC證書「202604EM033-核可證書-葉理豪-李忠訓.pdf」與20261022變更申請書，但未查得足以證明現行遠端招募、研究者預簽+參與者線上手寫PDF、告知答疑、保存與撤回已在最新有效REC核准範圍的完整證明。REC_REVIEW_REQUIRED；不能只用證書檔名或申請書視為核准。
+- 研究根資料夾和REC核可證書回傳anyone:writer權限，屬應先確認的公開修改風險；不能據此推論已外洩，不自行修改ACL。電子同意限制存取資料夾及原兩份正式Sheets metadata均只有Owner。
+- FORMAL控制器第七步step-done轉場仍待核實，標UI-B07=BLOCKED_BY_FORMAL_DONE_TRANSITION_REVIEW。公開新版部署、真實瀏覽器UAT及有效REC/PI皆未完成核實。
+
+**可進行的正式化工作**：最小幅度修正原PR #133五項MVP正式前後端和第七步結果、清除產品Demo與假資料、強化 fail-closed及安全測試、建立真實來源與異常處理和公開頁品質。先使用靜態、合成、唯讀或不寫入的負測；未取得適用REC/PI與權限前，不得擅自觸發真人信件、收集個資、產生正式同意與預約。不可把仍未配置的資料偽造成真實時段。
+
+**正式上線必要條件（每項獨立稽核）**：(1) 最新有效REC及修正案明確適用E1網路招募、在線資格資料、遠端知情同意/雙簽PDF和資料處置；(2) PI核定E1 Slots日期時間容量地點與招募文案/額度；(3) 原Sheets/私人Drive ACL、安全審計、Turnstile Siteverify、真實Email及OTP、預先簽署有效PDF版號/SHA/版位、PDF副本與撤回可用性；(4) 原PR最新HEAD完整CI與源碼/競寫回讀，第七步確認狀態修正；(5) main合併、原GAS寫前完整備份/遠端HEAD/manifest、私人與公開部署權限、不可變版本及源碼完整SHA各別驗證；(6) 指定公開網址實際匿名Chrome/手機UI與安全拒收、經正式批准的受控E2E UAT合格；(7) 最終PI/OWNER確認正式營運開關、監控和關閉復原。未全滿足保持LIVE_INTAKE_ENABLED=false、FORMAL_READY=false，不得自動啟用。
+
+**待決事項 D1-D8，PI/使用者決定後才落實到相應權責**：
+D1 正式上線範圍：是否仍僅E1五項MVP（保守預設），或需納入E2及其他舊後台模組；E2沿用不招募限制除非明示及取得新REC/PI。
+D2 提供最新有效REC核准函、修正案版本/生效日、是否涵蓋全線上研究說明、研究者預簽及參與者手寫同意、PDF保存、撤回與通知。
+D3 PI明示核定的E1首批場次、每場容量、地點、報名起訖、受試者人數及管理者；未批准前不填Slots。
+D4 正式預先簽署PDF哪個檔案、有效版號/SHA、參與者簽章座標、存取/保留/副本期限；未核不放簽署。
+D5 正式Email寄件身分、OTP/通知服務、Turnstile、正式資料保管與錯誤/回復流程；未核不得寄真人信件。
+D6 是否授權收斂研究根資料夾及REC文件目前回傳的anyone:writer權限；不得逕改原檔。
+D7 允許何種經核准的受控UAT帳號/資料、是否可在正式資料表新增並清理測試紀錄、誰驗收及負責回復；不得自行污染正式資料。
+D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權責/時點；最新用戶要求正式營運不等於省略逐層簽核。
+
+**跨對話接續**：TASK_DOMAIN=Study1_E1_FORMAL_GO_LIVE；GO_LIVE_REQUESTED=true；FORMAL_SPEC_TARGET=LIVE_PRODUCTION；LIVE_INTAKE_ENABLED=false；FORMAL_READY=false；REC_REVIEW_REQUIRED=true；PUBLIC_SITE_UI_VERIFIED=false；SOURCE_PATH=原PR#133/docs/study1-system-spec.md；WRITE_OWNER=原PR#133分支（本次僅規格）；NEXT_ACTION=核實D1–D8及必要MVP安全修正，來源已驗證才逐層發布/啟用；SYNC_STATUS=PR_BRANCH_ONLY_UNTIL_MAIN_MERGE。任何條件不符明列BLOCKED而非假定已啟用。
