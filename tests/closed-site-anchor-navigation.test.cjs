@@ -87,7 +87,7 @@ test('Latest user-authorized website contact details are shown',()=>{
  assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
 });
 test('Contact and navigation improvement does not activate intake or signing',()=>{
- assert.match(html,/href="\?view=apply"/);
+ assert.match(html,/exec\?view=apply/);
  assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
   const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
   assert.equal(inputs.length,0);
