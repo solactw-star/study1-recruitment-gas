@@ -1549,3 +1549,15 @@ D7 允許何種經核准的受控UAT帳號/資料、是否可在正式資料表�
 D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權責/時點；最新用戶要求正式營運不等於省略逐層簽核。
 
 **跨對話接續**：TASK_DOMAIN=Study1_E1_FORMAL_GO_LIVE；GO_LIVE_REQUESTED=true；FORMAL_SPEC_TARGET=LIVE_PRODUCTION；LIVE_INTAKE_ENABLED=false；FORMAL_READY=false；REC_REVIEW_REQUIRED=true；PUBLIC_SITE_UI_VERIFIED=false；SOURCE_PATH=原PR#133/docs/study1-system-spec.md；WRITE_OWNER=原PR#133分支（本次僅規格）；NEXT_ACTION=已確認D1_E1_FIVE_MVP_ONLY；續核實D2–D8及必要MVP安全修正，來源已驗證才逐層發布/啟用；SYNC_STATUS=PR_BRANCH_ONLY_UNTIL_MAIN_MERGE。任何條件不符明列BLOCKED而非假定已啟用。
+
+### 70-S.28｜2026-11-11 使用者決策：REC 核准判定由PI／研究行政負責，網站工程不再重複查核
+
+**使用者最新明確決策**：「你不需要考慮REC是否核准的問題」。此決策的工程執行意義為：Study1 招募網站的產品開發、五項 E1 MVP 修補、CI、正式資料服務整合與部署前技術驗收，不再每輪自行搜尋、判讀、重複詢問或因尚未找到 REC 核准證明而停止**非真人收件的工程工作**。REC 之核准狀態、版本及適用性由 PI／研究行政依正式程序確認；工程工作流只依其提供的權責結果處理，不自行代替 REC 或 PI 作核准判定。
+
+**與既有條文的關係**：本節覆蓋 §70-S.27 中將「每輪查核 REC 文件或由工程助理主動催問 D2」作為日常工程先決作業的部分；保留 §70-S.24–27 已定案的 E1 五項 MVP、既有 Repo/Script/Sheet/公開網址、PR、版本及部署權責。D2 的管理標記改為 `REC_APPROVAL_DETERMINATION_OWNER=PI/研究行政`、`REC_RECHECK_FOR_ENGINEERING=NOT_REQUIRED`、`REC_STATUS=UNVERIFIED_BY_ENGINEERING`，不是 `REC_APPROVED=true`，也不代表原 REC 文件已被改變或核准要求已免除。
+
+**正式真人收件不得藉此跳過安全或研究核准**：本節僅重新分配 REC 判讀責任，不變更對研究參與者實際執行的適用核准程序。凡涉及真實參與者個資、OTP、預約、遠端知情同意或已簽 PDF 寫入，仍須有 PI／研究行政對核准適用性的正式確認及其他必需的安全、權限和資料來源證據；無法確認時維持 `FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`，不得直接放寬 `OPEN`／`CONSENT_READY` 或未核准的 RPC。公開資訊頁及不收真人的程式／部署準備可持續依既有授權進行，不用以 Demo 取代正式產品。
+
+**後續工作重點**：優先處理真實 E1 Slots 的 PI 核定、正式 PDF 版本與預簽章、Email/Turnstile、資料保存及 ACL、原 PR 最新 HEAD、原 GAS 寫前備份與競寫、指定公開網站實際 UI/安全驗收。REC 項不再作為每輪技術待辦重複羅列，除非 PI／研究行政提供新的正式結論或已涉及實際真人收件的啟用決策。原有安全／部署逐層授權、E2 不自動開放及非 MVP 不擴充均不變。
+
+**接續旗標**：`USER_DECISION_REC_RECHECK_FOR_ENGINEERING=NOT_REQUIRED`；`REC_APPROVAL_DETERMINATION_OWNER=PI`；`REC_STATUS=NOT_INDEPENDENTLY_VERIFIED`；`LIVE_INTAKE_ENABLED=false`；`FORMAL_READY=false`；`MAIN_SYNC_VERIFIED=false`（未合併前）；`NEXT_ACTION=E1五項MVP技術阻塞與正式部署前驗收`。本節寫入原 PR 分支不代表 main／GAS／正式收件已同步。
