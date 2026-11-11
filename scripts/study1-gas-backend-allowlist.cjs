@@ -37,7 +37,7 @@ function assertClosedWebsite(source){
   "function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();",
   "HtmlService.createHtmlOutputFromFile('AdminConsole')",
   "study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified')",
-  "view==='demo'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
+  "view==='demo'){study1AdminOwnerRequired_();const t=HtmlService.createTemplateFromFile('Study1Visitor');t.flowMode='FORMAL';",
   "view==='team'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
   "HtmlService.createHtmlOutputFromFile('Index')",
   'function getPublicConfig(){return {open:false,consentReady:false',
@@ -340,12 +340,12 @@ function assertVisitorHtml(html){
     !html.includes('id="receiptId"')||
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand(envelope)')||
-    !html.includes('SIMULATED_SIGN_ONLY')||
-    !html.includes('不接受正式報名')||
+    !html.includes("document.body.dataset.siteMode!=='FORMAL'")||
+    !html.includes('study1ParticipantReadiness()')||
     !html.includes('<base target="_top">')||
-    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec')||
+    !html.includes('https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
-   throw Error('Visitor demo must remain participant-only, synthetic and without external scripts');
+   throw Error('Visitor formal entry contract failed: required closed-gated flow or isolation');
 }
 function assertTeamHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>')||
@@ -424,7 +424,7 @@ function assertTeamHtml(html){
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
     !html.includes('正式收件開關保持鎖定')||
-    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo')||
+    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=apply')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Research team UI must remain graphical, approved owner-only and CLOSED');
 }
