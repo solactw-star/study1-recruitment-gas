@@ -47,7 +47,7 @@ test('Closed initialization retains unrelated GAS properties',()=>{
 });
 test('The information-only HTML has no intake or external scripts',()=>{
   assert.match(html,/mailto:lily4318@cycu\.edu\.tw/);
-  assert.match(html,/href="\?view=apply"/);
+  assert.match(html,/exec\?view=apply/);
   assert.doesNotMatch(html,/<(?:form|textarea)\b/i);
   const inputs=[...html.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
   assert.equal(inputs.length,0);
@@ -73,8 +73,8 @@ test('Original source manifest is preserved for remote drift detection',()=>{
 test('§70-S public research introduction explains consent-last without any signature widget',()=>{
   assert.doesNotMatch(html,/id="consent"/);
   assert.doesNotMatch(html,/知情同意是報名最後的步驟/);
-  for(const word of ['href="?view=apply"','href="?view=apply"','href="?view=apply"',
-   'href="?view=apply"','href="?view=apply"']){
+  for(const word of ['id="apply"','id="about"','id="contact"',
+   '研究報名及線上知情同意尚未開放']){
    assert.ok(html.includes(word),'missing information-only flow '+word);
   }
   assert.doesNotMatch(html,/id="consentSignature"|id="consentSubmit"|initConsentPortal_/);
