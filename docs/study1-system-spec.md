@@ -1591,3 +1591,19 @@ D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權�
 **任務與排程要求**：後續每小時 E1 MVP 建置與人工修正均應先確認原 PR HEAD、main、唯一規格與競寫；一個完整功能一次提交（或無變更則不提交），提交後等待**該 HEAD** CI 結束並回讀實際測試數，只有 `completed/success` 可回報 `CI_PASS`。不再把前一 HEAD 通過當目前通過。不可因測試警示寄信而停用或遮蔽失敗；GitHub Email 通知偏好由使用者自行設定，非本任務更動。原 GAS 同 ID 同步／公開部署、正式研究資料、REC、main 合併及真人收件旗標不受本節授權。
 
 **接續狀態**：`TASK_DOMAIN=Study1_E1_PR133_CI_HYGIENE`；`SOURCE_PATH=.github/workflows/test.yml,package.json,scripts/study1-pr133-preflight.cjs,.githooks/pre-commit,README.md,docs/study1-system-spec.md`；`NEXT_ACTION=待本節同一新 HEAD CI 回讀完成，並對原每小時排程增量同步完整提交前預檢`；`MAIN_SYNC_VERIFIED=false`、`PUBLIC_SITE_UI_VERIFIED=false`、`LIVE_INTAKE_ENABLED=false`。
+
+
+### 70-S.31｜2026-11-11 使用者最新決策：E1 正式啟用優先，非關鍵測試不得成為工程進度硬阻塞
+
+**適用範圍與優先順序**：使用者最新明確指示：「如果對GAS系統建置沒有太大的影響，就跳過測試，目前最優先的事項是讓系統可以盡快正式啟用，所有不重要的阻礙都要想辦法排除或直接跳過。」本節對 §70-S.30 的「每次提交前一律先在完整本機工作樹執行 >=891 項全套預檢，否則不得提交」作範圍限定：不再把**所有**文件、文案、非關鍵 UI 或不涉及資料／權限／交易的低風險改動綁在完整本機預檢之上。這是工程作業優先順序調整，不是停用任何既有 CI、不代表安全檢查或正式驗收豁免。
+
+**立即集中五項 E1 MVP**：只在原 PR #133、原 gas/、原正式兩份 Sheets 與原 Script ID 上處理 (1) E1 自陳資格與報名、(2) OWNER 研究者先簽正式完整 PDF，上傳選用後參與者最後階段簽署及私人持久化／本人副本、(3) PI 核定 E1 真 Slots／Reservations 及一致性、(4) 真 Email OTP／通知和 Turnstile、(5) OWNER 後台存取與已簽 PDF 查詢下載。優先修補可由工程獨立完成的 Email Notifications 寄送狀態、PDF registry 12 筆／7500 字元容量瓶頸、舊第二簽 UI 收斂及部署前整合。排除重複整理、Demo、平行資料結構、非 MVP 模組、非關鍵外觀潤飾等事項；不可製造 PI 尚未核定的時段或正式簽署檔。
+
+**依風險分級驗證與提交**：
+- **低風險**：純規格、文案、只讀展示或不影響使用者資料及存取邊界的小幅非安全變更，可作最小 diff／內容／來源與競寫檢查後，直接在原 PR 分支提交；不以缺少完整本機工作樹或預先執行 891 測試作絕對阻擋。仍記錄提交 SHA、回讀範圍及其 HEAD CI 結果。
+- **高風險**：動到匿名／OWNER 權限、Email OTP、Turnstile、收件開關、個資 Sheets、原 Reservations、PDF 版本／簽名／ACL／SHA、資料庫遷移、GAS manifest／部署或可靠性交易的修改，至少須驗證直接受影響的安全與負向情境、失敗不寫入／未知狀態防重送、原來源一致性及回讀。沒有完整本機環境時可先使用 GitHub 既有工作流對新 HEAD 跑全部原測試，**不能以舊 HEAD 的 891 PASS 冒充修改後安全合格**；CI 實際 FAIL 或驗證不可得則阻止進一步正式部署／真人收件，持續修復真正阻塞，不能以跳過測試作為宣稱安全完成的依據。
+- **保留所有既有 CI**：`npm run verify:pr`、`.github/workflows/test.yml`、原 891 項以上測試與 pre-commit 可用性維持；不移除、略過、降低測試、隱藏失敗、設定 `continue-on-error` 或虛報 CI PASS。完整預檢仍屬優先選項，但**低風險提交前**不再是唯一准入路徑。每筆提交儘量一次完整的小範圍功能改動，記錄 SHA 及對應該 HEAD 的 CI；若新 HEAD CI 未完成，明列 `CI_PENDING` 而非合格。
+
+**正式上線的不可省略條件**：工程可以在未取得 PI/REC 進一步資料時完成非收件程式及關閉狀態發布準備；REC 核准適用性仍由 PI／研究行政負責，不由工程逐輪重查。唯實際開放真人 E1 報名仍須有 PI 核定真時段、適用 REC／PI 的正式確認、真正 Email/Turnstile 與 PDF／個資安全、GAS 版本及權限、實際公開與 OWNER UI 受控操作及明確開放授權。未具備時維持 `OPEN=false`、`CONSENT_READY=false`、私人 `MYSELF`、`FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`；E2 不自動開放。GitHub 程式提交、main、GAS 同 ID 同步／部署、真人啟用仍是不同授權，不因本節改變。
+
+**優先接續**：先查最新 HEAD、原正式資料與可操作的環境，從最可能阻止正式 E1 服務的安全持久化、通知、OWNER 功能開始，選擇與變更風險相稱的最短可信驗證，不要把無關測試或取得本機 ZIP 當作全部工程的先決條件。每輪明確回報完成、原 PR SHA、CI 及未驗證項、真正阻塞／責任人和下一最短行動。
