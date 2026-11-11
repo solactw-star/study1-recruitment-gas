@@ -649,7 +649,11 @@ function study1ConsentPublicRead_(experiment){
  * Google Drive is NOT a legally immutable/WORM evidence store.
  */
 const STUDY1_ECONSENT_REGISTRY_='STUDY1_ECONSENT_PRIVATE_V1';
-const STUDY1_ECONSENT_MAX_RECORDS_=12;
+const STUDY1_ECONSENT_MAX_RECORDS_=3000;
+const STUDY1_ECONSENT_LEGACY_MAX_RECORDS_=12;
+const STUDY1_ECONSENT_POINTER_V2_='STUDY1_ECONSENT_POINTER_V2';
+const STUDY1_ECONSENT_MIGRATE_APPROVED_='STUDY1_ECONSENT_MIGRATION_V2_APPROVED';
+const STUDY1_ECONSENT_MAX_BYTES_V2_=5000000;
 function study1EConsentHash_(value){
  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256,value)
  .map(b=>(b&255).toString(16).padStart(2,'0')).join('');
@@ -660,13 +664,17 @@ function study1EConsentEnabled_(){
   p.getProperty('STUDY1_ECONSENT_PROVIDER_VERIFIED')==='true';
 }
 function study1EConsentAvailability(){return {enabled:study1EConsentEnabled_()};}
-function study1EConsentRegistry_(){
- const raw=PropertiesService.getScriptProperties().getProperty(STUDY1_ECONSENT_REGISTRY_);
- if(!raw)return {schemaVersion:1,revision:0,records:[]};
- const r=JSON.parse(raw);
+/**
+ * E1 formal e-consent registry v2: immutable versioned JSON snapshots in the
+ * SAME original private consent Drive folder. Only a small SHA/HMAC protected
+ * pointer lives in Script Properties; the V1 property is retained byte-for-byte.
+ * Migration is opt-in and happens under the existing ScriptLock on first write.
+ * No live Sheet, PDF, event or sharing permissions are automatically changed.
+ */
+function study1EConsentValidateRegistry_(r,maxRecords){
  if(!r||r.schemaVersion!==1||!Number.isSafeInteger(r.revision)||
-  r.revision<1||!Array.isArray(r.records)||r.records.length>STUDY1_ECONSENT_MAX_RECORDS_||
-  new Set(r.records.map(x=>x.id)).size!==r.records.length)
+    r.revision<1||!Array.isArray(r.records)||r.records.length>maxRecords||
+    new Set(r.records.map(x=>x&&x.id)).size!==r.records.length)
   throw Error('電子同意紀錄索引不一致，已停止操作');
  for(const x of r.records){
   if(!x||typeof x.id!=='string'||!/^[-a-f0-9]{30,40}$/i.test(x.id)||
@@ -678,21 +686,157 @@ function study1EConsentRegistry_(){
    const event=x[kind];
    if(event!==null&&event!==undefined&&
     (typeof event.id!=='string'||!/^[A-Za-z0-9_-]{15,100}$/.test(event.id)||
-     !/^[a-f0-9]{64}$/.test(event.sha)))throw Error('電子同意證據來源不合法');
+     !/^[a-f0-9]{64}$/.test(event.sha)))
+    throw Error('電子同意證據來源不合法');
   }
  }
  return r;
 }
+function study1EConsentPointerV2_(raw,legacyRaw){
+ let p;
+ try{p=JSON.parse(raw);}catch(_){throw Error('E1_REGISTRY_V2_POINTER_INVALID');}
+ if(!p||Array.isArray(p)||typeof p!=='object'||
+    Object.keys(p).sort().join(',')!==
+     'fileId,hmac,legacySha256,revision,schemaVersion,sha256'||
+    p.schemaVersion!==2||!Number.isSafeInteger(p.revision)||
+    p.revision<1||typeof p.fileId!=='string'||
+    !/^[A-Za-z0-9_-]{15,150}$/.test(p.fileId)||
+    !/^[a-f0-9]{64}$/.test(p.sha256)||
+    !/^[a-f0-9]{64}$/.test(p.legacySha256)||
+    !/^[a-f0-9]{64}$/.test(p.hmac))
+  throw Error('E1_REGISTRY_V2_POINTER_INVALID');
+ if(study1EConsentHash_(legacyRaw||'')!==p.legacySha256)
+  throw Error('E1_REGISTRY_LEGACY_CHANGED_AFTER_MIGRATION');
+ const expected=study1BindingHmac_([
+  'STUDY1_ECONSENT_POINTER_V2',p.revision,p.fileId,p.sha256,
+  p.legacySha256]);
+ if(expected!==p.hmac)throw Error('E1_REGISTRY_V2_POINTER_HMAC_INVALID');
+ return p;
+}
+function study1EConsentReadV2_(p){
+ study1EConsentFolder_();
+ const file=DriveApp.getFileById(p.fileId);
+ if(!file||file.getSharingAccess()!==DriveApp.Access.PRIVATE||
+    file.getMimeType()!=='application/json'||
+    !Number.isSafeInteger(file.getSize())||
+    file.getSize()<50||file.getSize()>STUDY1_ECONSENT_MAX_BYTES_V2_)
+  throw Error('E1_REGISTRY_V2_PRIVATE_FILE_INVALID');
+ const parents=file.getParents();
+ let inside=false;
+ while(parents.hasNext()){
+  if(parents.next().getId()===STUDY1_CONSENT_DOC_FOLDER_)inside=true;
+ }
+ if(!inside)throw Error('E1_REGISTRY_V2_OUTSIDE_PRIVATE_FOLDER');
+ const bytes=file.getBlob().getBytes();
+ if(bytes.length!==file.getSize()||study1EConsentHash_(bytes)!==p.sha256)
+  throw Error('E1_REGISTRY_V2_SNAPSHOT_SHA_CHANGED');
+ const raw=file.getBlob().getDataAsString();
+ if(study1EConsentHash_(raw)!==p.sha256)
+  throw Error('E1_REGISTRY_V2_SNAPSHOT_TEXT_CHANGED');
+ let registry;
+ try{registry=JSON.parse(raw);}
+ catch(_){throw Error('E1_REGISTRY_V2_SNAPSHOT_INVALID');}
+ study1EConsentValidateRegistry_(registry,STUDY1_ECONSENT_MAX_RECORDS_);
+ if(registry.revision!==p.revision)
+  throw Error('E1_REGISTRY_V2_SNAPSHOT_REVISION_MISMATCH');
+ return registry;
+}
+function study1EConsentRegistry_(){
+ const props=PropertiesService.getScriptProperties();
+ const legacyRaw=props.getProperty(STUDY1_ECONSENT_REGISTRY_);
+ const pointerRaw=props.getProperty(STUDY1_ECONSENT_POINTER_V2_);
+ // Never silently fall back to an older snapshot if the v2 pointer exists.
+ if(pointerRaw!==null&&pointerRaw!==undefined){
+  const pointer=study1EConsentPointerV2_(pointerRaw,legacyRaw);
+  return study1EConsentReadV2_(pointer);
+ }
+ if(!legacyRaw)return {schemaVersion:1,revision:0,records:[]};
+ let r;
+ try{r=JSON.parse(legacyRaw);}
+ catch(_){throw Error('電子同意舊索引JSON損毀');}
+ return study1EConsentValidateRegistry_(r,STUDY1_ECONSENT_LEGACY_MAX_RECORDS_);
+}
+/**
+ * All authorized callers already hold the shared GAS ScriptLock.
+ * V2 commit point is one small Script Properties pointer write AFTER a full
+ * private file SHA/ACL/readback check. A thrown error after that commit is
+ * ambiguous: preserve the snapshot and signed files; the next read recovers.
+ */
 function study1EConsentWrite_(old,next){
- if(next.revision!==old.revision+1)throw Error('電子同意索引競寫');
- const p=PropertiesService.getScriptProperties();
+ if(next.revision!==old.revision+1||
+    next.schemaVersion!==1||!Array.isArray(next.records)||
+    next.records.length>STUDY1_ECONSENT_MAX_RECORDS_)
+  throw Error('電子同意索引版本或容量不合法');
+ // Reject malformed event references, duplicate IDs and invalid states BEFORE
+ // staging anything. Never point the authoritative index at unreadable bytes.
+ study1EConsentValidateRegistry_(next,STUDY1_ECONSENT_MAX_RECORDS_);
+ const lock=LockService.getScriptLock();
+ if(!lock||lock.hasLock()!==true)
+  throw Error('E1_REGISTRY_SHARED_LOCK_REQUIRED');
+ const props=PropertiesService.getScriptProperties();
+ const previous=study1EConsentRegistry_();
+ if(JSON.stringify(previous)!==JSON.stringify(old))
+  throw Error('電子同意索引遭其他作業變動');
+ const legacyRaw=props.getProperty(STUDY1_ECONSENT_REGISTRY_);
+ const pointerBefore=props.getProperty(STUDY1_ECONSENT_POINTER_V2_);
  const payload=JSON.stringify(next);
- if(payload.length>7500)throw Error('電子同意索引容量不足，停止收件');
- if(p.getProperty(STUDY1_ECONSENT_REGISTRY_)!==
-  (old.revision?JSON.stringify(old):null))throw Error('電子同意索引遭其他作業變動');
- p.setProperty(STUDY1_ECONSENT_REGISTRY_,payload);
- if(p.getProperty(STUDY1_ECONSENT_REGISTRY_)!==payload)
-  throw Error('電子同意索引寫後回讀失敗');
+ // All old tests and old installations remain on legacy storage until an
+ // explicit owner-controlled enablement; an existing V2 can never downgrade.
+ if(!pointerBefore&&
+    props.getProperty(STUDY1_ECONSENT_MIGRATE_APPROVED_)!=='true'){
+  if(next.records.length>STUDY1_ECONSENT_LEGACY_MAX_RECORDS_||
+     payload.length>7500)
+   throw Error('電子同意索引容量不足，停止收件');
+  if(props.getProperty(STUDY1_ECONSENT_REGISTRY_)!==
+     (old.revision?JSON.stringify(old):null))
+   throw Error('電子同意索引遭其他作業變動');
+  props.setProperty(STUDY1_ECONSENT_REGISTRY_,payload);
+  if(props.getProperty(STUDY1_ECONSENT_REGISTRY_)!==payload)
+   throw Error('電子同意索引寫後回讀失敗');
+  return next;
+ }
+ // V2 only when explicitly approved or already committed; never create a
+ // parallel authoritative Sheet or overwrite legacy evidence.
+ const blob=Utilities.newBlob(payload,'application/json');
+ const payloadBytes=blob.getBytes();
+ if(payloadBytes.length<50||
+    payloadBytes.length>STUDY1_ECONSENT_MAX_BYTES_V2_)
+  throw Error('E1_REGISTRY_V2_SNAPSHOT_CAPACITY');
+ const sha=study1EConsentHash_(payloadBytes);
+ const folder=study1EConsentFolder_();
+ const name='Study1_EConsent_RegistryV2_'+next.revision+'_'+sha.slice(0,16)+'.json';
+ const stored=folder.createFile(
+  Utilities.newBlob(payload,'application/json',name));
+ // Never auto-delete a snapshot on uncertain write; it may already be the
+ // authoritative pointer target following a partial server failure.
+ stored.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.VIEW);
+ if(stored.getSharingAccess()!==DriveApp.Access.PRIVATE||
+    stored.getMimeType()!=='application/json'||
+    stored.getSize()!==payloadBytes.length||
+    study1EConsentHash_(stored.getBlob().getBytes())!==sha||
+    study1EConsentHash_(stored.getBlob().getDataAsString())!==sha)
+  throw Error('E1_REGISTRY_V2_FILE_WRITEBACK_FAILED');
+ let parentVerified=false,parents=stored.getParents();
+ while(parents.hasNext()){
+  if(parents.next().getId()===STUDY1_CONSENT_DOC_FOLDER_)
+   parentVerified=true;
+ }
+ if(!parentVerified)throw Error('E1_REGISTRY_V2_FILE_PARENT_INVALID');
+ if(props.getProperty(STUDY1_ECONSENT_REGISTRY_)!==legacyRaw||
+    props.getProperty(STUDY1_ECONSENT_POINTER_V2_)!==pointerBefore)
+  throw Error('E1_REGISTRY_V2_CONCURRENT_POINTER_WRITE');
+ const legacySha256=study1EConsentHash_(legacyRaw||'');
+ const pointer={schemaVersion:2,revision:next.revision,
+  fileId:stored.getId(),sha256:sha,legacySha256};
+ pointer.hmac=study1BindingHmac_([
+  'STUDY1_ECONSENT_POINTER_V2',pointer.revision,pointer.fileId,
+  pointer.sha256,pointer.legacySha256]);
+ const ptrRaw=JSON.stringify(pointer);
+ if(ptrRaw.length>7500)throw Error('E1_REGISTRY_V2_POINTER_OVERFLOW');
+ props.setProperty(STUDY1_ECONSENT_POINTER_V2_,ptrRaw);
+ if(props.getProperty(STUDY1_ECONSENT_POINTER_V2_)!==ptrRaw||
+    JSON.stringify(study1EConsentRegistry_())!==payload)
+  throw Error('E1_REGISTRY_V2_COMMIT_READBACK_UNKNOWN');
  return next;
 }
 function study1EConsentFolder_(){
@@ -774,7 +918,11 @@ function study1EConsentChange_(id,fn){
    // might already be committed or a previously confirmed version.
    const stored=PropertiesService.getScriptProperties()
     .getProperty(STUDY1_ECONSENT_REGISTRY_);
-   if(after&&stored===JSON.stringify(r)){
+   // A V2 pointer might already have committed after a readback error.
+   // Never delete possibly referenced participant PDF/evidence in that case.
+   const v2Pointer=PropertiesService.getScriptProperties()
+    .getProperty(STUDY1_ECONSENT_POINTER_V2_);
+   if(after&&!v2Pointer&&stored===JSON.stringify(r)){
     for(const kind of ['explanation','signature','signedPdf','confirmation','withdrawal','disposition']){
      if(after[kind]&&!before[kind])try{
       DriveApp.getFileById(after[kind].id).setTrashed(true);

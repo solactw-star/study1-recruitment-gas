@@ -5283,7 +5283,7 @@ $('b12Search').addEventListener('input',b12Reset);
  let eConsentStaffRows=[],eConsentStaffBusy=false;
  const eConsentStaffStatus_=text=>{$('eConsentStaffStatus').textContent=text;};
  function eConsentStaffRender_(list){
-  if(!list||!Array.isArray(list.records)||list.records.length>12){
+  if(!list||!Array.isArray(list.records)||list.records.length>3000){
    eConsentStaffRows=[];return eConsentStaffStatus_('電子同意狀態來源無法核對，停止操作。');
   }
   eConsentStaffRows=list.records;

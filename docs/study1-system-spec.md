@@ -1607,3 +1607,14 @@ D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權�
 **正式上線的不可省略條件**：工程可以在未取得 PI/REC 進一步資料時完成非收件程式及關閉狀態發布準備；REC 核准適用性仍由 PI／研究行政負責，不由工程逐輪重查。唯實際開放真人 E1 報名仍須有 PI 核定真時段、適用 REC／PI 的正式確認、真正 Email/Turnstile 與 PDF／個資安全、GAS 版本及權限、實際公開與 OWNER UI 受控操作及明確開放授權。未具備時維持 `OPEN=false`、`CONSENT_READY=false`、私人 `MYSELF`、`FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`；E2 不自動開放。GitHub 程式提交、main、GAS 同 ID 同步／部署、真人啟用仍是不同授權，不因本節改變。
 
 **優先接續**：先查最新 HEAD、原正式資料與可操作的環境，從最可能阻止正式 E1 服務的安全持久化、通知、OWNER 功能開始，選擇與變更風險相稱的最短可信驗證，不要把無關測試或取得本機 ZIP 當作全部工程的先決條件。每輪明確回報完成、原 PR SHA、CI 及未驗證項、真正阻塞／責任人和下一最短行動。
+
+
+### 70-S.32｜2026-11-11 E1 PDF 電子同意索引 V2 安全可擴充儲存（程式功能；不代表已遷移正式資料）
+
+**目的**：保留原 `STUDY1_ECONSENT_PRIVATE_V1` Script Properties 索引及既有簽署／撤回／PDF SHA／稽核事件，解除 12 筆與 7,500 字元的容量瓶頸，**不建立新的正式 Sheet，不修改原個資同意 Sheet `ConsentRecords` 結構，不改原研究者預簽 PDF、GAS Script ID 或來源 ACL**。
+
+**原資料安全寫入**：新增同原私人 `STUDY1_CONSENT_DOC_FOLDER_` 資料夾內的版本化 JSON 快照；每次既有受 ScriptLock 保護的索引寫入，先在該資料夾建立完整新版本並核實 `PRIVATE` ACL、原父資料夾、MIME、大小、全文 SHA-256，再以 Script Properties 單一小型 `STUDY1_ECONSENT_POINTER_V2` 指標（檔案 ID、修訂版、SHA、舊索引 SHA 與伺服器 HMAC）完成提交，隨即重新讀取指標及快照核對。歷史版本保持私人且不自動刪除；遇競寫、無鎖、索引／ACL／SHA／HMAC 失效即拒絕操作，禁止回退讀取過期舊索引。正式容量設防護上限：最多 3,000 筆記錄、每份快照 5 MB；超限 fail closed，不代表無限容量。
+
+**保守遷移**：只有 OWNER 經實際原 GAS 安全驗證後，將 Script Properties `STUDY1_ECONSENT_MIGRATION_V2_APPROVED=true` 明確設為 true，才允許**下一次原有合格寫入時**將舊索引全部複製進 V2；本次 GitHub 提交不設定旗標、不執行正式資料遷移。尚未啟用時原 V1 全部保留，舊 12 筆／7,500 字元檢查繼續生效。一旦存在有效 V2 指標，不因移除旗標而降版；舊 V1 原始內容原封保留且每輪校驗 SHA，任何外部競寫都會被察覺並停止。若指標可能已提交但 GAS 回應不明，保留所有可能被引用的私人 PDF/事件檔，不自動清除或盲目重送。這是同一正式同意索引的 V2 儲存後端，不是另一份可獨立發放同意或招募資料的主檔。
+
+**驗證與使用限制**：新增針對 V1 相容、>12 筆擴充、鎖、CAS、HMAC、SHA、ACL、來源父目錄、資料未遺失、寫前失敗及指標提交後不確定狀態的合成負測；保留全部既有 CI。即便新版 HEAD CI 通過，`REGISTRY_V2_LIVE_MIGRATED=false`、`GAS_DEPLOYED=false`、`UI_VERIFIED=false`，直到原 GAS 同 ID 備份／版本／遠端 SHA/manifest/ACL、OWNER 受控實測與正式指標的獨立回讀完成。真人收件繼續 `OPEN=false`、`CONSENT_READY=false`，E2 不開放；依 §70-S.31 的風險分級不得把程式與 CI 成功冒充營運就緒。
