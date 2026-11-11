@@ -28,7 +28,8 @@ const approvedPublicFunctions = [
   'study1FormalV05Slots','study1FormalQuoteHold','study1FormalHoldSlot','study1FormalStatus','study1FormalWaitlistJoin','study1FormalWaitlistClaim','study1FormalCancel','study1FormalMove',
   'study1FormalConsentBegin','study1FormalConsentStatus','study1FormalConsentOriginalPdf',
   // OWNER only: direct original Slots read-only audit, no personal data or writes
-  'study1OwnerE1SlotAudit','study1OwnerE1SlotRegistryProposal'
+  'study1OwnerE1SlotAudit','study1OwnerE1SlotRegistryProposal',
+  'study1OwnerE1ConsentBookingAudit' // owner-authenticated, read-only original reservation status
 ].sort();
 
 test('all GAS source files expose only the reviewed closed-site global functions', () => {
@@ -61,6 +62,15 @@ test('all GAS source files expose only the reviewed closed-site global functions
   assert.match(audit,/study1AdminOwnerRequired_\(\)/);
   assert.match(audit,/bookingReadOnlyTab_\(/);
   assert.doesNotMatch(audit,/\b(?:setProperty|deleteProperty|appendRow|setValue|MailApp|GmailApp)\s*\(/);
+  // The additional OWNER-only E1 audit must never become an unauthenticated
+  // mutation or create an alternate reservation/status source.
+  const bookingSrc=fs.readFileSync(path.join(gasDir,'Study1FormalBooking.js'),'utf8');
+  const ownerAudit=bookingSrc.slice(bookingSrc.indexOf('function study1OwnerE1ConsentBookingAudit(){'));
+  assert.match(ownerAudit,/study1AdminOwnerRequired_\(\)/);
+  assert.match(ownerAudit,/study1FormalSnapshot_\(\)/);
+  assert.match(ownerAudit,/study1FormalValidateSnapshot_\(/);
+  assert.match(ownerAudit,/readOnly:true,source:'ORIGINAL_RESERVATIONS'/);
+  assert.doesNotMatch(ownerAudit,/\b(?:setProperty|deleteProperty|appendRow|setValues|MailApp|GmailApp)\s*\(/);
 
 });
 
