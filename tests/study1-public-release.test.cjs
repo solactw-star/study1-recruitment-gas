@@ -233,9 +233,9 @@ test('Official page presents complete owner-published source PDF, researcher Q&A
  const website=source('gas/Website.js');
  const admin=source('gas/AdminSandbox.js');
  // §70-S: public homepage is information only; no PDF signer or form belongs here.
- assert.match(index,/id="consent"/);
- assert.match(index,/知情同意是報名最後的步驟/);
- assert.match(index,/目前尚未開放線上簽署/);
+ assert.doesNotMatch(index,/id="consent"/);
+ assert.doesNotMatch(index,/知情同意是報名最後的步驟/);
+ assert.match(index,/href="\?view=apply"/);
  assert.doesNotMatch(index,/<(?:canvas|iframe|input|form|textarea)\\b/i);
  assert.doesNotMatch(index,/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/);
  assert.doesNotMatch(index,/initConsentPortal_/);
@@ -254,7 +254,7 @@ test('Official page presents complete owner-published source PDF, researcher Q&A
 test('The public-release gate rejects a changed consent boundary, missing approved PDF GET or unauthorized private file exposure',()=>{
  for(const mutate of [
   r=>{const idx=r.files.find(x=>x.name==='Index');
-   idx.source=idx.source.replace('知情同意是報名最後的步驟','首頁可直接簽署');},
+   idx.source=idx.source.replace('href="?view=apply"','href="?view=demo"');},
   r=>{const site=r.files.find(x=>x.name==='Website');site.source=site.source.replace(
    'return study1ConsentPublicRead_(experiment);','return DriveApp.getFileById(experiment);');},
   r=>{const admin=r.files.find(x=>x.name==='AdminSandbox');admin.source=admin.source.replace(
