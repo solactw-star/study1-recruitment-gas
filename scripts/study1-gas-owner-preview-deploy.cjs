@@ -121,6 +121,68 @@ function stableDeployments(list){
   scriptId:z.deploymentConfig?.scriptId}))
  .sort((a,b)=>a.id.localeCompare(b.id,'en'));
 }
+
+/** Deployment list may lag a matching GET-by-id. Only PRIVATE old-version lag is tolerated. */
+function classifyOwnerInventory_(baseline,live,targetVersion){
+ must(Array.isArray(baseline)&&Array.isArray(live),'deployment inventory malformed');
+ const current=stableDeployments(live),old=baseline.find(x=>x.id===PRIVATE_ID);
+ must(old&&baseline.filter(x=>x.id===PRIVATE_ID).length===1&&
+  old.scriptId===SCRIPT_ID&&Number.isInteger(old.version)&&
+  Number.isInteger(targetVersion)&&targetVersion>old.version,
+  'original private deployment baseline invalid');
+ must(current.length===baseline.length&&
+  new Set(current.map(x=>x.id)).size===current.length&&
+  new Set(baseline.map(x=>x.id)).size===baseline.length,
+  'deployment inventory has missing, extra or duplicate IDs');
+ let observed=null;
+ for(let i=0;i<baseline.length;i++){
+  const before=baseline[i],after=current[i];
+  must(before.id===after.id&&before.scriptId===after.scriptId,
+   'deployment inventory ID/script changed');
+  if(before.id===PRIVATE_ID){
+   must(after.version===old.version||after.version===targetVersion,
+    'private deployment unexpectedly changed to another version');
+   observed=after.version;
+  }else must(before.version===after.version,
+   'public or other deployment version changed');
+ }
+ return observed===targetVersion;
+}
+async function waitForOwnerInventory_(api,baseline,targetVersion,
+ attempts=20,pause=ms=>new Promise(resolve=>setTimeout(resolve,ms))){
+ must(Number.isInteger(attempts)&&attempts>=1&&attempts<=30,
+  'invalid inventory poll bound');
+ for(let i=0;i<attempts;i++){
+  if(classifyOwnerInventory_(baseline,await api.deployments(),targetVersion))
+   return true;
+  if(i+1<attempts)await pause(Math.min(2000,500+i*200));
+ }
+ throw Error('OWNER_PREVIEW_PRIVATE_INVENTORY_STALE: GET-only audit required; no blind retry');
+}
+/** Never roll back HEAD once putDeployment is attempted: rejected calls may still commit. */
+async function recoverOwnerPreview_(api,s,updateAttempted){
+ if(updateAttempted){
+  console.error('OWNER_PREVIEW_POST_DEPLOY_UNCERTAIN: no HEAD rollback or retry; GET-only audit required');
+  return 'POST_DEPLOY_READONLY_AUDIT_REQUIRED';
+ }
+ const live=await api.getContent(),hash=core.digest(live.files);
+ const dep=await api.getDeployment(PRIVATE_ID),inv=stableDeployments(await api.deployments());
+ if(JSON.stringify(dep)!==JSON.stringify(s.deployment)||
+    JSON.stringify(inv)!==JSON.stringify(s.deployments)){
+  console.error('OWNER_PREVIEW_RECOVERY_BLOCKED: deployment changed; no remote write');
+  return 'CONCURRENT_DEPLOYMENT_NO_MUTATION';
+ }
+ if(hash===s.originalSha)return 'ORIGINAL_HEAD_ALREADY_PRESENT';
+ if(hash!==s.desiredSha&&hash!==s.stageSha){
+  console.error('OWNER_PREVIEW_RECOVERY_BLOCKED: HEAD changed; no overwrite');
+  return 'UNEXPECTED_HEAD_NO_MUTATION';
+ }
+ await api.putContent(filesOf(s.original.files));
+ must(core.digest((await api.getContent()).files)===s.originalSha,
+  'pre-update HEAD restore readback mismatch');
+ console.error('OWNER_PREVIEW_FAIL_CLOSED: original HEAD restored before deployment update attempt');
+ return 'PRE_DEPLOY_HEAD_RESTORED';
+}
 async function prepare(api,sources){
  const original=await api.getContent();core.assertRemote(original);
  const deployed=await api.deployments();
@@ -172,7 +234,7 @@ async function apply(api,sources){
  const beforeList=await api.deployments();
  must(JSON.stringify(stableDeployments(beforeList))===JSON.stringify(s.deployments),
   'deployment inventory changed since prewrite backup');
- let begun=false,committed=false,version=null;
+ let begun=false,committed=false,version=null,updateAttempted=false;
  try{
   begun=true;
   await api.putContent(filesOf(desired));
@@ -198,6 +260,8 @@ async function apply(api,sources){
    'original private deployment was modified concurrently');
   must(JSON.stringify(stableDeployments(await api.deployments()))===
    JSON.stringify(s.deployments),'deployment inventory altered concurrently');
+  // Mark before await: a timeout can mean the update already committed.
+  updateAttempted=true;
   await api.putDeployment(PRIVATE_ID,{
     ...privateBefore.deploymentConfig,versionNumber:version.versionNumber});
   // GAS deployment API can be eventually consistent. The immediate GET may
@@ -207,11 +271,11 @@ async function apply(api,sources){
   core.deploymentCheck(after,PRIVATE_ID,version.versionNumber);
   must(core.deploymentCheck(after,PRIVATE_ID).url===s.oldUrl,
    'private original /exec URL altered');
-  const listAfter=stableDeployments(await api.deployments());
-  const expected=s.deployments.map(x=>x.id===PRIVATE_ID?
-    {...x,version:version.versionNumber}:x);
-  must(JSON.stringify(listAfter)===JSON.stringify(expected),
-   'public or other version deployment unexpectedly modified');
+  // Bounded GET-only convergence; any non-private drift still fails immediately.
+  await waitForOwnerInventory_(api,s.deployments,version.versionNumber);
+  const confirmed=await autoIndex.waitForVersion(api,PRIVATE_ID,version.versionNumber);
+  must(core.deploymentCheck(confirmed,PRIVATE_ID).url===s.oldUrl,
+   'post-inventory private URL altered');
   must(core.digest((await api.getVersion(version.versionNumber)).files)===s.stageSha,
    'deployed version readback failed');
   must(core.digest((await api.getContent()).files)===s.desiredSha,
@@ -226,24 +290,9 @@ async function apply(api,sources){
   console.log('UI_VERIFIED=NOT_VERIFIED (human browser required)');
  }finally{
   if(begun&&!committed){
-   // Never overwrite an unexpected concurrent writer.
-   try{
-    const live=await api.getContent();
-    const hash=core.digest(live.files);
-    const observed=await api.getDeployment(PRIVATE_ID);
-    const activeVersion=observed.deploymentConfig?.versionNumber;
-    if(activeVersion===version?.versionNumber){
-     // Private immutable release may already be live, even if the first
-     // readback was stale. Do not undo HEAD after successful deployment.
-     console.error('OWNER_PREVIEW_PARTIAL_VERIFY: owner version is live; run read-only audit before retrying');
-    }else if(activeVersion===s.oldVersion&&(hash===s.desiredSha||hash===s.stageSha)){
-     await api.putContent(filesOf(s.original.files));
-     must(core.digest((await api.getContent()).files)===s.originalSha,
-      'rollback readback mismatch');
-     console.error('OWNER_PREVIEW_FAIL_CLOSED: original GAS HEAD rolled back');
-    }else if(hash!==s.originalSha)
-     console.error('OWNER_PREVIEW_VERIFY_FAILED: unexpected concurrent HEAD; manual recovery from backup '+s.backup.id);
-   }catch(e){console.error('OWNER_PREVIEW_RECOVERY_BLOCKED: '+e.message);}
+   // No HEAD rollback after an attempted deployment update; do GET-only audit.
+   try{await recoverOwnerPreview_(api,s,updateAttempted);}
+   catch(e){console.error('OWNER_PREVIEW_RECOVERY_BLOCKED: '+e.message);}
   }
  }
  must(committed,'owner preview was not verified');
@@ -261,4 +310,5 @@ if(require.main===module)main().catch(err=>{
  console.error('OWNER_PREVIEW_DEPLOY_FAILED: '+err.message);
  process.exitCode=1;
 });
-module.exports={reviewSources,checkFrontEnd,merge,stagedOwnerOnly,privateTarget,stableDeployments};
+module.exports={reviewSources,checkFrontEnd,merge,stagedOwnerOnly,privateTarget,stableDeployments,
+ classifyOwnerInventory_,waitForOwnerInventory_,recoverOwnerPreview_};
