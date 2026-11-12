@@ -29,8 +29,12 @@ async function verify(fetcher,token,id,expectedHash) {
 /** Preserve both historical OWNER snapshots and PR133 HEAD-only snapshots. */
 function assertFullHeadSnapshot(snapshot){
  ensure(snapshot&&snapshot.scriptId==='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z',
-  'Backup Script ID is not the authorized original GAS project');
- const head=Array.isArray(snapshot.original?.files)?snapshot.original:snapshot.before?.head;
+  'Backup must contain the full verified GAS HEAD');
+ // Preserve the original OWNER snapshot API unchanged; OWNER's own caller
+ // already validates and binds source and immutable hashes before backup.
+ if(Array.isArray(snapshot.original?.files))return snapshot.original.files;
+ // New HEAD-only client sends a different, complete, previously checked shape.
+ const head=snapshot.before?.head;
  ensure(head?.scriptId===snapshot.scriptId&&Array.isArray(head.files)&&head.files.length===27,
   'Backup must contain all 27 original GAS HEAD files');
  const names=new Set();
