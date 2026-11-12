@@ -44,4 +44,19 @@ async function create(fetcher,token,snapshot) {
  ensure(typeof created.id==='string','Drive backup create did not return an ID');
  return verify(fetcher,token,created.id,hash);
 }
-module.exports={FOLDER,OWNER,sha256,verify,create};
+/** HEAD-only prewrite proof must be both byte-identical and strictly owner-only. */
+async function verifyPrivate(fetcher,token,id,expectedHash){
+ await verify(fetcher,token,id,expectedHash);
+ const base='https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id);
+ const fields='id,shared,parents,permissions(type,role,emailAddress),owners(emailAddress)';
+ const meta=await (await request(fetcher,token,base+'?fields='+encodeURIComponent(fields))).json();
+ ensure(meta.id===id&&meta.shared===false&&
+  Array.isArray(meta.parents)&&meta.parents.includes(FOLDER)&&
+  Array.isArray(meta.owners)&&meta.owners.some(o=>o.emailAddress===OWNER)&&
+  Array.isArray(meta.permissions)&&meta.permissions.length===1&&
+  meta.permissions[0].type==='user'&&meta.permissions[0].role==='owner'&&
+  meta.permissions[0].emailAddress===OWNER,
+  'HEAD backup ACL not strictly owner-only');
+ return {id,sha256:expectedHash,ownerOnly:true};
+}
+module.exports={FOLDER,OWNER,sha256,verify,verifyPrivate,create};

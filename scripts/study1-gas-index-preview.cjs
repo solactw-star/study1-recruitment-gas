@@ -107,6 +107,7 @@ async function authorizedApi(){
   return {
     backupToDrive:snapshot=>driveBackup.create(fetch,token,snapshot),
     verifyDriveBackup:(id,hash)=>driveBackup.verify(fetch,token,id,hash),
+    verifyDriveBackupPrivate:(id,hash)=>driveBackup.verifyPrivate(fetch,token,id,hash),
     getContent:()=>request('GET','/content'),
     getVersion:v=>request('GET','/content?versionNumber='+v),
     putContent:files=>request('PUT','/content',{files}),
