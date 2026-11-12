@@ -222,6 +222,23 @@ const closed=server=>{
  assert.equal(view.policy.consent.E1.approval,'PENDING');
  assert.equal(view.policy.consent.E2.approval,'PENDING');
 };
+test('OWNER fail-closed read-only diagnostic identifies derived-vs-top-level mismatch, never exports data',()=>{
+ const srv=server(),team=page(srv,'team'),original=srv.ctx.study1UnifiedPreviewGet;
+ const before=srv.writes;
+ srv.ctx.study1UnifiedPreviewGet=()=>{const x=original();x.waitlist.summary.total.total++;return x;};
+ team.click('refresh');
+ assert.match(team.get('status').textContent,/B03_WAITLIST_SUMMARY/);
+ assert.equal(team.get('saveModes').disabled,true);
+ assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=()=>{const x=original();x.recruitment.E1.year=2025;return x;};
+ team.click('refresh');
+ assert.match(team.get('status').textContent,/TOP_LEVEL_SHAPE_OR_SAFETY/);
+ assert.equal(srv.writes,before);
+ srv.ctx.study1UnifiedPreviewGet=original;team.click('refresh');
+ assert.equal(team.get('saveModes').disabled,false);
+ closed(srv);
+});
+
 test('Cross-page: E2 defaults to 2027 coming soon; owner GET loads GUI and visitor without writes',()=>{
  const s=server(),before=s.writes;
  const team=page(s,'team'),visitor=page(s,'visitor');

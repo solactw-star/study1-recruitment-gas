@@ -1121,7 +1121,10 @@ function teamWaitlistLabel_(e){
 }
 
 /* P1 B02/B03/B04 read-only participant reconciliation, same owner TEST source. */
+let b03LastReason_='NOT_CHECKED';
+function b03Reject_(code){b03LastReason_='B03_'+code;return null;}
 function b03CrossCheck_(d){
+ b03LastReason_='EVALUATING';
  if(!d||d.mode!=='TEST'||d.open!==false||d.consentReady!==false||
   d.formalPorts?.activated!==false||d.formalReadiness?.activationAllowed!==false||
   !Number.isSafeInteger(d.revision)||d.revision<0||
@@ -1134,7 +1137,9 @@ function b03CrossCheck_(d){
   !Array.isArray(d.waitlist.entries)||d.waitlist.entries.length!==d.waitlist.nextSeq||
   !d.waitlist.settings||!Array.isArray(d.waitlist.slotPolicies)||
   d.waitlist.slotPolicies.length!==d.slots.length||
-  (!teamWaitlistSummaryVerified_(d)||!teamPostCancelVerified_(d)))return null;
+  false)return b03Reject_('SHAPE_AND_DERIVED');
+ if(!teamWaitlistSummaryVerified_(d))return b03Reject_('WAITLIST_SUMMARY');
+ if(!teamPostCancelVerified_(d))return b03Reject_('POST_CANCEL_SUMMARY');
  const slots=new Map(),people=new Map();
  for(const s of d.slots){
   if(!s||typeof s.id!=='string'||!/^SIM-SLOT-E[12]-[A-Z]$/.test(s.id)||
@@ -1142,7 +1147,7 @@ function b03CrossCheck_(d){
    slots.has(s.id)||typeof s.when!=='string'||
    !/^20\d\d-\d\d-\d\d \d\d:\d\d$/.test(s.when)||
    !Number.isFinite(Date.parse(s.when.replace(' ','T')+':00+08:00'))||
-   !Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>20)return null;
+   !Number.isSafeInteger(s.capacity)||s.capacity<1||s.capacity>20)return b03Reject_('SLOT_SHAPE');
   slots.set(s.id,s);
  }
  /* Reconstruct owner-only synthetic scope policy from the same GET. Never trust
@@ -1156,20 +1161,20 @@ function b03CrossCheck_(d){
   !cfg.stages||Object.keys(cfg.stages).sort().join(',')!==stageKeys.sort().join(',')||
   stageKeys.some(k=>!['INHERIT','CLOSED','MANUAL_TEST'].includes(cfg.stages[k]))||
   !cfg.activities||typeof cfg.activities!=='object'||Array.isArray(cfg.activities)||
-  Object.keys(cfg.activities).length>8)return null;
+  Object.keys(cfg.activities).length>8)return b03Reject_('WAITLIST_SETTINGS');
  const stageByExp={E1:['SINGLE_SESSION'],
   E2:['PRETEST','INTERVENTION_8W','POSTTEST']};
  for(const [id,rule] of Object.entries(cfg.activities)){
   const slot=slots.get(id);
   if(!slot||!rule||Object.keys(rule).sort().join(',')!=='mode,stage'||
    !stageByExp[slot.experiment].includes(rule.stage)||
-   !['INHERIT','CLOSED','MANUAL_TEST'].includes(rule.mode))return null;
+   !['INHERIT','CLOSED','MANUAL_TEST'].includes(rule.mode))return b03Reject_('ACTIVITY_SETTINGS');
  }
  const policies=new Map();
  for(const item of d.waitlist.slotPolicies){
   const slot=slots.get(item?.slotId);
   if(!slot||policies.has(item.slotId)||item.experiment!==slot.experiment||
-   item.activity!==slot.id||item.mail!=='DISABLED'||item.approved!==false)return null;
+   item.activity!==slot.id||item.mail!=='DISABLED'||item.approved!==false)return b03Reject_('SLOT_POLICY_SHAPE');
   const activity=cfg.activities[slot.id],
    stage=activity?.stage||(slot.experiment==='E1'?'SINGLE_SESSION':null),
    stageMode=stage?cfg.stages[slot.experiment+':'+stage]:'CLOSED',
@@ -1179,12 +1184,12 @@ function b03CrossCheck_(d){
      activityMode!=='CLOSED';
   if(item.stage!==stage||item.experimentMode!==expMode||
    item.stageMode!==stageMode||item.activityMode!==activityMode||
-   item.mode!==(permitted?'MANUAL_TEST':'CLOSED'))return null;
+   item.mode!==(permitted?'MANUAL_TEST':'CLOSED'))return b03Reject_('SLOT_POLICY_DERIVATION');
   policies.set(item.slotId,item);
  }
- if(policies.size!==slots.size)return null;
+ if(policies.size!==slots.size)return b03Reject_('SLOT_POLICY_COUNT');
  for(const [id,m] of Object.entries(d.b02.sessions))
-  if(!slots.has(id)||!m||!['OPEN','CANCELLED','CLOSED'].includes(m.status))return null;
+  if(!slots.has(id)||!m||!['OPEN','CANCELLED','CLOSED'].includes(m.status))return b03Reject_('B02_SESSION');
  let booked=0,attended=0,completed=0;
  for(const a of d.applications){
   if(!a||typeof a.id!=='string'||!/^SIM-\d{3}$/.test(a.id)||people.has(a.id)||
@@ -1193,17 +1198,17 @@ function b03CrossCheck_(d){
    (a.slotId!==null&&(!slots.has(a.slotId)||slots.get(a.slotId).experiment!==a.experiment))||
    (['HELD','CONSENTED','CONFIRMED'].includes(a.phase)&&!a.slotId)||
    (['HELD','CONSENTED'].includes(a.phase)&&
-    (!Number.isSafeInteger(a.holdUntil)||a.holdUntil<=0)))return null;
+    (!Number.isSafeInteger(a.holdUntil)||a.holdUntil<=0)))return b03Reject_('APPLICATION');
   people.set(a.id,a);if(a.slotId)booked++;
  }
  for(const [id,a] of Object.entries(d.b02.attendance)){
   if(!people.has(id)||!people.get(id).slotId||!a||
    !['PENDING','PRESENT','LATE','ABSENT'].includes(a.attendance)||
-   !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(a.progress))return null;
+   !['NOT_STARTED','IN_PROGRESS','PARTIAL','COMPLETE'].includes(a.progress))return b03Reject_('B02_ATTENDANCE');
   if(a.attendance!=='PENDING')attended++;
   if(a.progress==='COMPLETE')completed++;
  }
- for(const id of Object.keys(d.b04.notes))if(!people.has(id))return null;
+ for(const id of Object.keys(d.b04.notes))if(!people.has(id))return b03Reject_('B04_NOTES');
  const seenWait=new Set(),activeWait=new Set();
  for(const [i,e] of d.waitlist.entries.entries()){
   const a=people.get(e?.id),slot=slots.get(e?.slotId);
@@ -1221,7 +1226,7 @@ function b03CrossCheck_(d){
    (e.status==='OWNER_CLOSED'&&(a.phase!=='VERIFIED'||e.offeredAt!==null||
     e.expiresAt!==null||!Number.isSafeInteger(e.closedAt)||
     e.closedAt<e.joinedAt))||
-    (['WAITING','OFFERED'].includes(e.status)&&policies.get(e.slotId)?.mode!=='MANUAL_TEST'))return null;
+    (['WAITING','OFFERED'].includes(e.status)&&policies.get(e.slotId)?.mode!=='MANUAL_TEST'))return b03Reject_('WAITLIST_ENTRY');
   seenWait.add(e.id);if(e.status==='OFFERED')activeWait.add(e.slotId);
  }
  // Bounded history: current fields must agree with the latest retained
@@ -1232,9 +1237,9 @@ function b03CrossCheck_(d){
   if(!h||!people.has(h.id)||!['adminNote','attendanceAndProgress'].includes(h.field)||
    h.actor!=='OWNER'||typeof h.at!=='string'||!Number.isFinite(Date.parse(h.at))||
    new Date(h.at).toISOString()!==h.at||h.at<b04At||
-   typeof h.before!=='string'||typeof h.after!=='string')return null;
+   typeof h.before!=='string'||typeof h.after!=='string')return b03Reject_('B04_EVENT');
   const key=h.id+'|'+h.field;
-  if(latestByField.has(key)&&latestByField.get(key)!==h.before)return null;
+  if(latestByField.has(key)&&latestByField.get(key)!==h.before)return b03Reject_('B04_EVENT_CHAIN');
   latestByField.set(key,h.after);b04At=h.at;
  }
  for(const [key,after] of latestByField){
@@ -1242,7 +1247,7 @@ function b03CrossCheck_(d){
   const item=d.b02.attendance[id],current=field==='adminNote'?
    (d.b04.notes[id]||''):(item?item.attendance+' / '+item.progress+
     (item.note?' / '+item.note:''):'PENDING / NOT_STARTED');
-  if(current!==after)return null;
+  if(current!==after)return b03Reject_('B04_CURRENT_MATCH');
  }
  let b02At='';
  for(const h of d.b02.history){
@@ -1250,19 +1255,21 @@ function b03CrossCheck_(d){
    !Array.isArray(h.ids)||!h.ids.length||h.ids.length>8||
    new Set(h.ids).size!==h.ids.length||typeof h.at!=='string'||
    !Number.isFinite(Date.parse(h.at))||new Date(h.at).toISOString()!==h.at||
-   h.at<b02At)return null;
+   h.at<b02At)return b03Reject_('B02_EVENT');
   b02At=h.at;
   if(h.action==='ATTEND'){
-   if(h.ids.length!==1||!people.has(h.ids[0])||!people.get(h.ids[0]).slotId)return null;
+   if(h.ids.length!==1||!people.has(h.ids[0])||!people.get(h.ids[0]).slotId)return b03Reject_('B02_ATTEND_EVENT');
   }else if(h.ids.some(id=>!slots.has(id))||
     new Set(h.ids.map(id=>slots.get(id).experiment)).size!==1||
     (['ADMIN_CLOSE','ADMIN_REOPEN'].includes(h.action)&&h.ids.length!==1)||
     (h.action==='CANCEL'&&h.ids.some(id=>d.b02.sessions[id]?.status!=='CANCELLED')))
-    return null;
+    return b03Reject_('B02_SLOT_EVENT');
  }
+ b03LastReason_='B03_OK';
  return {revision:d.revision,total:people.size,booked,attended,completed};
 }
 function render(data){
+ b03LastReason_='TOP_LEVEL_SHAPE_OR_SAFETY';
  if(!data||data.mode!=='TEST'||data.open!==false||data.consentReady!==false||
   !data.formalReadiness||data.formalReadiness.activationAllowed!==false||
   !data.recruitment||!data.recruitment.E1||!data.recruitment.E2||
@@ -1273,7 +1280,7 @@ function render(data){
   $('b03ReconcileStatus').textContent='跨頁來源或安全條件不一致；資料已清空。';$('waitlistRows').replaceChildren();$('waitlistStatus').textContent='候補來源不可信，已清空。';$('waitlistAdvance').disabled=true;
   $('waitPolicySave').disabled=true;$('waitPolicyStatus').textContent='候補分層來源矛盾，已停止設定。';cancelQueueClear_('來源或管理權限不可信，已清除取消場次核對清單。');profile.open=false;$('profileModule').hidden=true;$('teamMain').classList.remove('b04Open');$('profileSummary').replaceChildren();$('profileTabBody').replaceChildren();$('profileTimeline').replaceChildren();cancelHoldAsOf=null;model=null;b01Clear('管理權限或研究安全設定無法核實；研究摘要已清除。');calCancelReset_('安全來源或OWNER權限無法核實，取消預覽已清除。');calEditReset_('安全來源或OWNER權限無法核實，編輯預覽已清除。');b07Clear_('安全條件不符，B07行政準備資料已清除。');b01LayoutClear_('來源不安全，已清除本頁排列設定。');b10Clear_('B10來源或管理安全狀態無法核實，已停止顯示文件版本；B10拒絕顯示。',true);
   b11Clear_('管理權限或研究安全設定無法核實，B11草稿預覽已清空。');
-  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。',true);return false;
+  b09Clear_('管理權限或研究安全設定無法核實；B09報表已清空。');adminScopeClearAll_();setBusy(true);message('管理權限或研究安全設定無法核實，已拒絕操作。診斷：'+b03LastReason_,true);return false;
  }
  // Pin classification to the original locked GAS GET, not the browser clock.
  // Any hold crossing that cutoff afterward must trigger a fresh GET rather
