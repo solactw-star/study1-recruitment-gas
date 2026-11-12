@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   owner-preview:
-    if: github.event.repository.private
+    if: github.event.repository.private && github.event.head_commit.message == 'STUDY1-PR133-OWNER-DIAGNOSTIC-DEPLOY-ONCE-20261112'
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
@@ -25,6 +25,8 @@ jobs:
         env:
           REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
+          test "$GITHUB_EVENT_NAME" = "push"
+          test "$(git log -1 --format=%s)" = 'STUDY1-PR133-OWNER-DIAGNOSTIC-DEPLOY-ONCE-20261112'
           test "$GITHUB_REPOSITORY" = 'solactw-star/study1-recruitment-gas'
           test "$GITHUB_REF" = 'refs/heads/fix/consent-last-preserve-wizard-20261110'
           test "$REPO_PRIVATE" = 'true'
