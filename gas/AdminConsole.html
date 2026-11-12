@@ -126,6 +126,32 @@ select{font:inherit;width:100%;padding:9px;box-sizing:border-box;border:1px soli
 </div>
 <div id="status" role="status" aria-live="polite">確認研究室權限中……</div>
 </section>
+<section id="e1OwnerSlotAudit" aria-labelledby="e1OwnerSlotAuditTitle">
+<h2 id="e1OwnerSlotAuditTitle">E1 正式場次｜唯讀核定前查核</h2>
+<p>這裡讀取原營運工作簿 Slots 的實際場次並檢查既有簽章登錄，不會建立、分類、核定、移動或刪除正式場次。任何場次是否屬於 E1，仍須由研究主持人依正式時段與適用研究文件逐筆確認；本頁不會開放正式招募或簽署。</p>
+<button type="button" class="secondary" id="e1SlotAuditLoad">查核原 Slots 與 E1 登錄簽章（唯讀）</button>
+<p id="e1SlotAuditStatus" role="status" aria-live="polite">尚未核對原正式場次。合成 Demo 時段不能作為 E1 核定來源。</p>
+<div id="e1SlotAuditResults" class="booking-table-wrap" role="region" aria-label="E1原始時段唯讀查核結果" tabindex="0"></div>
+<p><small>即使全部列比對一致，也不等於 REC 網站適用、電子同意已核准、實際 GAS 部署或 UI 驗收。未完成正式安全條件，系統必須維持 OPEN=false、CONSENT_READY=false、MYSELF。</small></p>
+</section>
+
+<section aria-labelledby="staffPdfTitle" id="staffPdfDualSignature">
+ <h2 id="staffPdfTitle">FORMAL E1｜研究人員本人第二次 PDF 簽章（OWNER）</h2>
+ <p>僅對已經本人簽署的完整原版 PDF 做第二次簽章；必須有獨立有效 REC 遠端程序與研究員欄位頁碼／座標核定、原 HELD／OTP 綁定，以及私有保存查核。尚未核准時必須拒絕，不能以確認按鈕代替研究人員筆跡。</p>
+ <button type="button" class="secondary" id="staffPdfPendingLoad">唯讀查詢待研究員本人簽署的 E1 紀錄</button>
+ <label for="staffPdfPending">選定原同意紀錄與參與者簽署版 SHA</label>
+ <select id="staffPdfPending" disabled><option value="">尚未查核</option></select>
+ <label for="staffPdfNotes">研究員說明及確認註記（不包含診斷、身分證或詳細個資）</label>
+ <textarea id="staffPdfNotes" maxlength="1000" disabled></textarea>
+ <p><strong>研究人員本人手寫簽名</strong> — 會填入已核准原 PDF 研究人員簽名與日期欄，日期取伺服器 Asia/Taipei，不接受瀏覽器指定。</p>
+ <canvas id="staffPdfInk" width="580" height="155" style="display:block;width:100%;max-width:580px;height:155px;background:#fff;border:2px solid #678;touch-action:none" aria-label="研究人員本人手寫簽名畫布"></canvas>
+ <button type="button" class="secondary" id="staffPdfClear">清除本人筆跡</button>
+ <button type="button" id="staffPdfConfirm" disabled>本人簽署並產生完整雙簽 PDF（不能自動重送）</button>
+ <p id="staffPdfStatus" role="status" aria-live="polite">尚未取得正式待簽紀錄；不會操作真人資料或解除正式安全門檻。</p>
+ <button type="button" class="secondary" id="staffWithdrawalLoad">唯讀核對撤回後資料處置待辦</button>
+ <div id="staffWithdrawalResults" role="status" aria-live="polite">撤回後個資處置僅能由研究團隊依適用REC完成；本頁不自動刪除、去識別化或宣稱完成。</div>
+ <p><small>研究員確認後才可能交付參與者完整雙簽副本；撤回不代表研究資料已處置，仍須依 REC 及參與者意願另行辦理。</small></p>
+</section>
 <p><a href="?">返回公開研究資訊</a></p>
 </main>
 <script>
@@ -643,6 +669,184 @@ $('bookingMove').addEventListener('click',()=>changeBooking('MOVE'));
 $('bookingCancel').addEventListener('click',()=>changeBooking('CANCEL'));
 $('questionLoad').addEventListener('click',()=>loadQuestion());$('questionApply').addEventListener('click',applyQuestion);$('questionAdd').addEventListener('click',addQuestion);$('questionRemove').addEventListener('click',removeQuestion);
 $('slotLoad').addEventListener('click',()=>loadSlot());$('slotApply').addEventListener('click',applySlot);$('slotAdd').addEventListener('click',addSlot);$('slotRemove').addEventListener('click',removeSlot);
+
+function e1SlotOwnerAudit_(){
+ const btn=$('e1SlotAuditLoad'),result=$('e1SlotAuditResults');
+ btn.disabled=true;
+ $('e1SlotAuditStatus').textContent='正在以研究室 OWNER 權限唯讀核對原 Slots、表頭及場次 HMAC…';
+ result.replaceChildren();
+ const fail=e=>{
+  btn.disabled=false;
+  $('e1SlotAuditStatus').textContent='正式場次未能完整核實：'+String(e&&e.message||e);
+ };
+ google.script.run.withFailureHandler(fail).withSuccessHandler(data=>{
+  btn.disabled=false;
+  if(!data||data.mode!=='OWNER_ONLY_READ_ONLY'||
+     data.source!=='ORIGINAL_OPERATIONS_SLOTS'||!Array.isArray(data.rows)||
+     data.slotCount!==data.rows.length||data.formalReady!==false){
+   fail('未取得可信的唯讀核對結構');return;
+  }
+  $('e1SlotAuditStatus').textContent=
+   '原 Slots：'+data.slotCount+' 筆；既有登錄 E1 有效匹配：'+data.matchedE1Count+
+   ' 筆；登錄開關：'+(data.ownerRegistryApprovedFlag?'已設定':'未設定')+
+   '；原列／HMAC：'+(data.mappingVerified?'現有登錄一致（仍非正式啟用）':'尚未完整一致或未核定')+
+   '。遠端電子同意及整站正式啟用均尚未在本頁驗證。';
+  const table=document.createElement('table');
+  table.className='booking-table';
+  const head=document.createElement('thead'),hr=document.createElement('tr');
+  const columns=[['slotId','原場次ID'],['startAtUtc','開始時間 UTC'],
+   ['endAtUtc','結束時間 UTC'],['capacity','名額'],
+   ['locationCode','地點代碼'],['status','原狀態'],
+   ['registryExperiment','已登錄實驗'],['pinStatus','原列簽章']];
+  for(const [,name] of columns){
+   const th=document.createElement('th');th.textContent=name;hr.appendChild(th);
+  }
+  head.appendChild(hr);table.appendChild(head);
+  const body=document.createElement('tbody');
+  for(const row of data.rows){
+   const tr=document.createElement('tr');
+   for(const [key] of columns){
+    const td=document.createElement('td');td.textContent=String(row[key]??'');
+    tr.appendChild(td);
+   }
+   body.appendChild(tr);
+  }
+  table.appendChild(body);result.appendChild(table);
+ }).study1OwnerE1SlotAudit();
+}
+if($('e1SlotAuditLoad')&&typeof $('e1SlotAuditLoad').addEventListener==='function')
+ $('e1SlotAuditLoad').addEventListener('click',e1SlotOwnerAudit_);
+
+
+function staffPdfSetup_(){
+ const load=$('staffPdfPendingLoad'),choose=$('staffPdfPending'),
+  notes=$('staffPdfNotes'),canvas=$('staffPdfInk'),
+  statusBox=$('staffPdfStatus'),clear=$('staffPdfClear'),confirm=$('staffPdfConfirm');
+ if(!load||!choose||!notes||!canvas||!statusBox||!clear||!confirm||
+    typeof load.addEventListener!=='function'||typeof canvas.getContext!=='function')
+  return; // optional module must not interrupt the existing OWNER dashboard
+ const ctx=canvas.getContext('2d');if(!ctx)return;
+ let entries=[],ink=false,busy=false,stroke=false;
+ const blank=()=>{
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ink=false;confirm.disabled=true;
+ };
+ const ready=()=>{confirm.disabled=busy||!ink||!choose.value||!notes.value.trim();};
+ const xy=e=>{
+  const r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*canvas.width/r.width,
+    y:(e.clientY-r.top)*canvas.height/r.height};
+ };
+ ctx.strokeStyle='#122c39';ctx.lineWidth=3;ctx.lineCap='round';blank();
+ canvas.addEventListener('pointerdown',e=>{
+  if(busy||!choose.value)return;
+  stroke=true;const p=xy(e);ctx.beginPath();ctx.moveTo(p.x,p.y);
+  if(canvas.setPointerCapture)canvas.setPointerCapture(e.pointerId);
+ });
+ canvas.addEventListener('pointermove',e=>{
+  if(!stroke||busy)return;const p=xy(e);ctx.lineTo(p.x,p.y);ctx.stroke();
+  ink=true;ready();
+ });
+ for(const event of ['pointerup','pointercancel','pointerleave'])
+  canvas.addEventListener(event,()=>{stroke=false;});
+ clear.addEventListener('click',blank);
+ notes.addEventListener('input',ready);
+ choose.addEventListener('change',()=>{blank();ready();});
+ load.addEventListener('click',()=>{
+  if(busy)return;busy=true;load.disabled=true;
+  choose.disabled=true;notes.disabled=true;confirm.disabled=true;entries=[];
+  statusBox.textContent='正在以 OWNER 權限讀取原簽署索引（不回傳姓名或筆跡）…';
+  const fail=e=>{busy=false;load.disabled=false;
+   statusBox.textContent='尚未完成待簽索引查核：'+String(e&&e.message||e);};
+  google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{
+   busy=false;load.disabled=false;
+   if(!result||result.readOnly!==true||!Array.isArray(result.records)){
+    fail('研究人員簽章索引來源不可信');return;
+   }
+   entries=result.records.filter(x=>x.experiment==='E1'&&
+    typeof x.id==='string'&&/^[a-f0-9-]{30,40}$/i.test(x.id)&&
+    typeof x.participantSignedPdfSha256==='string'&&
+    /^[a-f0-9]{64}$/.test(x.participantSignedPdfSha256));
+   while(choose.firstChild)choose.removeChild(choose.firstChild);
+   const first=document.createElement('option');first.value='';
+   first.textContent='請選擇 E1 待簽紀錄';choose.appendChild(first);
+   for(const rec of entries){
+    const opt=document.createElement('option');opt.value=rec.id;
+    opt.textContent='E1 · '+rec.id+' · 已簽版 '+rec.participantSignedPdfSha256.slice(0,16)+'…';
+    choose.appendChild(opt);
+   }
+   choose.disabled=!entries.length;notes.disabled=!entries.length;blank();
+   statusBox.textContent=entries.length?
+    '已核對 '+entries.length+' 筆已簽但尚待研究員本人簽名的 E1 紀錄；正式來源與座標不核准時提交將拒絕。':
+    '目前沒有需要研究員第二次簽章的 E1 紀錄。';
+  }).study1EConsentOwnerPendingPdfConfirmations();
+ });
+ confirm.addEventListener('click',()=>{
+  if(busy||!ink||!notes.value.trim())return;
+  const selected=entries.find(x=>x.id===choose.value);if(!selected)return;
+  const image=canvas.toDataURL('image/png');
+  if(!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image)){
+   statusBox.textContent='研究人員本人筆跡格式驗證失敗，未提交';return;
+  }
+  busy=true;confirm.disabled=true;load.disabled=true;choose.disabled=true;
+  statusBox.textContent='正在核對原PDF、REC研究員欄位、OTP預約、本人筆跡及完整雙簽PDF SHA；不會自動重送…';
+  const fail=e=>{busy=false;load.disabled=false;choose.disabled=false;
+   statusBox.textContent='研究員第二次簽署尚未核定：'+String(e&&e.message||e)+'。請唯讀查核，不可直接重送。';};
+  google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{
+   busy=false;load.disabled=false;
+   if(!result||result.state!=='CONFIRMED'||result.experiment!=='E1'||
+     !/^[a-f0-9]{64}$/.test(result.signedPdfSha256||'')){
+    fail('完整雙簽PDF未取得可信SHA；禁止宣稱雙方確認');return;
+   }
+   const bookingOk=result.originalBookingConfirmed===true&&
+    result.originalBookingStatus==='CONFIRMED';
+   statusBox.textContent='完整線上雙簽PDF已保存及回讀：'+result.signedPdfSha256+
+    '；研究員臺灣簽名日：'+result.researcherTaipeiDate+
+    (bookingOk?
+     '；原Reservations已獨立核實CONFIRMED，線上簽署與正式預約完成。':
+     '；原Reservations尚未獨立核實CONFIRMED。須研究團隊依原預約紀錄人工處置；不得宣稱報名已成立，不可重送研究員PDF簽章。');
+   entries=[];choose.disabled=true;blank();
+  }).study1EConsentConfirmPdf({
+   id:selected.id,participantSignedSha256:selected.participantSignedPdfSha256,
+   researcherSignature:image.slice('data:image/png;base64,'.length),
+   notes:notes.value.trim()});
+ });
+}
+staffPdfSetup_();
+
+function staffWithdrawalSetup_(){
+ const button=$('staffWithdrawalLoad'),out=$('staffWithdrawalResults');
+ if(!button||!out||typeof button.addEventListener!=='function')return;
+ button.addEventListener('click',()=>{
+  button.disabled=true;out.textContent='正在以 OWNER 權限唯讀查核撤回存證…';
+  const fail=e=>{button.disabled=false;
+   out.textContent='撤回待辦查核未通過：'+String(e&&e.message||e);};
+  google.script.run.withFailureHandler(fail).withSuccessHandler(result=>{
+   button.disabled=false;
+   if(!result||result.readOnly!==true||!Array.isArray(result.records)){
+    fail('撤回來源未通過唯讀驗證');return;
+   }
+   while(out.firstChild)out.removeChild(out.firstChild);
+   if(!result.records.length){
+    out.textContent='目前沒有可由此模組核實的E1撤回待處置案件';return;
+   }
+   const list=document.createElement('ul');
+   for(const rec of result.records){
+    if(!rec||typeof rec.id!=='string'||
+       !['DESTROY','DEIDENTIFY','CONTACT_STAFF'].includes(rec.dataChoice))continue;
+    const li=document.createElement('li');
+    li.textContent=rec.id+'｜參與者資料處置意願：'+rec.dataChoice+
+      '｜目前狀態：'+rec.dispositionState+
+      '。此清單不會自動執行資料銷毀或去識別化。';
+    list.appendChild(li);
+   }
+   out.appendChild(list);
+  }).study1EConsentOwnerWithdrawalCases();
+ });
+}
+staffWithdrawalSetup_();
+
+
 reload();
 })();
 </script></body></html>

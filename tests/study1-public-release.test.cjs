@@ -29,6 +29,8 @@ const entries=[
  ['OtpTransaction','SERVER_JS','gas/OtpTransaction.js'],
  ['BookingHoldTransaction','SERVER_JS','gas/BookingHoldTransaction.js'],
  ['Study1FixtureAdapter','SERVER_JS','gas/Study1FixtureAdapter.js'],
+ ['Study1PdfLib','SERVER_JS','gas/Study1PdfLib.js'],
+ ['Study1PdfStampCore','SERVER_JS','gas/Study1PdfStampCore.js'],
  ['Study1Visitor','HTML','gas/Study1Visitor.html'],
  ['Study1Team','HTML','gas/Study1Team.html']
 ];
@@ -230,18 +232,16 @@ test('Official page presents complete owner-published source PDF, researcher Q&A
  const index=source('gas/Index.html');
  const website=source('gas/Website.js');
  const admin=source('gas/AdminSandbox.js');
- for(const id of ['consentExperiment','consentDocument','consentStatus','consentPdfViewer',
-  'consentDownload','consentDocumentHash','consentReadAck','consentAnsweredAck',
-  'consentAgreeAck','consentSigner','consentSignature','consentSubmit','consentWithdraw'])
-  assert.ok(index.includes('id="'+id+'"'),'missing formal consent component '+id);
- assert.match(index,/getPublicConsentDocument\(exp\)/);
- assert.match(index,/crypto\.subtle\.digest\('SHA-256',bytes\)/);
- assert.match(index,/consentEl\('consentSubmit'\)\.disabled=true/);
- assert.match(index,/URL\.revokeObjectURL\(consentBlobUrl\)/);
- assert.match(index,/readAsDataURL|canvas\.getContext\('2d'\)|consentCanvas\.getContext\('2d'\)/);
+ // §70-S: public homepage is information only; no PDF signer or form belongs here.
+ assert.doesNotMatch(index,/id="consent"/);
+ assert.doesNotMatch(index,/知情同意是報名最後的步驟/);
+ assert.match(index,/exec\?view=apply/);
+ assert.doesNotMatch(index,/<(?:canvas|iframe|input|form|textarea)\\b/i);
+ assert.doesNotMatch(index,/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/);
+ assert.doesNotMatch(index,/initConsentPortal_/);
  assert.doesNotMatch(index,/<(?:form|textarea)\b/i);
  const inputs=[...index.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
- assert.equal(inputs.length,4);assert.ok(inputs.every(x=>/\bdisabled\b/.test(x)));
+ assert.equal(inputs.length,0);
  assert.doesNotMatch(index,/localStorage|sessionStorage|\.sendBeacon\(|fetch\(/);
  assert.match(website,/function submitConsent\(\)\{return rejectIntake_\(\);\}/);
  assert.match(website,/function getPublicConsentDocument\(experiment\)\{return study1ConsentPublicRead_\(experiment\);\}/);
@@ -251,10 +251,10 @@ test('Official page presents complete owner-published source PDF, researcher Q&A
  assert.match(admin,/study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\);/);
  assert.doesNotThrow(()=>release.assertClosedPublicSources(remote()));
 });
-test('The public-release gate rejects a changed consent signer, missing approved PDF GET or unauthorized private file exposure',()=>{
+test('The public-release gate rejects a changed consent boundary, missing approved PDF GET or unauthorized private file exposure',()=>{
  for(const mutate of [
-  r=>{const idx=r.files.find(x=>x.name==='Index');idx.source=idx.source.replace(
-   "consentEl('consentSubmit').disabled=true;","consentEl('consentSubmit').disabled=false;");},
+  r=>{const idx=r.files.find(x=>x.name==='Index');
+   idx.source=idx.source.replace('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"','href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=demo"');},
   r=>{const site=r.files.find(x=>x.name==='Website');site.source=site.source.replace(
    'return study1ConsentPublicRead_(experiment);','return DriveApp.getFileById(experiment);');},
   r=>{const admin=r.files.find(x=>x.name==='AdminSandbox');admin.source=admin.source.replace(

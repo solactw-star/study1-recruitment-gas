@@ -22,11 +22,14 @@ test('Teacher DEMO runs the SAME Study1Unified E1/E2 eligibility, OTP, booking, 
  assert.match(html,/study1UnifiedPreviewCommand\(envelope\)/);
  assert.match(html,/SIMULATED_SIGN_ONLY/);
  assert.match(html,/demo\.study1@example\.invalid/);
- assert.doesNotMatch(html,/<input[^>]*type="email"/);
+ assert.match(html,/id="formalContact"[^>]*hidden/);
+ assert.match(html,/id="formalEmail"[^>]*disabled/);
+ const demoOnly=html.replace(/<div id="formalContact"[\s\S]*?<\/div>/,'');
+ assert.doesNotMatch(demoOnly,/<input[^>]*type="email"/);
 });
-test('The teacher-facing route requires owner identity and CLOSED flags; no real public booking endpoints are opened',()=>{
- assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);study1SandboxBookingFlags_\(\);/);
- assert.match(website,/HtmlService\.createHtmlOutputFromFile\('Study1Visitor'\)/);
+test('Deprecated demo route cannot publish the old test page; routes to owner-guarded formal while intake remains CLOSED',()=>{
+ assert.match(website,/view==='demo'\)\{study1AdminOwnerRequired_\(\);const t=HtmlService\.createTemplateFromFile\('Study1Visitor'\);/);
+ assert.doesNotMatch(website,/HtmlService\.createHtmlOutputFromFile\('Study1Visitor'\)/);
  for(const name of ['requestOtp','verifyOtp','holdSlot','submitConsent'])
   assert.match(website,new RegExp('function '+name+'\\(\\)\\{return rejectIntake_\\(\\);\\}'));
  assert.match(workflow,/'gas\/Study1Visitor\.html'/);
@@ -35,9 +38,9 @@ test('The teacher-facing route requires owner identity and CLOSED flags; no real
  assert.match(auto,/visitorHtmlSha256/);
 });
 test('Any external scripts, raw HTML injection, or missing signup flow fail DEMO deployment gate',()=>{
- assert.throws(()=>gate.assertVisitorHtml(html+'<script src="https://evil.example/x.js"></script>'),/Visitor demo/);
- assert.throws(()=>gate.assertVisitorHtml(html.replace('id="otpVerify"','id="missing-otp"')),/Visitor demo/);
- assert.throws(()=>gate.assertVisitorHtml(html+'<div onclick="window.fetch(1)"></div>'),/Visitor demo/);
+ assert.throws(()=>gate.assertVisitorHtml(html+'<script src="https://evil.example/x.js"></script>'),/Visitor formal entry contract/);
+ assert.throws(()=>gate.assertVisitorHtml(html.replace('id="otpVerify"','id="missing-otp"')),/Visitor formal entry contract/);
+ assert.throws(()=>gate.assertVisitorHtml(html+'<div onclick="window.fetch(1)"></div>'),/Visitor formal entry contract/);
 });
 
 test('Research-team enrollment presentation settings display E2 2027 as coming soon',()=>{
@@ -51,7 +54,7 @@ test('Research-team enrollment presentation settings display E2 2027 as coming s
 
 test('Participant navigation uses the original full /exec URL and GAS iframe-safe link target',()=>{
  assert.match(html,/<base target="_top">/);
- assert.match(html,/https:\/\/script\.google\.com\/macros\/s\/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s\/exec/);
+ assert.match(html,/https:\/\/script\.google\.com\/macros\/s\/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s\/exec/);
  assert.match(html,/target="_top"/);
 });
 
@@ -60,15 +63,18 @@ test('V06 last confirmation lists only synthetic research, Taiwan time, owner de
  assert.match(html,/id="v06Summary"/);
  for(const id of ['v06Study','v06Date','v06Time','v06Place','v06Email','v06Consent','v06Status'])
   assert.match(html,new RegExp('id="'+id+'"'));
- assert.match(html,/確認這筆虛構預約/);
- assert.match(html,/非REC正式電子簽署/);
+ assert.match(html,/資料正確，前往最後PDF與簽名步驟/);
+ assert.match(html,/尚未簽署；下一步才進入最後的知情同意/);
  assert.match(html,/demo\.study1@example\.invalid（不寄信）/);
  assert.match(html,/v06Preview_\(model,a\)/);
  assert.match(html,/v06Render_\(\)/);
- assert.doesNotMatch(html,/<input[^>]*type="email"/);
+ assert.match(html,/id="formalContact"[^>]*hidden/);
+ assert.match(html,/id="formalEmail"[^>]*disabled/);
+ const demoOnly=html.replace(/<div id="formalContact"[\s\S]*?<\/div>/,'');
+ assert.doesNotMatch(demoOnly,/<input[^>]*type="email"/);
 });
 
-test('V06 reservation confirmation requires a single consistent valid TEST slot and reviewed synthetic consent',()=>{
+test('V06 pre-signature review requires a single consistent verified HELD TEST slot before PDF consent',()=>{
  const vm=require('node:vm');
  const start=html.indexOf('function v06Preview_('),end=html.indexOf('function render(){',start);
  assert.ok(start>0&&end>start);
@@ -82,7 +88,7 @@ test('V06 reservation confirmation requires a single consistent valid TEST slot 
   policy:{consent:{E1:{version:'PENDING_REC_APPROVAL_E1',sha256:''}}},
   b02:{sessions:{}},slots:[{id:'SIM-SLOT-E1-A',experiment:'E1',when:'2027-01-05 10:00',
    remaining:0,bookable:true}]};
- const app={id:'SIM-001',experiment:'E1',phase:'CONSENTED',eligible:true,
+ const app={id:'SIM-001',experiment:'E1',phase:'HELD',eligible:true,
   signatureDemo:true,consentReviewedAt:now-10000,holdUntil:now+600000,holdExpired:false,
   consentVersion:'PENDING_REC_APPROVAL_E1',consentSha256:'',slotId:'SIM-SLOT-E1-A'};
  const context={safePreview:x=>x.mode==='TEST'&&x.open===false&&x.consentReady===false,
@@ -95,10 +101,10 @@ test('V06 reservation confirmation requires a single consistent valid TEST slot 
  assert.equal(summary.date,'2027-01-05');
  assert.equal(summary.time,'10:00（臺灣）');
  assert.match(summary.email,/example\.invalid/);
- assert.match(summary.consent,/非REC正式電子簽署/);
+ assert.match(summary.consent,/尚未簽署/);
  for(const invalid of [
   {...app,phase:'CONFIRMED'}, {...app,eligible:false},
-  {...app,signatureDemo:false}, {...app,consentReviewedAt:null},
+  {...app,phase:'CONSENTED'}, {...app,slotId:null},
   {...app,holdExpired:true}, {...app,holdUntil:now-1},
   {...app,consentVersion:'PENDING_WRONG'}, {...app,slotId:'SIM-NOT-A-SLOT'}
  ])assert.equal(context.v06Preview_(model,invalid),null,'unsafe application must not get confirmation');

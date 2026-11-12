@@ -1014,3 +1014,616 @@ P2待核：主要KPI與分母、報表欄位、通知提醒時間／次數、正
 - **§70-R GitHub與原私人GAS完整驗證**。原電子同意程式main CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42560295839 completed/success，727 PASS／0 FAIL；原GAS同一Script ID=1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z，私人版本化deployment原ID=AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s保持，原自動受保護工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42560295809 completed/success，PRIVATE V119→V122、備份ID=1jE0dhzDVg6OLT3ljuAUm7dtwANUzdi1r，SOURCE SHA256=0b1043e8183ca7206b8b6e548af151acd65a410c7ed450495ec755d43a0401a0，MYSELF、USER_ACCESSING、SYNC_VERIFIED=true。真人報名及有效簽署均未啟用。
 - **§70-R 公開部署阻塞修復及完成**。舊公開更新workflow https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42560402251 因部署版號競寫遭拒，不得視為成功。本輪沿用已存在的 PR #132（https://github.com/solactw-star/study1-recruitment-gas/pull/132），只增量修改原 scripts/study1-gas-public-release.cjs 與 tests/study1-public-release.test.cjs，限制舊版資訊延遲重讀只能是**確切備份前的版本**，不能認可未知第三方版號；失敗回復只允許回復自己寫入的版本，不得覆蓋競爭者的更新。PR合併前main=22838f642a795f123803def333391d9f6e571db3、ahead=5／behind=0、只改兩個原檔；PR完整CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42735469690 729 PASS／0 FAIL；squash main RELEASE_COMMIT=106b740c1069e50ed20c276e9c5a04b04b59fb03；合併後main完整CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42735689135 completed/success、729 PASS／0 FAIL。原受保護公開GAS工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42735688987 completed/success：原同GAS Script之公開 /exec 部署ID=AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s，版本V124、SHA256=0b1043e8183ca7206b8b6e548af151acd65a410c7ed450495ec755d43a0401a0，PUBLIC_INFO_RELEASE_VERIFIED=true；匿名首頁HTTP 200且 team/admin/demo/preview 未暴露私人管理HTML，私人有效 /exec 維持MYSELF、OPEN=false、CONSENT_READY=false、REAL_CONSENT_DISABLED=true。公開寫前原GAS私人完整備份 Drive ID=19bByGYAD0pUepvi0uxPJi2NtRPXeqA3l，獨立研究室Drive metadata回讀application/json、828564 bytes、shared=false、僅OWNER權限、parent=1O6j7PQWMNUbb_a6cWHegy7lBZPMQ0Hiu。
 - **§70-R跨對話接續**：TASK_DOMAIN=Study1 正式網站電子同意 P0；SOURCE_PATH=原唯一 docs/study1-system-spec.md §70-O～R、gas/Index.html、gas/Study1Team.html、gas/AdminSandbox.js、scripts/study1-gas-public-release.cjs；SOURCE_CODE_COMMIT=22838f642a795f123803def333391d9f6e571db3；SOURCE_RELEASE_COMMIT=106b740c1069e50ed20c276e9c5a04b04b59fb03；LAST_VERIFIED_STEP=main 729/729、原私人V122和公開V124安全回讀、私人寫前備份及匿名負測；COMPLETED=正式產品同意介面及受閘門保護的簽署／答疑／確認／副本／撤回程式、原GAS部署；BLOCKERS=人工確認最新REC適用同意書、實際上傳/選用/提供正式完整版PDF、實際 OWNER/第三方瀏覽器UAT、正式個資簽名安全可擴充持久化、單一PDF及不可改寫存證；WRITE_OWNER=原GitHub main與同ID原GAS；SYNC_STATUS=MAIN_SYNC_VERIFIED、GAS_PRIVATE_SYNC_VERIFIED、GAS_PUBLIC_READ_VERIFIED，本原唯一規格寫後需獨立回讀。FORMAL_READY=false；E_CONSENT_LIVE=false；USER_UAT_PASSED=NOT_VERIFIED。NEXT_ACTION=真人操作前先核實完整核准PDF版本，進行OWNER/第三方實際UAT及資料保護／副本形式驗收；不以CI取代實際簽署可用性。
+
+
+## §70-S｜2026-11-10 使用者最新決策：恢復並正式化 Step-by-Step 報名，知情同意與PDF實際簽署移至報名最後（優先於§70-O～R任何相牴觸的介面配置）
+
+**使用者明確指出的錯誤**：目前原公開首頁 gas/Index.html 在「報名說明／知情同意」區直接展示PDF與手寫簽名區，原逐步報名流程反而成為不可使用的封閉區，這不是把先前測試版升級成正式版。不得因使用者說「不要測試版／Demo」就刪除、繞過或替換原有逐步報名產品設計、已完成可用功能與資料結構。原 gas/Study1Visitor.html 仍保有 choose→screen→otp→slots→consent→confirm→done 七步、月曆／時段／預約／V08改期取消等既有程式，是正式版改造的**先行版本與回歸基準**，不是要直接刪除的廢棄頁。此新決策覆蓋§70-O～R將可簽署工作區放在公開說明首頁的舊設計；既有REC、權限、個資、開放閘門與核實規則不受放寬。
+
+### 70-S.1 最終參與者使用流程（同一原網站，不建平行正式站）
+
+1. **公開研究資訊首頁／選擇實驗**：說明研究與預計流程；可有一般權利、REC聯絡資訊及「開始報名」入口，**不得直接呈現可填寫的本人簽署畫布、簽署邀請碼或有效同意提交按鈕**。正式開放前可以顯示「尚未開放」，不得冒稱可收件。
+2. **獨立逐步報名容器**：沿用舊 visitor 先行版本的多步式導覽、返回、保留已核對狀態、手機與桌面操作、錯誤恢復；依序選實驗／資格初篩／必要資料與本人身分核對／電子信箱限時驗證（必要時跨裝置接續）／適用日期時段與容量／最後報名資料確認。不得只在首頁列出流程文字而不保留可真正實作的表單階段。
+3. **報名的最後互動階段才提供正式PDF及手寫簽名**：完成身分核對、必要研究人員說明與前置報名資料核對後，載入該實驗**實際經核准且OWNER選用／公開**的完整原版PDF，逐字顯示與可下載，固定原文件 ID／版號／SHA-256／頁數及文件身分。E1/E2分開版控；不可用首頁的通用可簽署區、抽象同意勾選、測試樣本／虛構PDF或從另一實驗借用文件取代。研究人員說明與答疑、可拒絕、閱讀確認、本人自願同意必須按適用REC核准程序落實，不能把「完成核身」誤寫為同意。
+4. **簽名落在PDF內指定參與者區塊**：在最後階段顯示滑鼠／觸控／觸控筆可用、可清除重簽的手寫簽名窗格；使用者按最終簽署後，將其本次筆跡PNG/等效簽名影像**嵌入該實驗原文件既有「研究參與者簽名」欄位**（不是只產生一張另附的圖片或獨立HTML收據），「簽署日期」自動填入其簽名當天的臺灣當地日期，不要求本人自行輸入；後端事件時間須可信且不可由瀏覽器任意偽造，展示日期採 Asia/Taipei，保留原始時間戳、時區及簽署者與版本關聯。未按下確認簽署不生成有效簽署紀錄；不得讓已簽名影像跨實驗、跨文件版號、跨申請人或跨次報名誤用。
+5. **原始PDF及簽署PDF分別保存**：原核准PDF位元組與SHA必須保持不變；嵌入簽名後必然生成**新的**簽署版PDF和其獨立SHA、版本／事件鏈，不能宣稱簽署版與未改寫原版有相同SHA。簽署版必須可在正確欄位看見手寫簽名與當天日期、重新開啟／下載後內容一致；可核對單次簽名與提交時間。
+6. **研究人員說明及簽署／確認、個人副本、撤回**：依最新有效REC所核准的角色與時序，保留研究人員事前說明與研究人員簽章／確認、二次核對、個人簽署版**完整PDF**安全取得／寄送（僅獲准且開放後）、撤回與版本歷程；不能以「原PDF＋另一張HTML/PDF收據」宣稱已交付完成版雙方簽名文件。實際簽署與後台審核分別稽核，失敗不得冒稱報名或同意成功。
+7. **最後確認／申請結果與後續預約操作**：完成必要簽署及確認條件後進入原有 V06/V07 結果頁；V05月曆容量、V08改期／取消／候補、B02／B03／B04歷程與資料模型繼續沿用並正式化。不因電子同意重構而移除先前已完成互動或讓原有預約資料遺失。
+
+**流程與既有代號的相容性**：歷史 V01=研究資訊、V02=報名資格、V03=郵件驗證、V04=電子同意、V05=月曆、V06=預約摘要、V07=申請結果、V08=預約管理 **代號保持原義**，但畫面呈現次序依最新決策改為「V01→V02→V03/本人核對→V05→V06資料核對→V04完整PDF與手寫簽署（最後的必填互動）→V07結果→V08管理」；不得因舊文件列V04在V05前而恢復錯誤次序。原 visitor 的內部 step-confirm 須調整為簽名前摘要，簽名後的最終結果不再要求先建成預約才簽。
+
+### 70-S.2 保留既有測試頁及資料成果的正式化遷移規範
+
+- 保留 gas/Study1Visitor.html、舊七步的工作流與安全測試作為**改造來源及回歸測試**，勿刪除舊檔、清除既有TEST資料、摧毀未受影響功能，亦勿另建與原GAS不同的正式專案。
+- 對照每個舊步驟／欄位／API／資料表／狀態碼／歷程與新正式步驟，一項一項升級：將虛構OTP替換真正安全驗證、模擬PDF替換選用REC原件、虛構時段模型接入受保護的實際營運資料、筆跡落到正式PDF參與者欄位，且不得直接把原合成假資料轉成真人或已核准簽署紀錄。
+- 程式合併與正式資料遷移分開授權；要先有備份、schema/ID映射、回歸測試及可重入復原方案，不得逕行刪除或覆寫。原有測試用資料作為開發測試環境資產保留，正式資料以核准來源建立，不能「把TEST改名LIVE」就視為正式。
+- 本次範圍優先恢復原逐步 UX，改正首頁簽署位置與PDF輸出，然後核實完整身分／時段／資料持久化／報名結果；非授權的GAS同步、部署、真人個資收取、REC文件變更或招募啟用均不附帶授權。
+
+### 70-S.3 必過UAT與未開放狀態
+
+- UAT-01 進入公開首頁**看不到可直接簽署的窗格／簽署碼**；可看研究介紹與報名入口。
+- UAT-02 在同一正式網站進入真正**可逐步前進與返回**的報名流程；確認研究選擇、資格、核身、信箱驗證、月曆時段與報名摘要完整存在，且功能不被新電子同意頁取代。
+- UAT-03 未核實本人與實驗／文件版本，不得直接跳到PDF簽署；繞過步驟、過期／錯誤憑證均fail closed。
+- UAT-04 經適用核准的隔離安全驗收可見E1/E2各自完整原始PDF、原SHA、版本；本人最後步驟簽名後**新的簽署PDF在正確本人欄位出現原筆跡，日期為當日臺灣日期**。跨日、重簽、清除、跨實驗、跨裝置失效都需測試。
+- UAT-05 簽署PDF保存後重新下載仍保留筆跡、日期、原始PDF引用及獨立SHA；研究人員後續確認與本人副本、撤回按核准程序可核對。不能以HTML收據加原PDF冒充UAT通過。
+- UAT-06 既有原 TEST wizard 的預約、候補、改期、取消和 B02/B03/B04 不應因改造回歸退化；既有測試資料不得擅自刪除或混入真人。
+- UAT-07 正式未啟用仍為 OPEN=false、CONSENT_READY=false、MYSELF、E2 2027年前不招募且屆時不自動開放；**不允許把「按鈕停用」認定為功能通過**。CI、程式合併、部署、瀏覽器UAT及REC正式核准須分開判定。
+
+### 70-S.4 版本／接續狀態
+
+- TASK_DOMAIN=Study1 原正式招募網站與電子知情同意UX重構；當次決策基準=2026-11-10使用者指出公開說明頁錯放簽署以及要求保留/正式化舊Step-by-Step頁；BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；READ_SOURCE=gas/Index.html、gas/Study1Visitor.html、docs/study1-system-spec.md §70-O～R；LAST_VERIFIED_STEP=兩份程式來源存在且流程差異已比對；NEXT_ACTION=在原程式增量恢復wizard且移動簽署至報名最後、真正PDF欄位嵌入與日期、隔離測試後依權責部署驗證；BLOCKERS=現行正式PDF核准/發布、REC電子程序、可持久化私有資料與身分驗證、完整可操作UI及GAS部署；WRITE_OWNER=GitHub原main＋原同ID GAS；MAIN_SYNC_VERIFIED=不得因本次規格PR冒稱；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false。
+
+
+### 70-S.5 本輪實際程式修復與限定完成狀態（2026-11-10）
+
+- **已修改原程式（隔離分支，非 main）**：原 gas/Index.html 的獨立簽署畫布、輸入與簽署RPC瀏覽器邏輯已撤出；公開首頁保留研究與知情同意程序說明，不能直接簽名。原 gas/Study1Visitor.html 七步程式與 V05 月曆、V08 候補/改期/取消均保留；將私有OWNER隔離測試的步驟改為 choose→screen→otp→slots→confirm（資料核對，不寫CONFIRM）→consent（最後階段PDF及手寫預覽）→done，先完成HELD摘要核對，才進入最後PDF與筆跡，既有TEST後端CONSENT→CONFIRM及來源CAS仍沿用。原 gas/Website.js 與原 scripts/study1-gas-index-preview.cjs、scripts/study1-gas-public-release.cjs 改為明確禁止公開首頁存在簽名畫布和任何表單欄位，不放寬原後台身份隔離及CLOSED收件。
+- **回歸證據**：原 GitHub PR #133（Draft）之 code HEAD 在新增本接續文字前為 `d8c7ef0fd3744f00eb19afdc126953031116665f`；原 PR 靜態安全工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42741708297 completed/success，**733 PASS／0 FAIL／0 SKIP**。原 B02/B03/B04/V05～V08共用回歸測試已更新為先按資料核對再進入同意流程，保留原數據與CAS負測；CI不等於瀏覽器UI或正式REC電子簽署。
+- **重要未完成項目（不可冒稱完成）**：目前這次程式修正只是**正式流程順序／資訊首頁位置／私有OWNER測試回歸**；原 Visitor 仍是TEST fixture及 `SIMULATED_SIGN_ONLY` 的受保護回歸程式，手寫筆跡僅本機預覽，不會回填到PDF，也沒有可信簽名日期、E1/E2實際發布核准PDF、正式身分／郵件核對或完整簽署PDF與獨立SHA的端到端驗證。因此 `E_CONSENT_PDF_EMBED_IMPLEMENTED=false`、`REAL_ENROLLMENT_IMPLEMENTED=false`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_READY=false`。下一個P0須在**同一原報名wizard**實作核准PDF的安全載入與SHA、簽名影像及可信臺灣日期落於參與者欄、產生獨立已簽PDF、研究人員簽署及本人副本、後端版本化事件與真實身分／時段連接；未核准不得對真人啟用。
+- **寫入／競寫界線**：本輪僅原GitHub隔離分支 `fix/consent-last-preserve-wizard-20261110` 的原路徑程式/測試/唯一規格更新，PR #133仍Draft、main 未修改，原GAS私人V122／公開V124是§70-R既有核實基準，**本輪未觸碰原GAS、部署、正式Sheets、REC、任何真人資料**。分支含 `scripts/study1-gas-public-release.cjs` 的必要安全規則變更，合併main可能觸發原部署工作流；**不得將PR自動合併／部署視為授權**。保持 `OPEN=false`、`CONSENT_READY=false`、`MYSELF`，E2不自動招募；正式GAS同步/部署須另核對最新main/遠端備份/競寫及明確權限後執行。
+
+
+### 70-S.6｜2026-11-10 E1/E2 PDF 原文SHA、簽名嵌入、臺灣日期、完整PDF副本的隔離分支增量實作
+
+TASK_DOMAIN=Study1 recruitment website / eConsent; WRITE_OWNER=original GitHub PR #133 (Draft) only; BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e.
+
+**已寫入原程式與回歸測試（PR分支，尚未main／GAS部署）**
+
+- 原 gas/Study1Visitor.html 最後的 step-consent 新增 E1/E2 正式原PDF唯讀核對區。僅在完成原七步流程中的HELD時段及資料核對後，才從原後台已明確發布的 getPublicConsentDocument(exp) 擷取實驗別原文；檢驗PDF檔頭、byte長度、版本、原SHA-256，並用瀏覽器 crypto.subtle.digest 重新計算SHA一致後才提供完整原文檢視及下載；時段或申請版本變動時撤銷舊來源。保留原七步、V05月曆、V08候補/改期/取消及B02/B03/B04。原唯讀RPC只可用於CLOSED正式資訊來源，尚非具真人核身後的正式報名讀取通道。
+- 新 gas/Study1PdfLib.js 是可離線執行的PDF合成函式庫，無CDN。來源由兩個公開鏡像交叉核對Git blob SHA=edb12c72cdaa11b608eb5967cf1531892b7f3b31；原MIT授權/待驗證供應鏈來源寫於原 docs/third-party/pdf-lib-license.md。正式部署前仍須查核發行包供應鏈和原Script版本大小。
+- 新 gas/Study1PdfStampCore.js 以伺服器 Date 與 Asia/Taipei 產生簽署當日yyyy/MM/dd；原核准PDF位元組及SHA不改，將PNG手寫筆跡與日期真正寫到PDF頁面指定位置，生成整份新PDF並計算獨立SHA及重開檔案驗證。必須由OWNER按REC正式原版核定頁次/欄位座標，並以該E1/E2實驗+版號+原文件SHA綁定唯一私有配置STUDY1_ECONSENT_APPROVED_PDF_LAYOUT_V1；缺失/錯頁/錯實驗/座標重疊一律fail closed，不根據檔名或範例臆造。
+- 原 gas/AdminSandbox.js 追加 study1EConsentSignPdf 及 study1EConsentSignedPdfCopy，基於原原始PDF/說明/邀請/實驗/到期/身分狀態檢查，另要求未開啟的PDF_PROVIDER_VERIFIED與WIZARD_LINK_VERIFIED雙閘門；已簽整份PDF寫入原研究室私人Drive，回讀ACL/檔案原位/完整SHA，原CAS紀錄簽名事件、台灣日期和新PDF SHA。研究人員另行確認後，本人以原token取回完整PDF，原study1EConsentCopy也擴充完整PDF欄位。舊獨立PNG-only簽署須LEGACY_SYNTHETIC_ONLY明確隔離測試旗標，不得作正式同意。原式未放寬收件OPEN、CONSENT_READY、MYSELF。
+- 測試包含合成E1/E2五頁完整PDF及PNG、原SHA與新SHA不同、日期跨臺灣午夜、頁碼/來源/座標/版號/來源索引負測、私有文件SHA回讀、研究人員確認後本人完整PDF、撤回保留原事件。CI：https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42745317658 於code HEAD=b9bfc43a280feb591c8543f02db66abd314df6a2 驗證 740 PASS / 0 FAIL / 0 SKIP。先前合成Drive iterator測試語法錯誤已更正，重跑確認。測試只用合成PDF和人造PNG，不是REC原PDF正式頁面實測。
+
+**獨立阻塞／禁止誤判**
+- REC_REVIEW_REQUIRED=true：Google Drive有多個E1/E2命名文件，但尚未依真正核准文件確認哪一份現行有效、電子同意形式、以及各版的PDF實際簽名日期欄座標。正式PDF簽名座標核定配置預設不存在；絕不自行把範例欄位放行。
+- REAL_WIZARD_SIGNING_NOT_INTEGRATED=true：原Visitor仍是PRIVATE OWNER TEST資料模型，最後TEST finish沿用SIMULATED_SIGN_ONLY；尚未連結真人身分、正式OTP、實際場次、同一申請與新的受保護正式PDF簽署事件，因此本輪是簽署引擎/存證/唯讀UI的實作，不是已可完成真人七步正式電子同意。WIZARD_LINK_VERIFIED只是要求核實的安全門檻，非目前具有真實連結的證據。
+- CI不可代替真人實機瀏覽器UI、PDF逐欄視覺核對、研究人員正式PDF簽章、REC批准、可擴充容量及不可改寫存證。FORMAL_READY=false; UI_VERIFIED=NOT_VERIFIED; MAIN_SYNC_VERIFIED=false; GAS_SYNC_VERIFIED=false; E_CONSENT_LIVE=false。
+- 本輪未合併main、未同步/部署GAS、未改REC、正式研究Sheets或真人個資。由於分支包含原GAS同步與public-release管控規則，PR合併main有可能觸發未授權發布，必須等獨立代碼/競寫/遠端備份/安全發布授權完成。OPEN=false，CONSENT_READY=false，原私人MYSELF，實驗二不自動開放。
+
+NEXT_ACTION=人工核實現行REC的E1/E2原PDF、頁數和簽名/日期框並綁定SHA；接續原Visitor的真人身分與驗證、後端申請/場次、完整PDF簽署RPC與研究人員簽章，完成私人瀏覽器UAT及下載後視覺/雜湊驗證。禁止以目前合成CI成果宣稱可正式收件。
+
+
+### 70-S.7｜2026-11-10 本輪接續：原七步最後階段的完整已簽署PDF本人副本驗證
+
+**增量程式**：在原 `gas/Study1Visitor.html` 的最後 `step-consent`，沿用前輪新增的E1/E2已發布原版PDF、版本與SHA-256驗證，以及原手寫Canvas。新增 `officialSignedPdfResult` 區及 `officialSignedPdfVerify_`／`officialSignedPdfDisplay_`／`officialSignedPdfReset_`：只接受與同一個已核對原PDF、實驗別、版本及來源SHA一致的完整簽署版 `application/pdf`；重新以瀏覽器SHA-256計算新檔位元組，確認不同於原SHA，檢查伺服器UTC ISO時間映射至 `Asia/Taipei` 的日期後，才生成可下載Blob；預約/文件/報名指紋變動或離開有效流程時撤銷舊Blob。原版PDF、原V05/V06/V07/V08、B02/B03/B04與7步架構保留，沒有新增對外開放的簽名RPC或假冒真人簽名。
+
+**可重現測試**：`tests/study1-signed-pdf-wizard-readback.test.cjs` 以E1/E2合成PDF回覆測試SHA與下載契約、跨實驗、錯誤版本、原始SHA不符、新SHA遭竄改、錯誤長度/PDF檔頭、伺服器時間與臺灣日期不一致，以及同一報名指紋篡改後拒絕交付。最新回讀原PR隔離分支 code SHA `6ad23b63a84354fa3fc464c53b5c3ec12ac404ed`，GitHub CI `42747827731` completed/success、**745 PASS／0 FAIL／0 SKIP**，與先前E1/E2五頁合成PDF的伺服器蓋章、私人Drive回讀測試相容。此為封閉測試證據，**不等於真實瀏覽器UI、實際REC PDF視覺核對或合法電子同意**。
+
+**仍未整合與不得冒稱**：目前 `officialSignedPdfDisplay_` 是已測試的**接收／校驗／交付元件**，尚未被具真實身分及本人申請綁定的簽署交易呼叫；原Visitor仍是 `SIMULATED_SIGN_ONLY` 的OWNER TEST，不能呼叫正式 `study1EConsentSignPdf`，不能用原TEST OTP作本人驗證，也不能把本機筆跡當成有效同意。實驗一／實驗二現行有效REC核准PDF、原始版號及簽名／日期實際座標仍待正式核實，OWNER必須以各PDF原SHA唯一綁定頁面定位；研究人員實際簽名、真人資料安全持久化與參與者副本身分權限尚未完成。**E_CONSENT_ENGINE_SYNTHETIC_TEST_VERIFIED=true、SIGNED_PDF_CLIENT_VALIDATOR_TEST_VERIFIED=true、WIZARD_REAL_IDENTITY_BINDING_VERIFIED=false、REAL_WIZARD_SIGNING_NOT_INTEGRATED=true、REC_REVIEW_REQUIRED=true、MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=NOT_VERIFIED、FORMAL_READY=false。** 本輪未更改原GAS或REC，亦未啟用收件。NEXT_ACTION=在原受保護報名後端建立實際身分/時段/版號/簽署邀請的可信連結與正式簽署交易及完整本人副本交付，經REC核准和獨立安全驗收後才能開啟。
+
+
+### 70-S.8｜2026-11-10 後端本人身分／OTP／申請／時段／PDF唯一綁定（安全核心，真人來源接線未核准）
+
+**最新正式來源表頭的唯讀核實**：原個資/同意Sheet ID=1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI。Applicants依序為 applicant_id,name,email,phone,created_at_utc,updated_at_utc,status；Screenings為 screening_id,applicant_id,rules_version,eligibility_result,screened_at_utc,verified_by；Verification為 challenge_id,applicant_id,purpose,otp_hmac,expires_at_utc,attempts,used_at_utc,email,created_at_utc；ConsentRecords為 consent_id,applicant_id,reservation_id,pdf_template_version,pre_signed_template_sha256,signed_pdf_file_id,signed_pdf_sha256,signed_at_utc,status。原時段/營運Sheet ID=1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ；Slots表頭為 slot_id,start_at_utc,end_at_utc,capacity,location_code,status,created_by,updated_at_utc；Reservations表頭為 reservation_id,applicant_id,slot_id,status,hold_until_utc,idempotency_key,created_at_utc,confirmed_at_utc,cancelled_at_utc,updated_at_utc。只讀取metadata與表頭，**沒有讀取或改寫真人個資列**。已確認Applicants/Screenings表頭沒有獨立的本人身分核對證據、適用E1/E2實驗授權來源。OTP只能證明電子郵件控制權，不等於經REC核准的本人身分核對。
+
+**原PR #133隔離分支的程式實作**：
+1. 新增原gas目錄 Study1EConsentBinding.js（私有server kernel），嚴格比對已核實的五種來源schema、唯一applicantId、獨立REC身分和實驗別證據、資格初篩、已在有效期內一次性用過的OTP challenge、同一筆有效HELD reservation及slot、E1/E2對應原PDF版號與SHA。以伺服器私有HMAC金鑰簽署來源綁定；原全域Script鎖內讀取、CAS簽發、同人同預約不得重複邀請；簽署前及簽署PDF事件寫入的CAS鎖內，再次核對同一份身份、OTP、場次及文件。虛構SIM ID、失效OTP、取消/過期預約、跨實驗、錯版號/文件SHA、重複列、稀疏資料、競寫一律fail closed。
+2. 原 gas/AdminSandbox.js 的實驗別-only study1EConsentIssue 僅限明確指定舊LEGACY_SYNTHETIC_ONLY的隔離測試，不能取得正式簽署能力。study1EConsentSignPdf 要求持有真正的entry.binding，呼叫 study1BindingRecheck_ 檢查可信来源，並在受鎖的Drive/CAS寫入前再次核對；不允許僅靠token與client提供的身份欄位。即使測試者把全部原簽署開關設true，舊無綁定邀請也不能產生正式已簽PDF。新的內部 study1EConsentIssueBound_ 尚未對外提供可用RPC，且強制OWNER與共用交易鎖。
+3. scripts/study1-gas-backend-allowlist.cjs 已增列新私有GAS檔案，原其餘白名單、原Study1Visitor.html七步、V05月曆、V08候補／改期／取消及B02/B03/B04模型維持原有權限與程式，沒有刪除。
+
+**合成/負面/並發驗證**：新增 tests/study1-econsent-binding.test.cjs，涵蓋跨來源身分匹配、OTP未消耗/過期、資格錯誤、錯申請者email、預約取消/過期/跨Slot、跨實驗、文件SHA/版號錯誤、HMAC竄改、重複發邀請、兩請求共用鎖、來源重新讀取競寫、缺欄或稀疏資料。先前獨立合成PDF/私人Drive簽署回讀測試改為經內部合成可信來源通過綁定後才呼叫實際PDF簽署引擎。新增舊未綁定邀請不能簽署的旗標負測。最新修復code SHA=bc8264dea1e8323b2ae8a5c62d970d8e17d8b736；GitHub CI=https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42749762268 完成 **753 PASS／0 FAIL／0 SKIP**。這是合成來源與原程式回歸，不是正式REC原件或真人UI驗收。
+
+**不得冒稱已完成的獨立阻塞**：真人版身份及實驗別權責來源仍未核准，study1EConsentBindingAdapter_ 特意throw REC_REVIEW_REQUIRED；原網站Visitor仍為OWNER TEST、SIMULATED_SIGN_ONLY，未把真人登入核身/正式OTP/預約/文件綁定到實際可供參與者使用的簽署RPC。現有Sheet缺獨立REC核身證據欄、缺經核准E1/E2連結；必須核對REC目前有效程序後，才可決定唯一正式來源/實驗別/身分核對方法，不得直接建新欄或把測試資料充作真人。REC_REVIEW_REQUIRED=true；LIVE_REC_IDENTITY_ADAPTER=BLOCKED；BINDING_CORE_SYNTHETIC_CI_VERIFIED=true；REAL_WIZARD_IDENTITY_LINK_VERIFIED=false；REAL_WIZARD_SIGNING_NOT_INTEGRATED=true；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false。本輪僅修改原PR Draft安全隔離分支，未合併main、未修改GAS、REC、正式Sheet、真人資料或開放E2。維持OPEN=false、CONSENT_READY=false、MYSELF。
+
+NEXT_ACTION=取得最新有效REC批准之本人核身/電子同意形式及E1/E2實驗別授權來源；核定適用真人身分憑證的唯一正式寫入與保存權責，實作真實OTP與預約共鎖持久化readback及完整後端接線；在原七步最後一階段完成研究人員確認、已簽PDF本人副本、實際瀏覽器UI與REC原件欄位視覺驗收。程式CI和測試fixture不可取代安全門檻。
+
+
+### 70-S.9｜2026-11-10 原正式Sheets限縮讀取、OTP實際交易介接與報名／預約／PDF來源核驗（隔離分支）
+
+TASK_DOMAIN=Study1 招募網站P0：本人OTP、申請ID、時段與E1/E2 PDF安全綁定。WRITE_OWNER=原GitHub Draft PR #133；唯一正式主規格仍為docs/study1-system-spec.md。BASE_MAIN=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；程式CI基準HEAD=04e768cc9d0f68e84cf196e73f9b400cbfcee949。
+
+**正式資料表重新回讀（僅metadata/表頭，無個資資料列）**：原Sheet personal=1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI／operations=1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ，最新存在原Applicants/Screenings/Verification/ConsentRecords/Reservations/Slots及既有已核實表頭；並未找到額外可證實「本人真實核身與E1/E2實驗別授權」的正式欄位或來源。嚴禁僅以郵件OTP或本人輸入姓名推定REC已核准的真人身份及實驗資格。
+
+**已寫入原GAS程式路徑（PR Draft，並非GAS部署）**：
+- gas/Study1EConsentBinding.js：新增原ID定位的正式Google Sheets只讀介接。先要求原OWNER與 OPEN、CONSENT_READY、簽署引擎／PDF／Wizard、REC身分來源及正式Sheets各獨立批准旗標，再從獨立study1EConsentIdentityAttestation_取得不可由瀏覽器提供的核身／實驗別證據；該權責來源尚不存在，因此原函式明確拒絕並且**在未核准時不會開啟正式Sheets**。批准後才依原SITE_RESOURCES_唯一Sheet ID，逐表頭及A欄精確ID定位，只讀同一applicant/screening/challenge/reservation/slot五筆必要資料、不全表掃個資；UTC、實驗別、OTP已使用、HELD、PDF原SHA與版號使用原study1BindingVerify_；原HMAC仍綁定同一組證據，核發時持原ScriptLock，簽署PDF組裝前及實際私人Drive/CAS存證前以同一交易鎖重新核驗。
+- 新增 gas/Study1EConsentOtpAdapter.js（僅私有函式，沒有公開RPC），使用原OtpCore、OtpThrottle與OtpTransaction一次性OTP/HMAC及每帳號跨challenge節流：其 REC核准申請者／實驗別來源 study1EConsentOtpApplicantAuthorization_ 未授權時直接拒絕。需原身分/Sheet守門全部通過及額外獨立的 STUDY1_ECONSENT_OTP_VERIFY_APPROVED=true 才可執行；原Verification按challenge ID、applicant ID、email做受限索引及精確表頭驗證，保留真實row number供原OTP kernel使用，不讀其他人完整資料列。受原全域LockService鎖保護，正確OTP只准原Verification F:G相鄰二欄原地更新，寫前讀回、SpreadsheetApp.flush後讀回，鎖、次數、已使用/逾期、帳戶節流、寫入或回讀任一失敗不得標記驗證成功。**目前兩個REC權責來源均刻意維持未接線，且原OPEN/CONSENT_READY=false；本輪沒有實際讀寫真人報名資料。**
+- gas/AdminSandbox.js已要求正式同意PDF簽署的原OTP／申請／時段／文件重新核對在共同鎖下執行；原 scripts/study1-gas-backend-allowlist.cjs 與既有GAS部署安全測試均增列兩個原目錄私有程式檔，不放寬原Website.js公開入口及原七步Study1Visitor.html、V05/V08、B02/B03/B04模型。
+
+**完整合成負面／競寫／重送測試**：新增 tests/study1-econsent-sheet-adapter.test.cjs，驗證正式表頭、來源ID限縮讀取、真人身份權責阻塞、唯一ID、跨實驗、不符來源、稀疏欄、重複列、核准中途撤銷及共鎖重複邀請；新增 tests/study1-econsent-otp-adapter.test.cjs，驗證原八碼OTP HMAC、跨challenge帳號節流、成功只能使用一次、同一F:G寫入與flush/回讀、重播拒絕、錯誤代碼與帳號冒用、跨E1/E2、重複challenge、鎖競爭、來源突變與寫後狀態不明、OTP寫入權限獨立限制。使用100%合成私人Node VM模擬；無真人資料或GAS網路作業。最新CI：https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42752218442，HEAD=04e768cc9d0f68e84cf196e73f9b400cbfcee949，**768 PASS／0 FAIL／0 SKIP**；該次CI不代表正式REC／UI驗收。
+
+**不可冒稱已正式完成**：目前既無可核實的REC核准身份/實驗別attestation provider，也無核准真人OTP申請來源，因此實際對正式Sheets/真人的讀取與寫入被預設拒絕；前述「實際後端資料介接」是與原資料表ID、結構、欄位及原OTP核⼼相容的**受保護實作**，不是現場啟用的真人服務。原Visitor七步仍OWNER TEST，尚未有經REC核定可用的本人身份及實驗別映射、正式OTP發送/寄送憑證、真正時段佔位持久化、正式PDF逐欄定位與研究人員/本人簽署流程UI驗收。REC_REVIEW_REQUIRED=true；LIVE_IDENTITY_ATTESTATION=BLOCKED；OTP_AUTHORITY=BLOCKED；OTP_TRANSACTION_LIVE=false；REAL_WIZARD_SIGNING_NOT_INTEGRATED=true；UI_VERIFIED=NOT_VERIFIED；FORMAL_READY=false；MAIN_SYNC_VERIFIED=false；GAS_SYNC_VERIFIED=false。維持OPEN=false、CONSENT_READY=false、MYSELF及E2獨立禁招募，無正式Sheet/REC/GAS修改或部署。
+
+NEXT_ACTION=正式確認REC允許之身分核對及獨立E1/E2授權證據唯一來源、同意書實際核准原PDF版號/SHA/簽名欄位；完成身份/申請 authority adapter、可安全保存及實際核實的真人OTP與預約流程，將原七步最後的手寫簽名與study1EConsentSignPdf合法串接；先在隔離環境做實際瀏覽器、原PDF及權限UAT，另外取得合併與同ID GAS同步/部署授權，禁止僅因CI通過自動啟用。
+
+
+#### 70-S.9.1｜安全硬化與最終回歸（2026-11-10）
+
+- 原 gas/Study1EConsentBinding.js 的私有 `study1EConsentIssueBound_(input)` **已移除呼叫者自訂adapter參數**，一律使用原伺服器端 `study1EConsentBindingAdapter_()` 作為單一可信正式來源；以此阻斷內部錯誤傳入假身分、假OTP/時段的邊界。合成VM測試僅在沙盒覆寫工廠，不變更正式GAS權責。原七步/預約/PDF安全開關保持不變。
+- 最後獨立程式HEAD=`41322f6ca7d7913d9c81b7e450f098e74eca58bf`；原GitHub PR #133隔離工作流 https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42752519608，**768 PASS／0 FAIL／0 SKIP**。先前§70-S.9所記`04e768cc`為新增OTP核⼼回歸階段，請以本段後續版本為準。
+- 尚未完成且不可因CI取代：REC核准的真人身份/實驗E1/E2權責資料來源、真人OTP申請/信件寄送與收件、正式時段CAS持久化、最後PDF/手寫簽名與真人申請的可信瀏覽器連結、REC原版簽名欄位及日期視覺驗收、實際本人副本權限UAT；所有正式Sheet寫入、GAS同步與部署仍未執行。OPEN=false、CONSENT_READY=false、MYSELF、E2未獨立授權絕不啟用。
+
+
+### 70-S.10｜2026-11-10 REC 202604EM033 實際核可範圍、身分與資料權責核對、未授權電子簽署硬性封鎖
+
+> **歷史敘述／已依最新使用者決策更正：** 本節先前所述「不論技術來源是否已核驗均無條件禁止電子簽署」及以`REC_REVIEW_REQUIRED`泛指Study1未核可的邏輯已作廢。正式研究程序 **已核可**。請以本規格最新 §70-S.11 的範圍區分與程式版本為準；本段保留原查核歷程，不得作為現行一律封鎖的依據。
+
+**任務／權責：** Study1招募網站原PR #133隔離分支、唯一GitHub規格 docs/study1-system-spec.md；REC研究程序另以202604EM033有效核可文件及正式批准修正為主，網站規格及Script Properties都不得取代REC。本段是對原§70-S.9～9.1的增量核對，不是REC修正案或真人操作授權。
+
+**已直接核實正式證據：**
+- NTU-REC 202604EM033「核可證書」Google Drive原ID `1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy`，原PDF SHA256 `de6fb412f9f266c358f22744f20988e214633571843a1679d95d7c63a5a5eda4`。核可日期2026-06-30，核可效期2026-08-01～2027-07-31。核可計畫書版本日期2026-05-19、研究參與者知情同意書版本日期2026-05-11、招募文宣2026-05-14。**日期及核可整體計畫不等於線上簽名/新核身方法或文件PDF位元組取得核准。**
+- 2026-05-11實驗一同意書原ODT與Drive DOCX原ID `1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m`；實驗二原同日期ODT。同意書規定研究人員先口頭及書面說明研究、回答問題，分別由研究人員及參與者簽名，參與者留存一份。**沒有把遠端Canvas手寫／網頁OTP當成正式電子知情同意或具法律身分證明的核可文字。**
+- 實驗一參與者需年滿18歲、中原大學學生，及符合其他當次核可資格；實驗二另外必須**未參加過實驗一**。不能只用參與者自陳、電子郵件OTP、Cookie或姓名代替獨立可信的成年/在學/先前E1參與史證據。原正式Applicants、Screenings、Verification及Reservations、Slots資料表表頭不含經核定的真人身分查核證據，也缺獨立跨實驗E1參與史的核准來源。
+- 原REC同意書載明可識別紙本由研究主持人置於上鎖櫃、電子檔置於設有密碼的研究用電腦並限制研究團隊存取；其留存/銷毀規則以核可同意書為準。既有正式系統Google Sheets與私人Drive PDF引擎是**網站技術與行政準備來源**，不能僅以現有Sheet ID、欄位、ACL或SHA推定已獲REC准許取代原核可的蒐集、儲存、電子同意及副本交付方式。資料欄位及實驗別權責來源不擅自另建。
+- 原REC實驗一仍有120組字詞與自傳式RIF敘述，與研究端目前144組字詞及取消自傳式RIF的執行設計相異，標記 `REC_REVIEW_REQUIRED`，未完成核准修正前不以網站流程改寫或執行未核可內容。
+- Google Drive找到名稱為`REC-P-06-計畫變更申請書-20261022.docx`（ID `1QN4ura_dwefSxXIM7pD6QGTulo6CoEsI`），讀取內容為未填妥的變更申請制式表格，**不是核可修正**。目前核對的Drive與研究郵件沒有查到後續核准遠端電子簽署或「Email OTP即正式本人認證」的修正核可；如未來有新原件，須由核准記錄及適用範圍重新查證，不能以查無當作永久事實。
+- 2026-11-04產生的E1完整PDF副本（ID `1iL3kn61IrMcHa4PaTUN9s-ZA8t9R1FfI`，SHA256 `718441b3a74cd2e0d4ce0d800fb35a4a9dc38efd1cdf3ef3529ebd8afc7a28f3`）**不能因其內容版號顯示2026-05-11便自動當成REC原位元組核可的模板**；E2原ODT亦不可代替已核對實際PDF SHA/頁數/簽名框。
+
+**隔離分支原程式安全增量實作（本輪沒有正式Sheet/GAS/REC寫入）**：
+1. `gas/Study1EConsentBinding.js` 新增不可由Script Properties、公開參數解鎖的 `STUDY1_REC_VERIFIED_BASELINE_` 來源記錄與 `study1RecRequireElectronicConsentApproval_()` 明確拒絕函式；原私有`study1EConsentIssueBound_`在讀取/鎖/寫入任何真人資料前立即阻止尚未REC核准的遠端簽署邀請。E1/E2可信身分證據新增加成年、CYCU學生資格（必須經獨立核可來源核實及留有SHA），E2再需要獨立核對「未參加E1」與證據SHA；上述eligibility/E1 history證據均與原申請ID、OTP、時段、PDF版號/SHA一起納入原HMAC，正式來源更動即須拒絕使用舊簽署邀請。
+2. `gas/AdminSandbox.js` 的新`study1EConsentSignPdf`及舊`study1EConsentSign`（獨立PNG）路徑均新增同一REC硬性封鎖，防止單靠設定`OPEN`、`CONSENT_READY`、`STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY`等屬性而收取未核可的真人手寫電子簽名。原伺服器OTP/正式Sheet讀取`study1EConsentIdentityAttestation_`與`study1EConsentOtpApplicantAuthorization_`繼續預設拒絕，**不將電子郵件控制權冒充身分認證**。
+3. 原合成CI只在Node VM的測試範圍暫時覆寫REC拒絕函式，驗證PDF引擎與資料綁定既有功能；正式GAS來源沒有覆寫或啟用管道。新增`tests/study1-rec-202604EM033-authority.test.cjs`、擴充`tests/study1-econsent-binding.test.cjs`的成年/在學/E2先前E1證據缺漏、冒用/錯來源與SHA變更測試，另更新原測試的合成資格證據。最新程式驗證HEAD `636d9287bebf071573158e71798599ed5a0554d7`，CI：https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42755139501，**774 PASS、0 FAIL、0 SKIP**；未執行真人UAT或任何正式實體/線上REC簽署。
+
+**已完成：** 原REC證書日期/版本/來源SHA回查、E1/E2實際條文/資格/資料保存權責差異核對、原GitHub隔離程式與合成安全負面CI。**阻塞：** `REC_REVIEW_REQUIRED=true`、`REC_REMOTE_SIGNING_AMENDMENT_VERIFIED=false`、`LIVE_IDENTITY_SOURCE=BLOCKED`、`LIVE_E1_HISTORY_SOURCE=BLOCKED`、`OTP_PERSONAL_IDENTITY_APPROVED=false`、`REAL_WIZARD_SIGNING_NOT_INTEGRATED=true`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_READY=false`、`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`。
+`OPEN=false`、`CONSENT_READY=false`、`MYSELF`、實驗二不自動開放、原七步報名與V05/V08未變更。
+
+**下一步：** 由研究主持人依REC程序釐清線上電子同意與身分／年齡／CYCU學籍及E1參與史查驗的合法方式、參與者線上/紙本同意與電子檔案保存副本的核准適用範圍；取得核准修正及原PDF版本/SHA後，才可在原私有適配器將合法來源接上真實核身交易，另完成含本人權限/研究人員簽名的實機UAT。這不授權合併main、GAS同步/部署或啟用真人收件。
+
+
+### 70-S.11｜2026-11-10 使用者最新確認：正式研究程序已核可，撤回先前無條件REC封鎖（PR #133原分支）
+
+**最新明確決策優先於§70-S.10歷史斷言。** 使用者：「正式研究程序已獲核准，請勿阻擋」。REC 202604EM033核可證書及版本仍為研究合法程序權責；其核可事實與網站客製OTP、線上電子簽署實作範圍、技術資料來源是否準備妥當，必須分別判定。**不能以網站介接尚未完成宣稱整體Study1研究未獲核准，也不能僅因證書未逐字列出網頁電子簽署便推定已被禁止。** 同時，核可研究程序不自動驗證任意網站、資料保存地點或第三方身份認證設計。原REC文件與正式研究資料均未修改。
+
+**原隔離PR #133實際程式修正（原路徑增量、不合併、不部署）：**
+1. `gas/Study1EConsentBinding.js`：保留REC案號、核可日期及其原始來源SHA；將`remoteElectronicConsentApproved:false`這項超出證書能直接斷定的布林改為`remoteElectronicConsentApprovalStatus:'NOT_DETERMINED_BY_CERTIFICATE'`。**移除無論狀態均throw的`study1RecRequireElectronicConsentApproval_`與簽發邀請入口對它的呼叫**。仍保留正式申請者、成年、學籍、E2先前E1參與史、OTP、預約、PDF版本/SHA的可靠來源驗證與原HMAC/CAS共鎖。
+2. `gas/AdminSandbox.js`：正式完整PDF簽署及舊PNG合成簽署移除同一無條件REC拒絕；舊PNG仍只能通過其額外合成安全旗標與輸入格式檢查，**不可當成正式PDF簽署替代**。原完整PDF仍須`OPEN`、`CONSENT_READY`、provider/版號/SHA、研究說明、原報名Wizard與身分來源、預約綁定與私人儲存/寫後驗證。未建立可信來源時會拒絕，但不是「REC已核准研究遭全面封鎖」。
+3. `gas/Study1EConsentOtpAdapter.js`及上述原兩檔：將原來誤導的「REC未核准」技術錯誤改為明確`BACKEND_NOT_READY`、`IDENTITY_SOURCE_NOT_CONFIGURED`、`IDENTITY_EVIDENCE_INVALID`、`ELIGIBILITY_EVIDENCE_MISSING`、`OTP_TRANSACTION_NOT_READY`、`PDF_LINK_NOT_READY`、`BINDING_REQUIRED`等，讓研究程序權責與技術準備進度解耦。
+4. 相應更新`tests/study1-rec-202604EM033-authority.test.cjs`等現存測試，不再利用合成VM覆寫人為REC禁令作為正常資料綁定的前提；測試真正的使用者輸入驗證、未設置身分來源、重送、偽造、E2排除條件、簽章比對、來源撤銷、收件開關及正式PDF邊界。原七步`gas/Study1Visitor.html`、V05月曆、V08預約、既有正式表的Schema與資料均不動。
+
+**現行獨立狀態：**
+- `STUDY1_FORMAL_REC_APPROVAL=VERIFIED`（不再寫整體`REC_REVIEW_REQUIRED=true`）。
+- `WEB_ECONSENT_APPLICABILITY=NOT_DETERMINED_FROM_CERTIFICATE_ALONE`（這不是被拒絕，也不是核准任一遠端實作的主張）。
+- `LIVE_IDENTITY_ADAPTER=NOT_CONFIGURED`、`OTP_VERIFY_LIVE=NOT_ENABLED`、`WIZARD_ECONSENT_LIVE=NOT_CONNECTED`、`UI_VERIFIED=NOT_VERIFIED`、`FORMAL_WEBSITE_READY=false`。
+- `OPEN=false`、`CONSENT_READY=false`、`MYSELF`及E2不自動開放；`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`。本次不更動正式研究收件、REC或個資表；先保留安全隔離分支，待另行授權及實際系統驗收。
+
+**接續點：** TASK_DOMAIN=Study1招募網站P0；SOURCE_PATH=原GitHub `solactw-star/study1-recruitment-gas/docs/study1-system-spec.md`；WRITE_OWNER=PR #133隔離分支；LAST_VERIFIED_STEP=移除錯誤REC一律封鎖，復原及重驗原共鎖OTP/HMAC、電子PDF的技術保護；NEXT_ACTION=補完可信真人資料來源及封閉端到端UAT，獨立核對原REC對本系統具體電子同意與儲存方式的適用範圍，但不得因此宣稱整體研究未核可；BLOCKERS=技術來源、正式部署授權；SYNC_STATUS=GitHub branch only。
+
+
+### 70-S.12｜2026-11-10 P0 原七步身分／OTP／預約後端共鎖橋接（僅PR #133安全分支）
+
+**最新任務決策：** 已核可 Study1 REC 202604EM033，依最新§70-S.11，不恢復先前錯誤的REC無條件拒絕。優先把原七步`Study1Visitor.html`的聯絡OTP、本人申請ID、篩檢ID、時段預約及E1/E2正式PDF版號/SHA串入一致安全後端；維持V05原月曆、V08候補／改期／取消與原B02/B03/B04模型，不能把TEST身分偽裝為真人。工作僅修改原GitHub PR #133 Draft安全隔離分支，沒有正式Sheets/REC/GAS/main寫入。
+
+**原正式來源差異：**
+- 個資Sheet `1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI` 現有 `Applicants(applicant_id,name,email,phone,created_at_utc,updated_at_utc,status)`、`Screenings(screening_id,applicant_id,rules_version,eligibility_result,screened_at_utc,verified_by)`、`Verification(challenge_id,applicant_id,purpose,otp_hmac,expires_at_utc,attempts,used_at_utc,email,created_at_utc)`；原 `Study1EConsentOtpAdapter.js` 已提供正式Verification的原F:G一次性寫入/讀回和HMAC/跨challenge節流。
+- 時段營運Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 現有 `Slots(slot_id,start_at_utc,end_at_utc,capacity,location_code,status,created_by,updated_at_utc)`、`Reservations(reservation_id,applicant_id,slot_id,status,hold_until_utc,idempotency_key,created_at_utc,confirmed_at_utc,cancelled_at_utc,updated_at_utc)`。**正式Slots沒有實驗別欄位；不可從client E1/E2選擇、slotId字面或location_code推定場次實驗歸屬。**
+- 正式Applicants/Screenings沒有唯一且驗證過的E1/E2實驗別及本人真實身分證據欄，故現階段沒有經核實可直接啟用的`study1WizardApplicantAuthority_`或`study1WizardSlotAuthority_`來源。這是技術來源與資料保存權責待接線，**不是研究計畫未獲REC核可**。
+
+**已提交原隔離分支增量實作：**
+1. 新原檔`gas/Study1WizardP0Bridge.js`只含私有底線結尾GAS函式，不發布正式public RPC、不替換`gas/Study1Visitor.html`七步或`gas/Study1Unified.js`既有純TEST模型。其stage 03 `study1WizardOtpVerifyBound_`在全域技術門檻下委派既有 `study1EConsentVerifyContactOtp_`，沿用`OtpCore/OtpThrottle/OtpTransaction`及原`Verification`的F:G單次使用、失敗次數、寫後回讀。
+2. stage 04 `study1WizardHoldBound_`以正式 `Applicants/Screenings/Verification` 的原ID定位列核實本人、資格、已在時間窗消耗的OTP、相同電子郵件與E1/E2；E2另檢查未參加E1的可信證據。先於同一ScriptLock核身，之後才能打開原營運Sheet；再由可信 `study1WizardSlotAuthority_`核對原slotId屬於對應E1/E2、與原正式PDF版號/SHA一致，才委派原`bookingHoldOnceLocked_`做原10欄Reservations的HELD單筆append、全場次容量/唯一申請、按時段/hold上限、HMAC綁定idempotencyKey、完整快照/寫前比較/寫後獨立快照回讀。任何源變動、重複/競寫/逾時不得宣稱成功；回傳booking ID和無個資HMAC receipt，非登入身分的替代品。
+3. stage 05 `study1WizardReviewBound_`以原共鎖重新讀取相同申請、OTP、篩檢、時段實驗別證據與原Reservations HELD列、文件版號/SHA；固定長度比對階段04的HMAC receipt。取消/過期、錯E1/E2、錯申請者/文件/booking ID、HMAC竄改均不得顯示確認成功。這是**簽名之前的唯讀正式資料核對契約**，還不是正式PDF簽署提交。
+4. 已增列`scripts/study1-gas-backend-allowlist.cjs`及`tests/study1-gas-backend-sync.test.cjs`對應唯一新私有檔案。原`Study1Visitor.html`的`choose→screen→otp→slots→confirm→consent→done`七步、V05/V08及`SIMULATED_SIGN_ONLY`完全未修改，避免把真實驗證錯接到TEST端或觸發未授權收件。**尚未完成原瀏覽器公開Wizard與正式後端實際RPC端到端接線**。
+
+**測試（合成源，非真人操作）：** 新`tests/study1-wizard-p0-bridge.test.cjs`覆蓋原BookingHold與OTP橋接、合法一筆HELD、原位HMAC/idempotency重送、第二筆不同requestId/同人拒絕、雙請求同ScriptLock並發搶位、滿額、跨E1/E2錯誤時段、未核實本人、無有效OTP、來源資料變更、文件SHA偽造、實驗二已參加實驗一、step05 HMAC與正式來源回讀、取消/過期/交換booking等。最新完整CI=https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42768567032 **789 PASS、0 FAIL、0 SKIP**。測試中可信identity/slot adapter均為Node VM合成且原GAS對應函式維持明確`IDENTITY_SOURCE_NOT_CONFIGURED`及`SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED`，不能藉CI宣稱真人/瀏覽器UAT成功。
+
+**獨立狀態／接續點：** `STUDY1_FORMAL_REC_APPROVAL=VERIFIED`；`BRIDGE_STEP_03_04_05_SYNTHETIC_CI_VERIFIED=true`；`ORIGINAL_SEVEN_STAGE_UI_PRESERVED=true`；`LIVE_IDENTITY_AUTHORITY=NOT_CONFIGURED`；`TRUSTED_SLOT_EXPERIMENT_REGISTRY=NOT_CONFIGURED`；`FORMAL_APPLICANT_CREATE_OTP_SEND=NOT_CONNECTED`；`FORMAL_WIZARD_PUBLIC_RPC=NOT_CONNECTED`；`REAL_WIZARD_SIGNING=NOT_CONNECTED`；`UI_VERIFIED=NOT_VERIFIED`；`MAIN_SYNC_VERIFIED=false`；`GAS_SYNC_VERIFIED=false`；`FORMAL_WEBSITE_READY=false`。正式收件仍`OPEN=false`、`CONSENT_READY=false`、`MYSELF`，E2不得自動開放。
+
+`TASK_DOMAIN=Study1_P0_RECRUITMENT_BACKEND`；`SOURCE_PATH=gas/Study1WizardP0Bridge.js + docs/study1-system-spec.md`；`WRITE_OWNER=PR_133_DRAFT_BRANCH`；`LAST_VERIFIED_STEP=stage03_04_05_OFFLINE_CI`；`NEXT_ACTION=核定既有唯一正式本人/實驗別與場次歸屬證據存取角色、以真實來源完成Applicant創建與OTP寄送及可驗證持久化，將正式模式映射到原Study1Visitor七步，再做實際瀏覽器及權限UAT`；`BLOCKERS=missing_trusted_identity_and_slot_experiment_authorities + unlinked_public_wizard + deployment_unapproved`；`SYNC_STATUS=GITHUB_PR_ONLY`。
+
+
+### 70-S.13｜2026-11-10 原申請建立及OTP核發寄送私有介接（PR #133隔離分支）
+
+本次僅原PR #133 Draft隔離分支增量；不修改正式Sheets、REC、main、GAS，不合併、部署、寄真人信或開放收件。正式研究依§70-S.11已核可，不因此推定任意遠端電子同意與保存作業逐項核可。原七步Study1Visitor.html、V05/V08月曆及候補／改取消、原SIMULATED_SIGN_ONLY功能隔離保留。
+
+新增原路徑私有gas/Study1WizardEnrollment.js的study1WizardCreateApplication_與study1WizardOtpSendBound_。依原Applicants七欄、Screenings六欄、Verification九欄的ID與表頭，使用獨立可信本人／年齡／CYCU在學／E1-E2資格來源才能建立，E2再需未參加E1之核實證據；HMAC綁定申請ID、篩檢ID，共用ScriptLock，append、flush、原列回讀與相同requestId冪等。跨兩表不是全域ACID，部分寫入fail closed待人工處理，不將網站勾選、郵件OTP或TEST假身分作真人資格。
+
+OTP需獨立STUDY1_ECONSENT_OTP_ISSUE_APPROVED與原既有門檻，伺服器UUID衍生安全八位碼，10分鐘，D欄僅存HMAC，F:G先存0/空白，原OtpThrottle每小時3筆、最短60秒重送，append/flush/讀回後才使用正式MailApp.sendEmail，同requestId不重寄、寄送結果未知不得自動重寄。原Study1EConsentOtpAdapter新增舊碼被新challenge取代即拒絕，原OtpTransaction處理F:G一次性setValues/flush/讀回。
+
+阻塞：study1WizardIntakeAuthority_、study1EConsentOtpApplicantAuthorization_、study1WizardApplicantAuthority_、study1WizardSlotAuthority_仍無正式可信本人與E1/E2場次來源，原Slots無experiment欄；七步正式RPC、真人PDF簽署、UI UAT未接通。不動OPEN=false、CONSENT_READY=false、MYSELF與E2禁招募。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=NOT_VERIFIED、FORMAL_READY=false。
+
+**§70-S.13 合成CI與回讀（2026-11-10）：** 新增tests/study1-wizard-enrollment.test.cjs九組合成情境，包含無核准來源不得讀寫、原Applicants/Screenings結構與HMAC冪等、E2既參加E1拒絕、Verification A:I發碼/HMAC/假MailApp、F:G一次消耗及重播拒絕、同鍵重送不再寄信、60秒節流、舊碼被新碼取代、每小時3次上限、共鎖競寫及部分寫入拒絕。原GitHub Actions run https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42771208212 對code HEAD=18d0d9c1fde6d70b8f9d306e66a53f0e0ad62be4 取得798 PASS／0 FAIL／0 SKIP（執行時間約20秒）。此為Node VM合成測試，並非真人UI或MailApp實寄、正式GAS授權或收件驗收。SOURCE_COMMIT=18d0d9c1fde6d70b8f9d306e66a53f0e0ad62be4，LAST_VERIFIED_STEP=PR分支原檔及CI回讀，WRITE_OWNER=PR #133，SYNC_STATUS=branch only，NEXT_ACTION=獨立權責來源／原七步正式RPC及實機UAT，BLOCKERS=trusted identity、E1/E2 slot registry、正式版PDF及電子同意適用性。
+
+
+### 70-S.14｜2026-11-10 原GAS OWNER私人預覽V125部署與人工UAT交付
+
+**本輪授權：** 使用者要求將現行最新進度部署供本人人工測試。僅更新原GAS Script ID與原私人OWNER /exec，不合併PR #133、不更新正式main/REC/個資Sheet、不啟用正式收件或公開簽署。此授權不等於將網站電子同意適用範圍視為已核准。
+
+**原ID與遠端核實：** GAS Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`；原私人部署ID `AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s`；原私人V122已更新至**V125**。新版私人Immutable SHA256 `6c13c7b1d71ffcee337ed62b26a4948f5a48ba5ff4d8fcc070f2b7f2ea895520`；遠端GAS HEAD SHA256 `df11a52035e9cccf02a4b3fa3e30677cd62a3dcff7be107e61a13c088cf774cf`。獨立唯讀Actions Run `42772956076` 回讀 `headMatches=true`、`immutableMatchesBranch=true`、私人 `webapp.access=MYSELF`、`executeAs=USER_ACCESSING`；GAS HEAD原公開資訊站manifest為 `ANYONE_ANONYMOUS / USER_DEPLOYING`。公開版本未作本次部署目標。
+
+**預寫備份與異常紀錄：** 原寫前GAS完整SHA256 `0b1043e8183ca7206b8b6e548af151acd65a410c7ed450495ec755d43a0401a0`，Drive原完整備份ID `1WU8bslsIlch0kzJlmAEnZMSjdVlkrV-Y`；原私人V122。首次部署Actions Run `42772619772` 顯示failure，是因部署API立即GET時版本更新尚未傳播，另回滾參數存在缺陷；**不能僅看該失敗狀態判斷是否上線**。後續Run `42772956076` 確定原私人版本V125已更新並逐位元組等同分支審核來源。部署工具已另外修正版本回讀等待及回滾參數（不重新部署）。
+
+**人工測試入口：** https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo 。原GAS OWNER登入，測原七步、V05日期月曆、V08合成候補/改期/取消、最後階段PDF預覽/示範簽名；team / admin路由亦僅限OWNER。不得輸入真人身分/Email/真時段或執行正式電子簽署。
+
+**安全與限制：** 原Website.js對公開requestOtp/verifyOtp/holdSlot/submitConsent仍無條件拒絕；原Study1Visitor保留TEST `00000000`與`SIMULATED_SIGN_ONLY`，正式OTP寄送/申請建立僅私有介接與合成CI，缺可信真人身份及E1/E2時段歸屬，尚不能在網頁操作真人OTP端到端。原REC核准研究不等於網站任何遠端同意實作已逐項適用。原OPEN/CONSENT_READY設計仍維持關閉、未變更ScriptProperties（本次未直接讀取其實際值）；E2未獨立核准且2027年前不招募。程式798 PASS/0 FAIL不代替UI測試，`UI_VERIFIED=false`、`FORMAL_READY=false`。
+
+**接續點：** `TASK_DOMAIN=Study1 website / owner preview UAT`; `SOURCE_ID=original GAS Script ID`；`SOURCE_VERSION=private V125 / SHA256 6c13c7b1d71ffcee337ed62b26a4948f5a48ba5ff4d8fcc070f2b7f2ea895520`；`LAST_VERIFIED_STEP=GAS read-only immutable/source/permission audit`；`COMPLETED=OWNER_PREVIEW_DEPLOY_VERIFIED`；`NEXT_ACTION=OWNER manual browser UAT, then fix observed UI issues on isolated branch`；`BLOCKERS=TRUSTED_IDENTITY_SOURCE_NOT_CONFIGURED, TRUSTED_SLOT_E1E2_SOURCE_NOT_CONFIGURED, REAL_WIZARD_OTP_NOT_CONNECTED, UI_VERIFIED_NOT_DONE`；`WRITE_OWNER=PR #133 isolated branch`；`SYNC_STATUS=GAS_OWNER_PREVIEW_SYNC_VERIFIED=true, MAIN_SYNC_VERIFIED=false, UI_VERIFIED=false, FORMAL_READY=false`。
+
+
+### 70-S.15｜2026-11-10 正式報名P0修正：pending intake、REC來源與交付門檻
+
+**使用者當次最新授權：** 停止以OWNER虛構展示與合成測試當作已完成的正式網站，持續一次性推進原系統全部報名端到端功能；只有符合正式啟用的工程安全與REC適用性前置、真正可供驗收時，再通知使用者集中人工UAT。不建平行網站，不把未取得核准的電子同意或資格來源臆造為已核准。保留原七步、V05/V08、原B02/B03/B04及原資料表。
+
+**原因盤點（讀取原PR 7d6781a7與main）：** 私人GAS V125雖已部署與回讀，`gas/Study1Visitor.html`仍依`runnableOwnerPreview_()`要求TEST fixture，`gas/Website.js`的`requestOtp/verifyOtp/holdSlot/submitConsent`公開端點仍無條件拒絕。`study1BindingGate_`會呼叫`study1AdminOwnerRequired_()`，所以現行Applicant/OTP正式後端仍是OWNER-only，且`study1WizardIntakeAuthority_()`及`study1EConsentOtpApplicantAuthorization_()`因可信本人來源缺失而throw；原Slots無experiment欄。這些是正式收件無法運作的程式斷點，不可僅用CI或ScriptProperties解除。REC研究程序本身已核可，但電子郵件身份／遠端簽署／正式保存之具體適用範圍仍應核對有效版本。
+
+**本輪實質程式：** 新增`gas/Study1ParticipantIntake.js`，用適合未核身參與者的原Applicants七欄、Screenings六欄作申請的**PENDING**建立內核（非新Sheet、不為真人開啟RPC）。E1起始、從正式核實REC資料利用政策取得版本/原證據SHA及獨立反濫用保護，未核准先阻擋；5項自陳篩檢布林值僅在記憶體評估，沒有逐題健康資料持久保存；不合格不寫表。申請ID／screening ID由原HMAC及冪等requestId產生；原共用ScriptLock、表頭、唯一Email、原欄數追加、flush和完整逐列回讀；重送同鍵冪等、不同鍵同信箱拒絕、部分跨表失敗需人工核對。新紀錄只有`PENDING_EMAIL`及`PENDING_REVIEW`/`SELF_REPORT_NOT_VERIFIED`，不自動標VERIFIED/ELIGIBLE，不寄信、預約或簽署。真正身分與OTP驗證、確認預約仍需後續分開串接。
+
+**測試及正式版本：** 新增`tests/study1-participant-intake.test.cjs`十項，包括關閉預設、不寫健康逐題資料、不合格不存、E2禁止、證據來源未配置拒絕、重送/重複Email、身分交換、部分寫入及競寫。原GAS精確白名單與來源同步測試跟進加入`Study1ParticipantIntake`；程式HEAD `c5ad7cb0685ab96d20d97c76b8139ff76cd8312b`，GitHub CI Run `42775757940`成功，至少先前同組`42775682829`已回讀808 tests PASS、0 FAIL。程式只在原PR隔離分支，未合併main、未修改GAS V125、未讀寫正式Sheets、未發真人Email或簽名。
+
+**REC當次新發現：** Drive原倫理審查資料夾的「變更申請」子夾含`REC-P-06-計畫變更申請書-20261022.docx`及E1/E2 `20261027.odt`修正草稿；目前查到的是**申請文件**，不能因修改日期、文件名稱或存在而推論REC已核准及生效。仍應透過核准通知/審查決議/生效版本查對。原證書`202604EM033`核可研究不代表網站寄信、收件及遠端簽署皆已核可。
+
+**P0緊接實作**：先把pending→email OTP核發/驗證→本人/資格來源核對→E1/E2經人工核定的原Slots對應→同鎖Reservations時段確定→最後核准PDF簽署/研究人員確認/副本交付串起來，在原`Study1Visitor.html`提供正式外觀與可啟用RPC；新增防Email地址探測/反機器人、錯誤/超量/跨表修復及真實瀏覽器UAT。全套功能可測完成之前不請使用者驗Demo。正式遠端收件開關維持`OPEN=false`、`CONSENT_READY=false`、原私人管理`MYSELF`；E2不自動開放。
+
+**接續**：`TASK_DOMAIN=Study1 website`；`SOURCE_PATH=solactw-star/study1-recruitment-gas PR#133`；`SOURCE_VERSION=c5ad7cb0685ab96d20d97c76b8139ff76cd8312b（此後必重讀最新）`；`LAST_VERIFIED_STEP=pending Applicant/Screening kernel + synthetic CI`；`COMPLETED=10 new pending-intake tests`；`NEXT_ACTION=email OTP for prospective PENDING applications and formal participant RPC/owner review`；`BLOCKERS=REC_VERSION_APPROVAL_NOT_VERIFIED, PUBLIC_INTAKE_ABUSE_PROVIDER_NOT_CONFIGURED, TRUSTED_IDENTITY_NOT_CONFIGURED, E1_E2_SLOT_ASSOCIATION_NOT_CONFIGURED, FORMAL_WIZARD_NOT_INTEGRATED`；`WRITE_OWNER=PR#133 isolated branch`；`SYNC_STATUS=BRANCH_ONLY, MAIN_SYNC_VERIFIED=false, GAS_V125_UNCHANGED, UI_VERIFIED=false, FORMAL_READY=false`。
+
+
+#### §70-S.15 補充｜原七步正式E1連接與待核Mail OTP（2026-11-10）
+
+本輪在原PR #133隔離分支進一步交付（尚未合併／部署）：
+1. `gas/Study1ParticipantIntake.js` 現增 `study1ParticipantOtpSend_` 與 `study1ParticipantOtpVerify_`：待核申請原Applicants+Screenings欄位與信箱來源核對、原Verification九欄HMAC八碼／10分鐘、原OtpThrottle最多每小時3次及60秒重送、原OtpTransaction透過共用ScriptLock單次寫入F:G／flush／回讀、重新核發使舊碼失效；實際寄送呼叫MailApp但合成測試一律注入替身，失敗不自動重寄。電子郵件成功僅回EMAIL_CONTROL_ONLY，不會核准學籍、本人、報名或REC簽署。
+2. 新增reviewed GAS `study1ParticipantReadiness / Begin / SendOtp / VerifyOtp` RPC；正式參與者使用與OWNER不同的身份門檻（不能讓其呼叫`study1AdminOwnerRequired_`）。原`gas/Website.js`新增`?view=apply`指向同一原`Study1Visitor.html`透過`HtmlService.createTemplateFromFile`分開FORMAL狀態機；原`?view=demo`、V05/V08、七步與OWNER fixture完全保留。FORMAL頁不從Demo讀取假申請、不使用00000000碼；預設Gate與REC政策/防濫用來源皆未配置，正式表單disabled、只告知尚未開放。信箱通過後亦停在正式時段/資格待核，不假冒已完成預約或有效同意。
+3. 新增`tests/study1-formal-intake-wizard.test.cjs`，連同前述14個新pending與MailOTP測試。原隔離分支commit `4db29a5e6fbf0944aa0b30b8787ae19082dd3a72`之GitHub Actions `42777685521`實際讀回 **817 PASS／0 FAIL／0 SKIP**。早期二個Demo舊靜態測試在加入hidden contact後失敗，已更新為檢查正式欄位維持disabled以及舊Demo內無email input，最後完整CI通過。
+
+**尚未完成且不可視為正式可營運：** 閘門`OPEN/CONSENT_READY`及有效REC公開表單/資料保存/OTP寄送／反機器人正式可核證政策未配置；獨立真人學籍/成年/E1/E2權責核驗、原Slots→E1/E2正式指派、完整名額/Reservations與候補接至正式web、最後原版完整PDF當事人簽署/研究人員核對、通知/撤回/本人副本及真實瀏覽器安全驗收都未完成。Drive的2026-10-27變更申請附檔僅為申請證據，不是已生效REC核准。CI與私有舊版V125不是實際真人上線。本輪無GAS部署、無正式個資資料寫入、無真人郵件、無main/REC變動。`FORMAL_READY=false`、`UI_VERIFIED=false`、`MAIN_SYNC_VERIFIED=false`，維持E2禁招、`OPEN=false/CONSENT_READY=false`與私人MYSELF。
+
+**接續點：** `SOURCE_VERSION=4db29a5e6fbf0944aa0b30b8787ae19082dd3a72`（需每次重讀最新）; `LAST_VERIFIED_STEP=817 CI and formal route contract`; `COMPLETED=prospective E1 PENDING + mailbox OTP + gated original formal UI RPC`; `NEXT_ACTION=independently approved REC enrolment policy and anti-abuse provider, authenticated applicant session, staff verified identity/source, official E1 Slot binding and reservation, original PDF consent workflow`; `BLOCKERS=REC_REVIEW_REQUIRED for actual web procedure, NO_TRUSTED_IDENTITY_SOURCE, NO_SLOT_EXPERIMENT_SOURCE, NO_PUBLIC_ABUSE_PROVIDER, NO_FORMAL_BOOKING_OR_CONSENT_CONNECTOR, NO_REAL_BROWSER_UAT`; `WRITE_OWNER=PR #133 branch`; `SYNC_STATUS=GITHUB_BRANCH_CI_VERIFIED_only / GAS owner preview still V125`.
+
+
+#### §70-S.15 安全回歸補充：防止試算表公式注入
+
+同一原Applicants七欄的姓名、電話及電子郵件是使用者可控制的輸入；Google Sheets `appendRow` 可能將前置 `=` 當公式執行，不能僅檢查HTML特殊字元。原`gas/Study1ParticipantIntake.js`加入有效驗證前對前置`= + - @`試算表運算開頭的阻擋，避免潛在公式執行/跨文件資料外洩；新`tests/study1-participant-intake.test.cjs`包括該負向案例，原隔離分支 code HEAD `7d2d5daaa28b3f13ed261410d110854a8355255c`，完整CI https://github.com/solactw-star/study1-recruitment-gas/actions/runs/42777990114 回讀 **818 PASS/0 FAIL/0 SKIP**。本輪仍只更新隔離GitHub分支，未部署正式/私人GAS新版本、未開放實際真人收件、尚無REC/個資/反濫用/真人身分資料等核實正式可用來源；`MAIN_SYNC_VERIFIED=false`,`UI_VERIFIED=false`,`FORMAL_READY=false`。
+
+
+### 70-S.16｜2026-11-10 原七步E1正式接線：REC原證據、Turnstile、OTP身分界線與合成E2E
+
+**任務與來源：** 承接唯一原GitHub Draft PR #133及已回讀§70-S.15，使用者要求集中完成E1正式申請／Email OTP原身分關聯、有效REC適用性來源核對、公開反濫用、安全原七步前後端、合成E2E。當輪GitHub main `13f94df7f6ef12aa309067f4ded9da0a1c0ef13e` 未更新，本輪全部程式於原隔離分支；原GAS私人OWNER V125未覆蓋、無實際部署、新版UI實機驗收未執行。
+
+**有效REC核對（唯讀）：** 研究本身有NTU-REC `202604EM033`既有核可；2026-05-11 Version02 E1同意書文字要求研究人員先說明、提供書面同意簽名及參與者副本，條件含年滿18歲且中原大學在學、沒有規律冥想等；包含心理狀況的敏感初篩。Drive正式倫理資料夾 `1UfsiHwtSEBhdq2kjRqNjVrUMOm2Zgs_x`之`變更申請`子夾`1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR`存在10/22申請表`1QN4ura_dwefSxXIM7pD6QGTulo6CoEsI`及10/27 E1/E2同意書草稿，但**未在本次查核之現有檔案看到核准／生效決議**。不能以申請文件存在、修改時間或原核可證書自動宣稱電子郵件核身、遠端電子簽署、線上個資蒐集／Google Sheets資料處理已有適用REC核准。標`REC_SCOPE_REVIEW_REQUIRED`（指網站特定程序，不是研究計畫全部未核可）。不更改任何REC與原核准文書。
+
+**程式實質完成：**
+1. 原`gas/Study1ParticipantIntake.js`保留原Applicants（七欄）與Screenings（六欄），在經核實的E1政策與獨立反濫用驗證後才允許待核申請；原共用ScriptLock、唯一Email、HMAC申請ID、append＋flush＋回讀、同requestId冪等及跨表部分寫入待人工處理。任何資格自陳不能標`VERIFIED/ELIGIBLE`，不儲存逐題心理／醫療初篩答案。增加以原Applicants僅第E欄建立日期核對的每小時60筆安全限流（操作防濫用上限，不是正式研究樣本數／時段容量）、試算表公式注入拒絕。
+2. 新原檔`gas/Study1ParticipantTrust.js`：`study1ParticipantRecSource_`需要獨立審定的E1遠端預篩／Google Sheets個資用途範圍文件、有效期、審核人、原正式同意書版本，並以兩個獨立Drive原檔ID＋SHA256逐位元組核實；無檔、過期、範圍不符或遭竄改即拒絕。`study1ParticipantTurnstileCheck_`僅對Cloudflare Siteverify送出一次性人機憑證（不傳姓名/電話/心理初篩），驗證200成功、正確hostname、`study1_e1_apply` action、5分鐘時效，拒絕官方測試金鑰；同一憑證單次驗證後以伺服器HMAC grant及共鎖重核配置一致，不對Cloudflare重複兌換。正式siteKey、secret及適用script.google.com主機尚未配置，必須另經核實後才可供真申請。
+3. 原Verification A:I 的八碼、10分鐘、原OtpThrottle每小時三次及60秒間隔、OTP一次性F:G CAS、flush／readback維持。OTP成功後額外簽發僅限E1原申請／screening／challenge／emailHash與有效使用時間的30分鐘HMAC`EMAIL_CONTROL_ONLY`，後續獨立`study1ParticipantEmailStatus`重讀原Applicants／Screenings／Verification及最新challenge，拒絕偽造、更換、重放、過期；只呈現`PENDING_STAFF_ELIGIBILITY_REVIEW/NOT_AUTHORIZED/NOT_SIGNED`，**永不將信箱控制權當本人、成年、學籍或REC資格核可**。
+4. 同一原`gas/Study1Visitor.html`透過原`gas/Website.js?view=apply`提供正式E1流程模式；只有適用REC及反濫用設定核實才啟用資料欄位，正式頁載入Cloudflare challenge後才允許送出申請，郵件OTP成功須以新RPC重新核對伺服器HMAC證據。原七步`choose→screen→otp→slots→confirm→consent→done`結構、原OWNER DEMO與V05/V08沒有移除、公開`requestOtp/verifyOtp/holdSlot/submitConsent`舊路徑仍無條件關閉。**正式時段預約、確認與完整PDF電子同意尚未取得可核實真人身份/實驗別/時段來源，不可跳過門檻或默默轉用虛構來源**。
+
+**已核實合成E2E/CI：** `tests/study1-participant-trust.test.cjs`包含REC獨立雙文件SHA、scope/時效、Siteverify hostname/action、過期／錯誤／測試金鑰、憑證單次使用及配置競寫；`tests/study1-formal-browser-synthetic-e2e.test.cjs`完整模擬FORMAL閉鎖、captcha、E1初篩/申請、OTP、HMAC回讀、待核狀態與不可提前預約／簽署；更新原`tests/study1-participant-intake.test.cjs`覆蓋原F:G、一次性、跨申請／重送／新challenge、授權偽造／逾時／每日外限與每小時全域限流。程式SHA `567e2d288bfa59f7e961293c75b4a7e7e39ac928` 的 Actions Run `42781558165`已回讀 **834 PASS，0 FAIL，0 SKIP**（純合成VM、假MailApp/UrlFetch/Drive，無真人信件及Google Sheet寫入）。
+
+**不能冒稱完成與剩餘P0外部依賴：** (A) E1具體遠端收件、Email OTP、資料保存以及最後PDF電子簽署之REC適用核准／PI審核版本與兩獨立證據文件，目前未配置；(B) Cloudflare真sitekey/secret及核定host不存在於本輪可讀來源，不能完成真服務連線測試；(C) 信箱與申請以外的**真正成年／中原在學、研究資格與後台複核**尚無獨立可溯源attestation；(D) 原Slots→E1/E2不存在正式獨立權責mapping，原Reservations booking與V05/V08正式真人RPC不能安全放行；(E) 最後核定PDF身分綁定、研究人員說明、本人簽署與副本／撤回尚未完成實際真人路徑；(F) 無USER browser UAT／正式部署。這些都不能以flag、假身份、合成CI或OWNER V125 Demo取代。
+
+**接續點：** `TASK_DOMAIN=Study1 recruitment website/E1 real intake`；`SOURCE_PATH=solactw-star/study1-recruitment-gas PR#133`；`SOURCE_VERSION=567e2d288bfa59f7e961293c75b4a7e7e39ac928`（當次核實CI版，後續務必讀最新PR HEAD）; `LAST_VERIFIED_STEP=REC folder metadata + 834 synthetic CI`；`COMPLETED=E1 pending original-sheet kernels, real Turnstile Siteverify adapter, pinned REC scope adapter, OTP F:G + HMAC possession, original formal front-end, synthetic browser E2E`；`NEXT_ACTION=approved trusted age/CYCU identity evidence and slot E1 association; finish staff review->booking->consent original PDF E2E; browser UAT only after evidence`；`BLOCKERS=REC_SCOPE_REVIEW_REQUIRED,BOT_PROVIDER_NOT_PROVISIONED,IDENTITY_SOURCE_NOT_CONFIGURED,SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED,FORMAL_BOOKING_NOT_CONNECTED,FORMAL_PDF_NOT_CONNECTED,UI_NOT_VERIFIED`；`WRITE_OWNER=PR#133 isolated branch`；`SYNC_STATUS=BRANCH_TESTS_VERIFIED,MAIN_SYNC_VERIFIED=false,GAS_LIVE_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false`。保持`OPEN=false`、`CONSENT_READY=false`、原私有`MYSELF`，E2不招募；不合併main、不寫REC/正式研究Sheet、不寄真信、不啟用研究。
+
+
+### 70-S.17｜2026-11-10 使用者核定：E1成年／學籍／資格採本人勾選自陳，不查驗證件
+
+**當次使用者最新明確決策（優先於本文件 §70-S.12–S.16 舊有「獨立學籍／年齡／本人核身來源」、「研究人員逐案核身／資格複核」敘述）：** 本Study1研究的年滿18歲、中原大學學生身分與其餘納入／排除資格，由研究參與者在網頁逐項自行勾選、聲明是否符合。**不檢查身分證或學生證，不要求上傳影本、校方學籍查詢API、額外實名核身或研究人員逐案檢驗身分證明；這些都超出已確定的研究流程，不得當成正式報名的前置工程阻塞。** 已核准原REC的資格條文本身、研究人員對研究程序的說明與知情同意、資料保護等仍需依有效版本執行；本次自陳決策**不等於**核准尚未核對範圍的遠端簽署、個資蒐集或E2正式招募。
+
+**正式系統要求（E1）：**
+1. 原七步資格初篩依REC實際資格文字顯示清楚的勾選／是非題，由本人勾選表示年齡、在學與適用限制。所有需為真者同時勾選才能通過自陳資格；任一不符顯示不適格、不寫入逐題心理疾病／治療等敏感答案；不得藉此增加身分證字號、學生證、健康證明或特殊學籍號碼欄位。
+2. 使用原正式`Applicants`七欄與`Screenings`六欄，不建平行表：合格自陳記錄`Screenings.eligibility_result='ELIGIBLE'`，**證據屬性**`Screenings.verified_by='PARTICIPANT_SELF_REPORT'`（明確不是研究人員核身），同列保留適用`rules_version`及時間。申請初始`Applicants.status='PENDING_EMAIL'`；Email OTP持久化F:G一次性核對完成後，受保護共鎖回讀可轉`Applicants.status='EMAIL_VERIFIED'`，只表示已核對信箱控制權，不表示曾查證真實身分或學籍。重送同一申請回傳最新正確階段，不應退回`PENDING_EMAIL`。
+3. OTP、HMAC、限時憑證、節流、反機器人、REC原文件適用範圍與時段競寫等資訊安全門檻保留；但**OTP不是身分證查核**。正式E1下游訂位／知情同意應使用「原Screenings自陳合格＋原Applicants信箱已驗＋原Verification F:G被合法使用＋原REC及E1時段來源＋交易鎖及授權」來綁定同一申請，**不再以`REC_APPROVED_IDENTITY_ATTESTATION`、`age18OrOlderVerified`、`cycuStudentVerified`或研究人員身分核定作額外必要條件**。若舊private kernel仍有這些條件，須最小範圍移除／替換、保留防冒名與同人同申請的HMAC，不能僅在前端改字樣繞過伺服器核准。
+4. 自陳與Email控制權彼此獨立：`PARTICIPANT_SELF_REPORT`表示資格自陳，`EMAIL_VERIFIED`表示收到並輸入OTP。兩者都不是官方證件查核，也不能讓匿名訪客跳過正式Email驗證直接占用場次或簽同意書。正式E2仍禁招、不因既有E1自陳條件同樣適用而自動開放。
+
+**本輪已修改原PR隔離分支（不觸及原GAS私人部署或正式Sheet）：** `gas/Study1ParticipantIntake.js`將原錯誤`PENDING_REVIEW / SELF_REPORT_NOT_VERIFIED`更正為`ELIGIBLE / PARTICIPANT_SELF_REPORT`，完整Email證據核對後才以原ScriptLock寫`EMAIL_VERIFIED`＋updated_at並flush／回讀（不得寫`VERIFIED`假冒實名證件查核）；原`gas/Study1Visitor.html`提示明確不需身分證／學生證，將「待研究人員核身」移除。相應合成測試在原`tests/study1-participant-intake.test.cjs`、`tests/study1-formal-browser-synthetic-e2e.test.cjs`、`tests/study1-formal-intake-wizard.test.cjs`依新來源語義更新。下游 `Study1WizardP0Bridge.js`、`Study1EConsentBinding.js`及`Study1WizardEnrollment.js`仍留舊的獨立核身攔截，**本輪未宣稱這些下游已完成自陳適配或正式預約可使用**，應依上述新決策優先修正；不是待取得證件核身服務。
+
+**未變動安全限制及接續：** 當次有效REC網站程序／線上資料處理與同意適用範圍仍須查核；Cloudflare正式金鑰／原E1時段可靠映射、Reservations及正式已簽PDF仍待工程。`OPEN=false`、`CONSENT_READY=false`、`MYSELF`、E2禁止；不改REC／正式Sheet／main，不合併PR、不部署、未用真人資料。`TASK_DOMAIN=Study1 recruitment / self-declared eligibility`；`SOURCE_PATH=original PR#133 and docs/study1-system-spec.md`；`NEXT_ACTION=fix downstream original booking/consent attestation to E1 self-report+email under shared lock; close remaining real system gaps`；`BLOCKERS=REC_SCOPE_REVIEW_REQUIRED, BOT_PROVIDER_NOT_PROVISIONED, E1_SLOT_EXPERIMENT_ASSOCIATION_MISSING, FORMAL_BOOKING_CONSENT_NOT_CONNECTED, UI_VERIFIED_NOT_DONE`；**`INDEPENDENT_ID_OR_STUDENT_CARD_CHECK_NOT_REQUIRED=true`**；`MAIN_SYNC_VERIFIED=false, FORMAL_READY=false`。
+
+
+### 70-S.18｜2026-11-10 E1自陳＋原Email OTP的三個後端移除證件核身硬門檻
+
+**最新使用者明確授權與優先權：** 接續原§70-S.17，成年、中原學籍與其餘研究資格僅由參與者逐項勾選自陳，禁止新增身分證／學生證影本、學籍API、研究員逐一查驗證件或獨立法律實名核驗作正式報名前置。Email OTP只確認信箱控制權，**不是證件／校籍身分核定**。所有正式REC研究程序、資訊安全、個資用途、原資料表、E2禁招分開保留權責。
+
+**此次原PR #133隔離分支修改之正式程式（皆為原路徑增量，未寫正式Sheet）：**
+1. `gas/Study1WizardEnrollment.js`：`study1WizardIntakeAuthority_`採用原`study1ParticipantInput_`的五項逐題勾選規則；`study1WizardCreateApplication_`統一委派原`study1ParticipantBegin_`（適用REC、Turnstile一次性人機驗證與原Applicants／Screenings同鎖持久化），不再另建`REC_APPROVED_IDENTITY_ATTESTATION`／`age18OrOlderVerified`／`cycuStudentVerified`身分來源。舊Wizard OTP入口改在同鎖核對原申請`PENDING_EMAIL/EMAIL_VERIFIED`、`Screenings.ELIGIBLE/PARTICIPANT_SELF_REPORT`、當次REC screeningVersion，鎖外委派原`study1ParticipantOtpSend_`再次鎖及來源回讀後才可能呼叫MailApp；E2明確拒絕。
+2. `gas/Study1WizardP0Bridge.js`：`study1WizardApplicantAuthority_`不再等待獨立真人身分核定，而是取得下述伺服器HMAC權責證據。訂位前`study1WizardAuthorityCheck_`、`study1WizardReadPerson_`只接受E1、原`Applicants.status=EMAIL_VERIFIED`、原`Screenings.eligibility_result=ELIGIBLE/verified_by=PARTICIPANT_SELF_REPORT`及原已用OTP之F:G與當前screeningVersion、30分鐘證據期限；BookingHold共鎖、容量與場次E1可信來源、PDF SHA以及預約HMAC憑證不放寬。原Stage03 `study1WizardOtpVerifyBound_`改用原申請與自陳來源讀取信箱，委派原`study1ParticipantOtpVerify_`消耗OTP，再以原`study1ParticipantEmailStatus_`核對並只持久化`EMAIL_VERIFIED`；不再呼叫尚未有身分來源的舊獨立OTP介接。所有E2請求一律禁止。
+3. `gas/Study1EConsentBinding.js`：`study1EConsentIdentityAttestation_`不再要求證件與人工核身，改依原自陳／OTP安全來源；原`study1EConsentBindingAdapter_`及`study1BindingVerify_`只接受`STUDY1_E1_SELF_REPORT_OTP_HMAC`、`eligibilityEvidenceSource=PARTICIPANT_SELF_REPORT`、`emailControlSource=ORIGINAL_VERIFICATION_FG`、E1及已核對PDF＋原預約列，保留即時安全重讀、HMAC、ScriptLock及簽署CAS。`STUDY1_ECONSENT_IDENTITY_SOURCE_APPROVED`舊誤導旗標改為`STUDY1_E1_SELF_REPORT_OTP_SOURCE_VERIFIED`（**僅技術來源驗收旗標，非證件核身**）。`STUDY1_E1_REMOTE_CONSENT_REC_SCOPE_VERIFIED`仍為額外獨立必要門檻，無核實之REC網站遠端同意程序時不開放簽署。
+4. 新增`gas/Study1SelfReportAuthority.js`為同一GAS來源白名單中的唯一伺服器核對者：須先取得同一`ScriptLock`，只讀正式Apps/Screenings/Verification原列並確認同一申請／同一信箱、正確版本、E1自陳合格、已使用OTP F:G且不逾30分鐘及無更新challenge取代；HMAC分別綁定篩檢的版本、證據日期與核准文書SHA，以及原使用challenge/信箱/OTP使用時間；回傳不含身分證／學生證或逐題心理健康資料。原`Study1WizardP0Bridge.js`與`Study1EConsentBinding.js`共用此權責，不信任網頁給的`verified`、證件號碼或身份旗標。更新原精確白名單`scripts/study1-gas-backend-allowlist.cjs`及相應同步測試。
+
+**本輪實測結果：** 增量更新原`study1-wizard-p0-bridge.test.cjs`、`study1-wizard-enrollment.test.cjs`、`study1-econsent-binding.test.cjs`、`study1-econsent-sheet-adapter.test.cjs`、`study1-econsent-otp-adapter.test.cjs`、`study1-rec-202604EM033-authority.test.cjs`、`study1-signed-pdf-record.test.cjs`等既有合成Fixture，移除錯誤`VERIFIED/STAFF_TEST/REC_APPROVED_IDENTITY_ATTESTATION`身份狀態；保留原Booking容量／重送／鎖競寫／拒絕跨申請及完整PDF合成簽署。新增`tests/study1-self-report-authority.test.cjs`七項針對真正新伺服器HMAC函式的原始列自陳／Email OTP證據、無鎖拒絕、REC網站簽署獨立門檻、E2禁止、狀態變造、未使用／逾期OTP、新challenge覆蓋與HMAC篡改回歸測試。程式commit `bf145346c441ed17940fd94aac9f0ebdde558498`，GitHub Actions Run `42788634452`**已回讀842 PASS／0 FAIL／0 SKIP**；所有資料均為合成，未寄真信、未實際存取原正式Sheets、未執行真人簽署及瀏覽器UAT。
+
+**留存安全與真實剩餘P0：** 本次只修正指定核身模型，未將原公開`requestOtp/holdSlot/submitConsent`開放收件。原`study1WizardSlotAuthority_`因原Slots表無experiment欄仍維持`SLOT_EXPERIMENT_SOURCE_NOT_CONFIGURED`，不會用UI所填E1或地點文字自行判定；原PDF遠端簽署適用REC未獲核實時獨立拒絕（不能以研究本身已核可直接視為電子簽名已核可），正式Cloudflare金鑰／個資Scope、Reservations與V05/V08實際真人路徑、完整知情同意、部署與實機UAT仍待完成。無證件／學籍查核工程阻塞。原ScriptProperties `OPEN=false`, `CONSENT_READY=false`、私有`MYSELF`，E2禁招；不更動正式REC、原正式研究Sheet、GitHub main、GAS部署。
+
+**接續點：** `TASK_DOMAIN=Study1 website E1 self-report/OTP and original booking/consent`；`SOURCE_PATH=solactw-star/study1-recruitment-gas PR#133`；`SOURCE_VERSION=bf145346c441ed17940fd94aac9f0ebdde558498`（code CI verified，後續須回讀最新HEAD）; `LAST_VERIFIED_STEP=all 3 requested backend changes+shared HMAC source+842 synthetic CI`；`COMPLETED=REMOVE_DOCUMENTARY_ID_GATES_IN_P0_ENROLLMENT_BINDING, SELF_REPORT_MAILBOX_HMAC_SOURCE, E2_BLOCKED`；`NEXT_ACTION=trusted E1 slot mapping, original live V05 Reservations+V08, final PDF binding and effective REC remote-consent scope, owner browser UAT after ready`；`BLOCKERS=REC_WEB_SCOPE_REVIEW_REQUIRED,CLOUDFLARE_NOT_PROVISIONED,E1_SLOT_EXPERIMENT_REGISTRY_NOT_CONFIGURED,REAL_BOOKING_AND_PDF_RPC_NOT_INTEGRATED,UI_NOT_VERIFIED`；`WRITE_OWNER=original PR#133 isolated branch`；`SYNC_STATUS=BRANCH_CI_VERIFIED,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false`。
+
+
+### 70-S.19｜2026-11-10 E1原Slots可信歸屬、V05名額與Reservations、V08候補／改期／取消
+
+**本輪授權與責任邊界：** 使用者要求在原唯一GitHub PR#133隔離分支接續§70-S.18，以原參與者資格自陳`Screenings.ELIGIBLE/PARTICIPANT_SELF_REPORT`＋原`Applicants.EMAIL_VERIFIED`＋原Verification F:G一次性OTP/HMAC，完成E1原正式Slots可信歸屬、V05容量與預約暫留、Reservations原10欄持久化、V08候補/改期/取消以及前後端合成E2E。保留原個資/時段兩份Sheet、有效REC原文、正式研究資料、原管理員權限、`OPEN=false`/`CONSENT_READY=false`/`MYSELF`、E2禁招，不部署新GAS、不合併main、不接收真人資料。原HTML的OWNER-only虛構Demo繼續獨立保留，不應再以Demo「成功」冒充真人報名。
+
+**已完成的程式：**
+1. `gas/Study1WizardP0Bridge.js`同原路徑新增`study1WizardSlotAuthority_(request,originalSlot,heldLock)`：原Slots八欄沒有`experiment`，必須使用擁有者審核後設定的伺服器`STUDY1_E1_SLOT_REGISTRY_V1`（每筆`slotId/experiment/slotRowSha256`）與`STUDY1_E1_SLOT_REGISTRY_HMAC`驗證，並要求`STUDY1_E1_SLOT_REGISTRY_APPROVED=true`。核對原完整Slots列的HMAC，拒絕遭修改的日期/容量/狀態/行號、未知slot、同ID重複、E2、錯誤簽章與未取得ScriptLock。**只提供可信登錄的程式機制，尚未將任何正式實際場次自行猜測成E1或替PI建立核定清單**；必須由研究團隊根據原Slots與核准安排審查、配置並回讀後才可真實使用。
+2. 新原檔`gas/Study1FormalBooking.js`為真正FORMAL模式（非虛構Test）使用原BookingHoldTransaction／BookingReadOnlySnapshot／十欄Reservations。`study1FormalV05Slots`讀同一原時段及預約模型、僅列E1真實審核過的場次；依同一時間點計算容量及WAITLISTED FIFO。`study1FormalQuoteHold`簽發兩分鐘、綁原申請/OTP/slot/documentSHA/版本的一次性HMAC quote；`study1FormalHoldSlot`重新核對後進入原BookingHoldOnceLocked交易，在共用ScriptLock內重新判斷剩餘名額、同人有效預約、候補插隊、全域唯一idempotency、原Reservations append/flush/完整回讀，正式暫留期限程式暫設10分鐘（**工作暫設值，非REC或PI最終核定營運政策**）。錯誤／來源不一致即fail closed。
+3. V08同檔：`study1FormalStatus`只讀本人原Reservations；`study1FormalWaitlistJoin`用原`WAITLISTED`列登記、同人不得重複候補、候補不扣容量；`study1FormalWaitlistClaim`要求原順位FIFO第一人、可用剩餘容量、再次ScriptLock及同人限額，從同一列`WAITLISTED→HELD`。`study1FormalCancel`在原列標`CANCELLED`（不再佔用）、唯讀回查；`study1FormalMove`保留原列CANCELLED歷程、新列HELD及原有效時限，原列變更加新列是Google Sheets非ACID操作，若第二段失敗標`V08_MUTATION_PARTIAL_REQUIRES_REVIEW`，嚴禁自動補試或冒稱成功。所有操作均綁同一原Email OTP HMAC，拒絕別人的預約、舊quote、跨E1/E2、來源被篡改、未批准候補政策。`STUDY1_E1_WAITLIST_POLICY_REVIEWED`仍是獨立政策旗標。
+4. `gas/Study1Visitor.html`同原檔增量加入真正FORMAL V05月曆/日期/可用名額與候補狀態、簽章quote→後端HELD、V08本人原預約唯讀回查、取消、候補加入/領取、改期。原先有**真實缺陷**：這些正式V05/V08函式原被定義於`if(google.script.run)`區塊內，在strict IIFE中`otpVerify`上游回呼的詞彙作用域無法呼叫`formalV05Read_`。已在原HTML將ready檢查的`if/else`先關閉、所有FORMAL V05/V08函式留在同一IIFE外層，修復OTP完成後無法查場次的執行錯誤。原所有虚構OWNER TEST元件與舊公開`Website.js`的否決路徑保持不變，不以舊虛構資料回退。
+
+**合成測試與最新回讀：** 原`tests/study1-formal-v05-v08-original-booking.test.cjs`8項真Booking模型安全測試涵蓋E1歸屬、準確剩餘名額、同人重送不重複、容量、候補FIFO、釋出後領取、原列改期/取消與歷史、跨E2、外部來源更改、共鎖競寫及部分失敗報未知；`tests/study1-formal-browser-synthetic-e2e.test.cjs`及`tests/study1-formal-intake-wizard.test.cjs`核對待開放、原申請/OTP/真V05入口；新增`tests/study1-formal-v05-v08-browser-e2e.test.cjs`2項整頁FORMAL合成互動：選擇E1→資格勾選→Turnstile模擬→申請→Email OTP→伺服器V05時段→原HELD→V08改期/取消，以及額滿→WAITLISTED→候補領取，確認不呼叫虛構Demo RPC。所有Google Sheets／Mail／UrlFetch均使用VM合成替身，不是真實預約、發信、部署或實際Chrome驗收。程式快照commit `f3f7a13bb7b93d2d522083c88bea9799ccf66ed7`，GitHub Actions run `42811810381`已回讀**852 PASS／0 FAIL／0 SKIP**。
+
+**仍須核實的獨立實營門檻／不得誤報：** (A) 原正式Slots實際資料尚未由PI審查並寫入核定E1 slot registry（HMAC機制已完成，但`STUDY1_E1_SLOT_REGISTRY_APPROVED`不得虛構已配置）；(B) V05 quote 2分鐘、暫留10分鐘、FIFO啟用條件及其它營運政策仍應依適用核准文件／PI定案後配置；(C) 最新有效REC對網頁蒐集個資、真人電子同意與遠端簽署的適用範圍未能以舊核准證書直接推定，正式Turnstile provider及Consent PDF仍需實際服務核對；(D) V07最後研究同意及簽署PDF/研究員解說/副本尚未連接FORMAL完整真人路徑；(E) 尚無真實瀏覽器UI驗收、真郵件或原資料Sheet交易測試、GAS新版部署、main合併與正式營運授權。因此只標`BRANCH_SYNTHETIC_CI_VERIFIED=true`，`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`、`UI_VERIFIED=false`、`FORMAL_READY=false`。修正後的FORMAL模式也不得在上述安全門檻未通過時自行擅自開放。
+
+**跨對話接續：** `TASK_DOMAIN=Study1 recruitment website / formal E1 Slots V05 Reservations V08`；`SOURCE_PATH=solactw-star/study1-recruitment-gas PR #133 / docs/study1-system-spec.md`；`SOURCE_VERSION=f3f7a13bb7b93d2d522083c88bea9799ccf66ed7`（為當次核實程式SHA，新輪應讀遠端最新）; `LAST_VERIFIED_STEP=real FORMAL V05/V08 controller scope repair + 852 CI and synthetic browser E2E`；`COMPLETED=E1 slot-registry code, formal V05 quote/hold, original Reservations CAS and FIFO, V08 waitlist/move/cancel, FORMAL browser callback and synthetic tests`；`NEXT_ACTION=PI-reviewed exact original E1 slot registry + effective REC website/consent provider readiness + FORMAL last PDF step and real owner browser UAT`；`BLOCKERS=E1_SLOT_REGISTRY_NOT_PROVISIONED,PROVISIONAL_HOLD_WAITLIST_POLICY_UNAPPROVED,REC_WEB_CONSENT_SCOPE_REVIEW_REQUIRED,TURNSTILE_REAL_PROVIDER_NOT_VERIFIED,FORMAL_LAST_PDF_NOT_LINKED,REAL_UI_NOT_VERIFIED`；`WRITE_OWNER=PR#133 isolated branch`；`SYNC_STATUS=BRANCH_CI_VERIFIED,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false`。
+
+### 70-S.20｜2026-11-10 E1原Slots OWNER唯讀核定前稽核與部署安全清單
+
+**本輪授權與來源：** 接續同一原PR #133 §70-S.19（FORMAL E1自陳資格／Email OTP、V05／V08和原Reservations 852項合成核心）；不重做既有核心、Demo或證件／學籍查核。只在原Draft隔離分支增量寫入，不合併main、不部署新版GAS、不修改正式REC／Sheet／原時段／真人資料，維持OPEN=false、CONSENT_READY=false、MYSELF、E2不開放。
+
+**完成程式：** 原gas/Study1WizardP0Bridge.js新增study1OwnerE1SlotAudit()，以study1AdminOwnerRequired_雙身分OWNER驗證＋共用ScriptLock只讀原營運Sheet的Slots八欄（不讀或回傳Applicants／Reservations個資），原表頭／禁止公式／兩次原列回讀一致才對照既有STUDY1_E1_SLOT_REGISTRY_V1及其HMAC。無登錄、缺簽章、原列遭改、來源競寫、重複ID、登錄缺失等不能推定E1；絕不以slotId／地點字樣或訪客傳入欄位推定E1。它不建立、分類、核定或修改任何場次、ScriptProperties與核定清單，僅回傳OWNER_ONLY_READ_ONLY檢查及每場pinStatus，固定formalReady=false及recRemoteConsentScopeVerified=false。
+
+原gas/AdminConsole.html增加「E1正式場次｜唯讀核定前查核」入口，後台研究室OWNER可檢視原Slots的場次、登錄實驗及原列簽章比對，所有動態內容以textContent渲染，沒有開放按鈕／自動核定。新增tests/study1-owner-e1-slot-audit.test.cjs七項來源、權限、HMAC竄改、原場次變更、重複／缺失與共鎖釋放測試；tests/public-global-surface.test.cjs僅把新owner-gated讀取端點加入精確清單並另檢查無寫入。舊AdminConsole VM無此選配按鈕時不影響原測試功能。
+
+**REC資料當次讀取：** 原有效REC證書ID 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy仍存在02_倫理審查；變更申請資料夾ID 1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR目前僅有2026-10-22變更申請與2026-10-27 E1/E2同意書修訂稿，未見對應的核准決議，不能逕認修訂稿已生效。研究程序已有REC核可不代表網頁個資／遠端電子同意的特定實作已核可；仍須核對最新有效核准紀錄及適用範圍。證書Drive權限metadata回傳anyone/writer，屬應優先人工核查的證據完整性風險，本輪不擅改任何正式權限。
+
+**真實剩餘P0與部署前硬門檻：** 
+1. PI根據原正式Slots逐筆決定E1場次、時間、地點、名額並核定後，才由授權者配置／回讀原Registry HMAC；目前只完成唯讀核定前介面，不聲稱已有任何正式E1時段核定。
+2. 核定V05 quote有效時間、HELD期限、V08 FIFO及部分失敗人工處置營運政策；現行數值仍是未核准的工作暫設。
+3. 核實適用REC對網站個資、電子同意、研究員說明與簽章、同意書版本／頁碼／簽署框／日期／保存／副本交付的範圍；修訂稿不是核准證據。
+4. 實測真Cloudflare Turnstile Siteverify／secret、MailApp OTP、原Sheet權限、HMAC金鑰、原PDF與簽署PDF逐位元組SHA、私有檔案ACL、保存期限／撤回和失敗重送處置，不寄真信或讀寫真人資料來替代合成CI。
+5. FORMAL最後V07須將原HELD預約、原申請及OTP證據、本人簽署PDF、研究員確認及本人完整PDF副本連成不可偽造的序列；本輪仍未接通，不得把現有owner PDF示範解讀成正式真人電子同意。
+6. 原GAS Script ID、遠端原始碼與manifest、既有部署版本、完整備份、原私有MYSELF執行權限、來源SHA和部署後回讀均須獨立驗證；需另行明確授權同步／部署。CI通過不等於UI_VERIFIED，不在安全門檻通過前通知集中人工UAT。
+
+**寫入紀錄：** 原backend commit 8e0811330c772339ee2d4e27c2447f3363b9a4ed；新增7測試 5ab49b557e7731134da23a6e53586c47d8eb34bf；原後台 df80fb9e4b66cbca1f05cb48dec23b9ece23b925；既有VM與公開函式白名單相容性修正 bd0ff64afeb91c456ddb0b3c25371a4145f13e3b、fd97f035b7096a45056af0e6c8f0401959f2e68b。首輪GitHub Actions 42814342488因舊AdminConsole VM選配DOM不存在（41項）及新OWNER RPC未在精確白名單（1項）而失敗，已逐項修正；必須以修正後最新CI重新驗證，不隱藏失敗或冒稱已正式通過。
+
+**接續點：** TASK_DOMAIN=Study1 website / E1 operating readiness; SOURCE_PATH=PR#133 / gas/Study1WizardP0Bridge.js + gas/AdminConsole.html + tests + docs/study1-system-spec.md; LAST_VERIFIED_STEP=OWNER_SLOT_AUDIT_CODE_AND_TESTS_COMMITTED_CI_RECHECK; NEXT_ACTION=verify latest CI and SHA, PI review actual E1 slot registry, effective REC web/consent scope, real external providers, FORMAL final PDF linking and independent predeploy owner audit; BLOCKERS=PI_E1_SLOT_APPROVAL_PENDING,REC_WEB_CONSENT_SCOPE_REVIEW_REQUIRED,REC_EVIDENCE_ACL_REVIEW_REQUIRED,TURNSTILE_REAL_NOT_VERIFIED,FORMAL_FINAL_PDF_UNLINKED,UI_NOT_VERIFIED; WRITE_OWNER=original PR#133 isolated branch; SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false.
+
+### 70-S.21｜2026-11-10 FORMAL E1 最後知情同意／完整簽署 PDF 與原正式 Slots 零列核查
+
+**本輪界線：** 使用者要求原 PR #133 最新 §70-S.19 同輪完成兩件事：原七步 FORMAL E1 最後同意／PDF 合成端到端、正式 Slots 唯讀與 E1/E2 原列 HMAC 配置候選。依當次核查實際接續最新 §70-S.20 HEAD，保留 §70-S.18 資格自陳／原 Email OTP、§70-S.19 V05/V08/Reservations 交易、§70-S.20 OWNER 稽核。不得重做 Demo 或證件核身，不修改正式 REC、Sheets、GAS、原正式場次或 E2 開關；原 PR 維持 Draft，OPEN=false／CONSENT_READY=false／MYSELF。
+
+**一、真實營運 Slots 來源與逐場核對報告（唯讀）：**
+- 原營運 Google Sheet ID：1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ；Drive metadata 為原生 Google Sheets、只有研究室帳號 owner，修改時間 2026-10-29T06:06:38.127Z。當次 Sheet metadata：Slots gid=178541507（1000列、26欄版面；原正式資料模型使用 A:H 八欄）、Reservations gid=13000001。
+- Slots!A1:H1000 已用 UNFORMATTED_VALUE 兩次獨立唯讀讀取，兩次均只有標題列 [slot_id,start_at_utc,end_at_utc,capacity,location_code,status,created_by,updated_at_utc]，無任何有效時段資料列；A1:H50 格式化值讀取亦同。實際場次=0；可確認 E1=0、E2=0、未核定=0；**沒有任何可根據原列產生的正式 HMAC 配置值**。這是當次來源觀測，不代表研究團隊不存在未上傳的規劃。
+- 原 SystemConfig!A1:H20 仍見 OPEN=false、CONSENT_READY=false 及原聯絡信箱；Reservations!A1:J1 僅讀取十欄表頭，沒有讀取任何參與者預約資料列；AuditLogs!A1:H12 亦只有表頭。原研究室 Drive 網站資料夾及原限制存取預約資料夾僅定位到上述原正式營運 Sheet／個資 Sheet，未找到單獨可代替 PI 核定的 E1/E2 現行正式時段清單；不以這次有限範圍搜尋推斷其他所有雲端位置不存在核准來源。
+- 候選格式僅在原 Slots 有真實資料列及 PI 另外提供逐場 E1/E2 決策後成立：每列 slotId、explicit experiment、原八欄 HMAC；登錄 JSON 與整份 HMAC 以現有原Study1BindingHmac_伺服器密鑰計算。缺場次或未核定時回傳 BLOCKED_NO_OFFICIAL_SLOTS／PI_DECISIONS_REQUIRED，絕不填假資料；E2 始終不開放。
+
+**二、同一原 PR 隔離分支新增／修復的工程：**
+- gas/Study1FormalConsent.js：新增受限制的 FORMAL E1 專用同意起始與狀態 RPC。核發前必先符合原公開 E1 intake gate、原 Email OTP HMAC、原共用 ScriptLock 下的本人 HELD Reservation、已簽章的原 Slots E1 權責、已選原 PDF 版號與 SHA、原 PDF 研究參與者簽名框佈局及**獨立的有效遠端電子同意 REC 範圍證據**。後者不是布林開關就能核准：要求 E1_REMOTE_CONSENT_POLICY_V1 對應獨立核准文書與原同意 PDF 的 Drive ID／SHA／有效期／PRIVATE ACL；目前未配置，故真人完全拒絕。
+- gas/Study1EConsentBinding.js：只有來源確為 FORMAL_E1 且上述獨立安全門檻完成時可使用 PUBLIC_E1 限縮讀取介面；原 OWNER-only 私有核發與既有 TEST 保留獨立。E2、跨申請、跨實驗、錯原 PDF、OTP 重放及過期一律拒絕。
+- gas/AdminSandbox.js：修復完整 PDF 最終 CAS 寫入時原先沒有把實際持有的 ScriptLock 傳給 source recheck 的真缺陷；現在前後重新讀正式本人／Email／預約資料且在鎖內比對 FORMAL 本人輸入姓名與原 Applicants 自陳姓名一致。原文件原位不變，簽署筆跡 PNG 只寫回研究參與者核對之 PDF 原位置，使用可信伺服器時間換算 Asia/Taipei 日期，產生新的完整 PDF／獨立 SHA，私有 Drive 回讀後由研究人員確認。研究人員確認前不提供已簽署副本；撤回只新增事件，原簽署證據不刪改。新增 PI 核定的有效副本存取時間（1～720小時）門檻，缺核定不得無限期使用 bearer token；已確認副本在停收案時仍可依有限 token 期限核對，不藉重開真人報名。
+- gas/Study1Visitor.html：在原七步 FORMAL 的 V05／V08 HELD 之後才進入 STEP05 核對及 STEP06 完整原版 PDF 閱讀。前端瀏覽器重新計算原 PDF SHA；研究人員說明事件未完成時無法手寫本人簽名／提交。另加入 HTML Canvas 手寫筆跡、PDF 來源重核、研究人員確認後的完整簽署 PDF 位元組／SHA／臺灣日期核對及副本、撤回事件介面；換預約／取消會撤銷舊副本 URL，沒有回退 DEMO 或進行自動重送。
+- gas/Study1WizardP0Bridge.js：沿用 §70-S.20 OWNER 稽核，新增 owner-gated study1OwnerE1SlotRegistryProposal，只讀原正式 Slots 並兩次比對；只有人工逐場輸入明示 E1/E2 候選時才計算原列與整份 HMAC，回傳 approved=false，絕不自行寫入 ScriptProperties、原時段或核准開關。真 Slots 空表時回傳 BLOCKED_NO_OFFICIAL_SLOTS，絕不虛構任何行。
+- scripts/study1-gas-backend-allowlist.cjs、tests/public-global-surface.test.cjs、tests/study1-gas-backend-sync.test.cjs 同步更新精確白名單與可審計新 RPC，禁止意外公開原私人函式。
+
+**三、REC 與正式真實安全門檻：** 原有效REC 202604EM033 研究核可證書仍是 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy；10/22 變更申請與10/27 E1/E2同意書仍在變更申請夾 1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR，當次尚未找到適用核准決議，不能當生效文件。研究室網站資料夾另有 Study1_E1_Consent_v20261104_718441b3a74c.pdf（Drive ID 1iL3kn61IrMcHa4PaTUN9s-ZA8t9R1FfI），**存在與 privately stored 不代表已完成最新REC核准、原簽名頁位置確認或真實電子收案適用驗收**。先前REC證書原Drive metadata 回傳 anyone/writer，需進行原始核准證據完整性／ACL 獨立查核。本輪完全沒有操作正式REC、原兩份正式Sheets、GAS或實際真人資料。
+
+**四、合成驗證／接續：** 原先 859 全綠為 §70-S.20 的baseline；本輪新增 tests/study1-formal-consent-bridge.test.cjs（獨立REC雙證據、私有 ACL、原 HELD 身分、OTP、SHA、重播、零寫入、核定副本時窗），擴增原 tests/study1-formal-v05-v08-browser-e2e.test.cjs（HELD→原 PDF 瀏覽器 SHA→研究人員解說→Canvas 筆跡→完整已簽署 PDF→本人副本 SHA／臺灣日期→撤回），新增原 signed-pdf-record 真 PDF 引擎的最終姓名／鎖／有限 token／撤回回歸，及 OWNER 原 Slots 候選三項測試。GitHub Actions code HEAD bd7db65b4634a0663f5150dea26eec5bd3fd1b2d / Run 42819903824 **871 PASS、0 FAIL、0 SKIP**；這是合成 VM、離線 PDF 及模擬 RPC，不是正式真人 UI／REC／部署核准。尚待本 docs commit 自身 CI 及 readback。
+
+**正式仍未完成：** 真 Slots 無時段→PI核定資料與 HMAC 無法配置；REC 網頁遠端電子同意核准文書／正式 PDF 核定頁與研究員程序未核實；真 Turnstile/Email/原 Sheet/Drive/權限未實機驗證；私有 GAS V125 尚未同步新版本；真實 Chrome／研究員雙角色人工 UAT 未執行。OWNER GAS 部署沒有更動。狀態 MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false；不合併PR、不部署、不開 E1 真人收件或 E2。
+
+**跨對話接續點：** TASK_DOMAIN=Study1 website FORMAL E1 consent-last and ORIGINAL Slots source audit; SOURCE_PATH=solactw-star/study1-recruitment-gas PR#133 / docs/study1-system-spec.md §70-S.21; SOURCE_VERSION=code bd7db65b4634a0663f5150dea26eec5bd3fd1b2d（docs待回讀）；LAST_VERIFIED_STEP=871 synthetic CI passed + Slots A1:H1000 two independent passes header only; COMPLETED=FORMAL_CONSENT_BRIDGE,PDF_COPY_WITHDRAW_UI,CAS_LOCK_FIX,OWNER_HMAC_CANDIDATE_TOOL,REAL_SLOT_ZERO_ROW_AUDIT; NEXT_ACTION=PI reviewed original E1 slots and operating policy, effective REC remote consent evidence, real external service/owner UI and GAS predeploy audit; BLOCKERS=NO_OFFICIAL_SLOT_ROWS,PI_SLOT_MAPPING_PENDING,REC_WEB_REMOTE_CONSENT_SCOPE_REQUIRED,PDF_LAYOUT_NOT_REC_VERIFIED,LIVE_SECURITY_CONFIG_UNVERIFIED,REAL_UI_NOT_VERIFIED; WRITE_OWNER=original isolated PR#133; SYNC_STATUS=PR_BRANCH_ONLY.
+
+### 70-S.21.1｜正式 E1 同意書原文再核與研究員簽章／撤回未決事項
+
+**原始文件核對：** 已讀研究室 Drive 同意書「03.REC-S-01研究參與者同意書-實驗一_051108.docx」（ID 1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m）原文：研究開始前須由研究人員口頭與書面說明研究、答疑、確認後再由參與者簽署；實驗前說明預估約15分鐘。原文第十二節有獨立「研究計畫主持人／研究人員簽名＋日期」欄，第十三節有獨立「研究參與者簽名＋日期」欄；簽署同意書陳述一式兩份，參與者留存一份。撤回可採電話、電子郵件或現場口頭告知；原文要求研究團隊依參與者意願對已收集個資做銷毀或去識別化。儲存原文指定上鎖紙本或密碼保護研究用電腦，不能由私人 Google Drive ACL 推定雲端保存方案已經REC核准。
+
+**本輪修正：** gas/AdminSandbox.js 的 study1EConsentWithdraw 僅產生撤回事件，不可冒稱已完成後續資料處置；已加回傳 requiresResearcherDataDisposition=true。gas/Study1Visitor.html 現將撤回訊息描述為「撤回通知已登錄，研究團隊仍須依適用REC與參與者意願處理資料銷毀／去識別化」，不自動刪除既有研究證據。tests/study1-signed-pdf-record.test.cjs 已增加對應回歸測試。
+
+**不可忽略的 REC 設計缺口：** 現有 PDF 合成引擎只將參與者 PNG 筆跡及可信臺灣日期寫入原 PDF，研究人員確認作為私有另一個事件存證，**尚未將研究人員本人簽名與日期嵌入同一完整PDF的原始研究人員欄位**。不得將「研究員確認事件」等同原紙本兩個獨立簽章欄的完整履行。待核實最新有效REC遠端簽署及電子儲存方式、研究員簽章、原版頁碼和欄位座標後，才可增量補全並實際PDF視覺驗證；10/27修訂稿仍不能直接推定生效。此處狀態 REC_REVIEW_REQUIRED、RESEARCHER_PDF_SIGNATURE_LAYOUT_PENDING、REC_DATA_STORAGE_AND_WITHDRAWAL_DISPOSITION_REVIEW_REQUIRED。
+
+**暫留政策相容風險：** 原同意書預估研究員說明約15分鐘，但目前 V05 HELD 工作暫設值只有10分鐘，實際真人可能尚未說明完畢時預約就失效。（此為歷史判斷；最新操作決策見§70-S.23，15分鐘不再是網站計時門檻。）2分鐘quote、10分鐘HELD與FIFO政策未獲PI正式核定，不能擅自延長或當作有效核准程序。
+
+**本次正式隔離分支寫入：** 撤回狀態 commit 315b1a9d4596874556288a19211fb7f803288358；前端提示 commit 4c0e065bdc346dacf7882a3ab86b49922a540965；回歸 commit 694437cdd7b83bfcb56cec3d6a7389bf1877c475。以上均未寫正式 REC、原資料 Sheet、GAS、main，也沒有開啟真人收件或E2。
+
+
+### 70-S.22｜2026-11-10 E1 FORMAL 研究人員第二次PDF簽章、獨立REC硬門檻及撤回資料處置
+
+**授權與正式來源：** 承接唯一Draft PR #133最新§70-S.21.1，沿用原七步FORMAL、V05/V08、個資Sheet與原Email OTP HMAC、HELD預約及原完整PDF引擎，僅在原隔離分支增量修改程式、合成測試與唯一GitHub規格。原核可證書202604EM033 ID 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy、有效E1原同意書051108 Version02 ID 1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m：研究人員須事前說明／答疑（原文約15分鐘），原PDF有研究人員及參與者分開簽名/日期欄、一式兩份及退出資料處置規範。原變更申請夾1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR查得10/22申請及10/27修改稿，未找到已核准遠端簽署／雲端保存的獨立生效決議；REC證書ACL仍見anyone/writer待核。這些資料不是核准電子PDF欄位座標或實機部署的證據。REC_REVIEW_REQUIRED。
+
+**已完成的隔離工程：** 
+1. gas/Study1PdfStampCore.js新增研究人員專用核准欄位讀取及第二次PDF合成。獨立要求有效REC文書、原PDF ID+SHA+版號、研究人員簽名及臺灣日期欄的PI/REC明示核准座標；與參與者原欄交疊或原頁面/大小不同即拒絕。以已驗證的完整參與者簽署PDF及其SHA，嵌入研究人員本人PNG及伺服器可信Asia/Taipei日期，重新輸出完整雙簽PDF及新的獨立SHA。原核可PDF與參與者先前簽署版均保留，不覆寫。
+2. gas/AdminSandbox.js新增OWNER限定的study1EConsentConfirmPdf與待確認索引讀取。舊study1EConsentConfirm不可將FORMAL_E1僅憑確認事件當作雙簽完成；新函式須OWNER Active/Effective雙帳號、原自陳Email OTP、有效HELD及原PDF來源和雙方核准位置，在共用ScriptLock與CAS重讀一致後保存雙簽PDF、參與者已簽PDF索引、研究員獨立簽章／臺灣日期與SHA私有存證；僅全部核對通過才能標記CONFIRMED。study1EConsentSignedPdfCopy必須核對研究員確認事件、完整雙簽SHA及參與者原簽SHA才交付本人副本。
+3. 原gas/AdminConsole.html加OWNER本人手寫Canvas、原待簽記錄ID／參與者已簽SHA唯讀查詢，僅明示操作而不自動重送；未經REC核准不能寫簽章。原gas/Study1Visitor.html的FORMAL本人PDF交付額外要求dualSigned=true、雙簽SHA與參與者原簽SHA分離、研究員及參與者各自可信臺灣日期驗證。
+4. gas/Study1FormalConsent.js新增study1FormalConsentOriginalPdf(token)。修復原FORMAL需OPEN=true卻錯用僅准OPEN=false的原Demo公開PDF讀取端點；現在僅持合法原E1憑證並在共同鎖內核對有效Email OTP、HELD、REC、原文件版號與兩組核准簽章位置才可取得完整原PDF。原CLOSED Demo讀取函式不變。研究員欄未核准時，連簽署邀請都不核發。
+5. 撤回：原study1EConsentWithdraw在舊呼叫相容下新增DESTROY、DEIDENTIFY、CONTACT_STAFF的參與者意願，只私有登錄撤回證據；新增OWNER唯讀study1EConsentOwnerWithdrawalCases，原後台可核查待處置清單，不回傳個資逐題與手寫簽名。狀態明確PENDING_RESEARCH_TEAM_ACTION；不自動刪除／去識別化任何研究資料，亦不允許把人工申報冒稱REC確認已完成，須依適用REC、PI及參與者意願另取得實際執行與核對證據。
+
+**合成驗收：** 擴增tests/study1-signed-pdf-record.test.cjs，測研究員欄位缺失、重疊、錯SHA、重複研究員確認、原PDF保全、完整雙簽PDF私有副本、伺服器時間跨臺灣午夜、撤回後副本及參與者選擇；擴增tests/study1-formal-consent-bridge.test.cjs的原E1憑證保護PDF來源與失效HELD拒絕，以及tests/study1-formal-v05-v08-browser-e2e.test.cjs的雙日期/雙SHA本人副本核對。原GAS精確部署來源與公開RPC、OWNER後台安全白名單仍保留，CI需以當次最後HEAD成功結果回讀，不以此文替代實際測試證據。
+
+**實際尚未完成：** 原正式營運Slots兩次唯讀只有表頭、沒有任何PI核定E1場次；真實REC網站遠端電子同意、雙方PDF核准欄位座標及Google Drive保存適用性尚無獨立核准證據；HELD暫設10分鐘與原研究人員說明約15分鐘可能衝突；真Turnstile、真Email、GAS部署、研究員與參與者實機雙角色UI均未驗證；撤回後實際資料銷毀／去識別化仍需研究團隊另執行。維持OPEN=false、CONSENT_READY=false、私人MYSELF、E2禁止、未合併main、未同步部署GAS、未碰正式REC或Sheets、不寄信/不收真人。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false。
+
+**接續：** TASK_DOMAIN=Study1 FORMAL E1 dual PDF / REC; SOURCE_PATH=PR#133 / docs/study1-system-spec.md §70-S.22; COMPLETED=researcher PDF second stamp + OWNER Canvas + OTP/HELD-bound original PDF + independent dual SHA copy verification + withdrawal preference/queue; NEXT_ACTION=核實最新CI/commit、PI有效REC遠端同意與雙欄坐標、PI原Slots核定、確認原HELD政策及私有GAS部署前安全驗證；BLOCKERS=REC_REVIEW_REQUIRED,NO_APPROVED_RESEARCHER_LAYOUT,NO_OFFICIAL_E1_SLOTS,REAL_SERVICES_NOT_VERIFIED,ACTUAL_WITHDRAWAL_DISPOSITION_PENDING,UI_NOT_VERIFIED; SYNC_STATUS=PR_BRANCH_ONLY。
+
+### 70-S.22.1｜2026-11-10 雙簽PDF副本時間鏈最後校驗
+
+**範圍及來源：** 接續原 PR #133 最新§70-S.22；原REC 202604EM033核准證書ID 1O5rgS4q0_0wo9UNUD45kg5AEVnFCn2Iy、E1原同意書051108 Version02，以及當次Drive變更申請資料夾 1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR。變更申請夾仍可見2026-10-22計畫變更申請及2026-10-27 E1/E2同意書修訂稿，但在該夾未見證明「遠端雙方電子簽名、同意書版面座標、Google Drive保存」已生效的獨立REC核准決議；不得認定修訂稿有效，REC_REVIEW_REQUIRED。REC證書metadata仍顯示 anyone/writer 等疑慮，須由授權管理者核實實際ACL。正式Sheet、REC及GAS未修改。
+
+**本輪增量安全修復：** 原 gas/AdminSandbox.js 的 study1EConsentSignedPdfCopy 對FORMAL_E1雙簽副本，除了原已存在的原PDF／本人簽署版／研究員雙簽版SHA、研究員確認事件與PRIVATE ACL之外，新增對本人簽署和研究員簽署兩個伺服器UTC ISO時間戳與各自 Asia/Taipei 日期的完整重新計算，且研究員簽署時間不得早於參與者。任一時間格式、日期或簽署先後遭重新連結／竄改，fail closed，不能交付「雙方已簽」完整PDF。commit a42b5353f0d483f07a248a7416282e6805fc0e04。
+
+**合成負測：** 原 tests/study1-signed-pdf-record.test.cjs 在真正合成雙簽PDF成功取得副本後，替換本人簽署事件可信時間為晚於研究員的另一個完整ISO UTC時間，且讓臺灣日期格式與該偽造時間一致；副本須拒絕FORMAL_DUAL_PDF_CHRONOLOGY_INVALID，還原後才恢復SHA相符副本。commit 73d8852523da54426b60921b83750b7d49248949。CI及本規格commit仍待當次最新HEAD完整回讀。
+
+**不變門檻：** 這只是額外防篡改，不代表REC已核准遠端程序／研究員欄位座標，也不代表本人與研究員已完成真實UI驗收。原E1正式Slots仍無核定真列；10分鐘HELD與約15分鐘研究員說明仍需PI政策核定；無PI正式核准不得開放。維持OPEN=false、CONSENT_READY=false、GAS MYSELF、E2禁招、PR Draft未合併、原GAS未部署、不發真信、不收真人。MAIN_SYNC_VERIFIED=false、GAS_SYNC_VERIFIED=false、UI_VERIFIED=false、FORMAL_READY=false。NEXT_ACTION=CI回讀、REC獨立適用核准及研究員座標核定、正式E1 Slots/PI政策、實際UI/後台權限與部署前稽核。
+
+
+### 70-S.23｜2026-11-10 使用者最新決策：E1 全線上知情同意與報名／雙簽 PDF 優先
+
+**決策來源及優先序**：使用者最新明確決策：「所有的知情同意書簽署在線上完成，不需要考慮原始知情同意書的15分鐘說明程序設定；優先完成正式上線最重要的報名與同意書簽署流程。」本節為網站需求與開發優先序的**最新有效決策**，取代本主檔 §70-S.21.1、§70-S.22、§70-S.22.1 將「原件約15分鐘說明」和「工作暫設10分鐘HELD」視為必須同長、須先延長HELD才能開發線上簽署的舊*時間衝突推論*；舊節保留歷史與原始REC證據，不再用作新網站時數硬門檻。
+
+**實作業務規則（線上優先）**：
+1. E1知情同意書由參與者在網站閱讀完整**當次有效REC核准原PDF**，在網頁電子筆跡簽名；研究人員使用具OWNER驗證的**線上後台**在同一原PDF核准的獨立研究人員欄位簽名、各自使用可信Asia/Taipei日期並保留兩階段SHA。本人只能取得雙簽均完成且經SHA及私人ACL回讀通過的**完整原PDF簽署副本**；不得用HTML勾選、紙本或研究員確認事件代替第二次實際PDF簽章。
+2. **網站不設定15分鐘倒數、15分鐘最低說明長度，亦不以原文「約15分鐘」推導quote、HELD或簽名計時器。** 說明／答疑的實際形式、時長及適用程序**仍依最新生效REC**；不得將「免除固定15分鐘計時」偷換成「免除研究人員告知、答疑及記錄」，也不可將使用者網站決策冒稱REC修正已核准。遠端解說與雙方線上簽名在REC獨立核准文書尚未核實時，維持`REC_REVIEW_REQUIRED`、fail closed；不得真人執行。
+3. 當前V05 quote **2分鐘**、HELD **10分鐘**僅是現行程式暫設值，與15分鐘無強制關聯；是否調整暫留、到期、重新啟動及FIFO須PI另行核定並依正式程序驗收。不得因本次取消15分鐘時間假設而自動延長或停用HELD、放寬過期核對、修改ScriptProperties。
+4. P0完成定義：本人E1自陳篩檢與真人個資用途核准→受保護的真正Turnstile Siteverify→原系統Email OTP一次性HMAC→PI逐場核定原Slots/E1原列HMAC→V05 quote與原Reservations HELD/FIFO→完整原PDF及研究人員線上解說/答疑證據→參與者在PDF簽署→OWNER線上獨立PDF簽署→雙SHA/兩日期/私人ACL回讀→本人可取得副本，並且**獨立核實原Reservations是否完成正式預約成立**。只有雙簽PDF `CONFIRMED` 不得推定原 `Reservations` 已轉 `CONFIRMED`；這是不可忽略的P0跨儲存一致性缺口，不能用沒有交易回讀的UI顯示補救。
+5. 研究團隊線上答疑可以透過核准方式進行，但研究員的說明事件必須在本人簽名前已核實，保留問題及答覆紀錄；不推定所有線上訊息都獲REC核可。
+6. 已簽署者可依核准權限與期限取得副本及提出撤回/資料銷毀或去識別化意願；撤回通知不等於完成實際資料處置。E2依原REC與日期禁令持續關閉。
+
+**本輪正式來源查核**：GitHub唯一PR#133來源HEAD `0ba59d3fdb0e2b354881cbe1a85f94daff5c8733`（更新前）；正式原E1同意書ID `1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m` 第三節確實記載「約15分鐘」口頭與書面說明，第十一至十三節記載說明、雙方簽章與副本。原變更申請資料夾 `1VWJjNq3rlZ-SBcZ1fSc3rDo_dgCjC_eR` 中有2026-10-22變更申請與2026-10-27修訂稿，未在該夾核實可讓遠端程序生效的獨立REC核准決議。原營運Sheet ID `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 的`Slots!A1:H1000`雙次回讀僅表頭、零場次，`OPEN=false`／`CONSENT_READY=false`。不臆造PI場次、不從slotId推定E1。
+
+**工程及驗證原則**：優先補足線上同意引導、參與者與研究人員兩側狀態分離、正式`Reservations`與雙簽PDF跨儲存一致性／異常恢復、對應虛構合成負測；實際GitHub程式commit／測試Run／驗證另行回填或依當次PR HEAD查核。保留原PR Draft、不合併main、不觸發GAS同步部署、不修改原REC、原Sheets、FAST、任何正式真人資料或正式ScriptProperties；`MYSELF`／`OPEN=false`／`CONSENT_READY=false`／E2禁止不變。`MAIN_SYNC_VERIFIED=false`、`GAS_SYNC_VERIFIED=false`、`UI_VERIFIED=false`、`FORMAL_READY=false`，直到各自獨立驗收。
+
+
+### 70-S.23.1｜2026-11-10 全線上同意簽署與正式預約閉環：工程及合成驗證回讀
+
+**適用最新使用者決策**：以§70-S.23為準，E1知情同意原版PDF的參與者與研究人員**全部線上簽署**，不使用「原同意書約15分鐘研究人員說明」作為網站倒數或HELD時長門檻；這**不等於**刪除研究人員的告知、答疑及須有合法適用REC核准的義務。§70-S.21.1／§70-S.22／§70-S.22.1以前的「15分鐘說明／10分鐘HELD必須視為不能開發」之營運推論已失效，改以本節新決策辨識。程序核准效力由REC正式文件決定，網頁需求不能變更REC。
+
+**原 PR #133 隔離分支已提交的增量工程（非main、非GAS部署）**：
+- 原`gas/Study1Visitor.html`：末端線上原PDF閱讀與SHA比對→研究人員線上說明/答疑證據→本人手寫PNG實際嵌入PDF與可信台灣日期→OWNER線上於同一原PDF獨立研究員欄二次簽章→雙簽PDF完整位元組/雙SHA/日期/私人副本回讀。UI不設定固定15分鐘計時；雙簽副本出現後，另外使用經本人Email OTP的原`study1FormalStatus`**唯讀查核**同一原`Reservations.reservation_id`；在`Reservations.status!==CONFIRMED`時明示「PDF已簽但預約仍未確認」，不自行改寫原表、不虛報完成。相關源碼提交：`7314e06554516d9721109dd83d867ea05145d546`、`c6be35ce4d66c7197488a1581078e0c8c9ee48a5`。
+- 原`gas/Study1FormalBooking.js`新增只供內部呼叫、OWNER驗證的`study1FormalFinalizeSignedE1Booking_(consentId)`：在真正雙簽PDF同意事件已獨立COMMITTED之後，以共用ScriptLock依序重新驗證FORMAL E1/REC適用來源、原PDF版號/SHA、參與者及研究員簽章事件/兩份PDF SHA與私人ACL、原本人/Email OTP與HMAC綁定、原核定E1 Slots完整列、原`Reservations`唯一仍有效`HELD`及容量一致性。只在通過時用原工作表單列CAS修改既有`Reservations.status=CONFIRMED`、`confirmed_at_utc`、`updated_at_utc`並flush及重新讀回；`CONFIRMED`既有列唯讀冪等核驗，不重複寫入；不容許過期HELD復活、E2、過期來源或繞過PI逐場HMAC。新增程式commit `6c8a2f5e4ebb4de1ab00baa7b04a89eae32a5155`。
+- 原`gas/AdminSandbox.js`研究員二次PDF簽章CAS成功後**才**呼叫上述獨立原預約收尾交易。跨兩存儲不是ACID；若原預約處理失敗，**保留不可改寫的原雙簽PDF與證據**、回傳`originalBookingConfirmed=false`及`OWNER_RECONCILIATION_REQUIRED`，禁止以PDF簽章假稱預約已完成，且不自動重送破壞性交易。commit `89d5df9cf13dce7403fb31be4c63f93b2cd906ff`。
+- 原`gas/AdminConsole.html`研究人員後台根據上述回傳區分「完整雙簽PDF完成且原預約CONFIRMED」或「雙簽已成、原預約待人工一致性核對」，清楚禁止重複研究員PDF簽章。commit `47bbb17ef4a768ab42332b7ba55ad668d8216410`。
+- 原`tests/study1-formal-v05-v08-browser-e2e.test.cjs`增加真正線上文案/研究員說明仍必須完成、雙簽不是原預約成立、自行查`HELD`與`CONFIRMED`的合成UI正/負測；WebCrypto SHA為非同步，已按舊CI一項失敗作有限迴圈安全等待，沒有放寬實際PDF SHA核對。commits `0c61e9aad9b5c1582b9890edede48b6b75688643`、`0b7b6030569343da666a2cb629de5c74463294fe`。
+- 原`tests/study1-formal-v05-v08-original-booking.test.cjs`新增獨立OWNER二次簽章後才確認原預約、少證據/錯權限/竄改/競爭/到期拒絕與唯讀冪等的合成測試，保留原V05/V08完整既有情境；commits `0a62a87ed8d2b71f5959021a914404ff3903c997`、`313807cdd84d479c6e818463ab052c0e0d698388`。
+
+**當次回讀結果**：原PR#133最新程式HEAD `47bbb17ef4a768ab42332b7ba55ad668d8216410`、GitHub Actions Run `42835009467`完成**879 TEST／879 PASS／0 FAIL／0 SKIP**，為GitHub CI合成驗證，不是GAS真實交易/實際瀏覽器或REC核准。上一輪中間CI `42833496292`有1項PDF非同步測試失敗，已在後續commit修正並以879 PASS驗證，不能把中間失敗當最終結果。此規格增量commit後須再核對最新HEAD/CI及blob；此處記錄的code HEAD為文件寫前已核實版本指標，非未來永久最新。
+
+**正式安全門檻及未完成**：原正式Slots `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 雙次`A1:H1000`只剩表頭（0筆），PI尚未逐場核定E1與HMAC；正式quote 2分鐘、HELD 10分鐘、FIFO與候補仍為未核准工作暫設，不因移除15分鐘時長硬門檻而自動變更。原有效REC（E1原文件ID `1Vf1F6pYhH6ruTsaAcETI8MvP7h2se_1m`）仍有說明、答疑、雙方簽名欄、一式兩份與研究資料儲存／撤回事項；原變更夾只見10/22申請與10/27修訂稿，缺遠端雙方簽署/線上研究員說明/Google Drive儲存適用的獨立生效REC核准與原PDF簽署座標核定。真Turnstile/Email OTP/私人GAS遠端版本及ACL/UI UAT尚未獨立驗收。跨存儲中途失敗可安全標`OWNER_RECONCILIATION_REQUIRED`，但正式OWNER人工復原與跨表實際驗證流程**仍待獨立安全設計及驗收**；勿冒稱完全ACID。原正式`OPEN=false`、`CONSENT_READY=false`、私人`MYSELF`、E2禁招、PR Draft未合併；不部署、不寄真信、不收真人。
+
+**接續點**：TASK_DOMAIN=Study1 recruitment/online E1 consent and booking; SOURCE_PATH=PR #133 + `docs/study1-system-spec.md` §§70-S.23–23.1；LAST_VERIFIED_STEP=879_SYNTHETIC_CI_PASS_AND_PR_CODE_READBACK；NEXT_ACTION=read latest PR HEAD and new docs CI, resolve REC remote/PI actual Slots/booking policies and full real service/private deployment preflight, design safe OWNER reconciliation path, then eligible real UI UAT; BLOCKERS=REC_REVIEW_REQUIRED,NO_OFFICIAL_E1_SLOTS,PI_QUOTE_HELD_FIFO_PENDING,LIVE_TURNSTILE_OTP_UNVERIFIED,PDF_LAYOUT_UNAPPROVED,PRIVATE_GAS_NOT_DEPLOYED,REAL_UI_NOT_VERIFIED,OWNER_RECONCILIATION_UAT_PENDING；WRITE_OWNER=original PR #133 isolated branch；SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,GAS_SYNC_VERIFIED=false,UI_VERIFIED=false,FORMAL_READY=false。
+
+
+### 70-S.24｜最新使用者定案：只建立五項基礎MVP，先由研究者簽署並上傳PDF
+
+**最新明確需求（高於舊§70-S.20–23.1相衝突的業務流程與自動擴充安排）**：
+1. 本階段僅交付五項：**E1報名、知情同意電子簽署、日期時段預約、Email通知、研究者後台管理**。不要再從規格、文件或開發者自行推定新增候補進階管理、額外報表、複雜審核、多次簽章或其他新功能；若既有系統已有其他功能，可保留但不可把它們當MVP必要門檻，新增擴充須等待使用者主動下達指令。
+2. **PDF順序唯一**：研究者於網站外完成自己在研究者欄位的簽章及日期→研究者在原OWNER後台上傳該**已簽署完整PDF**、選用當次有效正式版本（後台維持原PDF不可改、私人Drive、SHA及版本管理）→E1受試者完成必要報名、Email驗證與時段選擇後，於網站讀取研究者**事前已簽署**版本PDF→在網頁手寫欄親筆簽名，系統在核准的**參與者欄位**加上筆跡及可信Asia/Taipei日期→存成新的完整已簽PDF與獨立SHA及私人ACL→研究者於原後台事先查閱、下載該份由雙方簽署的PDF。**不再要求研究者於每筆受試者簽完後重新簽名**，亦不得重疊／覆寫原研究者簽章。
+3. **簡化操作**：研究者在後台一次上傳／核對已簽PDF，受試者只需閱讀與手寫簽署，不安排額外15分鐘最低倒數。本條為使用者網站需求；研究人員應告知、答疑、簽章、存儲及遠端執行的法律/REC適用範圍，**仍以生效REC與明示修正案為準**。未驗證正式適用REC時，只能合成測試、保留正式收件關閉，不把使用者網站需求冒稱REC核准。
+4. Email功能最低範圍：原 Email OTP／驗證與報名結果通知（給受試者，必要時給研究者管理端）；不得擅自開寄真人測試信件，未確認寄送結果不可冒稱送達。時段只用**PI明示核定**的原Slots E1日期、容量、地點，操作原Reservations的預約持久化與狀態回讀；預約成功與PDF成功分別驗證，避免逾時假成功。既有quote/HELD/FIFO不是本次新需求，不自行新增相關進階功能或設定。
+5. 研究者後台最低範圍：上傳／選用／核對研究者事先簽署PDF、管理報名及場次、查看申請/同意狀態、以授權權限取得簽署完成PDF及Email通知狀態。保留原OWNER驗證、資料最少揭露與私人ACL。
+6. 研究端正式資料、GAS與網站版本不可互相取代。使用者本輪**明確要求把迄今變更部署至原GAS**；執行前需原Script ID遠端HEAD/manifest/版本與最近部署回讀、完整寫前備份、競寫檢查、授權/私人MYSELF維持及寫後SHA/部署驗證。**單純Push GitHub或CI成功不算GAS部署。** 未取得必要遠端來源/安全證據時應標記DEPLOY_BLOCKED而非自動合併main、冒稱部署或開放真人。
+7. 原`OPEN=false`、`CONSENT_READY=false`、`MYSELF`與E2不招募保持到有效REC/PI/個資/正式安全門檻與真實UI驗證完成；部署原碼≠正式收件開放。維持原GitHub唯一主規格與原PR增量、不建第二份主檔，只有使用者再指示才進行MVP以外擴充。
+
+**本輪啟動時已核實**：原PR#133 HEAD `9af696697a819c17479445ca136e7c303e6038a6`（修改前）；原Script ID `1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z`的Drive metadata屬Google Apps Script、單一原研究室Owner，但**目前無法僅憑Drive metadata證明遠端HEAD、manifest、部署版本及完整備份**。原營運Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ`前次Slots兩獨立讀取僅表頭；未有PI核定場次與生效REC遠端簽署核准可核對。相關程式/測試/部署/CI需以實際後續回讀另行判定，不在本決策中先宣稱完成。
+
+**接續標記**：TASK_DOMAIN=Study1 website E1 minimalist registration MVP; SOURCE_PATH=original PR#133 / docs/study1-system-spec.md §70-S.24; NEXT_ACTION=只改上述五個功能所必要的現有程式與合成驗證、原GAS安全部署前讀取及授權範圍內同步；BLOCKERS=REC_REMOTE_CONSENT_REVIEW_REQUIRED,NO_PI_APPROVED_SLOTS,REMOTE_GAS_SOURCE_BACKUP_UNVERIFIED；WRITE_OWNER=original PR#133；非授權真人研究資料/REC/Sheet不修改。
+
+### 70-S.25｜正式產品入口與首頁去 Demo、去獨立同意區塊（2026-11-11）
+
+**最新使用者決策；仍以 §70-S.24 五項 MVP 為唯一交付範圍。** 使用者指定唯一原公開招募網站 `https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec`，不再用私人 `?view=demo`、虛構角色/時段/固定OTP、GitHub CI或私人GAS部署冒充正式公開網站交付。
+
+1. **首頁與導覽**：原 `gas/Index.html` 移除完整的獨立 `#consent` 區塊、對應導覽和首頁CTA，以及過期FAQ；並移除頁首獨立的「研究報名及線上知情同意尚未開放」提示卡及不再使用的 CSS，不在首頁重複放置知情同意相關提示區塊。**正式收件關閉訊息仍保留於原 `#apply` 報名區域，後端 `OPEN=false`、`CONSENT_READY=false` 安全閘門維持不變。**不設首頁PDF閱讀/簽署窗格。一般研究介紹可描述「報名後階段閱讀並簽署」，但全文PDF與簽名只在原七步 FORMAL 報名最後階段提供；首頁不蒐集任何姓名、資格答案、簽名或個資。
+2. **正式入口**：首頁對應 `/exec?view=apply` 的實際原公開部署完整網址，GAS iframe `target="_top"`；原 `gas/Website.js` 的 `view=apply` 必須是 `flowMode='FORMAL'`，不經過舊模擬機制。原 `view=demo` 舊書籤僅在 OWNER 身分驗證通過時轉到 **FORMAL** 同版頁面，不再渲染虛構報名展示；管理後台指向正式 E1 報名入口。既有離線/合成模擬測試可保留，但不可成為正式產品 UI、公開入口或強制部署必要功能。
+3. **反回退門檻**：原 `scripts/study1-gas-index-preview.cjs`、`scripts/study1-gas-owner-preview-deploy.cjs`、`scripts/study1-gas-backend-allowlist.cjs` 和 `scripts/study1-gas-public-release.cjs` 必須禁止首頁獨立同意區塊、檢查公開 FORMAL 入口及受保護後台，舊 `SIMULATED_SIGN_ONLY` 不再是 OWNER 部署的必要契約。維持真實報名/OTP/預約/同意後端 fail-closed、安全身份及權限檢查與原合成回歸，不為移除 Demo 而讓真人寫入通過。
+4. **驗收五層分離**：`PR_IMPLEMENTED`、`CI_PASS`、`MAIN_SYNC_VERIFIED`、`GAS_SOURCE/PRIVATE/PUBLIC_DEPLOYMENT_VERIFIED` 與 `PUBLIC_SITE_UI_VERIFIED` 必須分別取得證據；需以**指定公開網址**非登入者實際 HTTP/瀏覽器回讀無舊同意區塊、正確 FORMAL 連結、受保護路由及對應部署版本，才可宣稱公開網站新版交付。私人 OWNER V127 或合成 CI 不代替公開 V124 的更新。
+5. **本輪授權邊界**：僅原 Draft PR #133 同分支程式、回歸測試與本唯一規格原路徑增量修改；不得自動合併 main、GAS apply、改寫 manifest、部署公開版本、啟用真人收件、寄信或修改 REC / 正式研究 Sheets。正式部署須下一次獨立明確授權及寫前 Drive 全備份、競寫、版本/完整 SHA、MYSELF/公開 ACL 與實際 UI 回讀。
+
+**本輪接續點**：TASK_DOMAIN=Study1正式MVP入口與公開首頁；SOURCE_PATH=原 PR #133 / `gas/Index.html` / `gas/Website.js` / `gas/Study1Visitor.html` / 原部署守門腳本 / `docs/study1-system-spec.md`；PRE_DOC_HEAD=`de5aea27b38a8121e098350caedbe8b68278ae6e`；COMPLETED=PR_BRANCH_CODE_AND_TEST_CONTRACT_UPDATED；NEXT_ACTION=核實最新完整合成CI與逐檔blob、檢查原公開部署版本及REC/PI真場次/服務阻塞，待獨立授權才部署並做真實瀏覽器UAT；BLOCKERS=REC_REMOTE_CONSENT_REVIEW_REQUIRED,PI_APPROVED_E1_SLOTS_MISSING,LIVE_PROVIDERS_UNVERIFIED,PUBLIC_DEPLOYMENT_NOT_UPDATED,UI_NOT_VERIFIED；WRITE_OWNER=原PR #133分支；SYNC_STATUS=PR_BRANCH_ONLY,MAIN_SYNC_VERIFIED=false,PUBLIC_SITE_UI_VERIFIED=false,FORMAL_READY=false。
+
+### 70-S.26｜原正式首頁與 E1 七步 FORMAL 報名人工 UAT 清單（2026-11-11）
+
+**來源與執行限制**：依 §70-S.24–25 及原 PR #133 即時 HEAD 執行；以唯一指定原公開 `https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec` 為驗收目標。現階段 `OPEN=false`、`CONSENT_READY=false`、私人部署 `MYSELF`、E2 未開放，故只可驗**關閉收件的真實介面與防護**，不得用 Demo、虛構資料網頁、CI 或 OWNER 私人版本替代公開 UI 實測；不得輸入真人個資、寄送實際 OTP、正式預約或簽署。**未部署新版時，所有新版 UI 項目一律 BLOCKED_BY_OLD_PUBLIC_DEPLOYMENT，不得標 PASS。**
+
+**人工測試紀錄固定欄位**：UAT_ID、測試者、Asia/Taipei 日期時間、使用環境／瀏覽器／無痕與登入狀態、完整 URL、部署 ID/不可變版本/完整 GAS SHA、PR HEAD、測試步驟、預期、實測、PASS/FAIL/BLOCKED/NOT_RUN、去識別截圖與 Console/Network 證據、阻塞來源與負責人。不可從程式碼或 CI 代填「實測」；不保存真實參與者個資於截圖或紀錄。
+
+**A. 現階段允許執行：非登入／OWNER 介面、唯讀及封閉負測**
+
+| UAT_ID | 手動操作 | 通過標準（均須實際觀察） |
+|---|---|---|
+| UI-A01 | 先回讀原 PR、main、原公開和私人 GAS 部署的 ID、版本、SHA、manifest；開無痕未登入瀏覽器造訪指定原公開 `/exec` | 公開網站無需登入即顯示研究招募首頁；正式版本對應本次指定原碼，且 PRIVATE OWNER 部署互不冒充。若公開仍為舊版本，記 BLOCKED，不繼續將舊畫面判為新版 |
+| UI-A02 | 檢查首頁、導覽列、頁面各區、瀏覽器可視狀態 | 不存在 `#consent`、獨立知情同意區塊、「知情同意是報名最後的步驟」、「完整閱讀研究文件，再決定是否同意」、對應 CTA、過期 FAQ、頁首獨立「研究報名及線上知情同意尚未開放」提示卡；一般研究介紹提到知情同意屬非獨立簽署區，不視為退回 |
+| UI-A03 | 在首頁點擊「查看正式報名流程（目前不收件）」 | 連往**同一原公開部署** `/exec?view=apply`、正式 E1 介面（`flowMode=FORMAL`）；不跳到私人 OWNER URL、`?view=demo` 或虛構展示 |
+| UI-A04 | 檢查報名首屏、未登入狀態和開關；在不填資料前停下 | 顯示正式 E1 招募樣式及「尚未開放」；不顯示 Demo 身分、虛構 Email、`00000000`、測試時段或虛構預約；E1 不能進入真實資料蒐集，E2 不開放 |
+| UI-A05 | 無痕訪問 `?view=admin`、`?view=team`、`?view=preview`、舊 `?view=demo` | 未授權者不能看到 OWNER 後台、私人 TEST 資料或管理 RPC；舊 Demo 入口不可匿名顯示舊虛構頁；已登入 OWNER 的舊 Demo 書籤只能提供受安全閘門限制的 FORMAL 頁面 |
+| UI-A06 | 檢查關閉收件的操作權限、開發者工具 Network 及系統唯讀稽核（僅有權者執行） | `OPEN=false`、`CONSENT_READY=false`；正式姓名／Email／電話輸入、OTP、時段保留及簽名不可提交；不得產生新 Applicants/Verification/Reservations/PDF 紀錄或送真信。單靠頁面按鈕 disabled 不足以認定後端安全 |
+| UI-A07 | 使用 Chrome 桌機、手機寬度及鍵盤 Tab/Enter 操作首頁與 FORMAL 首頁 | 導覽、狀態提示及焦點可辨識；不被舊區塊或無效錨點遮擋；手機不出現阻斷式溢位，返回上一頁後仍保持關閉 |
+| UI-A08 | 任意阻斷網路／失效的資料讀取（不觸發提交） | 顯示連線/不可受理訊息而非成功畫面；不捏造時段、收件、OTP、PDF 或預約結果 |
+
+**B. 必須取得適用 REC、PI E1 場次、正式身分／Email/Turnstile/PDF/Drive ACL、個資授權及安全啟用/UAT 明確授權後，才能進行的七階段真實 UI 驗收。未達前全部標 BLOCKED，不可為測試擅自打開旗標或寫入真人資料。此處的測試資料與操作程序須另行核准，不是授權自行招募。**
+
+| UAT_ID | 七步／功能 | 必須核對的實際操作與通過標準 |
+|---|---|---|
+| UI-B01 | ① 研究選擇 `choose` | 僅 E1 有核准可報名入口；E2 保持不開放；選擇研究不等於收件 |
+| UI-B02 | ② 資格初篩 `screen` | 最少必要自陳與欄位、必要人機驗證；未填、未達資格或 Turnstile 失敗不可建立申請；不用虛構角色或假身分核驗 |
+| UI-B03 | ③ Email 驗證 `otp` | 真正授權 Email OTP 發送、8 碼驗證、到期/重複/錯碼防護、原 Verification 回讀；不得顯示固定 `00000000` 或 Demo「填入示範碼」；確認信箱不冒充身分/資格審查 |
+| UI-B04 | ④ 日期時段 `slots` | 顯示且只允許 PI 核定的 E1 Slots；容量、日期、時區、地點及暫留/原 Reservations 回讀一致；無場次顯示「尚無核定場次」，不顯示虛構項目 |
+| UI-B05 | ⑤ 報名資料核對 `confirm` | 真實報名資料摘要、E1 與場次正確；此步僅核對，**沒有同意 PDF、簽名或提前確認成功** |
+| UI-B06 | ⑥ 最後 PDF 知情同意 `consent` | 先顯示 OWNER 選用的研究者事先簽署**完整正式原 PDF**，核實版號及 SHA；參與者閱讀後才可在**其核准欄位**手寫簽名，可信 Asia/Taipei 日期寫入；不覆蓋研究者既有簽章、不要求研究者逐筆再簽；完成 PDF 獨立 SHA、私人 Drive ACL、合法本人副本及研究者後台下載須實際回讀；不設額外強制 15 分鐘倒數 |
+| UI-B07 | ⑦ 完成與結果 `done` | 只有真實來源一致、同意 PDF 成功及原 Reservations 狀態獨立核對後可宣稱完成；區分 HELD/CONFIRMED/UNKNOWN，顯示 Email 通知實際結果，失敗/逾時不可冒稱成功或自動重送 |
+| UI-B08 | OWNER 後台五項 MVP | 原後台僅授權 OWNER/研究團隊：研究者事先簽署 PDF 上傳/選用、SHA/版本核對；申請/場次/同意狀態查閱，授權下載完整已簽 PDF、核對 Email 通知狀態；不把合成資料當正式收件 |
+
+**第七步程式缺口處理紀錄（仍非 UI 驗收）**：最初發現 FORMAL 控制器缺少第七步 `step-done` 轉場，當時標為 `UI-B07=BLOCKED_BY_FORMAL_DONE_TRANSITION_REVIEW`。2026-11-11 已在原 PR #133 的 `gas/Study1Visitor.html` 修正：僅在已簽 PDF 完整 SHA 驗證及獨立本人 `Reservations` 唯讀查核後，依 `CONFIRMED`、有效 `HELD`、`UNKNOWN` 顯示正式結果；`HELD/UNKNOWN` 不得標為報名完成；隔離 Demo 結果卡，完整已簽PDF可供核實後下載。合成測試及原碼回讀屬 `CODE_IMPLEMENTED`，**尚未執行新版公開 GAS 實際 UI 驗收**，因此更新為 `UI-B07=BLOCKED_BY_PUBLIC_DEPLOYMENT_AND_FORMAL_UAT`、`PUBLIC_SITE_UI_VERIFIED=false`，不得以 CI 通過標正式驗收。
+
+**失敗守門**：任一 A02–A06 發現首頁舊同意區塊、Demo 洩出、未授權可收件、私人頁可匿名讀取、關閉狀態仍寫入資料，即標 `UI_FAIL_STOP`，停止該路徑 UAT，保留已去識別證據，不嘗試修復為開放狀態。CI 通過僅 `CI_PASS`；新版對應原公開網址、匿名/OWNER 邊界和實際操作完成後才可標 `PUBLIC_SITE_UI_VERIFIED=true`；研究正式啟用仍需獨立 `FORMAL_READY`。不得為節省驗收步驟放寬 REC 與安全門檻。
+
+**本次建立清單時的初始狀態**：以上全部 `NOT_RUN` 或 `BLOCKED`；未取得公開新版部署／瀏覽器操作證據之前，`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`。此節為原 GitHub 唯一規格主檔的人工 UAT 操作與紀錄準則，不是 UI 驗收完成證明。
+
+### 70-S.27｜2026-11-11 最新決策：Study1 以正式真人報名上線為唯一產品目標
+
+**已核准的產品方向**：使用者要求從本輪起按正式營運規格完成原公開網站，結束 Demo/虛構展示作為產品成果的做法。五項最低必要 MVP：E1 報名資格自陳、研究者預先簽署完整PDF的原後台上傳選用與參與者最後階段電子簽署、PI核定真實E1場次與原Reservations預約、真實Email OTP/通知、OWNER後台管理及簽署PDF查詢下載。合成回歸安全測試可保留，但不得當正式 UI 或收件證據。原PR #133、唯一規格本路徑、原Script ID及原公開GAS網址均不更換。
+
+**啟用與授權解讀**：此決策確認 GO_LIVE_REQUESTED=true 與正式產品目標 LIVE_PRODUCTION，不代表已獲REC、PI、安全或正式資料核准。前置條件未通過時，原 OPEN=false、CONSENT_READY=false、私人管理MYSELF、安全隔離和E2 2027年前禁招維持不變；不因日期到來自動開放，也不自行更動原REC、正式Sheets、研究原始來源或既有ACL。原 GitHub 文件、程式、main合併、GAS source同步、私人/公開部署與真人正式開放仍各需獨立授權及驗證，過去單次部署授權不延續到每小時排程。
+
+**原公開交付對象**：https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec ，Script ID 1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z。原公開頁允許匿名閱讀招募說明，但絕不能因此讓私人管理後台、個資、研究簽名PDF或未授權RPC匿名開放。要以真實公開部署版本/完整SHA/ACL和實際匿名瀏覽器操作驗收，不以CI或私人V127取代。
+
+**2026-11-11 官方來源唯讀查核**：
+- 原PR #133仍Draft未合併；main=13f94df7f6ef12aa309067f4ded9da0a1c0ef13e；後續須每輪讀即時PR HEAD而不是沿用本節歷史SHA。
+- 正式營運Sheet 1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ 的Slots A1:R9僅標題、無可用場次；SystemConfig中OPEN=false、CONSENT_READY=false。兩份正式Sheets權限metadata均僅研究室Owner。
+- 找到REC證書「202604EM033-核可證書-葉理豪-李忠訓.pdf」與20261022變更申請書，但未查得足以證明現行遠端招募、研究者預簽+參與者線上手寫PDF、告知答疑、保存與撤回已在最新有效REC核准範圍的完整證明。REC_REVIEW_REQUIRED；不能只用證書檔名或申請書視為核准。
+- 研究根資料夾和REC核可證書回傳anyone:writer權限，屬應先確認的公開修改風險；不能據此推論已外洩，不自行修改ACL。電子同意限制存取資料夾及原兩份正式Sheets metadata均只有Owner。
+- FORMAL控制器第七步step-done轉場仍待核實，標UI-B07=BLOCKED_BY_FORMAL_DONE_TRANSITION_REVIEW。公開新版部署、真實瀏覽器UAT及有效REC/PI皆未完成核實。
+
+**可進行的正式化工作**：最小幅度修正原PR #133五項MVP正式前後端和第七步結果、清除產品Demo與假資料、強化 fail-closed及安全測試、建立真實來源與異常處理和公開頁品質。先使用靜態、合成、唯讀或不寫入的負測；未取得適用REC/PI與權限前，不得擅自觸發真人信件、收集個資、產生正式同意與預約。不可把仍未配置的資料偽造成真實時段。
+
+**正式上線必要條件（每項獨立稽核）**：(1) 最新有效REC及修正案明確適用E1網路招募、在線資格資料、遠端知情同意/雙簽PDF和資料處置；(2) PI核定E1 Slots日期時間容量地點與招募文案/額度；(3) 原Sheets/私人Drive ACL、安全審計、Turnstile Siteverify、真實Email及OTP、預先簽署有效PDF版號/SHA/版位、PDF副本與撤回可用性；(4) 原PR最新HEAD完整CI與源碼/競寫回讀，第七步確認狀態修正；(5) main合併、原GAS寫前完整備份/遠端HEAD/manifest、私人與公開部署權限、不可變版本及源碼完整SHA各別驗證；(6) 指定公開網址實際匿名Chrome/手機UI與安全拒收、經正式批准的受控E2E UAT合格；(7) 最終PI/OWNER確認正式營運開關、監控和關閉復原。未全滿足保持LIVE_INTAKE_ENABLED=false、FORMAL_READY=false，不得自動啟用。
+
+**決策狀態：D1已定案；D2–D8待正式來源/PI/使用者核實。不得因D1完成而推定REC、場次或真人收件核准**：
+D1 **已由使用者確認結案（2026-11-11）**：正式上線範圍**僅實驗一 E1 五項 MVP**。實驗二與其他既有非MVP功能維持原設定、不自動擴充或納入本次正式交付；實驗二2027年前不招募，2027年也不自動開放，後續另需明確決策與REC/PI核准。
+D2 提供最新有效REC核准函、修正案版本/生效日、是否涵蓋全線上研究說明、研究者預簽及參與者手寫同意、PDF保存、撤回與通知。
+D3 PI明示核定的E1首批場次、每場容量、地點、報名起訖、受試者人數及管理者；未批准前不填Slots。
+D4 正式預先簽署PDF哪個檔案、有效版號/SHA、參與者簽章座標、存取/保留/副本期限；未核不放簽署。
+D5 正式Email寄件身分、OTP/通知服務、Turnstile、正式資料保管與錯誤/回復流程；未核不得寄真人信件。
+D6 是否授權收斂研究根資料夾及REC文件目前回傳的anyone:writer權限；不得逕改原檔。
+D7 允許何種經核准的受控UAT帳號/資料、是否可在正式資料表新增並清理測試紀錄、誰驗收及負責回復；不得自行污染正式資料。
+D8 main合併、GAS原同ID同步、公開部署及最終開收件的逐層權責/時點；最新用戶要求正式營運不等於省略逐層簽核。
+
+**跨對話接續**：TASK_DOMAIN=Study1_E1_FORMAL_GO_LIVE；GO_LIVE_REQUESTED=true；FORMAL_SPEC_TARGET=LIVE_PRODUCTION；LIVE_INTAKE_ENABLED=false；FORMAL_READY=false；REC_REVIEW_REQUIRED=true；PUBLIC_SITE_UI_VERIFIED=false；SOURCE_PATH=原PR#133/docs/study1-system-spec.md；WRITE_OWNER=原PR#133分支（本次僅規格）；NEXT_ACTION=已確認D1_E1_FIVE_MVP_ONLY；續核實D2–D8及必要MVP安全修正，來源已驗證才逐層發布/啟用；SYNC_STATUS=PR_BRANCH_ONLY_UNTIL_MAIN_MERGE。任何條件不符明列BLOCKED而非假定已啟用。
+
+### 70-S.28｜2026-11-11 使用者決策：REC 核准判定由PI／研究行政負責，網站工程不再重複查核
+
+**使用者最新明確決策**：「你不需要考慮REC是否核准的問題」。此決策的工程執行意義為：Study1 招募網站的產品開發、五項 E1 MVP 修補、CI、正式資料服務整合與部署前技術驗收，不再每輪自行搜尋、判讀、重複詢問或因尚未找到 REC 核准證明而停止**非真人收件的工程工作**。REC 之核准狀態、版本及適用性由 PI／研究行政依正式程序確認；工程工作流只依其提供的權責結果處理，不自行代替 REC 或 PI 作核准判定。
+
+**與既有條文的關係**：本節覆蓋 §70-S.27 中將「每輪查核 REC 文件或由工程助理主動催問 D2」作為日常工程先決作業的部分；保留 §70-S.24–27 已定案的 E1 五項 MVP、既有 Repo/Script/Sheet/公開網址、PR、版本及部署權責。D2 的管理標記改為 `REC_APPROVAL_DETERMINATION_OWNER=PI/研究行政`、`REC_RECHECK_FOR_ENGINEERING=NOT_REQUIRED`、`REC_STATUS=UNVERIFIED_BY_ENGINEERING`，不是 `REC_APPROVED=true`，也不代表原 REC 文件已被改變或核准要求已免除。
+
+**正式真人收件不得藉此跳過安全或研究核准**：本節僅重新分配 REC 判讀責任，不變更對研究參與者實際執行的適用核准程序。凡涉及真實參與者個資、OTP、預約、遠端知情同意或已簽 PDF 寫入，仍須有 PI／研究行政對核准適用性的正式確認及其他必需的安全、權限和資料來源證據；無法確認時維持 `FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`，不得直接放寬 `OPEN`／`CONSENT_READY` 或未核准的 RPC。公開資訊頁及不收真人的程式／部署準備可持續依既有授權進行，不用以 Demo 取代正式產品。
+
+**後續工作重點**：優先處理真實 E1 Slots 的 PI 核定、正式 PDF 版本與預簽章、Email/Turnstile、資料保存及 ACL、原 PR 最新 HEAD、原 GAS 寫前備份與競寫、指定公開網站實際 UI/安全驗收。REC 項不再作為每輪技術待辦重複羅列，除非 PI／研究行政提供新的正式結論或已涉及實際真人收件的啟用決策。原有安全／部署逐層授權、E2 不自動開放及非 MVP 不擴充均不變。
+
+**接續旗標**：`USER_DECISION_REC_RECHECK_FOR_ENGINEERING=NOT_REQUIRED`；`REC_APPROVAL_DETERMINATION_OWNER=PI`；`REC_STATUS=NOT_INDEPENDENTLY_VERIFIED`；`LIVE_INTAKE_ENABLED=false`；`FORMAL_READY=false`；`MAIN_SYNC_VERIFIED=false`（未合併前）；`NEXT_ACTION=E1五項MVP技術阻塞與正式部署前驗收`。本節寫入原 PR 分支不代表 main／GAS／正式收件已同步。
+
+### 70-S.29｜2026-11-11 E1 正式服務整合：原 Slots 報名前防護與剩餘工程門檻
+
+**授權範圍與證據**：使用者已確認僅 E1 五項 MVP 正式營運、E2/非MVP保持不變，不製造 PI 場次，不動正式 Sheets/REC、部署或開放真人收件。REC 工程責任依 §70-S.28：不再每輪自行重查文件；真人收件仍依 PI／研究行政適用性確認及必要安全門檻。
+
+**本輪真實來源唯讀基準**：原營運 Sheet `1o8BtIgwnBpPjUi89dgWKwh5NK9tq0RDrfYAValGYbnQ` 的 `Slots!A1:J30` 僅表頭，未有真實 E1 場次；`Reservations`、`Notifications` 亦僅表頭，`SystemConfig` 仍是 `OPEN=false`、`CONSENT_READY=false`。原個資 Sheet `1gpgWN-mbSF7AuEEeepD4qt4cycpLwT4S60SgixB4SDI` 的 `Applicants`、`Verification` 唯讀查核僅表頭。這些是當次讀取結果，後續須再次從原 ID 讀取，不視為永久狀態。
+
+**已在原 PR 修正的工程缺口**：此前 `study1ParticipantReadiness()` 可能在收件旗標、政策及 Turnstile 設定允許時宣稱 E1 可開始申請，但沒有檢查真正的 Slots，造成參與者先輸入個資／完成 OTP，第四步才發現沒有場次。新增 `study1FormalPublicSlotReady_()` 於原 `gas/Study1WizardP0Bridge.js`，只讀原營運 Sheet `Slots`、使用共用 ScriptLock、相同原表兩次讀取與無公式檢查，核實未開始、OPEN、容量正確且經 PI 對原列 HMAC 逐筆核定的 E1 登錄，不信任 E2、slotId 字面或瀏覽器聲明；只回傳 Boolean，絕不傳出私人資料。於原 `gas/Study1ParticipantIntake.js` 的公開 `Readiness`、申請寫入前及共用鎖內再檢查；沒有有效真實 E1 來源即 fail-closed，**不收集報名前個資、不寄 Email、不新增申請**。此防護是新增拒收條件，絕不自行建立、核定或更動原 Slots。既有合成測試保留並增測空表、E2 限制、HMAC 競寫及未開放時無 PII 寫入。
+
+**剩餘五項 MVP 技術阻塞**：
+- 真 Slots：截至當次讀取只有表頭，仍待 PI 核定原 E1 時段、容量、地點、參與人數及原列 HMAC 登錄；不得以測試時段替代，也不得因新增預檢判定已有場次。
+- 預簽 PDF／電子同意：原 `AdminSandbox.js` 使用 `STUDY1_ECONSENT_PRIVATE_V1` Script Properties JSON 紀錄索引、`STUDY1_ECONSENT_MAX_RECORDS_=12` 以及每份屬性 7,500 字元容量保護；這屬正式規模瓶頸。不得只把常數提高就當成資料儲存、查詢、競寫與保留期限已解決。必須驗證真正核定的研究者預簽來源 PDF、SHA、簽名欄位、私人 Drive ACL、本人副本及索引成長情形；如要調整持久化儲存，需要獨立最小遷移設計、相容性及真實資料安全測試。
+- Email OTP/通知：現有後端使用原 Verification 與 MailApp、節流及防重送；正式寄信身分、MailApp 配額、OTP Secret、安全寄件及通知來源仍需生產環境驗證，不以合成 CI 取代。
+- Turnstile：已有 Siteverify、hostname/action/時間與 token 單次驗證，GAS Script Properties 的正式 siteKey/secret/hostname 及真實 `/exec` 網域尚未完成受控環境驗證；不得使用 Cloudflare 公開測試 key。
+- OWNER 後台：已有原 OWNER 管理與 PDF SHA/私人資料存取 API，但現有團隊頁仍有原隔離 Demo 管理模組。不得把 Demo 時段／設定當真實 Slots；需在原五項 MVP 內核對 OWNER 真實時段、同意書選用及完成 PDF 的實際操作與 ACL。PRIVATE `MYSELF` 和匿名路由安全必須維持。
+- 發布：原 PR #133 仍 Draft/main 未合併；GAS 最新遠端完整 SHA、寫前備份、競寫、私人/公開部署版本及匿名 UI/UAT 無本輪合格證據。程式／CI、GitHub main、GAS 寫入、公開 UI、真人收件各自驗證，不互相替代。
+
+**驗收狀態與接續**：2026-11-11 原 PR 程式及安全測試（至 §70-S.29）已於 commit `43756269a10ed8bff5a629cebc657adc418b4010` 的 GitHub Actions Run `42989825655` 完成 891 PASS／0 FAIL／0 SKIP；此為該次程式與規格版本的合成 CI 證據。後續任何新 HEAD 仍須重新查核其對應 CI，不得把舊 PASS 當作最新結果；且 CI 不等於 main/GAS/公開 UI／真人收件驗收。`SLOT_SOURCE_STATUS=EMPTY_HEADER_ONLY`、`E1_PUBLIC_PREINTAKE_SLOT_PREFLIGHT=CODE_IMPLEMENTED_CI_PASS_891`、`PI_SLOTS_NOT_PROVISIONED=true`、`OWNER_CONSENT_REGISTRY_SCALE_REVIEW_REQUIRED=true`、`MAIN_SYNC_VERIFIED=false`、`PUBLIC_SITE_UI_VERIFIED=false`、`FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`。下一步先完成真 Slots／預簽 PDF／MailApp／Turnstile／OWNER 正式環境及持久化容量的核實與必要工程修正；不重查 REC 文件。
+
+### 70-S.30｜2026-11-11 PR #133 完整提交前驗證與 CI 通知減量（不降低安全性）
+
+**使用者正式決策**：持續保留原 PR #133 全部既有至少 891 項安全測試（後續只增不減），不能停用 CI、刪除/略過測試、使用 `continue-on-error`、強制標記成功或隱藏真實失敗。減少大量「Run failed」通知的正確方法是：**完成一個功能的程式、測試、必要文件與預檢，再以原 PR 分支單次原子提交**；禁止為同一未完成功能逐檔分次提交而製造連續失敗的中間 HEAD。
+
+**共同預檢**：原 `package.json` 新增 `npm run verify:pr`，執行原 `npm test` 全部 `tests/*.test.cjs`，讀取完整 TAP 摘要驗證 `tests>=891`、`pass=tests`、`fail=0`、`skipped=0`，再執行原 `node --check gas/Website.js`，及 `git diff --check`（含 staged）。無完整摘要、測試不足、錯誤/跳過或語法失敗時均回傳非零狀態。原 `.github/workflows/test.yml` 保留 `pull_request`、`workflow_dispatch`、主分支既有路徑限制、Node 22、`contents: read`，改為呼叫**完全相同的共同預檢指令**。本節不變更 CI 覆蓋率或觸發/回報規則，故真正失敗仍可追查。
+
+**本機防誤送**：新增可選擇的 `.githooks/pre-commit`；本機使用者明確執行 `git config --local core.hooksPath .githooks` 才會啟用，不自行更動其 Git 設定。Hook 要求整合修改全部 staged、執行相同預檢後才允許 commit。GitHub Connector／REST API 直接提交不會執行本機 hook；這類工作者應先於同一完整工作樹驗證，並透過 Git Tree + 單一 commit + 帶 `expected_sha` 的分支 ref 更新一次發佈相依檔案，避免多筆未驗證的中間提交。若無法建立/執行可信的提交前驗證，應明列 `PREFLIGHT_BLOCKED`，不應以逐檔提交代替。
+
+**任務與排程要求**：後續每小時 E1 MVP 建置與人工修正均應先確認原 PR HEAD、main、唯一規格與競寫；一個完整功能一次提交（或無變更則不提交），提交後等待**該 HEAD** CI 結束並回讀實際測試數，只有 `completed/success` 可回報 `CI_PASS`。不再把前一 HEAD 通過當目前通過。不可因測試警示寄信而停用或遮蔽失敗；GitHub Email 通知偏好由使用者自行設定，非本任務更動。原 GAS 同 ID 同步／公開部署、正式研究資料、REC、main 合併及真人收件旗標不受本節授權。
+
+**接續狀態**：`TASK_DOMAIN=Study1_E1_PR133_CI_HYGIENE`；`SOURCE_PATH=.github/workflows/test.yml,package.json,scripts/study1-pr133-preflight.cjs,.githooks/pre-commit,README.md,docs/study1-system-spec.md`；`NEXT_ACTION=待本節同一新 HEAD CI 回讀完成，並對原每小時排程增量同步完整提交前預檢`；`MAIN_SYNC_VERIFIED=false`、`PUBLIC_SITE_UI_VERIFIED=false`、`LIVE_INTAKE_ENABLED=false`。
+
+
+### 70-S.31｜2026-11-11 使用者最新決策：E1 正式啟用優先，非關鍵測試不得成為工程進度硬阻塞
+
+**適用範圍與優先順序**：使用者最新明確指示：「如果對GAS系統建置沒有太大的影響，就跳過測試，目前最優先的事項是讓系統可以盡快正式啟用，所有不重要的阻礙都要想辦法排除或直接跳過。」本節對 §70-S.30 的「每次提交前一律先在完整本機工作樹執行 >=891 項全套預檢，否則不得提交」作範圍限定：不再把**所有**文件、文案、非關鍵 UI 或不涉及資料／權限／交易的低風險改動綁在完整本機預檢之上。這是工程作業優先順序調整，不是停用任何既有 CI、不代表安全檢查或正式驗收豁免。
+
+**立即集中五項 E1 MVP**：只在原 PR #133、原 gas/、原正式兩份 Sheets 與原 Script ID 上處理 (1) E1 自陳資格與報名、(2) OWNER 研究者先簽正式完整 PDF，上傳選用後參與者最後階段簽署及私人持久化／本人副本、(3) PI 核定 E1 真 Slots／Reservations 及一致性、(4) 真 Email OTP／通知和 Turnstile、(5) OWNER 後台存取與已簽 PDF 查詢下載。優先修補可由工程獨立完成的 Email Notifications 寄送狀態、PDF registry 12 筆／7500 字元容量瓶頸、舊第二簽 UI 收斂及部署前整合。排除重複整理、Demo、平行資料結構、非 MVP 模組、非關鍵外觀潤飾等事項；不可製造 PI 尚未核定的時段或正式簽署檔。
+
+**依風險分級驗證與提交**：
+- **低風險**：純規格、文案、只讀展示或不影響使用者資料及存取邊界的小幅非安全變更，可作最小 diff／內容／來源與競寫檢查後，直接在原 PR 分支提交；不以缺少完整本機工作樹或預先執行 891 測試作絕對阻擋。仍記錄提交 SHA、回讀範圍及其 HEAD CI 結果。
+- **高風險**：動到匿名／OWNER 權限、Email OTP、Turnstile、收件開關、個資 Sheets、原 Reservations、PDF 版本／簽名／ACL／SHA、資料庫遷移、GAS manifest／部署或可靠性交易的修改，至少須驗證直接受影響的安全與負向情境、失敗不寫入／未知狀態防重送、原來源一致性及回讀。沒有完整本機環境時可先使用 GitHub 既有工作流對新 HEAD 跑全部原測試，**不能以舊 HEAD 的 891 PASS 冒充修改後安全合格**；CI 實際 FAIL 或驗證不可得則阻止進一步正式部署／真人收件，持續修復真正阻塞，不能以跳過測試作為宣稱安全完成的依據。
+- **保留所有既有 CI**：`npm run verify:pr`、`.github/workflows/test.yml`、原 891 項以上測試與 pre-commit 可用性維持；不移除、略過、降低測試、隱藏失敗、設定 `continue-on-error` 或虛報 CI PASS。完整預檢仍屬優先選項，但**低風險提交前**不再是唯一准入路徑。每筆提交儘量一次完整的小範圍功能改動，記錄 SHA 及對應該 HEAD 的 CI；若新 HEAD CI 未完成，明列 `CI_PENDING` 而非合格。
+
+**正式上線的不可省略條件**：工程可以在未取得 PI/REC 進一步資料時完成非收件程式及關閉狀態發布準備；REC 核准適用性仍由 PI／研究行政負責，不由工程逐輪重查。唯實際開放真人 E1 報名仍須有 PI 核定真時段、適用 REC／PI 的正式確認、真正 Email/Turnstile 與 PDF／個資安全、GAS 版本及權限、實際公開與 OWNER UI 受控操作及明確開放授權。未具備時維持 `OPEN=false`、`CONSENT_READY=false`、私人 `MYSELF`、`FORMAL_READY=false`、`LIVE_INTAKE_ENABLED=false`；E2 不自動開放。GitHub 程式提交、main、GAS 同 ID 同步／部署、真人啟用仍是不同授權，不因本節改變。
+
+**優先接續**：先查最新 HEAD、原正式資料與可操作的環境，從最可能阻止正式 E1 服務的安全持久化、通知、OWNER 功能開始，選擇與變更風險相稱的最短可信驗證，不要把無關測試或取得本機 ZIP 當作全部工程的先決條件。每輪明確回報完成、原 PR SHA、CI 及未驗證項、真正阻塞／責任人和下一最短行動。
+
+
+### 70-S.32｜2026-11-11 E1 PDF 電子同意索引 V2 安全可擴充儲存（程式功能；不代表已遷移正式資料）
+
+**目的**：保留原 `STUDY1_ECONSENT_PRIVATE_V1` Script Properties 索引及既有簽署／撤回／PDF SHA／稽核事件，解除 12 筆與 7,500 字元的容量瓶頸，**不建立新的正式 Sheet，不修改原個資同意 Sheet `ConsentRecords` 結構，不改原研究者預簽 PDF、GAS Script ID 或來源 ACL**。
+
+**原資料安全寫入**：新增同原私人 `STUDY1_CONSENT_DOC_FOLDER_` 資料夾內的版本化 JSON 快照；每次既有受 ScriptLock 保護的索引寫入，先在該資料夾建立完整新版本並核實 `PRIVATE` ACL、原父資料夾、MIME、大小、全文 SHA-256，再以 Script Properties 單一小型 `STUDY1_ECONSENT_POINTER_V2` 指標（檔案 ID、修訂版、SHA、舊索引 SHA 與伺服器 HMAC）完成提交，隨即重新讀取指標及快照核對。歷史版本保持私人且不自動刪除；遇競寫、無鎖、索引／ACL／SHA／HMAC 失效即拒絕操作，禁止回退讀取過期舊索引。正式容量設防護上限：最多 3,000 筆記錄、每份快照 5 MB；超限 fail closed，不代表無限容量。
+
+**保守遷移**：只有 OWNER 經實際原 GAS 安全驗證後，將 Script Properties `STUDY1_ECONSENT_MIGRATION_V2_APPROVED=true` 明確設為 true，才允許**下一次原有合格寫入時**將舊索引全部複製進 V2；本次 GitHub 提交不設定旗標、不執行正式資料遷移。尚未啟用時原 V1 全部保留，舊 12 筆／7,500 字元檢查繼續生效。一旦存在有效 V2 指標，不因移除旗標而降版；舊 V1 原始內容原封保留且每輪校驗 SHA，任何外部競寫都會被察覺並停止。若指標可能已提交但 GAS 回應不明，保留所有可能被引用的私人 PDF/事件檔，不自動清除或盲目重送。這是同一正式同意索引的 V2 儲存後端，不是另一份可獨立發放同意或招募資料的主檔。
+
+**驗證與使用限制**：新增針對 V1 相容、>12 筆擴充、鎖、CAS、HMAC、SHA、ACL、來源父目錄、資料未遺失、寫前失敗及指標提交後不確定狀態的合成負測；保留全部既有 CI。即便新版 HEAD CI 通過，`REGISTRY_V2_LIVE_MIGRATED=false`、`GAS_DEPLOYED=false`、`UI_VERIFIED=false`，直到原 GAS 同 ID 備份／版本／遠端 SHA/manifest/ACL、OWNER 受控實測與正式指標的獨立回讀完成。真人收件繼續 `OPEN=false`、`CONSENT_READY=false`，E2 不開放；依 §70-S.31 的風險分級不得把程式與 CI 成功冒充營運就緒。
+
+
+### 70-S.33｜2026-11-11 E1 OWNER 預簽 PDF 與已簽副本管理的最小正式流程
+
+**既有功能保留**：`study1ConsentVersionUpload`、`study1ConsentVersionSelect`、`study1EConsentOwnerList`、`study1EConsentOwnerSignedPdfDownload` 原 ID／原程式沿用，不再建第二套檔案管理或後台。E1 的研究者事先於正式 PDF 簽名並勾選 OWNER 確認後，上傳／選用時要在原私人 Drive 再核對 PDF 原始檔 MIME、尺寸、原父資料夾、PRIVATE ACL、完整 SHA；未標研究者預簽的 E1 檔不能選為正式來源。上傳來源索引提交後結果不明時保留可能已被引用的 PDF，禁止錯誤清除。正式 E1 由報名本人在最後步驟補簽，不以研究者逐筆第二次簽名或手動建立邀請作正常前提。
+
+**OWNER 狀態分流**：同意紀錄 `CONFIRMED` 只代表完整 PDF／事件證據已存，**不能代表**原 `Reservations` 已獨立確認；後台新增 OWNER 專用唯讀核對原 `Slots`／`Reservations`，沿用既有 read-only double snapshot + schema/status驗證、ScriptLock 和權限，按同意紀錄修訂版回傳 E1 各筆 `CONFIRMED/HELD/EXPIRED/CANCELLED/UNKNOWN`。只有來源同一申請者、同一 slot、唯一 reservation、有效 CONFIRMED timestamp 才顯示真正成立。若 GET 失敗／原來源矛盾／版本不同，顯示「預約未核實」，不得以已簽 PDF 推定成立。本人簽署後的完整 PDF 只能 OWNER 在通過既有 PDF 事件、私人 ACL、原 SHA 查核後下載；不顯示原 Drive fileId/URL；撤回紀錄需依既有處理流程，不能刪除歷史證據。
+
+**營運控制**：原舊邀請／研究人員逐筆說明／第二簽介面保留在程式供歷史相容，但不在 E1 正式工作區顯示；不得由此開啟 E2、憑證核身、Demo 或正式收件。V2 同意索引仍需獨立 OWNER 核定遷移，未授權時關閉。本節只授權 PR 程式與測試，不能因 CI PASS 宣稱 GAS、REC、PI 核定時段或公開 E1 真 UI 已通過。

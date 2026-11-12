@@ -22,7 +22,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run closed-site security checks (no secrets)
-        run: |
-          npm test
-          node --check gas/Website.js
+      - name: Run identical full pre-commit and PR safety checks (no secrets; >=891, no skips)
+        run: npm run verify:pr

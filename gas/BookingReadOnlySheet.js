@@ -220,7 +220,8 @@ function bookingReadOnlyValidateTemporalCells_(snapshot) {
     // This only rejects contradictory evidence, without requiring optional
     // timestamps or choosing an unapproved transition policy.
     if (((row[3] === BOOKING_STATUS_.hold ||
-           row[3] === BOOKING_STATUS_.expired) &&
+           row[3] === BOOKING_STATUS_.expired ||
+           row[3] === BOOKING_STATUS_.waitlisted) &&
           (confirmed !== null || cancelled !== null)) ||
         (row[3] === BOOKING_STATUS_.confirmed && cancelled !== null)) {
       throw new Error('預約狀態與事件時間不一致，已拒絕提供名額。');
@@ -247,7 +248,8 @@ function bookingReadOnlyValidateCanonicalStatuses_(snapshot) {
     if (row[3] !== BOOKING_STATUS_.hold &&
         row[3] !== BOOKING_STATUS_.confirmed &&
         row[3] !== BOOKING_STATUS_.cancelled &&
-        row[3] !== BOOKING_STATUS_.expired) {
+        row[3] !== BOOKING_STATUS_.expired &&
+        row[3] !== BOOKING_STATUS_.waitlisted) {
       throw new Error('預約狀態非標準值，已拒絕提供名額。');
     }
   });

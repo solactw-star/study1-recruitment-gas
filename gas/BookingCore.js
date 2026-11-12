@@ -17,7 +17,7 @@ var BOOKING_RESERVATION_HEADERS_ = Object.freeze([
 ]);
 var BOOKING_STATUS_ = Object.freeze({
   slotOpen: 'OPEN', hold: 'HELD', confirmed: 'CONFIRMED',
-  cancelled: 'CANCELLED', expired: 'EXPIRED'
+  cancelled: 'CANCELLED', expired: 'EXPIRED', waitlisted: 'WAITLISTED'
 });
 function bookingAssertSchema_(headers, expected) {
   if (!Array.isArray(headers) || headers.length < expected.length) {
@@ -110,7 +110,8 @@ function bookingComputeAvailability_(slotRows, reservationRows, nowUtc) {
     // An orphaned reservation is a consistency fault, not a free seat.
     if (!slot) throw new Error('預約記錄參照不存在的時段。');
     var status = bookingStatus_(row[3]);
-    if (status === BOOKING_STATUS_.cancelled || status === BOOKING_STATUS_.expired) return;
+    if (status === BOOKING_STATUS_.cancelled || status === BOOKING_STATUS_.expired ||
+        status === BOOKING_STATUS_.waitlisted) return;
     if (status === BOOKING_STATUS_.confirmed) {slot.occupied++;return;}
     if (status === BOOKING_STATUS_.hold) {
       // Expired holds do not consume capacity; missing/invalid expiries block.

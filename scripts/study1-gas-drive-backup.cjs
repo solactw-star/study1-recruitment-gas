@@ -26,9 +26,30 @@ async function verify(fetcher,token,id,expectedHash) {
  ensure(sha256(bytes)===expectedHash,'Drive backup readback SHA256 mismatch');
  return {id,sha256:expectedHash};
 }
+/** Preserve both historical OWNER snapshots and PR133 HEAD-only snapshots. */
+function assertFullHeadSnapshot(snapshot){
+ ensure(snapshot&&snapshot.scriptId==='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z',
+  'Backup must contain the full verified GAS HEAD');
+ // Preserve the original OWNER snapshot API unchanged; OWNER's own caller
+ // already validates and binds source and immutable hashes before backup.
+ if(Array.isArray(snapshot.original?.files))return snapshot.original.files;
+ // New HEAD-only client sends a different, complete, previously checked shape.
+ const head=snapshot.before?.head;
+ ensure(head?.scriptId===snapshot.scriptId&&Array.isArray(head.files)&&head.files.length===27,
+  'Backup must contain all 27 original GAS HEAD files');
+ const names=new Set();
+ for(const f of head.files){
+  ensure(f&&typeof f.name==='string'&&typeof f.type==='string'&&
+   typeof f.source==='string'&&!names.has(f.name),
+   'Backup HEAD contains malformed or duplicated file');
+  names.add(f.name);
+ }
+ ensure(head.files.filter(f=>f.name==='appsscript'&&f.type==='JSON').length===1,
+  'Backup HEAD manifest is missing or duplicated');
+ return head.files;
+}
 async function create(fetcher,token,snapshot) {
- ensure(snapshot&&snapshot.scriptId==='1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z'&&
-  Array.isArray(snapshot.original?.files),'Backup must contain the full verified GAS HEAD');
+ assertFullHeadSnapshot(snapshot);
  const bytes=JSON.stringify(snapshot,null,2),hash=sha256(bytes);
  const boundary='study1-'+crypto.randomBytes(12).toString('hex');
  const metadata={name:'Study1_GAS_prewrite_'+new Date().toISOString().replace(/[:.]/g,'-')+'_'+hash.slice(0,12)+'.json',
@@ -44,4 +65,19 @@ async function create(fetcher,token,snapshot) {
  ensure(typeof created.id==='string','Drive backup create did not return an ID');
  return verify(fetcher,token,created.id,hash);
 }
-module.exports={FOLDER,OWNER,sha256,verify,create};
+/** HEAD-only prewrite proof must be both byte-identical and strictly owner-only. */
+async function verifyPrivate(fetcher,token,id,expectedHash){
+ await verify(fetcher,token,id,expectedHash);
+ const base='https://www.googleapis.com/drive/v3/files/'+encodeURIComponent(id);
+ const fields='id,shared,parents,permissions(type,role,emailAddress),owners(emailAddress)';
+ const meta=await (await request(fetcher,token,base+'?fields='+encodeURIComponent(fields))).json();
+ ensure(meta.id===id&&meta.shared===false&&
+  Array.isArray(meta.parents)&&meta.parents.includes(FOLDER)&&
+  Array.isArray(meta.owners)&&meta.owners.some(o=>o.emailAddress===OWNER)&&
+  Array.isArray(meta.permissions)&&meta.permissions.length===1&&
+  meta.permissions[0].type==='user'&&meta.permissions[0].role==='owner'&&
+  meta.permissions[0].emailAddress===OWNER,
+  'HEAD backup ACL not strictly owner-only');
+ return {id,sha256:expectedHash,ownerOnly:true};
+}
+module.exports={FOLDER,OWNER,sha256,verify,verifyPrivate,assertFullHeadSnapshot,create};

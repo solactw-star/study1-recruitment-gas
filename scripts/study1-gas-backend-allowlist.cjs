@@ -8,6 +8,17 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'AdminConsole',type:'HTML',path:'gas/AdminConsole.html'},
  {name:'Study1Flow',type:'SERVER_JS',path:'gas/Study1Unified.js'},
  {name:'Study1Unified',type:'HTML',path:'gas/Study1Unified.html'},
+ {name:'Study1PdfLib',type:'SERVER_JS',path:'gas/Study1PdfLib.js'},
+ {name:'Study1PdfStampCore',type:'SERVER_JS',path:'gas/Study1PdfStampCore.js'},
+ {name:'Study1EConsentBinding',type:'SERVER_JS',path:'gas/Study1EConsentBinding.js'},
+ {name:'Study1EConsentOtpAdapter',type:'SERVER_JS',path:'gas/Study1EConsentOtpAdapter.js'},
+ {name:'Study1WizardP0Bridge',type:'SERVER_JS',path:'gas/Study1WizardP0Bridge.js'},
+ {name:'Study1WizardEnrollment',type:'SERVER_JS',path:'gas/Study1WizardEnrollment.js'},
+ {name:'Study1ParticipantIntake',type:'SERVER_JS',path:'gas/Study1ParticipantIntake.js'},
+ {name:'Study1ParticipantTrust',type:'SERVER_JS',path:'gas/Study1ParticipantTrust.js'},
+ {name:'Study1SelfReportAuthority',type:'SERVER_JS',path:'gas/Study1SelfReportAuthority.js'},
+ {name:'Study1FormalBooking',type:'SERVER_JS',path:'gas/Study1FormalBooking.js'},
+ {name:'Study1FormalConsent',type:'SERVER_JS',path:'gas/Study1FormalConsent.js'},
  {name:'Study1Visitor',type:'HTML',path:'gas/Study1Visitor.html'},
  {name:'Study1Team',type:'HTML',path:'gas/Study1Team.html'},
  {name:'OtpCore',type:'SERVER_JS',path:'gas/OtpCore.js'},
@@ -15,6 +26,7 @@ const APPROVED_BACKEND=Object.freeze([
  {name:'OtpThrottle',type:'SERVER_JS',path:'gas/OtpThrottle.js'},
  {name:'OtpTransaction',type:'SERVER_JS',path:'gas/OtpTransaction.js'},
  {name:'BookingHoldTransaction',type:'SERVER_JS',path:'gas/BookingHoldTransaction.js'},
+ {name:'BookingReadOnlySheet',type:'SERVER_JS',path:'gas/BookingReadOnlySheet.js'},
  {name:'Study1FixtureAdapter',type:'SERVER_JS',path:'gas/Study1FixtureAdapter.js'}
 ]);
 function assertClosedWebsite(source){
@@ -25,7 +37,7 @@ function assertClosedWebsite(source){
   "function doGet(e){if(e&&e.parameter&&e.parameter.view==='admin'){study1AdminOwnerRequired_();",
   "HtmlService.createHtmlOutputFromFile('AdminConsole')",
   "study1SandboxBookingFlags_();return HtmlService.createHtmlOutputFromFile('Study1Unified')",
-  "view==='demo'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
+  "view==='demo'){study1AdminOwnerRequired_();const t=HtmlService.createTemplateFromFile('Study1Visitor');t.flowMode='FORMAL';",
   "view==='team'){study1AdminOwnerRequired_();study1SandboxBookingFlags_();",
   "HtmlService.createHtmlOutputFromFile('Index')",
   'function getPublicConfig(){return {open:false,consentReady:false',
@@ -84,6 +96,12 @@ function assertAdminSandbox(source){
   "function study1EConsentOwnerList(){",
   "function study1EConsentReadyDocument_(experiment){",
   "function study1EConsentEnabled_(){",
+  "function study1EConsentValidateRegistry_(r,maxRecords){",
+  "function study1EConsentPointerV2_(raw,legacyRaw){",
+  "function study1EConsentReadV2_(p){",
+  "study1EConsentValidateRegistry_(next,STUDY1_ECONSENT_MAX_RECORDS_);",
+  "props.setProperty(STUDY1_ECONSENT_POINTER_V2_,ptrRaw)",
+  "file.getSharingAccess()!==DriveApp.Access.PRIVATE",
   "function study1ConsentDocumentBytes_(entry){",
   "DriveApp.getFileById(entry.id)",
   "input.confirmSha256!==entry.sha256",
@@ -112,12 +130,16 @@ function assertAdminSandbox(source){
    'study1ConsentVersionUpload','study1ConsentVersionSelect',
    'study1ConsentDocumentBytes_','study1ConsentVersionPublication',
    'study1ConsentPublicRead_',
-   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList','study1EConsentOwnerWithdraw']);
+   'study1EConsentHash_','study1EConsentEnabled_','study1EConsentAvailability','study1EConsentValidateRegistry_','study1EConsentPointerV2_','study1EConsentReadV2_','study1EConsentRegistry_','study1EConsentWrite_','study1EConsentFolder_','study1EConsentFile_','study1EConsentEvent_','study1EConsentReadyDocument_','study1EConsentEntry_','study1EConsentChange_','study1EConsentIssue','study1EConsentExplain','study1EConsentSession','study1EConsentSign','study1EConsentConfirm','study1EConsentCopy','study1EConsentWithdraw','study1EConsentOwnerList','study1EConsentOwnerWithdraw',
+   'study1EConsentSignedPdfStore_','study1EConsentSignedPdfRead_',
+   'study1EConsentSignPdf','study1EConsentSignedPdfCopy',
+   'study1EConsentConfirmPdf','study1EConsentOwnerPendingPdfConfirmations',
+   'study1EConsentOwnerWithdrawalCases','study1EConsentOwnerSignedPdfDownload']);
  const found=[...source.matchAll(/\bfunction\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
  if(found.length!==expected.size||found.some(x=>!expected.has(x))||new Set(found).size!==expected.size)throw Error('Unreviewed admin endpoint');
  if(/\b(?:SpreadsheetApp|MailApp|GmailApp|UrlFetchApp|ScriptApp|eval|deleteAllProperties|setProperties)\b/.test(source))throw Error('Forbidden research data or external operation');
  const driveOps=[...source.matchAll(/\bDriveApp\.([A-Za-z_$][\w$]*)/g)].map(x=>x[1]);
- if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access,getFileById')
+ if(driveOps.join(',')!=='getFolderById,Access,Access,Permission,Access,getFolderById,Access,getFileById,Access,getFileById,Access,Access,Permission,Access,getFolderById,Access,Access,Permission,Access,getFileById,Access,getFileById,Access,Permission,Access,getFileById,Access,getFileById,getFileById')
   throw Error('Unreviewed private consent Drive operation');
 }
 function assertAdminHtml(html){
@@ -143,7 +165,7 @@ function assertOtpCore(source){
     !source.includes('function otpHmacHex_('))throw Error('OtpCore pure methods missing');
 }
 function assertBookingCore(source){
- assertPinnedCore(source,'496fa02b896f71682bf2dead373b2a146cfe0f7e','BookingCore');
+ assertPinnedCore(source,'7c7bd7836cf2f868d04f2d35eb317efb0c9c8ec8','BookingCore');
  if(!source.includes('function bookingComputeAvailability_(')||
     !source.includes('function bookingVerifySheetHeaders_('))
    throw Error('BookingCore expected pure method or read-only preflight missing');
@@ -324,12 +346,12 @@ function assertVisitorHtml(html){
     !html.includes('id="receiptId"')||
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand(envelope)')||
-    !html.includes('SIMULATED_SIGN_ONLY')||
-    !html.includes('不接受正式報名')||
+    !html.includes("document.body.dataset.siteMode!=='FORMAL'")||
+    !html.includes('study1ParticipantReadiness()')||
     !html.includes('<base target="_top">')||
-    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec')||
+    !html.includes('https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
-   throw Error('Visitor demo must remain participant-only, synthetic and without external scripts');
+   throw Error('Visitor formal entry contract failed: required closed-gated flow or isolation');
 }
 function assertTeamHtml(html){
  if(typeof html!=='string'||!html.startsWith('<!doctype html>')||
@@ -408,7 +430,7 @@ function assertTeamHtml(html){
     !html.includes('study1UnifiedPreviewGet()')||
     !html.includes('study1UnifiedPreviewCommand({action,payload,requestId:id,expectedRevision:model.revision})')||
     !html.includes('正式收件開關保持鎖定')||
-    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=demo')||
+    !html.includes('https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec?view=apply')||
     /<script[^>]+src=|<iframe\b|\.innerHTML\s*=|\blocalStorage\b|\bfetch\s*\(/i.test(html))
   throw Error('Research team UI must remain graphical, approved owner-only and CLOSED');
 }
@@ -416,7 +438,7 @@ function mergeApproved(core,remote,index,website,adminScript,adminHtml,unifiedSc
  core.assertIndex(index);assertClosedWebsite(website);assertAdminSandbox(adminScript);assertAdminHtml(adminHtml);assertUnifiedFlow(unifiedScript);assertUnifiedHtml(unifiedHtml);assertOtpCore(otpCore);assertBookingCore(bookingCore);
  assertTransactionKernel(otpThrottle,'93fc0adb2e45b90d75f092109b204dce51ac6ee1','OtpThrottle');
  assertTransactionKernel(otpTransaction,'85e554cab2c6767fd80545b8c6e573c99e750a9e','OtpTransaction');
- assertTransactionKernel(bookingHoldTransaction,'1f12a687625ceb72414227451853a900e3dab692','BookingHoldTransaction');
+ assertTransactionKernel(bookingHoldTransaction,'d15375bb4ea6825231cca60cd2ab9cbb28a4f024','BookingHoldTransaction');
  assertFixtureAdapter(fixtureAdapter);
  const visitorHtml=require('node:fs').readFileSync(require('node:path').join(__dirname,'../gas/Study1Visitor.html'),'utf8');
  assertVisitorHtml(visitorHtml);

@@ -25,7 +25,7 @@ function assertClosedPublicSources(remote){
  const reviewed=new Set(['appsscript','Index','Website','AdminSandbox','AdminConsole',
   'Study1Flow','Study1Unified','OtpCore','BookingCore','OtpThrottle',
   'OtpTransaction','BookingHoldTransaction','Study1FixtureAdapter',
-  'Study1Visitor','Study1Team']);
+  'Study1Visitor','Study1Team','Study1PdfLib','Study1PdfStampCore']);
  check(remote.files.length===reviewed.size&&
   remote.files.every(x=>reviewed.has(x.name))&&
   new Set(remote.files.map(x=>x.name)).size===reviewed.size,
@@ -50,21 +50,26 @@ function assertClosedPublicSources(remote){
   BookingHoldTransaction:['SERVER_JS','gas/BookingHoldTransaction.js'],
   Study1FixtureAdapter:['SERVER_JS','gas/Study1FixtureAdapter.js'],
   Study1Visitor:['HTML','gas/Study1Visitor.html'],
-  Study1Team:['HTML','gas/Study1Team.html']
+  Study1Team:['HTML','gas/Study1Team.html'],
+  Study1PdfLib:['SERVER_JS','gas/Study1PdfLib.js'],
+  Study1PdfStampCore:['SERVER_JS','gas/Study1PdfStampCore.js']
  };
  for(const [name,[type,filename]] of Object.entries(sourceMap)){
   check(one(remote.files,name,type).source===script(filename),
    'Original GAS remote source diverged from reviewed GitHub main: '+name);
  }
- check(idx.includes('id="consent"')&&idx.includes('目前尚未開放線上簽署')&&
-  !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page is not the formal CLOSED product frontend');
+ check(!idx.includes('id="consent"')&&!idx.includes('href="#consent"')&&
+  idx.includes('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"')&&
+  !/view=demo|Demo|虛構|純TEST/.test(idx),'Public page must route to the FORMAL CLOSED product, not Demo or standalone consent');
  check(!/<(?:form|textarea)\b/i.test(idx),'Public site has no active collection form');
- const inputs=[...idx.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
- check(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'All collection inputs must be disabled');
- check(idx.includes('id="consentSubmit"')&&idx.includes('id="consentSignature"')&&
-  idx.includes('id="consentPdfViewer"')&&
-  idx.includes("consentEl('consentSubmit').disabled=true;")&&
-  !/<iframe\b[^>]*\bsrc=/i.test(idx),'Unreviewed signature submit or embedded remote URL');
+ const inputs=[...idx.matchAll(/<input\\b[^>]*>/gi)].map(x=>x[0]);
+ check(inputs.length===0,'Public homepage must not accept identity/signature inputs');
+ check(!idx.includes('完整閱讀研究文件，再決定是否同意')&&
+  !idx.includes('知情同意是報名最後的步驟')&&
+  !idx.includes('class="container faq"')&&
+  !/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/.test(idx)&&
+  !/<(?:canvas|iframe)\\b/i.test(idx)&&!idx.includes('initConsentPortal_'),
+  'Signing interface may not be exposed on public information homepage');
  check(site.includes("function getPublicConsentDocument(experiment){return study1ConsentPublicRead_(experiment);}")&&
   admin.includes("function study1ConsentPublicRead_(experiment){")&&
   admin.includes("function study1ConsentVersionPublication(input){")&&

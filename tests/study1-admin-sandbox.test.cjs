@@ -7,7 +7,7 @@ function harness(active='solac.tw@gmail.com',effective='solac.tw@gmail.com',onDe
  const scope={
  Session:{getActiveUser:()=>({getEmail:()=>active}),getEffectiveUser:()=>({getEmail:()=>effective})},
  PropertiesService:{getScriptProperties:()=>p},
- LockService:{getScriptLock:()=>({tryLock:()=>{locks++;return true},releaseLock:()=>{locks--}})},
+ LockService:{getScriptLock:()=>({tryLock:()=>{locks++;return true},hasLock:()=>locks>0,releaseLock:()=>{locks--}})},
  JSON,Number,Object,String,Array,Set,Error
  };
  vm.createContext(scope);vm.runInContext(src,scope);
@@ -268,15 +268,25 @@ test('P0 consent originals: only owner may upload PDF, versions are immutable, e
     const file={
      setSharing:(a,p)=>{assert.equal(p,'VIEW');entry.sharing=a},
      getSharingAccess:()=>entry.sharing,getSize:()=>blob.bytes.length,
+     getMimeType:()=>blob.mime,
+     getParents:()=>{let used=false;return {hasNext:()=>!used,
+      next:()=>{used=true;return {getId:()=> '1hILv03gCFN9VZkNqcFx3fnlwBsKHKdYU'};}};},
+     getBlob:()=>({getBytes:()=>[...blob.bytes]}),
      getUrl:()=> 'https://drive.google.com/file/d/'+entry.id+'/view',
      getId:()=>entry.id,setTrashed:v=>{entry.trashed=v}
     };
-    files.push(entry);return file;
+    entry.file=file;files.push(entry);return file;
    }};
+  },
+  getFileById:id=>{
+   const match=files.find(x=>x.id===id);
+   if(!match)throw Error('Synthetic PDF not found');
+   return match.file;
   }
  };
  const make=(version,expectedRevision)=>({base64:pdf.toString('base64'),
-  expectedRevision,experiment:'E1',title:'空白研究知情同意書',version});
+  expectedRevision,experiment:'E1',researcherPresigned:true,
+  title:'空白研究知情同意書',version});
  assert.equal(h.scope.study1ConsentVersionList().documents.length,0);
  const first=h.scope.study1ConsentVersionUpload(make('v1',0));
  assert.equal(first.revision,1);assert.equal(first.documents.length,1);
@@ -295,6 +305,12 @@ test('P0 consent originals: only owner may upload PDF, versions are immutable, e
  const switched=h.scope.study1ConsentVersionSelect({id:second.documents[1].id,expectedRevision:3});
  assert.equal(switched.current.E1,second.documents[1].id);
  assert.equal(switched.documents[0].sha256,first.documents[0].sha256);
+ // A legacy E1 PDF without researcher pre-sign attestation cannot be selected.
+ const unsigned={...switched,documents:switched.documents.map((d,i)=>
+  i===1?{...d,researcherPresigned:false}:d)};
+ h.values.set('STUDY1_CONSENT_DOCUMENT_INDEX_V1',JSON.stringify(unsigned));
+ assert.throws(()=>h.scope.study1ConsentVersionSelect({id:second.documents[1].id,
+  expectedRevision:4}),/E1_RESEARCHER_PRESIGNED_PDF_REQUIRED/);
  access='PUBLIC';
  assert.throws(()=>h.scope.study1ConsentVersionUpload(make('v3',4)),/不是私人權限/);
  assert.equal(files.length,2,'unsafe folder must never receive a PDF');
@@ -351,7 +367,8 @@ test('P0 official consent PDF: OWNER publication is explicit, SHA-verified, inde
   getFileById:id=>{assert.ok(docs.has(id),'unreviewed Drive file');return makeFile(docs.get(id))}
  };
  const submit=(version,expectedRevision)=>({base64:content.toString('base64'),
-  expectedRevision,experiment:'E1',title:'研究參與者知情同意書',version});
+  expectedRevision,experiment:'E1',researcherPresigned:true,
+  title:'研究參與者知情同意書',version});
  assert.equal(h.scope.study1ConsentPublicRead_('E1').available,false);
  const uploaded=h.scope.study1ConsentVersionUpload(submit('v1',0));
  assert.deepEqual(JSON.parse(JSON.stringify(uploaded.published)),{E1:null,E2:null});
@@ -384,6 +401,12 @@ test('P0 official consent PDF: OWNER publication is explicit, SHA-verified, inde
  assert.equal(revoked.published.E1,null);
  assert.equal(h.scope.study1ConsentPublicRead_('E1').available,false);
  assert.equal(docs.get(id).sharing,privateAccess);
+ // A same-version selection must reverify the private source bytes and SHA.
+ const currentlySelected=changed.current.E1;
+ docs.get(currentlySelected).bytes[32]^=1;
+ assert.throws(()=>h.scope.study1ConsentVersionSelect({id:currentlySelected,
+  expectedRevision:6}),/雜湊已改變/);
+ assert.equal(h.scope.study1ConsentVersionRead_().revision,6);
  assert.throws(()=>h.scope.study1ConsentPublicRead_('X1'),/不合法/);
  assert.equal(h.locks(),0);
 });
@@ -500,6 +523,8 @@ test('P0 formal e-consent owner-verified one-time private invitation, Q&A, signa
  }));
  h.values.set('OPEN','true');h.values.set('CONSENT_READY','true');
  h.values.set('STUDY1_ECONSENT_PROVIDER_VERIFIED','true');
+ // Synthetic-only compatibility path; never available to production participants.
+ h.values.set('STUDY1_ECONSENT_LEGACY_SYNTHETIC_ONLY','true');
  assert.equal(h.scope.study1EConsentAvailability().enabled,true);
  assert.throws(()=>h.scope.study1EConsentIssue({experiment:'E2'}),/實驗二尚未/);
  const issued=h.scope.study1EConsentIssue({experiment:'E1'});

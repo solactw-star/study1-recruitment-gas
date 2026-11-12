@@ -47,13 +47,15 @@ test('Only the authenticated owner can open the visual research-team management 
 });
 test('Formal homepage no longer sends participants to private Demo but preserves original owner-only visitor route',()=>{
  assert.doesNotMatch(index,/\/exec\?view=demo/);
- assert.match(index,/id="consent"/);
- assert.match(index,/研究報名及線上知情同意尚未開放/);
- assert.match(html,/\/exec\?view=demo/);
+ assert.doesNotMatch(index,/id="consent"/);
+ assert.doesNotMatch(index,/研究報名及線上知情同意尚未開放|class="notice"/);
+ assert.match(index,/id="apply"/);
+ assert.match(index,/目前尚未開放報名/);
+ assert.match(html,/\/exec\?view=apply/);
  assert.match(visitor,/\/exec" target="_top"/);
  assert.match(visitor,/--ink:#163341;--sea:#1b7d80/);
  assert.match(visitor,/linear-gradient\(115deg,#f0f9f7,#e4f1ed\)/);
- assert.match(index,/實驗二預計於2027年進行/);
+ assert.match(visitor,/預計 2027 年 · 尚未開放報名/);
  assert.match(visitor,/id="stateE2"/);
 });
 test('Team UI rejects network/unsafe scripts or a missing editor',()=>{

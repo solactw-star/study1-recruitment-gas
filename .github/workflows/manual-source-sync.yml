@@ -1,9 +1,18 @@
 name: Manual GAS source sync (NOT public website deployment)
+# PR #133 HEAD only. Never auto-trigger from a code push.
 on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: 'Type I_AUTHORIZE_SOURCE_REPLACEMENT_ONLY (overwrites GAS source; no web app deployment)'
+        description: 'I_AUTHORIZE_PR133_HEAD_ONLY_SYNC'
+        required: true
+        type: string
+      reviewed_pr_sha:
+        description: 'Exact 40-character current PR #133 HEAD'
+        required: true
+        type: string
+      expected_remote_sha256:
+        description: 'Exact reviewed GAS HEAD SHA-256'
         required: true
         type: string
 permissions:
@@ -12,61 +21,66 @@ concurrency:
   group: study1-gas-source-sync
   cancel-in-progress: false
 jobs:
-  sync:
+  head-only:
+    if: ${{ github.event.repository.private }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
-      - name: Require explicit user confirmation
-        env:
-          CONFIRMATION: ${{ inputs.confirmation }}
-        run: |
-          if [ "$CONFIRMATION" != 'I_AUTHORIZE_SOURCE_REPLACEMENT_ONLY' ]; then
-            echo "::error::Explicit source-replacement authorization required."
-            exit 1
-          fi
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Run closed-site safety tests
+      - name: Refuse unapproved branch, SHA or manual invocation
+        env:
+          REVIEWED_PR_SHA: ${{ inputs.reviewed_pr_sha }}
+          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
+          HEAD_ONLY_CONFIRMATION: ${{ inputs.confirmation }}
+          GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         run: |
-          npm test
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REPOSITORY" = solactw-star/study1-recruitment-gas
+          test "$GITHUB_REF" = refs/heads/fix/consent-last-preserve-wizard-20261110
+          test "$GITHUB_REPOSITORY_PRIVATE" = true
+          test "$HEAD_ONLY_CONFIRMATION" = I_AUTHORIZE_PR133_HEAD_ONLY_SYNC
+          test "$REVIEWED_PR_SHA" = "$GITHUB_SHA"
+          test "$EXPECTED_REMOTE_SHA256" = 972cb7ceb617776ca161d283dd05e8f1d38b73b90afc68071b79eeffba25a611
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Full PR preflight; no skipped safety tests
+        run: |
+          npm run verify:pr
+          node --check scripts/study1-gas-head-only-sync.cjs
           node --check gas/Website.js
-      - name: Refuse missing OAuth credentials
+      - name: Isolated original 828 OAuth
         env:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
         run: |
-          if [ -z "$CLASPRC_JSON" ]; then
-            echo "::error::Missing CLASPRC_JSON secret; no GAS changes made."
-            exit 1
-          fi
-      - name: Authenticate on isolated runner without printing token
-        env:
-          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
-        run: |
+          test -n "$CLASPRC_JSON" || { echo 'OAuth unavailable: refusing sync'; exit 1; }
           umask 077
-          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
-          python3 -m json.tool "$HOME/.clasprc.json" >/dev/null
-      - name: Fetch fresh GAS source
+          printf '%s' "$CLASPRC_JSON" > "$RUNNER_TEMP/.clasprc.json"
+          echo "CLASPRC_PATH=$RUNNER_TEMP/.clasprc.json" >> "$GITHUB_ENV"
+      - name: GET original 27 sources, Drive owner-only backup and full readback
         env:
-          SCRIPT_ID: 1hPERspy11hI56dJobIVgCElGNaWYJJTdrDh7CRlORTom9VHti2xyR93Z
+          REVIEWED_PR_SHA: ${{ inputs.reviewed_pr_sha }}
+          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
+          HEAD_ONLY_CONFIRMATION: ${{ inputs.confirmation }}
+          GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: node scripts/study1-gas-head-only-sync.cjs prepare
+      - name: Reject PR branch competing commit before any remote PUT
         run: |
-          mkdir -p "$RUNNER_TEMP/remote-gas"
-          cd "$RUNNER_TEMP/remote-gas"
-          npx --yes @google/clasp@3 clone "$SCRIPT_ID"
-      - name: Fail if GAS source changed since the reviewed backup
-        run: node scripts/check-remote-baseline.cjs "$RUNNER_TEMP/remote-gas" docs/remote-baseline-20261029.json
-      - name: Save pre-sync remote code
-        uses: actions/upload-artifact@v4
-        with:
-          name: study1-gas-pre-sync-backup
-          path: ${{ runner.temp }}/remote-gas/
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 3
-      - name: Sync GAS project source ONLY (no new deployment)
-        working-directory: gas
-        run: npx --yes @google/clasp@3 push --force
-      - name: Delete temporary credentials
+          git fetch origin fix/consent-last-preserve-wizard-20261110 --depth=1
+          test "$(git rev-parse FETCH_HEAD)" = "$GITHUB_SHA" || {
+            echo 'PR branch changed: no GAS mutation'
+            exit 1
+          }
+      - name: Once-only full 27-file GAS HEAD PUT; verify; never deploy
+        env:
+          REVIEWED_PR_SHA: ${{ inputs.reviewed_pr_sha }}
+          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
+          HEAD_ONLY_CONFIRMATION: ${{ inputs.confirmation }}
+          GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+        run: node scripts/study1-gas-head-only-sync.cjs apply
+      - name: Purge runner token cache and raw source snapshot
         if: always()
-        run: rm -f "$HOME/.clasprc.json"
+        run: |
+          rm -f "$RUNNER_TEMP/.clasprc.json"
+          rm -f "$RUNNER_TEMP/study1-pr133-head-only-prewrite.json"

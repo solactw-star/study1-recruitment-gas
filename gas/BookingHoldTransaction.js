@@ -44,7 +44,8 @@ function bookingHoldAssertCanonicalStorage_(snapshot) {
     if (row[3] !== BOOKING_STATUS_.hold &&
         row[3] !== BOOKING_STATUS_.confirmed &&
         row[3] !== BOOKING_STATUS_.cancelled &&
-        row[3] !== BOOKING_STATUS_.expired) {
+        row[3] !== BOOKING_STATUS_.expired &&
+        row[3] !== BOOKING_STATUS_.waitlisted) {
       throw new Error('預約狀態非標準值，拒絕預約交易。');
     }
   });
@@ -158,8 +159,8 @@ function bookingHoldAssertLifecycleEvents_(rows) {
     var cancelled=row[8]!=='' && row[8]!=null;
     if (confirmed) bookingInstant_(row[7]);
     if (cancelled) bookingInstant_(row[8]);
-    if (((status===BOOKING_STATUS_.hold || status===BOOKING_STATUS_.expired) &&
-         (confirmed || cancelled)) ||
+    if (((status===BOOKING_STATUS_.hold || status===BOOKING_STATUS_.expired ||
+          status===BOOKING_STATUS_.waitlisted) && (confirmed || cancelled)) ||
         (status===BOOKING_STATUS_.confirmed && cancelled)) {
       throw new Error('預約狀態與事件時間不一致，拒絕預約交易。');
     }
@@ -192,7 +193,8 @@ function bookingHoldActive_(row,nowMs) {
   if (status===BOOKING_STATUS_.hold) {
     return bookingInstant_(row[4])>nowMs;
   }
-  if (status===BOOKING_STATUS_.cancelled || status===BOOKING_STATUS_.expired) return false;
+  if (status===BOOKING_STATUS_.cancelled || status===BOOKING_STATUS_.expired ||
+      status===BOOKING_STATUS_.waitlisted) return false;
   throw new Error('未知預約狀態，拒絕操作。');
 }
 /**

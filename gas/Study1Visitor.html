@@ -60,22 +60,34 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 .v05SlotCard small{font-size:13px;font-weight:400}
 @media(max-width:540px){.v05SlotCards{grid-template-columns:1fr}.v05MonthBar{gap:5px}.v05MonthBar button{padding:7px}.v05Calendar{padding:8px}.v05Grid{gap:2px}.v05Day{font-size:13px}}
 @media(max-width:700px){.two{grid-template-columns:1fr}.shell{padding:0 12px 40px}.maincard{padding:20px}.study-card{min-height:0}dl{grid-template-columns:95px 1fr}nav{align-items:flex-start}}
+
+/* §70-S private-only handwriting UI; no signature bytes are sent to GAS. */
+#visitorSignaturePreview{display:block;width:100%;max-width:700px;height:160px;background:#fff;border:2px dashed #9bbfba;border-radius:10px;touch-action:none;user-select:none}
 </style>
 </head>
-<body>
-<div class="noticebar" role="note">研究網站示範模式 · 僅供老師體驗操作 · 不接受正式報名、不寄發電子郵件或蒐集真人資料</div>
-<header><nav><div class="brand">Study 1 <small>記憶與身體感覺研究</small></div><a href="https://script.google.com/macros/s/AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s/exec" target="_top">研究資訊首頁</a></nav>
-<div class="hero"><div class="eyebrow">心理學研究 · 參與者報名體驗</div><h1 id="visitorHeroTitle">一起探索，<br><span>記憶與身體感覺</span><br>之間的關係。</h1><p>與研究介紹首頁相同的研究主題及視覺風格，依序了解資格、確認聯絡方式並選擇參與時段。本頁為虛構資料展示。</p><p class="help" id="siteNoticeText">所有資料均為虛構測試，不會建立正式報名。</p></div></header>
+<body data-site-mode="<?= flowMode ?>">
+<div class="noticebar" role="note"><?= flowMode === 'FORMAL' ? 'Study1 正式報名流程｜正式收件及簽署尚未開放' : '研究網站示範模式 · 僅供老師體驗操作 · 不接受正式報名、不寄發電子郵件或蒐集真人資料' ?></div>
+<header><nav><div class="brand">Study 1 <small>記憶與身體感覺研究</small></div><a href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec" target="_top">研究資訊首頁</a></nav>
+<div class="hero"><div class="eyebrow"><?= flowMode === 'FORMAL' ? '心理學研究 · E1 正式報名流程' : '心理學研究 · 參與者報名體驗' ?></div><h1 id="visitorHeroTitle">一起探索，<br><span>記憶與身體感覺</span><br>之間的關係。</h1><p>與研究介紹首頁相同的研究主題及視覺風格，依序了解資格、確認聯絡方式並選擇參與時段。<?= flowMode === 'FORMAL' ? '是否接受申請以研究倫理核准及系統安全狀態為準。' : '本頁為虛構資料展示。' ?></p><p class="help" id="siteNoticeText"><?= flowMode === 'FORMAL' ? '正式報名及個資蒐集僅在核實開放後啟用。' : '所有資料均為虛構測試，不會建立正式報名。' ?></p></div></header>
 <main class="shell"><div class="maincard">
 <div id="progressText">正在載入報名流程…</div><div id="progress" class="progress" aria-label="報名進度"><span></span><span></span><span></span><span></span><span></span><span></span></div>
 <section class="step" id="step-choose"><span class="tag">STEP 01 · 研究選擇</span><h2>您想參加哪一項研究？</h2>
 <p class="lead">以下研究說明取自現有研究草稿；正式招募內容以日後核准版本為準。</p>
-<div class="two"><button type="button" class="study-card" id="chooseE1" disabled><span class="tag">實驗一</span><strong id="nameE1">記憶與內感覺</strong><small id="descE1">單次研究流程</small><small id="payE1">完成後提供研究補貼</small><small id="stateE1">示範報名可體驗</small></button>
-<button type="button" class="study-card" id="chooseE2" disabled><span class="tag">實驗二</span><strong id="nameE2">身心中軸覺察</strong><small id="descE2">前後測與八週安排</small><small id="payE2">依完成階段提供補貼</small><small id="stateE2">預計 2027 年 · 尚未開放報名</small></button></div><p id="noAvailable" class="help" hidden>目前尚無開放的報名體驗，請留意後續研究公告。</p>
-<div class="box"><strong>報名前請先了解</strong><p>參與完全自願，您可先瀏覽兩項研究的條件。現在是示範體驗，所有報名紀錄及時段都使用虛構資料。</p></div></section>
+<div class="two"><button type="button" class="study-card" id="chooseE1" disabled><span class="tag">實驗一</span><strong id="nameE1">記憶與內感覺</strong><small id="descE1">單次研究流程</small><small id="payE1">完成後提供研究補貼</small><small id="stateE1"><?= flowMode === 'FORMAL' ? '尚未開放正式報名' : '示範報名可體驗' ?></small></button>
+<button type="button" class="study-card" id="chooseE2" disabled><span class="tag">實驗二</span><strong id="nameE2">身心中軸覺察</strong><small id="descE2">前後測與八週安排</small><small id="payE2">依完成階段提供補貼</small><small id="stateE2">預計 2027 年 · 尚未開放報名</small></button></div><p id="noAvailable" class="help" hidden><?= flowMode === 'FORMAL' ? '目前沒有開放的正式E1報名場次，請留意後續研究公告。' : '目前尚無開放的報名體驗，請留意後續研究公告。' ?></p>
+<div class="box"><strong>報名前請先了解</strong><p>參與完全自願，您可先瀏覽兩項研究的條件。<?= flowMode === 'FORMAL' ? '正式受理前不會收集姓名、聯絡資料、簽名或保留場次。' : '現在是示範體驗，所有報名紀錄及時段都使用虛構資料。' ?></p></div></section>
 <section class="step" id="step-screen" hidden><span class="tag">STEP 02 · 資格初篩</span><h2>確認參與條件</h2>
 <p class="lead">為了展示系統，請以「虛構的符合資格學生」角色操作；不要依自己的身體或心理狀況作答。</p>
 <p class="box"><strong>示範參與者</strong><br>姓名：示範同學（不蒐集真名）<br>聯絡信箱：demo.study1@example.invalid（不寄信）</p>
+
+<div id="formalContact" class="box" hidden aria-label="正式申請基本聯絡資料">
+ <strong>正式申請聯絡資料</strong>
+ <p class="help">只有正式招募開放，經核實REC資料使用與防濫用程序後才可輸入。初篩答案不逐題保存；電子郵件驗證不等於研究資格證明。</p>
+ <label for="formalName" class="field">姓名</label><input id="formalName" type="text" autocomplete="name" maxlength="80" disabled>
+ <label for="formalEmail" class="field">電子郵件</label><input id="formalEmail" type="email" autocomplete="email" maxlength="254" disabled>
+ <label for="formalPhone" class="field">電話（非必填）</label><input id="formalPhone" type="tel" autocomplete="tel" maxlength="30" disabled>
+ <div id="formalHumanCheck" hidden aria-label="真人報名的人機安全驗證"><p class="help">請完成必要的人機驗證；該程序不會把醫療初篩答案提供給驗證服務。</p><div id="formalTurnstile"></div></div>
+</div>
 <div id="screenQuestions">
 <label class="check"><input id="adult" type="checkbox" checked><span id="qAdult">已滿十八歲</span></label>
 <label class="check"><input id="cycu" type="checkbox" checked><span id="qCycu">具有中原大學學生身分</span></label>
@@ -87,7 +99,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <p class="help">系統僅儲存虛構申請的「符合／不符合」結果，不留存逐題回答。</p></section>
 <section class="step" id="step-ineligible" hidden><span class="tag">資格檢查</span><h2>此模擬角色不符合條件</h2><p>您可以重新選擇實驗，使用其他虛構角色體驗報名。</p><button id="ineligibleRestart" type="button">重新開始報名</button></section>
 <section class="step" id="step-otp" hidden><span class="tag">STEP 03 · 聯絡方式確認</span><h2>驗證電子郵件</h2>
-<p class="lead">正式網站會寄送一次性驗證碼。展示版不要求輸入個人信箱，也不發送郵件。</p>
+<p class="lead">正式流程將由伺服器建立原申請ID、寄送八位電子郵件驗證碼並由原Verification一次性核驗；此七步頁目前仍為OWNER虛構展示，不採集真人資料也不寄真信。</p>
 <div class="box"><strong>示範信箱</strong><br>demo.study1@example.invalid</div>
 <div class="actionrow"><button type="button" id="otpSend">取得示範驗證碼</button></div>
 <div id="otpInputWrap" hidden><div class="box"><strong>示範驗證碼：00000000</strong><p>這組虛構代碼只用來演示驗證流程，並非正式信箱驗證。</p></div>
@@ -113,28 +125,71 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
  <p id="v08WaitStatus" class="help" role="status">候補來源尚未核實。</p>
 </div>
 <p class="help">未列出的日期不代表沒有申請者。若來源或日期異常，所有選擇會停用；虛構操作不會占用正式研究名額。</p></section>
-<section class="step" id="step-consent" hidden><span class="tag">STEP 05 · 同意說明</span><h2>了解研究與參與者權益</h2>
-<p class="lead" id="consentStudyTitle">您正在體驗研究同意程序。</p>
-<div class="box warn"><strong>文件用途聲明</strong><p>目前只有「虛構的 PDF 示例」，不是倫理審查核准的正式研究參與同意書。下方的確認不是法律或研究上有效的電子簽署。</p></div>
-<a id="pdf" class="pdf" href="#" download="Study1_Sample_Not_REC.pdf" rel="noopener">查看示範 PDF 文件</a>
-<label class="check"><input id="readPdf" type="checkbox"><span>我已開啟範例並了解這份文件不是正式 REC 同意書</span></label>
-<div class="actionrow"><button id="review" type="button">確認已閱讀範例</button></div>
-<label class="check"><input id="agree" type="checkbox"><span>我了解此為虛構角色的報名示範，不會留下真實簽名或產生正式報名</span></label>
-<div class="actionrow"><button id="finish" type="button" disabled>確認並完成示範報名</button></div>
-<p class="help" id="consentStatus">請先開啟並確認範例文件。</p></section>
-<section class="step" id="step-confirm" hidden><span class="tag">STEP 06 · 報名確認</span><h2>最後確認示範預約</h2>
-<p>請確認目前的虛構研究、臺灣場次時間、預約方式及示範同意狀態。這不是有效的正式預約、驗證信箱或REC同意書；提交時原GAS仍會重新檢查版本、時段及容量。</p>
+<section class="step" id="step-confirm" hidden><span class="tag">STEP 05 · 報名資料核對</span><h2>簽署前請核對研究與預約資料</h2>
+<p>這一步只核對研究項目、聯絡驗證狀態與臺灣場次時間，不會在此簽署、提交或成立預約。核對完成後，才會進入最後的完整PDF與本人簽名步驟；目前仍是OWNER隔離測試資料。</p>
 <dl id="v06Summary" class="box" aria-label="示範預約最後確認">
  <dt>研究項目</dt><dd id="v06Study">尚未確認</dd>
  <dt>場次日期</dt><dd id="v06Date">尚未確認</dd>
  <dt>開始時間（臺灣）</dt><dd id="v06Time">尚未確認</dd>
  <dt>參與方式／地點</dt><dd id="v06Place">尚未核准正式資訊</dd>
  <dt>示範聯絡方式</dt><dd id="v06Email">demo.study1@example.invalid（不寄信）</dd>
- <dt>同意紀錄</dt><dd id="v06Consent">只有虛構同意，非REC正式簽署</dd>
+ <dt>同意狀態</dt><dd id="v06Consent">尚未簽署，核對後才進入最終階段</dd>
 </dl>
 <p id="v06Status" class="help" role="status" aria-live="polite">正在核對虛構預約來源。</p>
-<button id="confirm" type="button" disabled>確認這筆虛構預約</button></section>
-<section class="step" id="step-done" hidden><div class="receipt"><span class="tag">已完成示範</span><h2 id="doneHeading">報名流程已完成</h2>
+<button id="confirm" type="button" disabled>資料正確，前往最後PDF與簽名步驟</button></section>
+<section class="step" id="step-consent" hidden><span class="tag">STEP 06 · 最後階段：PDF與簽署</span><h2>最後閱讀完整同意書並本人簽署</h2>
+<p class="lead" id="consentStudyTitle">完成資格、身分與聯絡驗證、時段和資料核對後，最後才顯示對應實驗的知情同意文件。</p>
+<div class="box warn"><strong>文件用途聲明</strong><p>目前只有「虛構的 PDF 示例」，不是倫理審查核准的正式研究參與同意書。下方的確認不是法律或研究上有效的電子簽署。</p></div>
+<div class="box" id="officialConsentRead" aria-label="最後報名階段正式PDF原文核對">
+ <strong>實驗一／實驗二｜研究團隊已公開的完整原版 PDF</strong>
+ <p id="officialPdfStatus" class="help" role="status" aria-live="polite">完成前面的資格、聯絡、身分與時段核對後，才會讀取所選實驗的文件。此處不會送出任何同意或簽名。</p>
+ <dl><dt>文件名稱</dt><dd id="officialPdfTitle">尚未核實</dd>
+ <dt>正式文件版號</dt><dd id="officialPdfVersion">尚未核實</dd>
+ <dt>原始 SHA-256</dt><dd id="officialPdfSha">尚未核實</dd></dl>
+ <a id="officialPdfDownload" class="pdf" hidden download="Study1_Consent_Original.pdf" rel="noopener">下載已核對原版PDF（未簽署）</a>
+ <object id="officialPdfViewer" type="application/pdf" width="100%" height="520" hidden aria-label="經SHA核對的完整版原始知情同意PDF">
+  <p>瀏覽器無法內嵌顯示PDF時，請使用上方的原文下載連結完整閱讀。</p>
+ </object>
+ <p class="help">原始PDF不包含此處的手寫簽名。正式提交須另生成完整簽署PDF及獨立SHA；目前尚未開放真人簽名及收件。</p>
+ <div id="officialSignedPdfResult" class="box" hidden aria-label="正式完整簽署PDF交付結果">
+  <strong>完整簽署PDF｜研究人員確認後本人副本</strong>
+  <p id="officialSignedPdfStatus" class="help" role="status">只有經原報名本人身分綁定、研究人員確認、伺服器完整PDF SHA回讀，才可取得副本。</p>
+  <dl><dt>簽署版SHA-256</dt><dd id="officialSignedPdfSha">尚未核實</dd>
+  <dt>伺服器簽署日期（臺灣）</dt><dd id="officialSignedPdfDate">尚未核實</dd></dl>
+  <a id="officialSignedPdfDownload" class="pdf" hidden download="Study1_Signed_Consent.pdf" rel="noopener">下載完整已簽署PDF</a>
+ </div>
+</div>
+<a id="pdf" class="pdf" href="#" download="Study1_Sample_Not_REC.pdf" rel="noopener">查看示範 PDF 文件</a>
+<label class="check"><input id="readPdf" type="checkbox"><span>我已開啟範例並了解這份文件不是正式 REC 同意書</span></label>
+<div class="actionrow"><button id="review" type="button">確認已閱讀範例</button></div>
+<div class="box" id="visitorSignaturePreviewBox" aria-label="最後階段本人手寫簽名的隔離操作預覽">
+<strong>本人手寫簽名窗格｜原私人流程回歸測試</strong>
+<p class="help">請使用滑鼠、手指或觸控筆親自書寫。這個隔離測試畫布不會上傳簽名、不會產生有效電子同意，也不會修改正式PDF。正式版必須將影像寫入原PDF的研究參與者欄位，並以可信伺服器時間自動填入簽名當天的臺灣日期。</p>
+<canvas id="visitorSignaturePreview" width="700" height="160" aria-label="本人手寫簽名預覽畫布，隔離測試不保存筆跡"></canvas>
+<div class="actionrow"><button type="button" class="ghost" id="visitorSignatureClear">清除筆跡，重新簽署</button></div>
+<p class="help" id="visitorSignatureStatus" role="status">尚未手寫簽名。此預覽不是REC有效簽署。</p>
+</div>
+<label class="check"><input id="agree" type="checkbox"><span>我了解此為虛構角色的報名示範，不會留下真實簽名或產生正式報名</span></label>
+<div class="actionrow"><button id="finish" type="button" disabled>確認並完成示範報名</button></div>
+<p class="help" id="consentStatus">請先開啟並確認範例文件。</p></section>
+<section class="step" id="step-done" hidden>
+<div id="formalDoneResult" class="receipt" role="status" aria-live="polite" hidden>
+ <span class="tag">E1 正式報名狀態｜獨立來源核對</span>
+ <h2 id="formalDoneHeading">預約結果尚未核實</h2>
+ <p id="formalDoneMessage">必須先驗證完整簽署PDF及原Reservations的本人預約結果。</p>
+ <dl>
+  <dt>研究項目</dt><dd>實驗一 E1</dd>
+  <dt>原預約狀態</dt><dd id="formalDoneBooking">UNKNOWN｜不可視為已確認</dd>
+  <dt>原預約識別碼</dt><dd id="formalDoneReservation">待本人核對</dd>
+  <dt>已簽完整PDF SHA-256</dt><dd id="formalDonePdfSha">未核實</dd>
+  <dt>本人簽署日期（臺灣）</dt><dd id="formalDonePdfDate">未核實</dd>
+  <dt>郵件通知狀態</dt><dd>未由此頁驗證寄送；請以正式通知來源為準</dd>
+ </dl>
+ <a id="formalDonePdfDownload" class="pdf" rel="noopener" hidden download="Study1_E1_Signed_Consent.pdf">下載已核實完整簽署PDF</a>
+ <p id="formalDoneNotice" class="help">PDF簽署與預約成立須分別核實。狀態不明時請勿重送申請或簽名。</p>
+ <button type="button" id="formalDoneBack" class="ghost">返回查看已簽PDF與唯讀核對狀態</button>
+</div>
+<div id="demoDoneDetails"><div class="receipt"><span class="tag">已完成示範</span><h2 id="doneHeading">報名流程已完成</h2>
 <p>您已成功體驗與參與者相同的報名、初篩、驗證、預約與同意操作。</p>
 <dl><dt>申請編號</dt><dd id="receiptId">—</dd><dt>研究項目</dt><dd id="receiptStudy">—</dd><dt>預約時段</dt><dd id="receiptSlot">—</dd><dt>通知狀態</dt><dd>示範通知已產生，未發送真實郵件</dd></dl>
 <p class="help">此確認頁面不代表已正式錄取或完成正式研究報名。</p></div>
@@ -152,7 +207,7 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <div class="actionrow"><button id="v08Commit" type="button" disabled>確認執行這筆虛構變更</button>
 <button id="v08Back" type="button" class="ghost">返回，不變更</button></div>
 </div>
-<p id="e2Hint" class="help" hidden>實驗二正式研究包含八週安排；本 Demo 展示前期報名與時段預約，後續團課、居家練習與分組將依核准研究流程安排。</p></section>
+<p id="e2Hint" class="help" hidden>實驗二正式研究包含八週安排；本 Demo 展示前期報名與時段預約，後續團課、居家練習與分組將依核准研究流程安排。</p></div></section>
 <div class="box warn" aria-label="V07虛構預約結果核對">
 <strong>V07｜虛構預約結果與安全回讀</strong>
 <p id="v07Result" role="status" aria-live="polite">尚未送出虛構預約；待人工審核狀態未接入，不得視為已核准。</p>
@@ -164,13 +219,1026 @@ a.pdf{display:inline-block;border:1px solid var(--sea);border-radius:9px;padding
 <label class="check"><input type="checkbox" id="v08UnknownAck"><span>我理解原交易因果永遠不能由目前狀態倒推，只同意從新GET快照開始另一個獨立TEST操作，不重送舊操作。</span></label>
 <button id="v08UnknownRecover" type="button" class="ghost" disabled>核對兩次OWNER GET，明確建立新TEST基準（不重送）</button>
 </div></div>
-<div id="status" role="status" aria-live="polite">正在連接研究報名示範…</div>
-</div></main><footer>Study1 · 國科會研究計畫 NSTC 115-2410-H-033-015 · 本網頁為示範版，非正式招募服務。</footer>
+<div id="status" role="status" aria-live="polite"><?= flowMode === 'FORMAL' ? '正在確認正式報名服務狀態…' : '正在連接研究報名示範…' ?></div>
+</div></main><footer><?= flowMode === 'FORMAL' ? 'Study1 · NSTC 115-2410-H-033-015｜正式報名以核准程序與公告為準' : 'Study1 · 國科會研究計畫 NSTC 115-2410-H-033-015 · 本網頁為示範版，非正式招募服務。' ?></footer>
 <script>
+
 (function(){
 'use strict';
+// This controller reuses the ORIGINAL seven stage elements and has no TEST
+// fixtures. It never falls back from failed formal RPCs into simulated data.
+if(typeof document==='undefined'||!document.body||
+   document.body.dataset.siteMode!=='FORMAL')return;
+const el=id=>document.getElementById(id);
+const state={ready:false,app:null,mail:null,busy:false,requestId:null,humanToken:'',captchaWidget:null,
+ emailProof:null,slots:[],chosenDay:null,monthIndex:0,activeBooking:null};
+const genRequest=()=>{
+ if(!globalThis.crypto||typeof crypto.getRandomValues!=='function')
+  throw Error('瀏覽器無法安全建立申請識別碼');
+ const bytes=new Uint8Array(20);crypto.getRandomValues(bytes);
+ return 'REQ_'+Array.from(bytes).map(n=>n.toString(16).padStart(2,'0')).join('');
+};
+const show=step=>{
+ for(const name of ['choose','screen','ineligible','otp','slots','confirm','consent','done']){
+  const node=el('step-'+name);if(node)node.hidden=name!==step;
+ }
+ if(el('progressText'))el('progressText').textContent='Study1｜'+
+  ({choose:'研究選擇',screen:'資格初篩',otp:'電子郵件驗證',slots:'時段與資格確認'}[step]||step);
+};
+const status=message=>{el('status').textContent=message};
+const rpc=(name,payload,onSuccess)=>{
+ if(!window.google||!google.script||!google.script.run){status('目前無法連線至研究報名系統。');return;}
+ state.busy=true;
+ google.script.run.withFailureHandler(()=>{
+  state.busy=false;status('目前未完成該項操作，請勿重複送出；可聯絡研究團隊確認。');
+ }).withSuccessHandler(result=>{
+  state.busy=false;onSuccess(result);
+ })[name](payload);
+};
+function mountHumanCheck_(siteKey){
+ if(typeof siteKey!=='string'||!/^[A-Za-z0-9_-]{20,100}$/.test(siteKey)){
+  status('人機驗證設定未完成，暫不接受申請。');return;
+ }
+ const area=el('formalHumanCheck');if(!area)return;
+ area.hidden=false;
+ // External script is loaded only in the reviewed FORMAL branch. The OWNER
+ // demo stays local-only, with no CAPTCHA and no real applicant input.
+ const loader=document.createElement('script');
+ loader.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+ loader.async=true;
+ loader.onload=()=>{
+  if(!window.turnstile||typeof window.turnstile.render!=='function'){
+   state.ready=false;status('人機驗證服務暫時無法載入。');return;
+  }
+  state.captchaWidget=window.turnstile.render('#formalTurnstile',{
+   sitekey:siteKey,action:'study1_e1_apply',
+   callback:token=>{state.humanToken=token;},
+   'expired-callback':()=>{state.humanToken='';},
+   'error-callback':()=>{state.humanToken='';}
+  });
+ };
+ loader.onerror=()=>{state.ready=false;status('人機驗證服務暫時無法使用。');};
+ document.head.appendChild(loader);
+}
+const note=document.querySelector('.noticebar');
+if(note)note.textContent='Study1 研究報名｜依目前研究開放狀態提供服務';
+const hero=document.querySelector('header .hero p');
+if(hero)hero.textContent='依序完成研究選擇、資格初篩、電子郵件驗證與時段核對；正式知情同意僅在最後階段進行。';
+const noticeText=el('siteNoticeText');
+if(noticeText)noticeText.textContent='報名及個資蒐集僅於系統核實開放後啟用。';
+const introBox=document.querySelector('#step-choose .box');
+if(introBox)introBox.textContent='參與完全自願。正式資格與資料使用以適用研究文件及研究團隊說明為準。';
+const unavailableText=el('stateE1');
+if(unavailableText)unavailableText.textContent='尚未開放報名';
+const screenHelp=document.querySelector('#step-screen > p.help');
+if(screenHelp)screenHelp.textContent='初篩逐題答案不逐項保存；研究資格仍須後續核實。';
+const ineligibleTitle=document.querySelector('#step-ineligible h2');
+if(ineligibleTitle)ineligibleTitle.textContent='目前不符合研究報名條件';
+const ineligibleHelp=document.querySelector('#step-ineligible p');
+if(ineligibleHelp)ineligibleHelp.textContent='您可以返回研究選擇頁閱讀適用資格資訊。';
+if(el('ineligibleRestart'))el('ineligibleRestart').addEventListener('click',()=>show('choose'));
+const v05DemoCalendar=document.querySelector('#step-slots .v05Calendar');
+if(v05DemoCalendar)v05DemoCalendar.hidden=true;
+const slotExtra=document.querySelector('#step-slots > p.help:last-child');
+if(slotExtra)slotExtra.hidden=true;
+const foot=document.querySelector('footer');
+if(foot)foot.textContent='Study1 · NSTC 115-2410-H-033-015｜研究報名以核准程序及正式開放公告為準';
+const intro=document.querySelector('#step-choose .lead');
+if(intro)intro.textContent='正式資格、研究流程與預約時段均以最新適用核准文件為準。';
+const contact=el('formalContact');
+if(contact)contact.hidden=false;
+const eligibilityNote=document.querySelector('#step-screen .lead');
+if(eligibilityNote)eligibilityNote.textContent='請依自身情況誠實回答。電子郵件OTP僅確認信箱控制權，不代表身分或學籍已核實。';
+const examplePerson=document.querySelector('#step-screen p.box');
+if(examplePerson)examplePerson.hidden=true;
+const yes=Object.freeze(['adult','cycu','noDx','noTreatment','noPractice']);
+for(const id of yes){const input=el(id);if(input){input.checked=false;input.disabled=true;}}
+if(el('noE1')){el('noE1').checked=false;el('noE1').disabled=true;}
+const initialOtpBox=document.querySelector('#step-otp > .box');
+if(initialOtpBox)initialOtpBox.hidden=true;
+const sampleCode=document.querySelector('#otpInputWrap > .box');
+if(sampleCode)sampleCode.hidden=true;
+if(el('otpPaste'))el('otpPaste').hidden=true;
+if(el('otpInputWrap'))el('otpInputWrap').hidden=true;
+const otpLead=document.querySelector('#step-otp .lead');
+if(otpLead)otpLead.textContent='系統將寄送八位數電子郵件驗證碼至您剛提供的電子郵件地址，10分鐘內有效。';
+const slotLead=document.querySelector('#step-slots .lead');
+if(slotLead)slotLead.textContent='研究資格依參與者自行勾選聲明，Email OTP僅確認信箱控制權。確認正式時段與同意程序後才能成立預約，不查驗身分證或學生證。';
+for(const id of ['v05Dates','v05Choices','v05Status','v05Month','v05Prev','v05Next','slot','hold','v08WaitBox']){
+ const node=el(id);if(node)node.hidden=true;
+}
+if(el('screenNext'))el('screenNext').textContent='送出申請並繼續驗證電子郵件';
+if(el('otpSend'))el('otpSend').textContent='寄送電子郵件驗證碼';
+if(el('otpVerify'))el('otpVerify').textContent='確認電子郵件驗證碼';
+if(el('noAvailable'))el('noAvailable').hidden=false;
+show('choose');
+el('chooseE1').addEventListener('click',()=>{
+ if(!state.ready||state.busy)return;
+ show('screen');status('請完成正式資格初篩與最少必要聯絡資料。');
+});
+el('screenBack').addEventListener('click',()=>show('choose'));
+el('screenNext').addEventListener('click',()=>{
+ if(!state.ready||state.busy)return;
+ if(!state.humanToken){status('請先完成人機驗證再送出申請。');return;}
+ const payload={experiment:'E1',adult:el('adult').checked,cycu:el('cycu').checked,
+  noDx:el('noDx').checked,noTreatment:el('noTreatment').checked,
+  noPractice:el('noPractice').checked,name:el('formalName').value,
+  email:el('formalEmail').value,phone:el('formalPhone').value,
+  requestId:state.requestId||genRequest(),humanToken:state.humanToken};
+ state.requestId=payload.requestId;
+ state.humanToken='';
+ if(window.turnstile&&state.captchaWidget!==null)
+  window.turnstile.reset(state.captchaWidget);
+ rpc('study1ParticipantBegin',payload,result=>{
+  if(!result||result.accepted!==true){
+   show('ineligible');status('目前不符合此研究的報名條件。');return;
+  }
+  state.app={applicantId:result.applicantId,screeningId:result.screeningId,
+   experiment:'E1',email:payload.email};
+  show('otp');status('申請已建立待驗證狀態；尚未完成正式資格審查或預約。');
+ });
+});
+el('otpSend').addEventListener('click',()=>{
+ if(!state.ready||state.busy||!state.app)return;
+ const payload={...state.app,requestId:genRequest()};
+ rpc('study1ParticipantSendOtp',payload,result=>{
+  if(!result||result.sent!==true){status('驗證碼已寄送或暫時受節流限制，請稍後重新核對信箱。');return;}
+  state.mail=result.challengeId;
+  el('otpInputWrap').hidden=false;
+  status('請至登記信箱查看驗證碼，郵件可能需要一些時間。');
+ });
+});
+el('otpVerify').addEventListener('click',()=>{
+ if(!state.ready||state.busy||!state.app||!state.mail)return;
+ rpc('study1ParticipantVerifyOtp',{...state.app,challengeId:state.mail,
+  code:el('otpInput').value},result=>{
+  if(!result||result.verified!==true){status('驗證碼無效、已使用或逾期，請確認後再操作。');return;}
+  if(!result.emailProof){status('郵件證據回讀未完成，請聯絡研究團隊。');return;}
+  rpc('study1ParticipantEmailStatus',result.emailProof,statusResult=>{
+   if(!statusResult||statusResult.emailVerified!==true||
+      statusResult.applicationState!=='SELF_REPORTED_ELIGIBLE_EMAIL_VERIFIED'||
+      statusResult.eligibilitySource!=='PARTICIPANT_SELF_REPORT'){
+    status('原申請與驗證紀錄尚未一致，請聯絡研究團隊。');return;
+   }
+   state.emailProof=result.emailProof;
+   show('slots');
+   status('資格依本人勾選自陳，Email OTP已核對；以下場次由正式E1來源提供，暫留不等於完成研究同意。');
+   formalV05Read_();
+  });
+ });
+});
+if(typeof google!=='undefined'&&google.script&&google.script.run){
+ google.script.run.withFailureHandler(()=>status('目前尚未開放線上報名。'))
+  .withSuccessHandler(result=>{
+   state.ready=!!(result&&result.ready===true&&result.experiment==='E1'&&
+    typeof result.siteKey==='string');
+   if(state.ready)mountHumanCheck_(result.siteKey);
+   el('chooseE1').disabled=!state.ready;
+   el('chooseE2').disabled=true;
+   if(el('noAvailable'))el('noAvailable').textContent=
+    state.ready?'可選擇實驗一並進行申請。':'目前尚未開放正式報名與簽署。';
+   for(const id of ['formalName','formalEmail','formalPhone',...yes]){
+    if(el(id))el(id).disabled=!state.ready;
+   }
+   status(state.ready?'系統可受理實驗一待核申請，須再完成信箱與研究資格程序。':'目前尚未開放正式報名與簽署。');
+  }).study1ParticipantReadiness();
+}else status('目前尚未開放線上報名。');
+
+// V05 + V08 formal UI uses the ORIGINAL seven-step elements in FORMAL mode.
+// TEST mode remains a separate owner-only controller below this IIFE.
+function formalDate_(utc){
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',
+  year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(utc));
+ const values=Object.fromEntries(parts.map(x=>[x.type,x.value]));
+ return values.year+'-'+values.month+'-'+values.day;
+}
+function formalTime_(utc){
+ return new Date(utc).toLocaleString('zh-TW',{
+  timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',
+  hour:'2-digit',minute:'2-digit',hour12:false});
+}
+function formalClear_(node){
+ if(!node)return;
+ while(node.firstChild)node.removeChild(node.firstChild);
+ node.textContent='';
+}
+function formalButton_(label,click){
+ const button=document.createElement('button');
+ button.type='button';button.textContent=label;
+ button.addEventListener('click',click);return button;
+}
+function formalSelected_(){
+ return state.slots.find(x=>x.slotId===el('slot').value);
+}
+function formalV05Draw_(){
+ const slots=state.slots.filter(x=>x&&x.startAtUtc&&x.slotId);
+ const days=[...new Set(slots.map(x=>formalDate_(x.startAtUtc)))].sort();
+ const months=[...new Set(days.map(x=>x.slice(0,7)))];
+ if(!days.includes(state.chosenDay))state.chosenDay=days[0]||null;
+ if(state.chosenDay)state.monthIndex=Math.max(0,months.indexOf(state.chosenDay.slice(0,7)));
+ state.monthIndex=Math.max(0,Math.min(state.monthIndex,months.length-1));
+ const month=months[state.monthIndex]||null;
+ if(el('v05Month'))el('v05Month').textContent=month?month+'｜E1正式場次':'目前沒有已核實場次';
+ const dates=el('v05Dates');formalClear_(dates);
+ if(dates){dates.hidden=false;
+  for(const date of days.filter(d=>d.startsWith(month||'!'))){
+   const button=formalButton_(date.slice(5).replace('-','/'),()=>{
+    state.chosenDay=date;formalV05Draw_();});
+   button.setAttribute('aria-pressed',String(date===state.chosenDay));
+   dates.appendChild(button);
+  }}
+ for(const [key,delta] of [['v05Prev',-1],['v05Next',1]]){
+  const node=el(key);if(!node)continue;
+  node.hidden=false;node.disabled=state.monthIndex+delta<0||
+   state.monthIndex+delta>=months.length;
+  node.onclick=()=>{state.monthIndex+=delta;
+   state.chosenDay=days.find(x=>x.startsWith(months[state.monthIndex]));
+   formalV05Draw_();};
+ }
+ const today=slots.filter(x=>formalDate_(x.startAtUtc)===state.chosenDay);
+ const select=el('slot');formalClear_(select);
+ if(select){select.hidden=false;
+  for(const slot of today){
+   const o=document.createElement('option');o.value=slot.slotId;
+   o.textContent=formalTime_(slot.startAtUtc)+'｜剩餘 '+slot.remaining+
+    '／'+slot.capacity+'，候補 '+slot.waitlistCount;
+   select.appendChild(o);
+  }
+  select.onchange=formalV05Choice_;
+ }
+ const choices=el('v05Choices');formalClear_(choices);
+ if(choices){choices.hidden=false;
+  for(const slot of today){
+   const btn=formalButton_(formalTime_(slot.startAtUtc)+
+    '｜'+(slot.bookable?'尚有名額':'已滿／候補'),()=>{
+    select.value=slot.slotId;formalV05Choice_();});
+   choices.appendChild(btn);
+  }}
+ if(el('noAvailable'))el('noAvailable').hidden=slots.length>0;
+ formalV05Choice_();
+}
+function formalV05Choice_(){
+ const slot=formalSelected_(),hold=el('hold');
+ if(!hold)return;
+ hold.hidden=false;hold.disabled=!slot||state.busy;
+ hold.textContent=slot&&slot.bookable?'保留此E1正式時段':
+  slot?'加入此E1場次候補':'尚未選取正式場次';
+ const note=el('v05Status');
+ if(note){note.hidden=false;note.textContent=slot?
+  (slot.bookable?'目前可申請暫留，必須再由伺服器確認名額。':
+   '尚無可直接預約名額，可依候補順序登記，尚非正式預約。'):
+   '請先選擇日期與場次。';}
+}
+function formalV05Read_(){
+ if(!state.emailProof)return;
+ rpc('study1FormalV05Slots',state.emailProof,result=>{
+  if(!result||result.experiment!=='E1'||!Array.isArray(result.slots)){
+   status('正式E1時段來源尚未通過核對，暫不提供預約。');return;
+  }
+  state.slots=result.slots;formalV05Draw_();
+  status(result.slots.length?
+   '請選擇經核對的E1日期及場次；名額以送出時伺服器重新核實為準。':
+   '目前沒有已核實可選的E1場次。');
+ });
+}
+
+/* §70-S.21: original FORMAL Step 05/06 consent LAST; never use Demo signature.
+ * No PDF/ink is uploaded before a server-issued, HMAC-bound, HELD invitation
+ * AND an explicitly recorded researcher explanation on the same fixed PDF.
+ */
+let formalConsent=null,formalPdfUrl=null,formalSignedUrl=null,formalInk=false;
+const formalDemoDone=el('demoDoneDetails'),formalDoneNode=el('formalDoneResult');
+if(formalDemoDone)formalDemoDone.hidden=true;
+if(formalDoneNode)formalDoneNode.hidden=false;
+const formalTestResult=document.querySelector('[aria-label="V07虛構預約結果核對"]');
+if(formalTestResult)formalTestResult.hidden=true;
+if(el('formalDoneBack'))el('formalDoneBack').addEventListener('click',()=>{
+ show('consent');formalConsentStatus_();
+});
+/** Pure adjudication: never infer CONFIRMED from consent or HELD. */
+function formalReceiptOutcome_(booking,reservationId,slotId,nowMs){
+ if(!booking||booking.experiment!=='E1'||!Array.isArray(booking.reservations)||
+    typeof reservationId!=='string'||!reservationId||
+    typeof slotId!=='string'||!slotId)
+  return 'UNKNOWN';
+ const rows=booking.reservations.filter(r=>
+  r&&r.reservationId===reservationId&&r.slotId===slotId);
+ if(rows.length!==1)return 'UNKNOWN';
+ const row=rows[0];
+ if(row.status==='CONFIRMED')return 'CONFIRMED';
+ if(row.status==='HELD'&&typeof row.holdUntilUtc==='string'&&
+    Number.isFinite(Date.parse(row.holdUntilUtc))&&
+    Date.parse(row.holdUntilUtc)>nowMs)return 'HELD';
+ return 'UNKNOWN';
+}
+function formalDoneRender_(outcome,pdfSha,taipeiDate,reservationId){
+ if(!formalConsent||!formalConsent.confirmed||
+    !/^[a-f0-9]{64}$/.test(pdfSha||'')||
+    typeof taipeiDate!=='string'||!new RegExp('^[0-9]{4}/[0-9]{2}/[0-9]{2}$').test(taipeiDate)||
+    reservationId!==formalConsent.reservationId||
+    !['CONFIRMED','HELD','UNKNOWN'].includes(outcome)){
+  status('PDF及預約的獨立結果未能核實；不得宣稱完成報名。');
+  return;
+ }
+ const confirmed=outcome==='CONFIRMED',held=outcome==='HELD';
+ el('formalDoneHeading').textContent=confirmed?
+  '實驗一報名及預約已確認':held?
+  '已簽署PDF，時段仍為暫留':'已簽署PDF，預約尚未確認';
+ el('formalDoneMessage').textContent=confirmed?
+  '完整簽署PDF與原Reservations的本人CONFIRMED紀錄已分別核對；請保存文件並留意正式通知。':held?
+  '完整簽署PDF已核實，但原時段仍為有效HELD；不代表已完成正式預約，請聯絡研究團隊核對。':
+  '完整簽署PDF已核實，但原預約不存在唯一有效且一致的確認狀態；請研究團隊人工核對，勿重複提交。';
+ el('formalDoneBooking').textContent=outcome+(confirmed?'｜原預約已核對':held?'｜暫留，非正式確認':'｜不得視為已確認');
+ el('formalDoneReservation').textContent=reservationId;
+ el('formalDonePdfSha').textContent=pdfSha;
+ el('formalDonePdfDate').textContent=taipeiDate;
+ el('formalDoneNotice').textContent=confirmed?
+  '正式預約以原Reservations確認紀錄為準；Email是否送達須另由寄信紀錄核實。':
+  '請聯絡研究團隊確認原預約狀態；不要重新簽名、付款或重複申請。';
+ show('done');
+ status(confirmed?
+  '雙方線上PDF簽署及原Reservations正式預約均已獨立核實。請保存PDF副本。':held?
+  '雙方線上PDF簽署已完成；原Reservations仍為HELD暫留，尚未正式預約確認。':
+  '已簽PDF核實，但原預約為UNKNOWN或不一致；不得宣稱報名完成，請勿重複提交。');
+}
+function formalRevoke_(url){
+ if(url&&typeof URL!=='undefined'&&typeof URL.revokeObjectURL==='function')
+  URL.revokeObjectURL(url);
+}
+function formalConsentReset_(){
+ formalRevoke_(formalPdfUrl);formalRevoke_(formalSignedUrl);
+ formalPdfUrl=null;formalSignedUrl=null;formalInk=false;formalConsent=null;
+ for(const id of ['officialPdfDownload','officialSignedPdfDownload','formalDonePdfDownload']){
+  const n=el(id);if(n){n.hidden=true;if(typeof n.removeAttribute==='function')n.removeAttribute('href');}
+ }
+ if(el('officialPdfViewer')){
+  el('officialPdfViewer').hidden=true;
+  if(typeof el('officialPdfViewer').removeAttribute==='function')el('officialPdfViewer').removeAttribute('data');
+ }
+ if(el('officialSignedPdfResult'))el('officialSignedPdfResult').hidden=true;
+ if(el('agree'))el('agree').checked=false;
+ if(el('readPdf'))el('readPdf').checked=false;
+}
+async function formalVerifyPdf_(doc,expected){
+ if(!doc||doc.available!==true||doc.experiment!=='E1'||
+    doc.sha256!==expected.documentSha256||
+    doc.version!==expected.documentVersion||
+    doc.mime!=='application/pdf'||!Number.isSafeInteger(doc.bytes)||
+    doc.bytes<100||doc.bytes>3000000||
+    typeof doc.base64!=='string'||doc.base64.length>4200000)
+  throw Error('FORMAL_PDF_ORIGINAL_VERSION_MISMATCH');
+ const raw=atob(doc.base64),bytes=Uint8Array.from(raw,x=>x.charCodeAt(0));
+ if(bytes.length!==doc.bytes||String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('FORMAL_PDF_ORIGINAL_BYTES_INVALID');
+ if(!window.crypto||!window.crypto.subtle)throw Error('FORMAL_PDF_SHA_NOT_SUPPORTED');
+ const sha=Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',bytes)))
+  .map(x=>x.toString(16).padStart(2,'0')).join('');
+ if(sha!==doc.sha256)throw Error('FORMAL_PDF_ORIGINAL_SHA_MISMATCH');
+ return bytes;
+}
+function formalConsentRender_(){
+ const stateData=formalConsent;
+ const ready=!!(stateData&&stateData.originalVerified&&
+  (stateData.researcherPresigned||stateData.staffExplained));
+ if(el('review'))el('review').disabled=!ready;
+ if(el('finish'))el('finish').disabled=!ready||!formalInk||
+  !el('readPdf').checked||!el('agree').checked||
+  !!stateData.signed||state.busy;
+ if(el('consentStatus'))el('consentStatus').textContent=
+  !stateData?'尚未核對E1本人有效預約。':
+  stateData.signed?'受試者已在線上簽署，請核對完整PDF副本與預約狀態。':
+  !stateData.originalVerified?'正在核對原版PDF完整位元組與SHA。':
+  stateData.researcherPresigned?'研究者已先簽署完整PDF，請閱讀後於網頁手寫本人簽名。':
+  !stateData.staffExplained?'請先確認研究人員必要說明與答疑，再完成線上簽署。':
+  '研究人員已完成解說。請完整閱讀原文並以筆跡簽署。';
+}
+function formalConsentLoadPdf_(){
+ if(!formalConsent)return;
+ const currentToken=formalConsent.token;
+ rpc('study1FormalConsentOriginalPdf',currentToken,async doc=>{
+  if(!formalConsent||formalConsent.token!==currentToken)return;
+  try{
+   const bytes=await formalVerifyPdf_(doc,formalConsent);
+   if(!formalConsent||formalConsent.token!==currentToken)return;
+   const url=URL.createObjectURL(new Blob([bytes],{type:'application/pdf'}));
+   formalRevoke_(formalPdfUrl);formalPdfUrl=url;
+   formalConsent.originalVerified=true;
+   el('officialPdfTitle').textContent=doc.title;
+   el('officialPdfVersion').textContent=doc.version;
+   el('officialPdfSha').textContent=doc.sha256;
+   el('officialPdfDownload').href=url;
+   el('officialPdfDownload').hidden=false;
+   el('officialPdfViewer').data=url;el('officialPdfViewer').hidden=false;
+   el('officialPdfStatus').textContent=formalConsent.researcherPresigned?
+    '已核對研究者事先簽名PDF的完整位元組、版號與SHA；請閱讀後再手寫本人簽名。':
+    '已核對原核准PDF的完整位元組、實驗別、版號及SHA；尚未簽署。';
+   formalConsentRender_();
+  }catch(error){
+   formalConsent.originalVerified=false;
+   status('原PDF來源驗證失敗；禁止簽署：'+String(error.message||error));
+   formalConsentRender_();
+  }
+ });
+}
+function formalConsentStatus_(){
+ if(!formalConsent||state.busy)return;
+ const token=formalConsent.token;
+ rpc('study1FormalConsentStatus',token,result=>{
+  if(!formalConsent||formalConsent.token!==token)return;
+  if(!result||result.experiment!=='E1'||
+     result.sourceSha256!==formalConsent.documentSha256||
+     result.version!==formalConsent.documentVersion){
+   status('原本人預約／同意版本核對不一致，已停用簽署。');
+   formalConsentReset_();formalConsentRender_();return;
+  }
+  formalConsent.researcherPresigned=result.researcherPreSigned===true;
+  formalConsent.staffExplained=result.researcherExplanationCompleted===true;
+  formalConsent.signed=result.signatureAccepted===true;
+  formalConsent.confirmed=result.staffConfirmed===true;
+  if(formalConsent.staffExplained&&!formalConsent.researcherPresigned){
+   const explanation=result.explanation;
+   if(!explanation||typeof explanation.answer!=='string'||
+      !explanation.answer.trim()){
+    formalConsent.staffExplained=false;
+    status('研究人員解說事件缺失；不得簽署。');
+   }else{
+    el('officialPdfStatus').textContent='研究人員解說已記錄：'+explanation.answer+
+      '。如仍有疑問，請先向研究團隊詢問再簽署。';
+   }
+  }
+  if(result.copyAvailable===true&&formalConsent.confirmed){
+   formalConsentCopy_();
+  }else{
+   status(formalConsent.signed?(formalConsent.researcherPresigned?'您的簽署PDF已保存；正在核對預約結果與本人副本。':'已保存簽署PDF，待研究人員確認。'):
+    (formalConsent.researcherPresigned||formalConsent.staffExplained)?
+     '請閱讀研究者已簽PDF並本人手寫簽署。':'尚待研究人員說明與回覆疑問。');
+  }
+  formalConsentRender_();
+ });
+}
+async function formalVerifySigned_(copy){
+ const preSigned=copy&&copy.researcherPreSigned===true;
+ if(!formalConsent||copy.experiment!=='E1'||
+    copy.dualSigned!==true||
+    !/^[a-f0-9]{64}$/.test(copy.participantSignedPdfSha256||'')||
+    (preSigned?
+     copy.participantSignedPdfSha256!==copy.signedPdfSha256:
+     copy.participantSignedPdfSha256===copy.signedPdfSha256)||
+    copy.participantSignedPdfSha256===copy.sourceSha256||
+    copy.version!==formalConsent.documentVersion||
+    copy.sourceSha256!==formalConsent.documentSha256||
+    copy.mime!=='application/pdf'||!Number.isSafeInteger(copy.bytes)||
+    copy.bytes<100||copy.bytes>6000000||
+    typeof copy.signedPdfSha256!=='string'||
+    !/^[a-f0-9]{64}$/.test(copy.signedPdfSha256)||
+    copy.signedPdfSha256===copy.sourceSha256)
+  throw Error('FORMAL_SIGNED_PDF_SOURCE_MISMATCH');
+ const instant=new Date(copy.signedAt);
+ if(!Number.isFinite(instant.getTime())||
+    instant.toISOString()!==copy.signedAt)
+  throw Error('FORMAL_SIGNED_PDF_TRUSTED_TIME_INVALID');
+ const date=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+  timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(instant).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+ if(copy.taipeiDate!==date.year+'/'+date.month+'/'+date.day)
+  throw Error('FORMAL_SIGNED_PDF_TAIPEI_DATE_INVALID');
+ if(!preSigned){
+  const staffInstant=new Date(copy.researcherSignedAt);
+  if(!Number.isFinite(staffInstant.getTime())||
+     staffInstant.toISOString()!==copy.researcherSignedAt)
+   throw Error('FORMAL_RESEARCHER_SIGNED_TIME_INVALID');
+  const staffDay=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+   timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
+  }).formatToParts(staffInstant).filter(x=>x.type!=='literal').map(x=>[x.type,x.value]));
+  if(copy.researcherTaipeiDate!==staffDay.year+'/'+staffDay.month+'/'+staffDay.day)
+   throw Error('FORMAL_RESEARCHER_TAIPEI_DATE_INVALID');
+ }
+ const raw=atob(copy.base64),bytes=Uint8Array.from(raw,x=>x.charCodeAt(0));
+ if(bytes.length!==copy.bytes||
+    String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('FORMAL_SIGNED_PDF_BYTES_INVALID');
+ const sha=Array.from(new Uint8Array(await window.crypto.subtle.digest('SHA-256',bytes)))
+  .map(x=>x.toString(16).padStart(2,'0')).join('');
+ if(sha!==copy.signedPdfSha256)throw Error('FORMAL_SIGNED_PDF_SHA_INVALID');
+ return {bytes,sha};
+}
+function formalConsentCopy_(){
+ if(!formalConsent||state.busy)return;
+ const token=formalConsent.token;
+ rpc('study1EConsentSignedPdfCopy',token,async copy=>{
+  if(!formalConsent||formalConsent.token!==token)return;
+  try{
+   const result=await formalVerifySigned_(copy);
+   if(!formalConsent||formalConsent.token!==token)return;
+   const url=URL.createObjectURL(new Blob([result.bytes],{type:'application/pdf'}));
+   formalRevoke_(formalSignedUrl);formalSignedUrl=url;
+   el('officialSignedPdfResult').hidden=false;
+   el('officialSignedPdfDownload').href=url;
+   el('officialSignedPdfDownload').hidden=false;
+   el('officialSignedPdfDownload').download='Study1_E1_'+copy.version+'_signed.pdf';
+   // Only SHA-verified signed bytes get a link in the final receipt.
+   const finalLink=el('formalDonePdfDownload');
+   if(finalLink){
+    finalLink.href=url;finalLink.download='Study1_E1_'+copy.version+'_signed.pdf';
+    finalLink.hidden=false;
+   }
+   el('officialSignedPdfSha').textContent=result.sha;
+   el('officialSignedPdfDate').textContent=copy.taipeiDate;
+   el('officialSignedPdfStatus').textContent=copy.researcherPreSigned===true?
+    '研究者事先簽名的原PDF與本人線上筆跡已整合，完成簽署PDF及臺灣日期、SHA回讀通過；研究者可於後台下載。':
+    '研究人員已在原核准PDF獨立欄位簽名（臺灣日期 '+copy.researcherTaipeiDate+'）；完整雙簽PDF、參與者臺灣日期與SHA回讀通過，可下載本人副本。';
+   status('完整線上雙簽PDF與本人副本已核對；原預約是否成立，仍須獨立核對Reservations。');
+   // §70-S.23: a dual-signed PDF is NOT a booking confirmation.
+   // Read only the authenticated applicant's original reservation status;
+   // never update Reservations here or infer CONFIRMED from consent.
+   // The signed PDF is verified independently above. The original booking
+   // must be read separately; a valid PDF cannot imply a confirmed booking.
+   if(!state.emailProof||!formalConsent.slotId){
+    formalDoneRender_('UNKNOWN',result.sha,copy.taipeiDate,formalConsent.reservationId);
+    return;
+   }
+   const reservationId=formalConsent.reservationId,slotId=formalConsent.slotId;
+   const verifiedToken=token;
+   rpc('study1FormalStatus',state.emailProof,booking=>{
+    if(!formalConsent||formalConsent.token!==verifiedToken||
+       formalConsent.reservationId!==reservationId||
+       formalConsent.slotId!==slotId)return;
+    const outcome=formalReceiptOutcome_(booking,reservationId,slotId,Date.now());
+    formalDoneRender_(outcome,result.sha,copy.taipeiDate,reservationId);
+   });
+  }catch(e){
+   status('已簽PDF完整性核對失敗，禁止提供副本：'+String(e.message||e));
+  }
+ });
+}
+function formalConsentStart_(reservation){
+ if(!reservation||reservation.status!=='HELD'||!state.emailProof||state.busy)return;
+ formalConsentReset_();
+ rpc('study1FormalConsentBegin',{emailProof:state.emailProof,
+  reservationId:reservation.reservationId},result=>{
+  if(!result||result.state!=='ISSUED'||result.experiment!=='E1'||
+     result.reservationId!==reservation.reservationId||
+     typeof result.token!=='string'||
+     !/^[a-f0-9-]{70,90}$/i.test(result.token)||
+     typeof result.documentSha256!=='string'||
+     !/^[a-f0-9]{64}$/.test(result.documentSha256)){
+   status('尚無合法本人預約／正式同意邀請；禁止進入PDF簽署。');return;
+  }
+  formalConsent={token:result.token,reservationId:reservation.reservationId,
+   slotId:reservation.slotId,
+   documentSha256:result.documentSha256,documentVersion:result.documentVersion,
+   researcherPresigned:result.researcherPresigned===true,
+   originalVerified:false,staffExplained:false,signed:false,confirmed:false};
+  show('consent');formalConsentRender_();
+  formalConsentLoadPdf_();status(result.researcherPresigned===true?'已核對本人預約及Email OTP；本份PDF由研究者事先簽署並上傳，請閱讀完整內容並於網站手寫本人簽名，送出後可查詢簽署PDF與預約結果。':'已核對本人預約及Email OTP，請依有效程序閱讀PDF及完成簽署。');
+ });
+}
+function formalInkInit_(){
+ const box=el('visitorSignaturePreviewBox'),canvas=el('visitorSignaturePreview');
+ if(box&&typeof box.querySelector==='function'&&box.querySelector('strong'))
+  box.querySelector('strong').textContent='本人手寫簽名｜正式E1，同意前請先完成研究人員說明';
+ if(!canvas||typeof canvas.getContext!=='function')return;
+ const ctx=canvas.getContext('2d');if(!ctx)return;
+ ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+ ctx.strokeStyle='#173341';ctx.lineWidth=3;ctx.lineCap='round';
+ let drawing=false;
+ const coord=e=>{
+  const r=canvas.getBoundingClientRect();
+  return {x:(e.clientX-r.left)*canvas.width/r.width,
+    y:(e.clientY-r.top)*canvas.height/r.height};
+ };
+ canvas.addEventListener('pointerdown',e=>{
+  if(!formalConsent||!(formalConsent.staffExplained||formalConsent.researcherPresigned)||
+     !formalConsent.originalVerified||formalConsent.signed)return;
+  drawing=true;const p=coord(e);ctx.beginPath();ctx.moveTo(p.x,p.y);
+  if(canvas.setPointerCapture)canvas.setPointerCapture(e.pointerId);
+ });
+ canvas.addEventListener('pointermove',e=>{
+  if(!drawing)return;const p=coord(e);ctx.lineTo(p.x,p.y);ctx.stroke();
+  formalInk=true;formalConsentRender_();
+ });
+ for(const kind of ['pointerup','pointercancel','pointerleave'])
+  canvas.addEventListener(kind,()=>{drawing=false;});
+ el('visitorSignatureClear').addEventListener('click',()=>{
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  formalInk=false;formalConsentRender_();
+ });
+}
+function formalConsentWire_(){
+ el('pdf').hidden=true;
+ const warn=document.querySelector('#step-consent .warn');
+ if(warn)warn.textContent='正式E1全線上同意：必須由伺服器獨立核實有效REC遠端簽署適用性、原PDF版號、研究人員線上解說及本人預約後才可簽署；任何條件未通過即禁止收件，不依前端字樣判定是否已開放。';
+ const sample=document.querySelector('#step-consent > .lead');
+ if(sample)sample.textContent='請閱讀研究者事先完成簽名並由後台上傳的正式PDF；確認理解後，在網站手寫受試者姓名，系統將簽名及臺灣日期加入同一份PDF，供研究者事先下載。';
+ const readLabel=el('readPdf').parentNode;
+ if(readLabel&&readLabel.querySelector('span'))
+  readLabel.querySelector('span').textContent='我已開啟並完整閱讀經SHA核對的原始知情同意PDF';
+ const agreeLabel=el('agree').parentNode;
+ if(agreeLabel&&agreeLabel.querySelector('span'))
+  agreeLabel.querySelector('span').textContent='我已理解研究人員說明，自願依本版PDF內容簽署';
+ el('review').textContent='重新查詢知情同意與PDF副本狀態';
+ el('finish').textContent='本人簽署並提交完整PDF';
+ const capability=document.createElement('button');
+ if(!capability||typeof capability.addEventListener!=='function'){
+  el('finish').disabled=true;return; // degraded browser/VM: never sign
+ }
+ const refresh=formalButton_('更新研究人員說明／簽署及副本狀態',formalConsentStatus_);
+ el('step-consent').appendChild(refresh);
+ const withdrawal=document.createElement('div');
+ withdrawal.className='box';
+ const label=document.createElement('label');label.textContent='正式撤回原因（研究同意完成後才可提交）';
+ const reason=document.createElement('textarea');reason.maxLength=600;
+ label.appendChild(reason);
+ withdrawal.appendChild(label);
+ const choice=document.createElement('select');
+ choice.setAttribute('aria-label','撤回後個人資料處置意願，需研究團隊依REC核對執行');
+ for(const [key,text] of [
+  ['CONTACT_STAFF','請研究團隊先聯絡我，確認資料處置方式'],
+  ['DESTROY','我希望研究團隊依核准程序銷毀已蒐集個人資料'],
+  ['DEIDENTIFY','我希望研究團隊依核准程序將已蒐集個人資料去識別化']]){
+  const option=document.createElement('option');option.value=key;
+  option.textContent=text;choice.appendChild(option);
+ }
+ choice.value='CONTACT_STAFF';
+ withdrawal.appendChild(choice);
+ withdrawal.appendChild(formalButton_('撤回已確認的研究同意（不刪原始存證）',()=>{
+  if(!formalConsent||!formalConsent.confirmed||reason.value.trim().length<4)
+   return;
+  const token=formalConsent.token;
+  rpc('study1EConsentWithdraw',{token,reason:reason.value,dataChoice:choice.value},result=>{
+   if(!formalConsent||formalConsent.token!==token)return;
+   if(result&&result.state==='WITHDRAWN'){
+    formalConsent.confirmed=true;
+    status('已記錄撤回通知；研究團隊仍須依適用REC與您的意願辦理已蒐集資料銷毀或去識別化，網站不會自行刪除正式存證。');
+   }else status('撤回未能確認，請聯絡研究團隊。');
+  });
+ }));
+ el('step-consent').appendChild(withdrawal);
+ el('review').addEventListener('click',formalConsentStatus_);
+ for(const id of ['readPdf','agree'])el(id).addEventListener('change',formalConsentRender_);
+ el('finish').addEventListener('click',()=>{
+  if(!formalConsent||!(formalConsent.staffExplained||formalConsent.researcherPresigned)||
+     !formalConsent.originalVerified||!formalInk||state.busy||
+     !el('readPdf').checked||!el('agree').checked)return;
+  const canvas=el('visitorSignaturePreview');
+  if(!canvas||typeof canvas.toDataURL!=='function'){
+   status('瀏覽器不支援本人完整簽名PNG，拒絕提交。');return;
+  }
+  const image=canvas.toDataURL('image/png');
+  if(!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(image)){
+   status('本人簽名影像格式不合法。');return;
+  }
+  el('finish').disabled=true;
+  const token=formalConsent.token;
+  rpc('study1EConsentSignPdf',{token,signature:image.split(',')[1],
+   name:el('formalName').value.trim(),documentSha:formalConsent.documentSha256,
+   read:true,answerAcknowledged:true,agree:true},result=>{
+   if(!formalConsent||formalConsent.token!==token)return;
+   if(!result||!['SIGNED','CONFIRMED'].includes(result.state)||
+      result.experiment!=='E1'||result.documentSha256!==formalConsent.documentSha256){
+    status('無法證明完整簽署PDF已產生，請勿重送，改查詢研究團隊。');return;
+   }
+   formalConsent.signed=true;
+   formalConsent.confirmed=result.state==='CONFIRMED'&&
+    result.researcherPreSigned===true;
+   formalConsentRender_();
+   if(formalConsent.confirmed){
+    status('研究者已先簽署，本人線上簽名PDF已保存，請核對PDF副本及原預約狀態。');
+    formalConsentCopy_();
+   }else status('已儲存簽署PDF，需核對研究者與原預約確認狀態。');
+  });
+ });
+ formalInkInit_();formalConsentRender_();
+}
+formalConsentWire_();
+
+function formalV08Panel_(reservation){
+ const root=el('step-confirm');
+ if(!root)return;
+ formalClear_(root);
+ const heading=document.createElement('h2');
+ heading.textContent='E1 正式預約／候補狀態';root.appendChild(heading);
+ const p=document.createElement('p');p.className='help';
+ p.textContent=reservation.status==='HELD'?
+  '您的時段已暫留，尚未完成知情同意或研究確認；到期後暫留可能失效。':
+  '目前僅為候補登記，尚未獲得名額；釋出名額後需重新驗證並依候補順序領取。';
+ root.appendChild(p);
+ const slot=state.slots.find(x=>x.slotId===reservation.slotId);
+ const info=document.createElement('p');
+ info.textContent='時段：'+(slot?formalTime_(slot.startAtUtc):reservation.slotId)+
+  (reservation.holdUntilUtc?'｜暫留期限 '+formalTime_(reservation.holdUntilUtc):'');
+ root.appendChild(info);
+ const controls=document.createElement('div');controls.className='actionrow';
+ controls.appendChild(formalButton_('唯讀重新核對原預約',formalV08Read_));
+ controls.appendChild(formalButton_('取消此暫留／候補',()=>{
+  if(state.busy)return;
+  rpc('study1FormalCancel',{emailProof:state.emailProof,
+   reservationId:reservation.reservationId,requestId:genRequest()},r=>{
+   if(!r||r.cancelled!==true){status('取消未確認，請唯讀重新核對，勿自動重送。');return;}
+   status('原Reservations已回讀取消狀態。');
+   formalV08Read_();
+  });
+ }));
+ if(reservation.status==='WAITLISTED'){
+  controls.appendChild(formalButton_('按候補順位檢查可否領取名額',()=>{
+   rpc('study1FormalWaitlistClaim',{emailProof:state.emailProof,
+    reservationId:reservation.reservationId,requestId:genRequest()},r=>{
+    if(r&&r.held)status('已確認候補暫留，尚未完成正式研究同意。');
+    else status('候補仍待順位或名額釋出，未成立暫留。');
+    formalV08Read_();
+   });
+  }));
+ }else if(reservation.status==='HELD'){
+  const select=document.createElement('select');
+  select.setAttribute('aria-label','選擇改期的E1正式場次');
+  for(const candidate of state.slots.filter(x=>
+   x.slotId!==reservation.slotId&&x.bookable)){
+   const option=document.createElement('option');
+   option.value=candidate.slotId;
+   option.textContent=formalTime_(candidate.startAtUtc);
+   select.appendChild(option);
+  }
+  if(select.options.length){controls.appendChild(select);
+   controls.appendChild(formalButton_('改至選定E1場次',()=>{
+    if(!select.value||state.busy)return;
+    rpc('study1FormalMove',{emailProof:state.emailProof,
+     reservationId:reservation.reservationId,newSlotId:select.value,
+     requestId:genRequest()},r=>{
+     if(!r||!r.moved){status('改期尚未成立；請重新核對原預約狀態。');return;}
+     status('已回讀原Reservations的改期結果。');
+     formalV08Read_();
+    });
+   }));
+  }
+ }
+ if(reservation.status==='HELD'){
+  controls.appendChild(formalButton_('核對本人暫留並進入最後知情同意',()=>formalConsentStart_(reservation)));
+ }
+ controls.appendChild(formalButton_('返回查詢E1日期',()=>{
+  show('slots');formalV05Read_();}));
+ root.appendChild(controls);
+ show('confirm');
+}
+function formalV08Read_(){
+ if(!state.emailProof)return;
+ rpc('study1FormalStatus',state.emailProof,result=>{
+  if(!result||result.experiment!=='E1'||!Array.isArray(result.reservations)){
+   status('原預約狀態尚未核實，請勿重複送出異動。');return;
+  }
+  const active=result.reservations.filter(r=>
+   r.status==='WAITLISTED'||(r.status==='HELD'&&
+    new Date(r.holdUntilUtc).getTime()>Date.now()));
+  if(active.length){
+   const chosen=active.find(r=>r.status==='HELD')||active[0];
+   if(formalConsent&&formalConsent.reservationId!==chosen.reservationId)
+    formalConsentReset_();
+   state.activeBooking=chosen;formalV08Panel_(chosen);
+  }else{
+   formalConsentReset_();state.activeBooking=null;show('slots');formalV05Read_();
+   status('已唯讀核對原Reservations：目前沒有有效暫留或候補。');
+  }
+ });
+}
+el('hold').addEventListener('click',()=>{
+ if(!state.emailProof||state.busy)return;
+ const chosen=formalSelected_();if(!chosen)return;
+ const requestId=genRequest();
+ el('hold').disabled=true;
+ if(!chosen.bookable){
+  rpc('study1FormalWaitlistJoin',{emailProof:state.emailProof,
+   slotId:chosen.slotId,requestId},r=>{
+   if(!r||!r.joined){status('候補登記未成立，請核對正式場次或既有候補。');formalV05Choice_();return;}
+   status('已回讀正式候補紀錄，候補尚非預約或錄取。');
+   formalV08Read_();
+  });
+  return;
+ }
+ rpc('study1FormalQuoteHold',{emailProof:state.emailProof,
+  slotId:chosen.slotId,requestId},quote=>{
+  if(!quote||!quote.allowed||!quote.quote){
+   status('此時段沒有可正式暫留的名額，請重新載入場次。');
+   formalV05Read_();return;
+  }
+  rpc('study1FormalHoldSlot',{emailProof:state.emailProof,
+   quote:quote.quote},held=>{
+   if(!held||held.held!==true){
+    status('預約沒有成立；請唯讀核對原Reservations，不要自動重送。');
+    formalV05Read_();return;
+   }
+   status('原Reservations已完成暫留與回讀，尚未完成正式知情同意。');
+   formalV08Read_();
+  });
+ });
+});
+
+})();
+
+(function(){
+'use strict';
+if(typeof document!=='undefined'&&document.body&&document.body.dataset&&document.body.dataset.siteMode==='FORMAL')return;
 const $=id=>document.getElementById(id);
-const phases=['choose','screen','otp','slots','consent','confirm','done'];
+const phases=['choose','screen','otp','slots','confirm','consent','done'];
+// §70-S: keep original seven-stage TEST adapters and existing reservation model;
+// the pre-signature summary is a read-only UI stage, not a server CONFIRM.
+let reviewedHoldKey=null,previewInk=false,previewDrawing=false,previewInkKey=null;
+const holdFingerprint_=a=>a&&a.phase==='HELD'?
+ [a.id,a.experiment,a.slotId,a.holdUntil,a.consentVersion,a.consentSha256].join('|'):null;
+const previewCanvas=$('visitorSignaturePreview');
+// Historical owner-only VM tests do not implement Canvas. Never treat them as proof
+// of real ink; only a real browser with a 2D context requires stroke collection.
+const previewCtx=typeof previewCanvas.getContext==='function'?previewCanvas.getContext('2d'):null;
+if(previewCtx){previewCtx.strokeStyle='#173944';previewCtx.lineWidth=2.5;previewCtx.lineCap='round';previewCtx.lineJoin='round';}
+function clearVisitorSignature_(){
+ if(previewCtx)previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height);
+ previewInk=false;previewDrawing=false;
+ $('visitorSignatureStatus').textContent='尚未手寫簽名。此預覽不是REC有效簽署。';
+}
+const previewPoint_=event=>{
+ const r=previewCanvas.getBoundingClientRect();
+ return {x:(event.clientX-r.left)*previewCanvas.width/r.width,
+         y:(event.clientY-r.top)*previewCanvas.height/r.height};
+};
+previewCanvas.addEventListener('pointerdown',event=>{
+ const a=current();
+ if(!previewCtx||busy||!model||!a||chooseStage()!=='consent'||
+   reviewedHoldKey!==holdFingerprint_(a)||!runnableOwnerPreview_(model))return;
+ event.preventDefault();
+ previewDrawing=true;previewCanvas.setPointerCapture(event.pointerId);
+ const p=previewPoint_(event);previewCtx.beginPath();previewCtx.moveTo(p.x,p.y);
+ previewCtx.lineTo(p.x+.2,p.y+.2);previewCtx.stroke();previewInk=true;
+});
+previewCanvas.addEventListener('pointermove',event=>{
+ if(!previewDrawing)return;event.preventDefault();
+ const p=previewPoint_(event);previewCtx.lineTo(p.x,p.y);previewCtx.stroke();
+});
+const endPreviewStroke_=()=>{if(previewDrawing){previewDrawing=false;
+ $('visitorSignatureStatus').textContent='已完成本機手寫預覽。尚未存入PDF或形成有效電子同意。';
+ render();}};
+previewCanvas.addEventListener('pointerup',endPreviewStroke_);
+previewCanvas.addEventListener('pointercancel',endPreviewStroke_);
+$('visitorSignatureClear').addEventListener('click',()=>{clearVisitorSignature_();render();});
+function runnableOwnerPreview_(data){return !!data&&data.mode==='TEST'&&
+ data.open===false&&data.consentReady===false&&data.pdfFixture?.kind==='SIMULATED_PDF_NOT_REC';}
+
+/** §70-S: owner-only wizard; read exact published E1/E2 PDF at LAST stage.
+ * The original file is fetched via existing SHA-verified source RPC; neither
+ * PDF bytes nor a signature are written to application/TEST storage. */
+const officialSignedPdf={url:null,status:'idle'};
+function officialSignedPdfReset_(){
+ if(officialSignedPdf.url&&typeof URL!=='undefined'&&URL.revokeObjectURL)
+  URL.revokeObjectURL(officialSignedPdf.url);
+ officialSignedPdf.url=null;officialSignedPdf.status='idle';
+ $('officialSignedPdfResult').hidden=true;
+ $('officialSignedPdfDownload').hidden=true;
+ $('officialSignedPdfDownload').removeAttribute('href');
+ $('officialSignedPdfSha').textContent='尚未核實';
+ $('officialSignedPdfDate').textContent='尚未核實';
+ $('officialSignedPdfStatus').textContent='未取得經研究人員確認的完整簽署PDF。';
+}
+/** Only a backend-issued, one-document, research-staff-confirmed PDF copy can
+ * be delivered. This client-side SHA recheck never authorizes signing. */
+function officialSignedPdfVerify_(copy,original){
+ if(!copy||!original||copy.mime!=='application/pdf'||
+    copy.experiment!==original.experiment||copy.version!==original.version||
+    copy.sourceSha256!==original.hash||
+    typeof copy.signedPdfSha256!=='string'||
+    !/^[a-f0-9]{64}$/.test(copy.signedPdfSha256)||
+    copy.signedPdfSha256===copy.sourceSha256||
+    !Number.isSafeInteger(copy.bytes)||copy.bytes<100||copy.bytes>6000000||
+    typeof copy.base64!=='string'||copy.base64.length>8400000||
+    typeof copy.taipeiDate!=='string'||
+    !/^20\d{2}\/(0[1-9]|1[0-2])\/([0-2]\d|3[01])$/.test(copy.taipeiDate)||
+    typeof copy.signedAt!=='string'||!/^20\d{2}-/.test(copy.signedAt))
+  throw Error('已簽署PDF版本、核實來源或臺灣日期不一致');
+ const signedInstant=new Date(copy.signedAt);
+ if(!Number.isFinite(signedInstant.getTime())||signedInstant.toISOString()!==copy.signedAt)
+  throw Error('伺服器簽署時間戳不合法');
+ const dateParts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{
+  timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'
+ }).formatToParts(signedInstant).filter(p=>p.type!=='literal')
+   .map(p=>[p.type,p.value]));
+ const expectedDate=dateParts.year+'/'+dateParts.month+'/'+dateParts.day;
+ if(expectedDate!==copy.taipeiDate)
+  throw Error('簽署日期不是可信時間戳對應的臺灣日期');
+ const bin=atob(copy.base64),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
+ if(bytes.length!==copy.bytes||
+   String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('已簽署PDF位元組與來源不符');
+ if(!window.crypto||!window.crypto.subtle)
+  throw Error('瀏覽器無法驗證簽署PDF SHA-256');
+ return window.crypto.subtle.digest('SHA-256',bytes).then(digest=>{
+  const sha=[...new Uint8Array(digest)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  if(sha!==copy.signedPdfSha256)throw Error('已簽署PDF遭變更，禁止交付');
+  return {bytes,sha,date:copy.taipeiDate,experiment:original.experiment,version:original.version};
+ });
+}
+async function officialSignedPdfDisplay_(copy,key){
+ if(officialPdf.key!==key||reviewedHoldKey!==key||officialPdf.state!=='ready')
+  throw Error('報名身分、預約或原核准PDF已變更');
+ const verified=await officialSignedPdfVerify_(copy,officialPdf.meta);
+ if(officialPdf.key!==key||reviewedHoldKey!==key||
+    holdFingerprint_(current())!==key||officialPdf.state!=='ready')
+  throw Error('下載前報名狀態已改變');
+ officialSignedPdfReset_();
+ const url=URL.createObjectURL(new Blob([verified.bytes],{type:'application/pdf'}));
+ officialSignedPdf.url=url;officialSignedPdf.status='ready';
+ $('officialSignedPdfSha').textContent=verified.sha;
+ $('officialSignedPdfDate').textContent=verified.date;
+ $('officialSignedPdfDownload').href=url;
+ $('officialSignedPdfDownload').download='Study1_'+verified.experiment+'_'+verified.version+'_signed.pdf';
+ $('officialSignedPdfDownload').hidden=false;
+ $('officialSignedPdfResult').hidden=false;
+ $('officialSignedPdfStatus').textContent='完整簽署PDF位元組及SHA已與後端回覆核對；原核准PDF保持不變。';
+ return verified;
+}
+// §70-S: This is deliberately not called by synthetic finish/CONFIRM.
+// Real use requires a registration-bound backend capability, approved PDF layout,
+// actual identity/OTP verification and staff confirmation. No TEST data may
+// invoke study1EConsentSignPdf or claim to be an authentic participant.
+const officialPdf={key:null,experiment:null,state:'idle',url:null,meta:null};
+function officialPdfReset_(message){
+ officialSignedPdfReset_();
+ if(officialPdf.url&&typeof URL!=='undefined'&&URL.revokeObjectURL)
+  URL.revokeObjectURL(officialPdf.url);
+ officialPdf.url=null;officialPdf.meta=null;officialPdf.state='idle';
+ for(const [id,value] of [['officialPdfTitle','尚未核實'],
+  ['officialPdfVersion','尚未核實'],['officialPdfSha','尚未核實']])
+  $(id).textContent=value;
+ $('officialPdfViewer').hidden=true;
+ $('officialPdfViewer').removeAttribute('data');
+ $('officialPdfDownload').hidden=true;
+ $('officialPdfDownload').removeAttribute('href');
+ $('officialPdfStatus').textContent=message||'正式PDF尚未核實，不能視為電子知情同意';
+}
+function officialPdfVerify_(doc,exp){
+ if(!doc||doc.available!==true||doc.experiment!==exp||
+   doc.mime!=='application/pdf'||!Number.isSafeInteger(doc.bytes)||
+   doc.bytes<100||doc.bytes>3000000||
+   typeof doc.base64!=='string'||doc.base64.length>4200000||
+   typeof doc.sha256!=='string'||!/^[a-f0-9]{64}$/.test(doc.sha256)||
+   typeof doc.title!=='string'||!doc.title.trim()||doc.title.length>100||
+   typeof doc.version!=='string'||!/^[A-Za-z0-9][A-Za-z0-9._-]{0,32}$/.test(doc.version))
+  throw Error('正式文件來源、實驗、版號或SHA格式不正確');
+ const binary=atob(doc.base64),bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+ if(bytes.length!==doc.bytes||String.fromCharCode(...bytes.slice(0,5))!=='%PDF-')
+  throw Error('正式PDF位元組長度或檔頭不一致');
+ if(!window.crypto||!window.crypto.subtle)
+  throw Error('瀏覽器缺少SHA-256驗證能力，禁止顯示未驗證文件');
+ return window.crypto.subtle.digest('SHA-256',bytes).then(digest=>{
+  const hash=[...new Uint8Array(digest)].map(b=>b.toString(16).padStart(2,'0')).join('');
+  if(hash!==doc.sha256)throw Error('原文件SHA-256校驗失敗');
+  return {bytes,hash,version:doc.version,title:doc.title,experiment:exp};
+ });
+}
+function officialPdfLoadAfterReview_(a){
+ const key=holdFingerprint_(a);
+ if(!key||reviewedHoldKey!==key||a.phase!=='HELD')return;
+ if(officialPdf.key===key&&officialPdf.experiment===a.experiment&&
+   ['loading','ready','unavailable'].includes(officialPdf.state))return;
+ officialPdfReset_('正在核對所選實驗的完整原始PDF與SHA-256…');
+ officialPdf.key=key;officialPdf.experiment=a.experiment;
+ officialPdf.state='loading';
+ if(typeof window==='undefined'||!window.crypto||!window.crypto.subtle||
+    typeof google==='undefined'||!google.script||
+    !google.script.run||typeof google.script.run.getPublicConsentDocument!=='function'){
+   officialPdf.state='unavailable';
+   $('officialPdfStatus').textContent='無法確認正式PDF的安全讀取服務；原隔離測試報名仍與正式電子同意完全分開。';
+   return;
+ }
+ const exp=a.experiment;
+ google.script.run.withSuccessHandler(async doc=>{
+  if(officialPdf.key!==key||officialPdf.experiment!==exp||
+     reviewedHoldKey!==key||holdFingerprint_(current())!==key)return;
+  try{
+   if(doc&&doc.available===false){
+    officialPdf.state='unavailable';
+    $('officialPdfStatus').textContent='研究團隊尚未明確發布此實驗的完整版核准PDF；不能簽署正式同意。';
+    return;
+   }
+   const verified=await officialPdfVerify_(doc,exp);
+   if(officialPdf.key!==key||reviewedHoldKey!==key||
+      holdFingerprint_(current())!==key)return;
+   const url=URL.createObjectURL(new Blob([verified.bytes],{type:'application/pdf'}));
+   officialPdf.url=url;officialPdf.meta=verified;officialPdf.state='ready';
+   $('officialPdfTitle').textContent=verified.title;
+   $('officialPdfVersion').textContent=verified.version;
+   $('officialPdfSha').textContent=verified.hash;
+   $('officialPdfDownload').href=url;
+   $('officialPdfDownload').download='Study1_'+exp+'_'+verified.version+'_original.pdf';
+   $('officialPdfDownload').hidden=false;
+   $('officialPdfViewer').data=url;$('officialPdfViewer').hidden=false;
+   $('officialPdfStatus').textContent='已依原版位元組核對SHA-256；僅供原文閱讀，尚未建立有效簽名或已簽署PDF。';
+  }catch(error){
+   officialPdf.state='unavailable';
+   officialPdfReset_('原文件未通過驗證：'+String(error.message||error));
+  }
+ }).withFailureHandler(error=>{
+  if(officialPdf.key!==key)return;
+  officialPdf.state='unavailable';
+  $('officialPdfStatus').textContent='無法取得該實驗的正式PDF：'+String(error.message||error);
+ }).getPublicConsentDocument(exp);
+}
+
 let model=null,selected=null,busy=false,reqCounter=0,pending=null;
 const v08={draft:null};
  const v07={blocked:false,recovering:false,last:null,generation:0,causalUnknown:false,retiredRequestId:null};
@@ -229,8 +1297,8 @@ const chooseStage=()=>{
   case 'INELIGIBLE':return 'ineligible';
   case 'SCREENED':case 'OTP_SENT':return 'otp';
   case 'VERIFIED':return 'slots';
-  case 'HELD':return 'consent';
-  case 'CONSENTED':return 'confirm';
+  case 'HELD':return reviewedHoldKey===holdFingerprint_(a)?'consent':'confirm';
+  case 'CONSENTED':return 'consent';
   case 'CONFIRMED':case 'CANCELLED':return 'done';
   default:return 'choose';
  }
@@ -381,10 +1449,9 @@ $('slot').addEventListener('change',()=>{
 /* V06 confirmation summary never authorizes a real participant booking.
  * Only the server-owned, owner-only TEST view supplies these values. */
 function v06Preview_(response,a){
- if(!safePreview(response)||!a||a.phase!=='CONSENTED'||
+ if(!safePreview(response)||!a||a.phase!=='HELD'||
     !['E1','E2'].includes(a.experiment)||a.eligible!==true||
-    a.signatureDemo!==true||!Number.isFinite(a.consentReviewedAt)||
-    a.consentReviewedAt<=0||a.holdExpired!==false||
+    a.holdExpired!==false||
     !Number.isFinite(a.holdUntil)||a.holdUntil<=Date.now()||
     a.consentVersion!==response.policy?.consent?.[a.experiment]?.version||
     a.consentSha256!==response.policy?.consent?.[a.experiment]?.sha256)
@@ -409,7 +1476,7 @@ function v06Preview_(response,a){
   place:session&&typeof session.place==='string'&&session.place.trim()?
    '虛構場次地點：'+session.place:'虛構場次；正式參與方式／地點待核准',
   email:'demo.study1@example.invalid（不寄信）',
-  consent:'已記錄虛構同意；非REC正式電子簽署'};
+  consent:'尚未簽署；下一步才進入最後的知情同意'};
 }
 function v06Render_(){
  const values=v06Preview_(model,current());
@@ -420,14 +1487,20 @@ function v06Render_(){
  $('v06Email').textContent=values?.email||'無法核實';
  $('v06Consent').textContent=values?.consent||'無法核實';
  $('v06Status').textContent=values?
-  '已核對同一份虛構申請與時段；提交時仍由原GAS再次確認。':
+  '已核對同一份虛構申請與時段；按下一步只進入最後的PDF與簽名，尚不送出預約。':
   '預約場次、同意紀錄或來源版本無法核實；禁止提交，請重新載入。';
- $('confirm').disabled=busy||!values;
+ $('confirm').disabled=busy||!values||current()?.phase!=='HELD'||v07.blocked;
 }
 
 function render(){
  if(!model)return;
  const a=current(),stage=chooseStage(),progress=Math.max(0,phases.indexOf(stage));
+ const currentInkKey=holdFingerprint_(a);
+ if(previewInkKey!==currentInkKey){previewInkKey=currentInkKey;clearVisitorSignature_();}
+ if(officialPdf.key&&officialPdf.key!==currentInkKey){
+  officialPdfReset_('原身分、時段或文件版本已改變；請重新核對資料才可讀取正式PDF。');
+  officialPdf.key=null;officialPdf.experiment=null;
+ }
  const legacy='Study 1｜正式網站整合流程（測試資料模式）';
  if(model.config&&typeof model.config.title==='string'&&model.config.title!==legacy)
   $('visitorHeroTitle').textContent=model.config.title;
@@ -470,8 +1543,9 @@ function render(){
  $('v08Refresh').disabled=busy||v07.blocked||
   !['CONFIRMED','CANCELLED'].includes(a.phase);
  $('pdf').href='data:application/pdf;base64,'+model.pdfFixture.base64;
- $('review').disabled=busy||!$('readPdf').checked||!!a.consentReviewedAt;
- $('finish').disabled=busy||!a.consentReviewedAt||!$('agree').checked;
+ $('review').disabled=busy||stage!=='consent'||!$('readPdf').checked||!!a.consentReviewedAt;
+ $('finish').disabled=busy||stage!=='consent'||reviewedHoldKey!==holdFingerprint_(a)||
+  a.phase!=='HELD'||!a.consentReviewedAt||!$('agree').checked||(!!previewCtx&&!previewInk);
  $('consentStatus').textContent=a.consentReviewedAt?'範例已確認，可繼續完成示範同意。':'請先開啟並確認範例文件。';
  $('receiptId').textContent=a.id+'（虛構）';$('receiptStudy').textContent=studyName(a.experiment);
  const slot=model.slots.find(s=>s.id===a.slotId);
@@ -1151,20 +2225,28 @@ $('otpVerify').addEventListener('click',()=>{const a=current();if(a)issue('OTP_V
 $('hold').addEventListener('click',()=>{const a=current(),slots=v05Read_(model,a);if(a&&slots&&slots.some(s=>s.id===$('slot').value&&s.day===v05State.date))issue('HOLD',{id:a.id,slotId:$('slot').value});});
 $('readPdf').addEventListener('change',render);$('agree').addEventListener('change',render);
 $('review').addEventListener('click',()=>{
- const a=current();if(!a||!$('readPdf').checked)return;
+ const a=current();if(!a||chooseStage()!=='consent'||
+  reviewedHoldKey!==holdFingerprint_(a)||!$('readPdf').checked)return;
  issue('PDF_DEMO_REVIEW',{id:a.id,sha256:model.pdfFixture.sha256},()=>{
   const now=current();if(!now)return;
   issue('CONSENT_REVIEW',{id:now.id,version:now.consentVersion,sha256:now.consentSha256});
  });
 });
 $('finish').addEventListener('click',()=>{
- const a=current();if(!a||!$('agree').checked||!a.consentReviewedAt)return;
+ const a=current();if(!a||a.phase!=='HELD'||chooseStage()!=='consent'||
+   reviewedHoldKey!==holdFingerprint_(a)||(!!previewCtx&&!previewInk)||
+   !$('agree').checked||!a.consentReviewedAt)return;
  issue('CONSENT',{id:a.id,accepted:true,version:a.consentVersion,signature:'SIMULATED_SIGN_ONLY'},()=>{
   // Same actual server flow; final confirmation stays one participant button.
   const confirmed=current();if(confirmed)issue('CONFIRM',{id:confirmed.id});
  });
 });
-$('confirm').addEventListener('click',()=>{const a=current();if(a&&v06Preview_(model,a))issue('CONFIRM',{id:a.id});});
+$('confirm').addEventListener('click',()=>{
+ const a=current();
+ if(busy||v07.blocked||!a||a.phase!=='HELD'||!v06Preview_(model,a))return;
+ reviewedHoldKey=holdFingerprint_(a);clearVisitorSignature_();render();
+ officialPdfLoadAfterReview_(a);
+});
 $('move').addEventListener('click',()=>v08Preview_('MOVE'));
 $('cancel').addEventListener('click',()=>v08Preview_('CANCEL'));
 $('v08Refresh').addEventListener('click',()=>{

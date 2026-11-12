@@ -24,17 +24,22 @@ function file(files,name,type){
   check(a.length===1,'Missing or duplicate '+name+' ('+type+')');return a[0];
 }
 function assertIndex(s){
-  for(const token of ['<base target="_top">','event.preventDefault()','scrollIntoView({','target.focus({preventScroll:true})','研究計畫聯絡人：賴詩潔','03-256-3414','tel:+88632563414','mailto:lily4318@cycu.edu.tw','研究計畫主持人：葉理豪','03-265-3413','tel:+88632653413','mailto:lhyeh@cycu.edu.tw','<button class="btn" disabled type="button">']) check(s.includes(token),'Missing approved site content: '+token);
+  for(const token of ['<base target="_top">','event.preventDefault()','scrollIntoView({','target.focus({preventScroll:true})','研究計畫聯絡人：賴詩潔','03-256-3414','tel:+88632563414','mailto:lily4318@cycu.edu.tw','研究計畫主持人：葉理豪','03-265-3413','tel:+88632653413','mailto:lhyeh@cycu.edu.tw' ,'href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"']) check(s.includes(token),'Missing approved site content: '+token);
   const anchors=[...s.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]);
-  check(anchors.join(',')==='main,home,about,consent,apply,contact,apply,about,consent','Formal consent navigation links changed');
+  check(anchors.join(',')==='main,home,about,apply,contact,apply,about','Public recruitment navigation links changed');
   for(const id of new Set(anchors))check(s.includes('id="'+id+'"'),'Missing anchor target');
   for(const token of ['03-264-3413','03-264-3414','psy.shihchieh@gmail.com','葉理豪副教授'])check(!s.includes(token),'Obsolete contact in Index');
   check(!/<(?:form|textarea)\b/i.test(s),'No unauthenticated collection form');
-  const inputs=[...s.matchAll(/<input\b[^>]*>/gi)].map(x=>x[0]);
-  check(inputs.length===4&&inputs.every(x=>/\bdisabled\b/.test(x)),'All identity and consent controls must remain disabled');
-  check(s.includes('id="consentSignature"')&&s.includes('id="consentPdfViewer"')&&
-   s.includes('id="consentSubmit"')&&s.includes('consentEl(\'consentSubmit\').disabled=true;')&&
-   !/<iframe\b[^>]*\bsrc=/i.test(s),'Signature and PDF UI must not collect or embed unreviewed URLs');
+  const inputs=[...s.matchAll(/<input\\b[^>]*>/gi)].map(x=>x[0]);
+  check(inputs.length===0,'Public introduction must not render identity or signature inputs');
+  check(!s.includes('id="consent"')&&!s.includes('href="#consent"')&&
+    !s.includes('完整閱讀研究文件，再決定是否同意')&&
+    !s.includes('知情同意是報名最後的步驟')&&
+    s.includes('href="https://script.google.com/macros/s/AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s/exec?view=apply"')&&
+    !/id="consent(?:Signature|Signer|Submit|AccessCode|PdfViewer)"/.test(s)&&
+    !/<(?:canvas|iframe)\\b/i.test(s)&&!s.includes('initConsentPortal_')&&
+    !/<(?:form|textarea)\\b/i.test(s),
+    'Formal consent cannot be signed on the public information homepage');
 }
 function assertRemote(head){
   check(head&&Array.isArray(head.files),'Missing GAS HEAD');canonical(head.files);
@@ -102,6 +107,7 @@ async function authorizedApi(){
   return {
     backupToDrive:snapshot=>driveBackup.create(fetch,token,snapshot),
     verifyDriveBackup:(id,hash)=>driveBackup.verify(fetch,token,id,hash),
+    verifyDriveBackupPrivate:(id,hash)=>driveBackup.verifyPrivate(fetch,token,id,hash),
     getContent:()=>request('GET','/content'),
     getVersion:v=>request('GET','/content?versionNumber='+v),
     putContent:files=>request('PUT','/content',{files}),
