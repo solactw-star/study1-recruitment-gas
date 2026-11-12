@@ -13,6 +13,7 @@ const REPO='solactw-star/study1-recruitment-gas';
 const BRANCH='fix/consent-last-preserve-wizard-20261110';
 const PRIVATE='AKfycbyUTQfNBld79rhs3JfNk6j8ZloVOviyVJCV89KAUYlRUi28pN9D7i9XjPRgXTazS4s';
 const PUBLIC='AKfycbwJv-Gne_31fjJHFoEkkXzAFns3g5RS1lMYT2ooUO1BQJejDsRbfBE4svr5S0cz43s';
+const ONE_SHOT='STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112';
 const BASE='972cb7ceb617776ca161d283dd05e8f1d38b73b90afc68071b79eeffba25a611';
 const TARGET='7d65feb0bc099064770e89c61df201bad3b8ab5ece34de7d97b456a304cb45ea';
 const OWNER_V128='82691b2744b9fc8ff92c6a28cda2a20e0c1f32d9fa01b1aa99397fb77f59b17e';
@@ -47,8 +48,10 @@ function inventory_(files){
 function invocation_(env){
  must(env.GITHUB_REPOSITORY===REPO&&
   env.GITHUB_REF==='refs/heads/'+BRANCH&&
-  env.GITHUB_REPOSITORY_PRIVATE==='true'&&env.GITHUB_EVENT_NAME==='workflow_dispatch',
-  'repository/ref/private/manual-only gate');
+  env.GITHUB_REPOSITORY_PRIVATE==='true'&&
+  (env.GITHUB_EVENT_NAME==='workflow_dispatch'||
+   (env.GITHUB_EVENT_NAME==='push'&&env.HEAD_SYNC_ONE_SHOT_MESSAGE===ONE_SHOT)),
+  'repository/ref/private/manual-or-one-time-push gate');
  must(/^[a-f0-9]{40}$/.test(env.GITHUB_SHA||'')&&
   env.GITHUB_SHA===env.REVIEWED_PR_SHA,'exact PR SHA mismatch');
  must(env.HEAD_ONLY_CONFIRMATION==='I_AUTHORIZE_PR133_HEAD_ONLY_SYNC',

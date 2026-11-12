@@ -65,6 +65,8 @@ test('manual run must have exact isolated PR SHA, closed private repo and separa
   HEAD_ONLY_CONFIRMATION:'I_AUTHORIZE_PR133_HEAD_ONLY_SYNC',
   EXPECTED_REMOTE_SHA256:sync.BASE};
  assert.doesNotThrow(()=>sync.invocation_(good));
+ assert.doesNotThrow(()=>sync.invocation_({...good,GITHUB_EVENT_NAME:'push',
+  HEAD_SYNC_ONE_SHOT_MESSAGE:'STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112'}));
  for(const bad of [{GITHUB_REF:'refs/heads/main'},{GITHUB_EVENT_NAME:'push'},
   {GITHUB_REPOSITORY_PRIVATE:'false'},
   {REVIEWED_PR_SHA:'b'.repeat(40)},
@@ -165,7 +167,8 @@ test('workflow and code never contain createVersion, deployment PUT, Sheets or c
   'api.deleteDeployment(','SpreadsheetApp','MailApp','setProperty(','clasp push'])
   assert.ok(!source.includes(prohibited),prohibited);
  assert.ok(workflow.includes('workflow_dispatch:'));
- assert.ok(!workflow.includes('\n  push:'));
+ assert.ok(workflow.includes('\n  push:'));
+ assert.ok(workflow.includes('STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112'));
  assert.ok(!workflow.includes('clasp push'));
  assert.ok(!workflow.includes('npx --yes @google/clasp'));
  assert.ok(workflow.includes('npm run verify:pr'));

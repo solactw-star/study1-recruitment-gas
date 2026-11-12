@@ -1,5 +1,5 @@
 name: Manual GAS source sync (NOT public website deployment)
-# PR #133 HEAD only. Never auto-trigger from a code push.
+# PR #133 HEAD only. Explicit OWNER-authorized one-time push; no automatic retries.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +15,10 @@ on:
         description: 'Exact reviewed GAS HEAD SHA-256'
         required: true
         type: string
+  push:
+    branches: ['fix/consent-last-preserve-wizard-20261110']
+    paths:
+      - '.github/workflows/manual-source-sync.yml'
 permissions:
   contents: read
 concurrency:
@@ -22,7 +26,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   head-only:
-    if: ${{ github.event.repository.private }}
+    if: ${{ github.event.repository.private && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
@@ -30,14 +34,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Refuse unapproved branch, SHA or manual invocation
+      - name: Refuse unapproved branch SHA or one-time event
         env:
-          REVIEWED_PR_SHA: ${{ inputs.reviewed_pr_sha }}
-          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
-          HEAD_ONLY_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_PR_SHA: ${{ github.event_name == 'push' && github.sha || inputs.reviewed_pr_sha }}
+          EXPECTED_REMOTE_SHA256: ${{ github.event_name == 'push' && '972cb7ceb617776ca161d283dd05e8f1d38b73b90afc68071b79eeffba25a611' || inputs.expected_remote_sha256 }}
+          HEAD_ONLY_CONFIRMATION: ${{ github.event_name == 'push' && 'I_AUTHORIZE_PR133_HEAD_ONLY_SYNC' || inputs.confirmation }}
           GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          HEAD_SYNC_ONE_SHOT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
-          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            test "$HEAD_SYNC_ONE_SHOT_MESSAGE" = STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112
+            test "$(git log -1 --format=%s)" = STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112
+          else
+            test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          fi
           test "$GITHUB_REPOSITORY" = solactw-star/study1-recruitment-gas
           test "$GITHUB_REF" = refs/heads/fix/consent-last-preserve-wizard-20261110
           test "$GITHUB_REPOSITORY_PRIVATE" = true
@@ -60,10 +70,11 @@ jobs:
           echo "CLASPRC_PATH=$RUNNER_TEMP/.clasprc.json" >> "$GITHUB_ENV"
       - name: GET original 27 sources, Drive owner-only backup and full readback
         env:
-          REVIEWED_PR_SHA: ${{ inputs.reviewed_pr_sha }}
-          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
-          HEAD_ONLY_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_PR_SHA: ${{ github.event_name == 'push' && github.sha || inputs.reviewed_pr_sha }}
+          EXPECTED_REMOTE_SHA256: ${{ github.event_name == 'push' && '972cb7ceb617776ca161d283dd05e8f1d38b73b90afc68071b79eeffba25a611' || inputs.expected_remote_sha256 }}
+          HEAD_ONLY_CONFIRMATION: ${{ github.event_name == 'push' && 'I_AUTHORIZE_PR133_HEAD_ONLY_SYNC' || inputs.confirmation }}
           GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          HEAD_SYNC_ONE_SHOT_MESSAGE: ${{ github.event.head_commit.message }}
         run: node scripts/study1-gas-head-only-sync.cjs prepare
       - name: Reject PR branch competing commit before any remote PUT
         run: |
@@ -74,10 +85,11 @@ jobs:
           }
       - name: Once-only full 27-file GAS HEAD PUT; verify; never deploy
         env:
-          REVIEWED_PR_SHA: ${{ inputs.reviewed_pr_sha }}
-          EXPECTED_REMOTE_SHA256: ${{ inputs.expected_remote_sha256 }}
-          HEAD_ONLY_CONFIRMATION: ${{ inputs.confirmation }}
+          REVIEWED_PR_SHA: ${{ github.event_name == 'push' && github.sha || inputs.reviewed_pr_sha }}
+          EXPECTED_REMOTE_SHA256: ${{ github.event_name == 'push' && '972cb7ceb617776ca161d283dd05e8f1d38b73b90afc68071b79eeffba25a611' || inputs.expected_remote_sha256 }}
+          HEAD_ONLY_CONFIRMATION: ${{ github.event_name == 'push' && 'I_AUTHORIZE_PR133_HEAD_ONLY_SYNC' || inputs.confirmation }}
           GITHUB_REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
+          HEAD_SYNC_ONE_SHOT_MESSAGE: ${{ github.event.head_commit.message }}
         run: node scripts/study1-gas-head-only-sync.cjs apply
       - name: Purge runner token cache and raw source snapshot
         if: always()

@@ -9,10 +9,12 @@ const backup=fs.readFileSync(path.join(base,'scripts/study1-gas-drive-backup.cjs
 const api=fs.readFileSync(path.join(base,'scripts/study1-gas-index-preview.cjs'),'utf8');
 // SOURCE-ONLY test. NEVER invoke workflow_dispatch or authenticating main().
 
-test('manual HEAD-only source sync remains manual-only and least-privileged',()=>{
+test('HEAD-only sync allows exactly one owner-authorized push and manual dispatch',()=>{
  assert.match(workflow,/^on:\s*\n  workflow_dispatch:\s*\n/m);
+ assert.match(workflow,/^  push:\s*\n    branches:\s*\['fix\/consent-last-preserve-wizard-20261110'\]/m);
+ assert.match(workflow,/github\.event\.head_commit\.message == 'STUDY1-PR133-HEAD-ONLY-EXECUTE-ONCE-20261112'/);
  assert.doesNotMatch(workflow,
-  /^  (?:push|pull_request|pull_request_target|schedule|repository_dispatch|workflow_run|workflow_call):/m);
+  /^  (?:pull_request|pull_request_target|schedule|repository_dispatch|workflow_run|workflow_call):/m);
  assert.match(workflow,/^permissions:\s*\n  contents: read\s*$/m);
  assert.doesNotMatch(workflow,/^\s+(?:id-token|actions|workflows|deployments): write\s*$/m);
  assert.match(workflow,/group:\s*study1-gas-source-sync/);
@@ -54,5 +56,6 @@ test('missing OAuth is refused, backup ACL must be OWNER-only, credentials and r
  assert.match(backup,/meta\.permissions\.length===1/);
  assert.match(backup,/meta\.permissions\[0\]\.role==='owner'/);
  assert.match(api,/verifyDriveBackupPrivate:/);
- assert.doesNotMatch(workflow,/^  push:/m);
+ assert.match(workflow,/^  push:/m);
+ assert.match(workflow,/HEAD_SYNC_ONE_SHOT_MESSAGE/);
 });
