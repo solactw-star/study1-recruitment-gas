@@ -34,7 +34,8 @@ test('new manual flow requires explicit approval, reviewed SHA, baseline, tests,
  assert.match(script,/Array\.isArray\(files\)&&files\.length===27/);
  assert.match(script,/JSON\.stringify\(changes\.sort\(\)\)===JSON\.stringify\(CHANGED\)/);
  assert.match(script,/core\.digest\(full\)===TARGET/);
- assert.match(script,/same_\(s\.before,await observe_\(api\),true\)/);
+ assert.match(script,/same_\(before,await observe_\(api\),true\)/);
+ assert.match(script,/same_\(s\.before,state,true\)/);
  assert.match(script,/verifyDriveBackupPrivate/);
  assert.match(script,/HEAD_SYNC_UNKNOWN_NO_RETRY_NO_ROLLBACK/);
  assert.equal((script.match(/api\.putContent\(/g)||[]).length,1);
