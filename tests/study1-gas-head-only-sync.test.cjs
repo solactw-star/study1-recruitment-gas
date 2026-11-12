@@ -138,7 +138,7 @@ test('HEAD-only before.head files can be backed up without weakening original ow
  assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:SID,before:{head:missing}}),/all 27/);
  const duplicate=fixture();duplicate.files[1]={...duplicate.files[0]};
  assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:SID,before:{head:duplicate}}),/duplicated file/);
- assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:'wrong',before:{head:complete}}),/Script ID/);
+ assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:'wrong',before:{head:complete}}),/full verified GAS HEAD/);
 });
 
 test('private Drive backup verify rejects public ACL or additional reader',async()=>{
