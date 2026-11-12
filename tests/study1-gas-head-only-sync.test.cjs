@@ -130,6 +130,17 @@ test('prewrite snapshot without backup OWNER-only proof is rejected',()=>{
   backup:{id:'012345678901234567890123',sha256:'f'.repeat(64)}};
  assert.throws(()=>sync.verifySnapshot_(s,'a'.repeat(40)),/private backup ID\/SHA\/ACL missing/);
 });
+test('HEAD-only before.head files can be backed up without weakening original owner flow',()=>{
+ const complete=fixture();
+ assert.equal(drive.assertFullHeadSnapshot({scriptId:SID,before:{head:complete}}).length,27);
+ assert.equal(drive.assertFullHeadSnapshot({scriptId:SID,original:complete}).length,27);
+ const missing=fixture();missing.files.pop();
+ assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:SID,before:{head:missing}}),/all 27/);
+ const duplicate=fixture();duplicate.files[1]={...duplicate.files[0]};
+ assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:SID,before:{head:duplicate}}),/duplicated file/);
+ assert.throws(()=>drive.assertFullHeadSnapshot({scriptId:'wrong',before:{head:complete}}),/Script ID/);
+});
+
 test('private Drive backup verify rejects public ACL or additional reader',async()=>{
  const id='A234567890123456789012',body='{"safety":"test"}',hash=drive.sha256(body);
  const base={id,mimeType:'application/json',parents:[drive.FOLDER],
